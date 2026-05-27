@@ -746,21 +746,21 @@ async def dashboard(current_user=Depends(get_current_user)):
 
     # Total expenses & payments YTD
     total_expenses = 0.0
-    async for d in db.expenses.find({"user_id": user_id}, {"_id": 0, "amount": 1}):
+    async for d in db.expenses.find({"user_id": user_id}, {"_id": 0, "amount": 1}).limit(20000):
         total_expenses += float(d.get("amount") or 0)
 
     total_payments = 0.0
-    async for d in db.payments.find({"user_id": user_id}, {"_id": 0, "amount": 1}):
+    async for d in db.payments.find({"user_id": user_id}, {"_id": 0, "amount": 1}).limit(20000):
         total_payments += float(d.get("amount") or 0)
 
     # Booking balances
     booking_balance = 0.0
-    async for d in db.bookings.find({"user_id": user_id}, {"_id": 0, "cost": 1, "amount_paid": 1}):
+    async for d in db.bookings.find({"user_id": user_id}, {"_id": 0, "cost": 1, "amount_paid": 1}).limit(5000):
         booking_balance += float(d.get("cost") or 0) - float(d.get("amount_paid") or 0)
 
     # Unpaid expense balance
     unpaid_expense_balance = 0.0
-    async for d in db.expenses.find({"user_id": user_id, "paid": False}, {"_id": 0, "amount": 1}):
+    async for d in db.expenses.find({"user_id": user_id, "paid": False}, {"_id": 0, "amount": 1}).limit(20000):
         unpaid_expense_balance += float(d.get("amount") or 0)
 
     # Next competition
@@ -773,15 +773,17 @@ async def dashboard(current_user=Depends(get_current_user)):
 
     # Fundraisers total
     total_raised = 0.0
-    async for d in db.fundraisers.find({"user_id": user_id}, {"_id": 0, "amount_raised": 1}):
+    async for d in db.fundraisers.find({"user_id": user_id}, {"_id": 0, "amount_raised": 1}).limit(5000):
         total_raised += float(d.get("amount_raised") or 0)
 
-    # This month spend
+    # This month spend (DB-level prefix match on incurred_on YYYY-MM)
     this_month = today.strftime("%Y-%m")
     month_spend = 0.0
-    async for d in db.expenses.find({"user_id": user_id}, {"_id": 0, "amount": 1, "incurred_on": 1}):
-        if (d.get("incurred_on") or "")[:7] == this_month:
-            month_spend += float(d.get("amount") or 0)
+    async for d in db.expenses.find(
+        {"user_id": user_id, "incurred_on": {"$regex": f"^{this_month}"}},
+        {"_id": 0, "amount": 1},
+    ).limit(20000):
+        month_spend += float(d.get("amount") or 0)
 
     return {
         "athletes_count": athletes_count,
