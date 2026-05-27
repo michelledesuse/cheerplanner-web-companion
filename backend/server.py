@@ -25,7 +25,7 @@ load_dotenv(ROOT_DIR / ".env")
 # ---------- Config ----------
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ["DB_NAME"]
-JWT_SECRET = os.environ.get("JWT_SECRET", "cheertrack-dev-secret-change-me")
+JWT_SECRET = os.environ.get("JWT_SECRET", "cheertrack-dev-secret-change-me-32b!")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
@@ -33,7 +33,7 @@ client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-security_scheme = HTTPBearer()
+security_scheme = HTTPBearer(auto_error=False)
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -309,7 +309,9 @@ def create_access_token(user_id: str, email: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
-async def get_current_user(creds: HTTPAuthorizationCredentials = Depends(security_scheme)) -> dict:
+async def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)) -> dict:
+    if not creds or not creds.credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     token = creds.credentials
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
