@@ -1,0 +1,44 @@
+{
+  "summary": "CheerTrack backend pytest suite executed against external preview URL. 22/22 tests passed (100%). Coverage: auth (signup/login/me + invalid token + duplicate email + wrong password), athletes CRUD, expenses categories (12) + CRUD + filter, payments CRUD, competitions CRUD (incl. housing_required, booking_release_at), bookings CRUD for hotel/car/flight + invalid type rejection, fundraisers CRUD, dashboard aggregate fields & values, reminders (4 kinds: expense, booking, booking_release, cancel_by), reminders sort by days_until, booking-with-zero-balance excluded, user-scoping (User B cannot read/patch/delete User A's athletes & competitions => 404), cascade deletes (athlete -> expenses+payments, competition -> bookings), and _id leak prevention across every response.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/auth/me", "issue": "When Authorization header is absent, FastAPI HTTPBearer returns 403 (default auto_error). Spec/UX would normally expect 401 for missing token. Test accepts 401 or 403. Consider HTTPBearer(auto_error=False) and raising 401 explicitly for consistency with invalid-token case."},
+      {"endpoint": "POST /api/auth/signup", "issue": "Pydantic EmailStr (email-validator) rejects reserved TLDs like .test/.example. /app/memory/test_credentials.md suggests parent@cheertrack.test which will 422. Recommend updating credentials doc to a non-reserved domain (e.g., @example.com is also reserved; use @mailinator.com or a real-looking domain) or disable special-use check via email_validator config."},
+      {"endpoint": "global (server.py)", "issue": "JWT_SECRET default is 31 bytes -> pyjwt emits InsecureKeyLengthWarning. Set JWT_SECRET in backend/.env to >=32 bytes."},
+      {"endpoint": "global (server.py)", "issue": "passlib bcrypt backend logs 'AttributeError: module bcrypt has no attribute __about__' at startup (passlib + bcrypt>=4 mismatch). Hashing/verifying still works but warning is noisy. Pin bcrypt<4.1 or upgrade passlib."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cheertrack_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Switch HTTPBearer(auto_error=False) and raise 401 when token missing for consistent unauthorized semantics.",
+    "(Optional) Update /app/memory/test_credentials.md – '@cheertrack.test' fails Pydantic EmailStr because .test is reserved. Use e.g. parent@mailinator.com.",
+    "(Optional) Set JWT_SECRET (>=32 chars) in /app/backend/.env to silence pyjwt InsecureKeyLengthWarning.",
+    "(Optional) Resolve passlib/bcrypt version warning (pin bcrypt<4.1 or upgrade passlib)."
+  ],
+  "critical_code_review_comments": [
+    "All Mongo queries correctly project {\"_id\": 0} – no ObjectID leakage observed across any endpoint.",
+    "User-scoping uniformly enforced via {id, user_id} filter on every read/update/delete – User B cannot access User A's data (returns 404 as expected).",
+    "Cascade deletes implemented: athlete delete removes expenses+payments; competition delete removes bookings. Verified end-to-end.",
+    "Rate limiting (slowapi 10/min) is applied to /auth/signup and /auth/login only – fine for now; consider for write endpoints later.",
+    "server.py is a single 818-line file with all routes; not yet at the 700-line guideline threshold by much. Consider splitting routers (auth, athletes, expenses, payments, competitions, bookings, fundraisers, dashboard, reminders) as the app grows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_cheertrack_backend.py (created)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Tests create their own ephemeral users (prefix TEST_*@mailinator.com) and TEST_-prefixed athletes/expenses/competitions/etc. No production seed data modified. Some test data is left in Mongo (no global teardown) – safe due to unique UUIDs and TEST_ prefix.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend is fully green (22/22) at https://776ba8fc-fc69-4cf1-aa74-fa7efdaca6ab.preview.emergentagent.com/api. Reusable test file: /app/backend/tests/test_cheertrack_backend.py. Note that Pydantic EmailStr rejects reserved TLDs (.test/.example) so use @mailinator.com (or similar) for signup payloads. Backend lowercases email on signup/login – assert lowercase in responses. HTTPBearer returns 403 (not 401) when Authorization header is missing.",
+  "rca_of_issue": "N/A – no functional bugs found. Initial test failures were test-side issues: (1) used .test TLD which email-validator rejects, and (2) compared response email against the original mixed-case input rather than the lowercased value backend stores. Both fixed in tests."
+}
