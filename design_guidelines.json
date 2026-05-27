@@ -1,0 +1,111 @@
+{
+  "theme": "Light",
+  "archetype": "Organic & Earthy + Athletic Twist (Trust & Spirit)",
+  "typography": {
+    "headings": {
+      "font_family": "Manrope",
+      "weights": ["800", "600"],
+      "tracking": "tracking-tight",
+      "instruction": "Do not use Inter, Roboto, or Open Sans. Use Manrope for high-energy but readable numbers and titles."
+    },
+    "body": {
+      "font_family": "IBM Plex Sans",
+      "weights": ["400", "500"],
+      "tracking": "tracking-normal",
+      "instruction": "Use IBM Plex Sans for dense data rows, expense lists, and details."
+    }
+  },
+  "colors": {
+    "background": {
+      "default": "bg-stone-50",
+      "card": "bg-white"
+    },
+    "primary": {
+      "main": "bg-slate-900",
+      "text": "text-slate-900"
+    },
+    "accent": {
+      "spirit_coral": "bg-rose-600",
+      "spirit_coral_text": "text-rose-600",
+      "spirit_coral_bg_subtle": "bg-rose-50",
+      "spirit_coral_border": "border-rose-200"
+    },
+    "status": {
+      "paid": "bg-emerald-100 text-emerald-700 border-emerald-200",
+      "due_soon": "bg-amber-100 text-amber-700 border-amber-200",
+      "overdue": "bg-rose-100 text-rose-700 border-rose-200"
+    },
+    "text": {
+      "primary": "text-slate-900",
+      "secondary": "text-slate-500",
+      "tertiary": "text-slate-400"
+    },
+    "border": "border-stone-200"
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-4 sm:p-6",
+    "section_gap": "gap-8",
+    "item_gap": "gap-4",
+    "border_radius": "rounded-2xl"
+  },
+  "components": {
+    "dashboard_cards": {
+      "style": "bg-white border border-stone-200 rounded-2xl p-5 shadow-sm",
+      "typography": "text-slate-900 font-bold text-2xl"
+    },
+    "payment_banner": {
+      "style": "bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-center justify-between",
+      "typography": "text-rose-700 font-semibold"
+    },
+    "list_items": {
+      "style": "flex items-center justify-between py-3 border-b border-stone-100 last:border-0"
+    },
+    "bottom_nav": {
+      "style": "fixed bottom-0 w-full bg-white border-t border-stone-200 pb-safe pt-2 px-6 flex justify-between"
+    },
+    "buttons": {
+      "primary": "bg-slate-900 text-white rounded-xl py-3 px-6 font-semibold active:scale-95 transition-transform",
+      "secondary": "bg-stone-100 text-slate-900 rounded-xl py-3 px-6 font-semibold active:scale-95 transition-transform",
+      "accent": "bg-rose-600 text-white rounded-xl py-3 px-6 font-semibold active:scale-95 transition-transform"
+    }
+  },
+  "icons": {
+    "library": "lucide-react",
+    "usage": "Use stroke-width 2.5 for a bolder, athletic feel."
+  },
+  "media": {
+    "image_urls": [
+      {
+        "category": "onboarding_or_empty_state_cheer",
+        "url": "https://images.pexels.com/photos/7322809/pexels-photo-7322809.jpeg",
+        "description": "A dynamic cheerleading squad holding silver pompoms, capturing the spirit and energy of the sport."
+      },
+      {
+        "category": "travel_empty_state",
+        "url": "https://images.unsplash.com/photo-1639597784674-431b34cec7a8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2Nzd8MHwxfHNlYXJjaHw0fHx0cmF2ZWwlMjBsdWdnYWdlJTIwaG90ZWx8ZW58MHx8fHwxNzc5OTA3NDgwfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Group of suitcases, representing competition travel and hotel bookings."
+      },
+      {
+        "category": "competition_background",
+        "url": "https://images.pexels.com/photos/10183989/pexels-photo-10183989.jpeg",
+        "description": "Empty stadium under clear blue sky, representing competition venues."
+      }
+    ]
+  },
+  "motion_and_interactions": {
+    "buttons": "Active state scale down (active:scale-95) to mimic mobile app tactile feedback.",
+    "lists": "Use staggered fade-in for expense and travel lists.",
+    "navigation": "Smooth slide transitions between main views."
+  },
+  "instructions_to_main_agent": [
+    "Build the UI as a mobile-first web app mimicking a native Expo app using React JS (.js) and Tailwind CSS.",
+    "Implement views for: Dashboard, Athletes Management, Expenses Tracker, Payments Tracker, Competitions, Travel & Accommodations, Reminders, and Fundraisers.",
+    "Use standard DOM elements (div, span) styled as mobile components (bottom tabs, sticky headers).",
+    "Implement a bottom navigation bar fixed to the bottom to switch between main views.",
+    "Never use pure white (#FFFFFF) for the main app background; use bg-stone-50 to reduce glare and make white cards pop.",
+    "Ensure all interactive elements have data-testid attributes for testing.",
+    "Do not use Shadcn card components if they restrict custom spacing; use raw divs with the defined dashboard_cards styles.",
+    "Use tabular-nums for all currency amounts and align them right in list views.",
+    "Use the provided image URLs for empty states or header backgrounds. Do NOT use placeholder services."
+  ]
+}
