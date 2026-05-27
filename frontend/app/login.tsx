@@ -56,11 +56,12 @@ export default function LoginScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.brand}>
-            <View style={styles.logoBadge}>
-              <Ionicons name="megaphone" size={26} color={colors.primaryText} />
-            </View>
-            <Text style={styles.brandName}>CheerPlanner</Text>
-            <Text style={styles.tagline}>On-The-Go Season Organizer</Text>
+            <Image
+              source={require("../assets/images/cheerplanner-logo.png")}
+              style={styles.logoImage}
+              resizeMode="contain"
+              accessibilityLabel="CheerPlanner — On-The-Go Season Organizer"
+            />
           </View>
 
           <View style={styles.card}>
@@ -133,6 +134,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   scroll: { flexGrow: 1, padding: spacing.lg, justifyContent: "center" },
   brand: { alignItems: "center", marginBottom: spacing.xl },
+  logoImage: { width: 200, height: 200, maxWidth: "85%" },
   logoBadge: {
     width: 56,
     height: 56,
