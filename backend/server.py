@@ -37,7 +37,7 @@ security_scheme = HTTPBearer(auto_error=False)
 
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(title="CheerTrack API")
+app = FastAPI(title="CheerPlanner API")
 app.state.limiter = limiter
 
 api_router = APIRouter(prefix="/api")
@@ -333,7 +333,7 @@ async def get_current_user(creds: Optional[HTTPAuthorizationCredentials] = Depen
 # ============================================================
 @api_router.get("/")
 async def root():
-    return {"message": "CheerTrack API", "ok": True}
+    return {"message": "CheerPlanner API", "ok": True}
 
 
 @api_router.post("/auth/signup", response_model=TokenResponse)

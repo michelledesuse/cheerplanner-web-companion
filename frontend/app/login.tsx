@@ -59,8 +59,8 @@ export default function LoginScreen() {
             <View style={styles.logoBadge}>
               <Ionicons name="megaphone" size={26} color={colors.primaryText} />
             </View>
-            <Text style={styles.brandName}>CheerTrack</Text>
-            <Text style={styles.tagline}>Stay on top of every comp, hotel & bill.</Text>
+            <Text style={styles.brandName}>CheerPlanner</Text>
+            <Text style={styles.tagline}>On-The-Go Season Organizer</Text>
           </View>
 
           <View style={styles.card}>

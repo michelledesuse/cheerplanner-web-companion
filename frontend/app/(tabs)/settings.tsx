@@ -56,7 +56,7 @@ export default function SettingsScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.footer}>CheerTrack • v1.0</Text>
+        <Text style={styles.footer}>CheerPlanner • v1.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
