@@ -46,6 +46,7 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHead}>Data</Text>
         <View style={styles.group}>
+          <SettingRow icon="cloud-upload-outline" label="Import from spreadsheet" onPress={() => router.push("/import")} chevron />
           <SettingRow icon="people-outline" label="Athletes" onPress={() => router.push("/(tabs)/athletes")} chevron />
           <SettingRow icon="trophy-outline" label="Competitions" onPress={() => router.push("/(tabs)/competitions")} chevron />
           <SettingRow icon="gift-outline" label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />

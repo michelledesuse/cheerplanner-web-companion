@@ -1,0 +1,535 @@
+"""Spreadsheet import helpers — parses CSV / XLSX into normalized row dicts."""
+import csv
+import io
+import re
+from datetime import datetime, date
+from typing import Any, Dict, List, Optional, Tuple
+
+from openpyxl import load_workbook
+
+
+# ---------------------------------------------------------------------------
+# Header normalization
+# ---------------------------------------------------------------------------
+def _norm(s: Any) -> str:
+    if s is None:
+        return ""
+    s = str(s).strip().lower()
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    return s.strip()
+
+
+# Map of normalized synonyms → canonical key
+COMPETITION_HEADERS = {
+    "competition": "name", "competition name": "name", "name": "name", "event": "name", "event name": "name", "comp": "name",
+    "location": "location", "city": "location", "venue": "location",
+    "event date": "event_date", "date": "event_date", "competition date": "event_date", "start date": "event_date",
+    "travel dates": "travel_dates",
+    "end date": "end_date", "ends": "end_date",
+    "housing required": "housing_required", "housing required ": "housing_required", "housing": "housing_required",
+    "stay to play": "housing_required",
+    "booking link": "booking_link", "link": "booking_link", "hotel link": "booking_link",
+    "gym link": "booking_link", "general link": "booking_link",
+    "booking release date and time": "booking_release_at",
+    "booking release": "booking_release_at", "release date": "booking_release_at",
+    "link release date": "booking_release_at", "link release": "booking_release_at",
+    "link release time": "booking_release_time",
+    "booking opens": "booking_release_at", "rooms open": "booking_release_at",
+    "notes": "notes", "note": "notes",
+}
+
+TRAVEL_HEADERS = {
+    "competition": "competition", "competition name": "competition", "comp": "competition", "event": "competition", "event name": "competition",
+    "dates": "competition_dates", "travel day": "travel_day",
+    "team": "team", "team s": "team",
+    "hotel name": "hotel_provider", "hotel": "hotel_provider",
+    "hotel confirmation": "hotel_confirmation", "hotel conf": "hotel_confirmation",
+    "hotel confirmation number": "hotel_confirmation", "conf": "hotel_confirmation",
+    "check in": "check_in", "check in date": "check_in", "checkin": "check_in",
+    "check out": "check_out", "check out date": "check_out", "checkout": "check_out",
+    "cancel date": "cancel_by", "cancel by": "cancel_by", "free cancel by": "cancel_by",
+    "hotel cost": "hotel_cost", "hotel total": "hotel_cost", "hotel price": "hotel_cost",
+    "cost": "hotel_cost", "total cost": "hotel_cost",
+    "hotel paid": "hotel_paid", "hotel amount paid": "hotel_paid", "amount paid": "hotel_paid", "paid": "hotel_paid",
+    "hotel balance due date": "hotel_due", "hotel balance due": "hotel_due", "balance due date": "hotel_due", "balance due": "hotel_due",
+    "rental car company": "car_provider", "rental car": "car_provider", "car company": "car_provider", "car": "car_provider",
+    "rental car confirmation": "car_confirmation", "car confirmation": "car_confirmation", "rental conf": "car_confirmation",
+    "rental car cost": "car_cost", "car cost": "car_cost",
+    "airline": "airline",
+    "flight confirmation": "flight_confirmation", "flight conf": "flight_confirmation",
+    "flight number": "flight_number",
+    "depart time": "depart_time", "departure time": "depart_time", "departure": "depart_time",
+    "arrive time": "arrive_time", "arrival time": "arrive_time", "arrival": "arrive_time",
+    "return flight number": "return_flight_number", "return flight": "return_flight_number",
+    "return depart time": "return_depart_time", "return departure": "return_depart_time",
+    "return arrive time": "return_arrive_time", "return arrival": "return_arrive_time",
+    "flight cost": "flight_cost", "airfare": "flight_cost",
+    "flight paid": "flight_paid", "flight amount paid": "flight_paid",
+}
+
+EXPENSE_HEADERS = {
+    "date": "date", "incurred on": "date", "month": "date",
+    "athlete": "athlete", "athlete name": "athlete", "kid": "athlete", "child": "athlete",
+    "category": "category", "type": "category", "expense": "category", "expense type": "category",
+    "amount": "amount", "cost": "amount", "price": "amount",
+    "due date": "due_date", "due": "due_date",
+    "paid": "paid", "is paid": "paid",
+    "note": "note", "notes": "note", "memo": "note", "description": "note",
+}
+
+KNOWN_CATEGORIES = [
+    "Tuition", "Practice", "Gear", "Comp/Choreo", "Camp", "Uniform",
+    "Classes & Privates", "Bow", "Warm-Up & Bag", "End of Season Comp Fees",
+    "Late Fees", "Misc",
+]
+
+
+def _bool_from(v: Any) -> Optional[bool]:
+    if v is None:
+        return None
+    s = str(v).strip().lower()
+    if s in ("yes", "y", "true", "1", "x", "✓", "paid"):
+        return True
+    if s in ("no", "n", "false", "0", "", "unpaid"):
+        return False
+    return None
+
+
+def _num(v: Any) -> Optional[float]:
+    if v is None or v == "":
+        return None
+    if isinstance(v, (int, float)):
+        return float(v)
+    s = str(v).strip().replace("$", "").replace(",", "").strip()
+    if not s:
+        return None
+    try:
+        return float(s)
+    except ValueError:
+        return None
+
+
+def _date(v: Any) -> Optional[str]:
+    """Return YYYY-MM-DD if parseable, else None."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, datetime):
+        return v.date().isoformat()
+    if isinstance(v, date):
+        return v.isoformat()
+    s = str(v).strip()
+    if not s:
+        return None
+    for fmt in (
+        "%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%Y/%m/%d",
+        "%m-%d-%Y", "%d %b %Y", "%b %d %Y", "%B %d, %Y",
+        "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M",
+    ):
+        try:
+            return datetime.strptime(s, fmt).date().isoformat()
+        except ValueError:
+            continue
+    # last try: ISO parse
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
+    except Exception:
+        return None
+
+
+def _datetime(v: Any) -> Optional[str]:
+    if v is None or v == "":
+        return None
+    if isinstance(v, datetime):
+        return v.isoformat()
+    s = str(v).strip()
+    if not s:
+        return None
+    for fmt in (
+        "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+        "%m/%d/%Y %I:%M %p", "%m/%d/%Y %H:%M",
+        "%Y-%m-%d",
+    ):
+        try:
+            return datetime.strptime(s, fmt).isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+# ---------------------------------------------------------------------------
+# File reading
+# ---------------------------------------------------------------------------
+def read_table(filename: str, content: bytes) -> List[List[List[Any]]]:
+    """Return list of sheets, each a list of rows, each a list of cells.
+
+    For CSV, returns a single 'sheet'.
+    For XLSX, returns one entry per non-empty worksheet.
+    """
+    name_lower = filename.lower()
+    sheets: List[List[List[Any]]] = []
+    if name_lower.endswith(".csv"):
+        text = content.decode("utf-8-sig", errors="ignore")
+        reader = csv.reader(io.StringIO(text))
+        sheets.append([list(row) for row in reader])
+        return sheets
+    if name_lower.endswith(".xlsx") or name_lower.endswith(".xlsm"):
+        wb = load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+        for ws in wb.worksheets:
+            rows = []
+            for r in ws.iter_rows(values_only=True):
+                # skip fully-empty rows
+                if not any(c not in (None, "") for c in r):
+                    continue
+                rows.append(list(r))
+            if rows:
+                sheets.append(rows)
+        return sheets
+    raise ValueError("Unsupported file type. Please upload .csv or .xlsx.")
+
+
+def _find_header_row(rows: List[List[Any]], header_map: Dict[str, str]) -> int:
+    """Find row index that looks most like headers (max # of recognized headers)."""
+    best = (0, 0)
+    for i, row in enumerate(rows[:10]):
+        hits = sum(1 for c in row if _norm(c) in header_map)
+        if hits > best[0]:
+            best = (hits, i)
+    return best[1]
+
+
+def _row_to_dict(headers: List[str], values: List[Any], header_map: Dict[str, str]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {}
+    for h, v in zip(headers, values):
+        key = header_map.get(_norm(h))
+        if key and out.get(key) in (None, ""):
+            out[key] = v
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Competitions
+# ---------------------------------------------------------------------------
+def parse_competitions(filename: str, content: bytes) -> List[Dict[str, Any]]:
+    sheets = read_table(filename, content)
+    out: List[Dict[str, Any]] = []
+    for rows in sheets:
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, COMPETITION_HEADERS)
+        headers = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        for r in rows[hdr_idx + 1:]:
+            rec = _row_to_dict(headers, r, COMPETITION_HEADERS)
+            if not rec.get("name"):
+                continue
+            housing = rec.get("housing_required")
+            housing_bool = _bool_from(housing) if housing is not None else False
+            out.append({
+                "name": str(rec.get("name")).strip(),
+                "location": str(rec["location"]).strip() if rec.get("location") else None,
+                "event_date": _date(rec.get("event_date")),
+                "end_date": _date(rec.get("end_date")),
+                "housing_required": bool(housing_bool) if housing_bool is not None else False,
+                "booking_link": str(rec["booking_link"]).strip() if rec.get("booking_link") else None,
+                "booking_release_at": _datetime(rec.get("booking_release_at")) or _date(rec.get("booking_release_at")),
+                "notes": str(rec["notes"]).strip() if rec.get("notes") else None,
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Travel  (one row → 1..3 bookings: hotel/car/flight)
+# ---------------------------------------------------------------------------
+def parse_travel(filename: str, content: bytes) -> List[Dict[str, Any]]:
+    sheets = read_table(filename, content)
+    out: List[Dict[str, Any]] = []
+    for rows in sheets:
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, TRAVEL_HEADERS)
+        headers = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        for r in rows[hdr_idx + 1:]:
+            rec = _row_to_dict(headers, r, TRAVEL_HEADERS)
+            if not rec.get("competition"):
+                continue
+            bookings = []
+            if rec.get("hotel_provider") or rec.get("check_in") or rec.get("hotel_cost"):
+                bookings.append({
+                    "type": "hotel",
+                    "provider": (str(rec["hotel_provider"]).strip() if rec.get("hotel_provider") else None),
+                    "confirmation": (str(rec["hotel_confirmation"]).strip() if rec.get("hotel_confirmation") else None),
+                    "check_in": _date(rec.get("check_in")),
+                    "check_out": _date(rec.get("check_out")),
+                    "cancel_by": _date(rec.get("cancel_by")),
+                    "cost": _num(rec.get("hotel_cost")) or 0,
+                    "amount_paid": _num(rec.get("hotel_paid")) or 0,
+                    "balance_due_date": _date(rec.get("hotel_due")),
+                })
+            if rec.get("car_provider") or rec.get("car_cost"):
+                bookings.append({
+                    "type": "car",
+                    "provider": (str(rec["car_provider"]).strip() if rec.get("car_provider") else None),
+                    "confirmation": (str(rec["car_confirmation"]).strip() if rec.get("car_confirmation") else None),
+                    "cost": _num(rec.get("car_cost")) or 0,
+                    "amount_paid": 0,
+                })
+            flight_flag = _bool_from(rec.get("flight_flag"))
+            has_flight = (
+                rec.get("airline") or rec.get("flight_number") or rec.get("flight_cost")
+                or flight_flag is True
+            )
+            if has_flight:
+                bookings.append({
+                    "type": "flight",
+                    "provider": (str(rec["airline"]).strip() if rec.get("airline") else None),
+                    "confirmation": (str(rec["flight_confirmation"]).strip() if rec.get("flight_confirmation") else None),
+                    "flight_number": (str(rec["flight_number"]).strip() if rec.get("flight_number") else None),
+                    "depart_time": (str(rec["depart_time"]).strip() if rec.get("depart_time") else None),
+                    "arrive_time": (str(rec["arrive_time"]).strip() if rec.get("arrive_time") else None),
+                    "return_flight_number": (str(rec["return_flight_number"]).strip() if rec.get("return_flight_number") else None),
+                    "return_depart_time": (str(rec["return_depart_time"]).strip() if rec.get("return_depart_time") else None),
+                    "return_arrive_time": (str(rec["return_arrive_time"]).strip() if rec.get("return_arrive_time") else None),
+                    "cost": _num(rec.get("flight_cost")) or 0,
+                    "amount_paid": _num(rec.get("flight_paid")) or 0,
+                })
+            if not bookings:
+                continue
+            out.append({
+                "competition": str(rec["competition"]).strip(),
+                "bookings": bookings,
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Expenses (supports long-form and wide-form)
+# ---------------------------------------------------------------------------
+def parse_expenses(filename: str, content: bytes) -> Dict[str, Any]:
+    """Returns {format: 'long'|'wide', rows: [...], athlete_columns: [...]}
+
+    - Long form rows: {date, athlete, category, amount, due_date, paid, note}
+    - Wide form rows: {date, category, amounts: {<col>: amount}}  (categories = rows; athletes = columns)
+    - Athlete-grid form: detected when columns are categories AND first column is Month.
+      Emits long-form rows with auto-detected athlete from banner / sheet name.
+    """
+    sheets = read_table(filename, content)
+    long_rows: List[Dict[str, Any]] = []
+    wide_rows: List[Dict[str, Any]] = []
+    wide_columns: List[str] = []
+
+    try:
+        wb = load_workbook(io.BytesIO(content), data_only=True, read_only=True)
+        sheet_names = wb.sheetnames
+    except Exception:
+        sheet_names = []
+
+    for sheet_idx, rows in enumerate(sheets):
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, EXPENSE_HEADERS)
+        headers_raw = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        norm_headers = [_norm(h) for h in headers_raw]
+        known_count = sum(1 for h in norm_headers if h in EXPENSE_HEADERS)
+        canonical = [EXPENSE_HEADERS.get(h) for h in norm_headers]
+        is_long = known_count >= 3 and "athlete" in canonical
+
+        # Athlete-grid detection: first column resolves to date/month AND >=3 categories follow
+        first_canonical = canonical[0] if canonical else None
+        category_cols = [(i, headers_raw[i].strip()) for i, h in enumerate(headers_raw)
+                         if i > 0 and h.strip() and h.strip() not in ("TOTAL", "Total")]
+        looks_like_grid = (
+            first_canonical == "date"
+            and len(category_cols) >= 3
+            and not is_long
+        )
+
+        if is_long:
+            for r in rows[hdr_idx + 1:]:
+                rec = _row_to_dict(headers_raw, r, EXPENSE_HEADERS)
+                if not (rec.get("athlete") and rec.get("category") and _num(rec.get("amount"))):
+                    continue
+                long_rows.append({
+                    "date": _date(rec.get("date")),
+                    "athlete": str(rec["athlete"]).strip(),
+                    "category": str(rec["category"]).strip(),
+                    "amount": _num(rec.get("amount")) or 0,
+                    "due_date": _date(rec.get("due_date")),
+                    "paid": bool(_bool_from(rec.get("paid"))) if rec.get("paid") is not None else False,
+                    "note": str(rec["note"]).strip() if rec.get("note") else None,
+                })
+            continue
+
+        if looks_like_grid:
+            # Detect athlete from banner (first non-empty cell above headers) or sheet name
+            athlete_name: Optional[str] = None
+            for prev in rows[:hdr_idx]:
+                for c in prev:
+                    if c and str(c).strip():
+                        candidate = str(c).strip()
+                        # strip generic "NAME" suffix
+                        cleaned = re.sub(r"\s*name\s*$", "", candidate, flags=re.I).strip()
+                        if cleaned:
+                            athlete_name = cleaned
+                            break
+                if athlete_name:
+                    break
+            if not athlete_name and 0 <= sheet_idx < len(sheet_names):
+                sn = sheet_names[sheet_idx]
+                if sn and sn.lower() not in ("sheet1", "sheet2"):
+                    athlete_name = sn
+            if not athlete_name:
+                athlete_name = f"Athlete #{sheet_idx + 1}"
+
+            for r in rows[hdr_idx + 1:]:
+                if not r or r[0] in (None, ""):
+                    continue
+                row_date = _date(r[0]) or _parse_month_year(str(r[0]))
+                for col_idx, col_name in category_cols:
+                    if col_idx >= len(r):
+                        continue
+                    amt = _num(r[col_idx])
+                    if amt is None or amt <= 0:
+                        continue
+                    long_rows.append({
+                        "date": row_date,
+                        "athlete": athlete_name,
+                        "category": col_name,
+                        "amount": amt,
+                        "due_date": None,
+                        "paid": False,
+                        "note": None,
+                    })
+            continue
+
+        # Wide form: categories down rows, athletes across columns
+        category_idx = None
+        for i, h in enumerate(norm_headers):
+            if EXPENSE_HEADERS.get(h) == "category" or h in ("", "expenses", "expense", "type"):
+                category_idx = i
+                break
+        if category_idx is None:
+            category_idx = 0
+
+        athlete_cols_idx: List[int] = []
+        for i, h in enumerate(headers_raw):
+            if i == category_idx:
+                continue
+            if EXPENSE_HEADERS.get(_norm(h)):
+                continue
+            if not h or not h.strip():
+                continue
+            if h.strip().lower() in ("total", "totals", "subtotal"):
+                continue
+            athlete_cols_idx.append(i)
+
+        if not athlete_cols_idx:
+            continue
+        for i in athlete_cols_idx:
+            col_name = headers_raw[i].strip()
+            if col_name and col_name not in wide_columns:
+                wide_columns.append(col_name)
+
+        sheet_date: Optional[str] = None
+        if 0 <= sheet_idx < len(sheet_names):
+            sheet_date = _parse_month_year(sheet_names[sheet_idx])
+
+        for r in rows[hdr_idx + 1:]:
+            if category_idx >= len(r):
+                continue
+            cat_val = r[category_idx]
+            if not cat_val or not str(cat_val).strip():
+                continue
+            category = str(cat_val).strip()
+            if category.lower() in ("total", "totals", "subtotal", "balance"):
+                continue
+            amounts: Dict[str, float] = {}
+            for i in athlete_cols_idx:
+                if i >= len(r):
+                    continue
+                n = _num(r[i])
+                if n is not None and n > 0:
+                    amounts[headers_raw[i].strip()] = n
+            if not amounts:
+                continue
+            wide_rows.append({
+                "date": sheet_date,
+                "category": category,
+                "amounts": amounts,
+            })
+
+    if long_rows:
+        return {"format": "long", "rows": long_rows, "athlete_columns": []}
+    return {"format": "wide", "rows": wide_rows, "athlete_columns": wide_columns}
+
+
+def _parse_month_year(s: str) -> Optional[str]:
+    """Parse strings like 'August 2025', 'Aug 25', '2025-08', 'Aug' (assume current year)."""
+    s = s.strip()
+    for fmt in ("%B %Y", "%b %Y", "%B %y", "%b %y", "%Y-%m", "%m/%Y"):
+        try:
+            d = datetime.strptime(s, fmt).date().replace(day=1)
+            return d.isoformat()
+        except ValueError:
+            continue
+    # Try just month name with current year
+    for fmt in ("%B", "%b"):
+        try:
+            month = datetime.strptime(s, fmt).month
+            return date(datetime.now().year, month, 1).isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+# ---------------------------------------------------------------------------
+# CSV Templates
+# ---------------------------------------------------------------------------
+TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
+    "competitions": (
+        ["Competition Name", "Location", "Event Date", "End Date",
+         "Housing Required", "Booking Link", "Booking Release Date and Time", "Notes"],
+        [
+            ["NCA Senior Nationals", "Houston, TX", "2025-11-13", "2025-11-15",
+             "Yes", "https://stayandplay.example/nca", "2025-09-01 10:00", "Pack uniform Friday"],
+            ["Spirit Sports Palm Springs", "Palm Springs, CA", "2025-08-26", "2025-08-27",
+             "No", "", "", ""],
+        ],
+    ),
+    "travel": (
+        ["Competition", "Hotel Name", "Hotel Confirmation", "Check In", "Check Out",
+         "Cancel Date", "Hotel Cost", "Hotel Paid", "Balance Due Date",
+         "Rental Car Company", "Rental Car Confirmation", "Rental Car Cost",
+         "Airline", "Flight Confirmation", "Flight Number",
+         "Depart Time", "Arrive Time",
+         "Return Flight Number", "Return Depart Time", "Return Arrive Time",
+         "Flight Cost", "Flight Paid"],
+        [
+            ["NCA Senior Nationals", "Hyatt Regency Houston", "ABC123", "2025-11-13", "2025-11-15",
+             "2025-10-29", "650.00", "200.00", "2025-10-29",
+             "Enterprise", "RES7788", "180.00",
+             "Southwest", "WN42X", "WN1234",
+             "2025-11-13 08:30", "2025-11-13 10:15",
+             "WN5678", "2025-11-16 16:00", "2025-11-16 18:30",
+             "320.00", "320.00"],
+        ],
+    ),
+    "expenses": (
+        ["Date", "Athlete", "Category", "Amount", "Due Date", "Paid", "Note"],
+        [
+            ["2025-10-01", "Ava", "Tuition", "250.00", "2025-10-05", "No", "October tuition"],
+            ["2025-10-01", "Ava", "Comp/Choreo", "75.00", "", "Yes", ""],
+            ["2025-10-01", "Mia", "Tuition", "250.00", "2025-10-05", "No", ""],
+        ],
+    ),
+}
+
+
+def render_template_csv(kind: str) -> str:
+    if kind not in TEMPLATES:
+        raise ValueError(f"Unknown template: {kind}")
+    headers, rows = TEMPLATES[kind]
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(headers)
+    for r in rows:
+        w.writerow(r)
+    return buf.getvalue()
