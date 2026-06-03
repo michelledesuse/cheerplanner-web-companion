@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { todayISO } from "@/src/utils/format";
+import { todayDisplay, userDateToISO } from "@/src/utils/format";
 
 export default function NewExpense() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export default function NewExpense() {
   const [category, setCategory] = useState<string>("Tuition");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [incurredOn, setIncurredOn] = useState(todayISO());
+  const [incurredOn, setIncurredOn] = useState(todayDisplay());
   const [dueDate, setDueDate] = useState("");
   const [paid, setPaid] = useState(false);
   const [athletes, setAthletes] = useState<{ id: string; name: string }[]>([]);
@@ -44,7 +44,7 @@ export default function NewExpense() {
     try {
       await api.post("/expenses", {
         athlete_id: athleteId, category, amount: amt, note: note || null,
-        incurred_on: incurredOn, due_date: dueDate || null, paid,
+        incurred_on: userDateToISO(incurredOn), due_date: userDateToISO(dueDate), paid,
       });
       router.back();
     } catch (e: any) {
@@ -90,10 +90,10 @@ export default function NewExpense() {
           <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="expense-amount-input" />
 
           <Text style={styles.label}>Date</Text>
-          <TextInput style={styles.input} value={incurredOn} onChangeText={setIncurredOn} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} testID="expense-date-input" />
+          <TextInput style={styles.input} value={incurredOn} onChangeText={setIncurredOn} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="expense-date-input" />
 
           <Text style={styles.label}>Due date (optional)</Text>
-          <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} testID="expense-due-input" />
+          <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="expense-due-input" />
 
           <Text style={styles.label}>Note (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={note} onChangeText={setNote} placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} multiline />

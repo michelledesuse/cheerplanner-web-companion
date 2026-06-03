@@ -35,9 +35,13 @@ type Booking = {
   check_out?: string;
   cancel_by?: string;
   flight_number?: string;
+  depart_airport?: string;
+  arrive_airport?: string;
   depart_time?: string;
   arrive_time?: string;
   return_flight_number?: string;
+  return_depart_airport?: string;
+  return_arrive_airport?: string;
   return_depart_time?: string;
   return_arrive_time?: string;
   notes?: string;
@@ -93,7 +97,14 @@ export default function CompetitionDetail() {
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{comp.name}</Text>
-        <TouchableOpacity onPress={remove} style={styles.iconBtn} testID="comp-delete-btn">
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: "/competitions/new", params: { id: id! } })}
+          style={styles.iconBtn}
+          testID="comp-edit-btn"
+        >
+          <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={remove} style={[styles.iconBtn, { marginLeft: 8 }]} testID="comp-delete-btn">
           <Ionicons name="trash-outline" size={20} color={colors.dangerText} />
         </TouchableOpacity>
       </View>
@@ -152,7 +163,12 @@ export default function CompetitionDetail() {
         {bookings.length === 0 ? (
           <Text style={styles.emptyHint}>No bookings yet. Add a hotel, car or flight above.</Text>
         ) : bookings.map((b) => (
-          <BookingCard key={b.id} booking={b} onDelete={() => deleteBooking(b.id)} />
+          <BookingCard
+            key={b.id}
+            booking={b}
+            onDelete={() => deleteBooking(b.id)}
+            onEdit={() => router.push({ pathname: "/bookings/new", params: { id: b.id } })}
+          />
         ))}
 
         {!!comp.notes && (
@@ -175,7 +191,7 @@ function AddTypeBtn({ icon, label, onPress, testID }: any) {
   );
 }
 
-function BookingCard({ booking, onDelete }: { booking: Booking; onDelete: () => void }) {
+function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete: () => void; onEdit: () => void }) {
   const balance = Number(booking.cost || 0) - Number(booking.amount_paid || 0);
   const icon = booking.type === "hotel" ? "bed" : booking.type === "car" ? "car" : "airplane";
   return (
@@ -186,6 +202,9 @@ function BookingCard({ booking, onDelete }: { booking: Booking; onDelete: () => 
           <Text style={styles.bookingTitle}>{booking.provider || booking.type.charAt(0).toUpperCase() + booking.type.slice(1)}</Text>
           {booking.confirmation && <Text style={styles.bookingMeta}>Conf #{booking.confirmation}</Text>}
         </View>
+        <TouchableOpacity onPress={onEdit} hitSlop={10} style={{ marginRight: 12 }} testID={`booking-edit-${booking.id}`}>
+          <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={onDelete} hitSlop={10}>
           <Ionicons name="trash-outline" size={16} color={colors.textTertiary} />
         </TouchableOpacity>
@@ -200,9 +219,15 @@ function BookingCard({ booking, onDelete }: { booking: Booking; onDelete: () => 
       )}
       {booking.type === "flight" && (
         <View style={styles.bookingGrid}>
+          {(booking.depart_airport || booking.arrive_airport) && (
+            <Field label="Route" value={`${booking.depart_airport || "—"} → ${booking.arrive_airport || "—"}`} />
+          )}
           {booking.flight_number && <Field label="Flight #" value={booking.flight_number} />}
           {booking.depart_time && <Field label="Depart" value={booking.depart_time} />}
           {booking.arrive_time && <Field label="Arrive" value={booking.arrive_time} />}
+          {(booking.return_depart_airport || booking.return_arrive_airport) && (
+            <Field label="Return route" value={`${booking.return_depart_airport || "—"} → ${booking.return_arrive_airport || "—"}`} />
+          )}
           {booking.return_flight_number && <Field label="Return #" value={booking.return_flight_number} />}
         </View>
       )}

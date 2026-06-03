@@ -9,13 +9,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { todayISO } from "@/src/utils/format";
+import { todayDisplay, userDateToISO } from "@/src/utils/format";
 
 export default function NewPayment() {
   const router = useRouter();
   const params = useLocalSearchParams<{ athlete_id?: string }>();
   const [amount, setAmount] = useState("");
-  const [paidOn, setPaidOn] = useState(todayISO());
+  const [paidOn, setPaidOn] = useState(todayDisplay());
   const [method, setMethod] = useState("Card");
   const [note, setNote] = useState("");
   const [athletes, setAthletes] = useState<{ id: string; name: string }[]>([]);
@@ -36,7 +36,7 @@ export default function NewPayment() {
     if (isNaN(amt) || amt <= 0) { Alert.alert("Missing", "Enter a valid amount."); return; }
     setSaving(true);
     try {
-      await api.post("/payments", { athlete_id: athleteId, amount: amt, paid_on: paidOn, method, note: note || null });
+      await api.post("/payments", { athlete_id: athleteId, amount: amt, paid_on: userDateToISO(paidOn), method, note: note || null });
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
@@ -74,7 +74,7 @@ export default function NewPayment() {
           <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="payment-amount-input" />
 
           <Text style={styles.label}>Date paid</Text>
-          <TextInput style={styles.input} value={paidOn} onChangeText={setPaidOn} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} testID="payment-date-input" />
+          <TextInput style={styles.input} value={paidOn} onChangeText={setPaidOn} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="payment-date-input" />
 
           <Text style={styles.label}>Method</Text>
           <View style={styles.chips}>

@@ -225,9 +225,13 @@ class Booking(BaseModel):
     cancel_by: Optional[str] = None
     # flight
     flight_number: Optional[str] = None
+    depart_airport: Optional[str] = None
+    arrive_airport: Optional[str] = None
     depart_time: Optional[str] = None
     arrive_time: Optional[str] = None
     return_flight_number: Optional[str] = None
+    return_depart_airport: Optional[str] = None
+    return_arrive_airport: Optional[str] = None
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
 
@@ -247,9 +251,13 @@ class BookingCreate(BaseModel):
     check_out: Optional[str] = None
     cancel_by: Optional[str] = None
     flight_number: Optional[str] = None
+    depart_airport: Optional[str] = None
+    arrive_airport: Optional[str] = None
     depart_time: Optional[str] = None
     arrive_time: Optional[str] = None
     return_flight_number: Optional[str] = None
+    return_depart_airport: Optional[str] = None
+    return_arrive_airport: Optional[str] = None
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
 
@@ -265,9 +273,13 @@ class BookingUpdate(BaseModel):
     check_out: Optional[str] = None
     cancel_by: Optional[str] = None
     flight_number: Optional[str] = None
+    depart_airport: Optional[str] = None
+    arrive_airport: Optional[str] = None
     depart_time: Optional[str] = None
     arrive_time: Optional[str] = None
     return_flight_number: Optional[str] = None
+    return_depart_airport: Optional[str] = None
+    return_arrive_airport: Optional[str] = None
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
 

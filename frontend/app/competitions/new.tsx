@@ -1,17 +1,22 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { isoToInput, userDateToISO } from "@/src/utils/format";
 
-export default function NewCompetition() {
+export default function CompetitionForm() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const editingId = params.id;
+  const isEdit = !!editingId;
+
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [eventDate, setEventDate] = useState("");
@@ -21,26 +26,64 @@ export default function NewCompetition() {
   const [bookingReleaseAt, setBookingReleaseAt] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(isEdit);
+
+  useEffect(() => {
+    if (!isEdit) return;
+    (async () => {
+      try {
+        const res = await api.get(`/competitions/${editingId}`);
+        const c = res.data;
+        setName(c.name || "");
+        setLocation(c.location || "");
+        setEventDate(isoToInput(c.event_date));
+        setEndDate(isoToInput(c.end_date));
+        setHousingRequired(!!c.housing_required);
+        setBookingLink(c.booking_link || "");
+        setBookingReleaseAt(c.booking_release_at || "");
+        setNotes(c.notes || "");
+      } catch (_e) {
+        Alert.alert("Error", "Could not load competition");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [editingId, isEdit]);
 
   const save = async () => {
     if (!name.trim() || !eventDate) { Alert.alert("Missing", "Name and event date are required."); return; }
     setSaving(true);
     try {
-      await api.post("/competitions", {
+      const payload = {
         name: name.trim(),
         location: location.trim() || null,
-        event_date: eventDate,
-        end_date: endDate || null,
+        event_date: userDateToISO(eventDate),
+        end_date: userDateToISO(endDate),
         housing_required: housingRequired,
         booking_link: bookingLink.trim() || null,
         booking_release_at: bookingReleaseAt || null,
         notes: notes.trim() || null,
-      });
+      };
+      if (isEdit) {
+        await api.patch(`/competitions/${editingId}`, payload);
+      } else {
+        await api.post("/competitions", payload);
+      }
       router.back();
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.detail || "Could not save");
+      Alert.alert("Error", e?.response?.data?.detail || e?.message || "Could not save");
     } finally { setSaving(false); }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator color={colors.accent} />
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -49,7 +92,7 @@ export default function NewCompetition() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New competition</Text>
+          <Text style={styles.headerTitle}>{isEdit ? "Edit competition" : "New competition"}</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -60,14 +103,14 @@ export default function NewCompetition() {
           <Text style={styles.label}>Location</Text>
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Houston, TX" placeholderTextColor={colors.textTertiary} testID="comp-location-input" />
 
-          <Text style={styles.label}>Event date (YYYY-MM-DD)</Text>
-          <TextInput style={styles.input} value={eventDate} onChangeText={setEventDate} placeholder="2025-11-13" placeholderTextColor={colors.textTertiary} testID="comp-date-input" />
+          <Text style={styles.label}>Event date</Text>
+          <TextInput style={styles.input} value={eventDate} onChangeText={setEventDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="comp-date-input" />
 
           <Text style={styles.label}>End date (optional)</Text>
-          <TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="2025-11-15" placeholderTextColor={colors.textTertiary} />
+          <TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} />
 
           <View style={styles.switchRow}>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.bodyText}>Housing required (Stay to Play)</Text>
               <Text style={styles.subText}>Must book through official channels</Text>
             </View>
@@ -77,14 +120,14 @@ export default function NewCompetition() {
           <Text style={styles.label}>Booking link (optional)</Text>
           <TextInput style={styles.input} value={bookingLink} onChangeText={setBookingLink} placeholder="https://..." placeholderTextColor={colors.textTertiary} autoCapitalize="none" />
 
-          <Text style={styles.label}>Booking release (YYYY-MM-DD or full ISO datetime)</Text>
-          <TextInput style={styles.input} value={bookingReleaseAt} onChangeText={setBookingReleaseAt} placeholder="2025-09-01T10:00:00" placeholderTextColor={colors.textTertiary} />
+          <Text style={styles.label}>Booking release (e.g. 01-09-2025 10:00)</Text>
+          <TextInput style={styles.input} value={bookingReleaseAt} onChangeText={setBookingReleaseAt} placeholder="DD-MM-YYYY HH:mm" placeholderTextColor={colors.textTertiary} />
 
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="comp-save-btn">
-            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>Save competition</Text>}
+            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save competition"}</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -99,7 +142,7 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h3, color: colors.textPrimary },
   label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.lg, marginBottom: 6 },
   input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
-  switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, gap: spacing.md },
   bodyText: { ...typography.bodyMedium, color: colors.textPrimary },
   subText: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
