@@ -28,7 +28,7 @@ type Athlete = {
 export default function AthletesScreen() {
   const router = useRouter();
   const [athletes, setAthletes] = useState<Athlete[]>([]);
-  const [totals, setTotals] = useState<Record<string, { spent: number; paid: number }>>({});
+  const [totals, setTotals] = useState<Record<string, { spent: number; paid: number; open: number }>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -37,9 +37,15 @@ export default function AthletesScreen() {
       const list = await api.get<Athlete[]>("/athletes");
       setAthletes(list.data);
       const [exp, pay] = await Promise.all([api.get("/expenses"), api.get("/payments")]);
-      const t: Record<string, { spent: number; paid: number }> = {};
-      for (const a of list.data) t[a.id] = { spent: 0, paid: 0 };
-      for (const e of exp.data) if (t[e.athlete_id]) t[e.athlete_id].spent += Number(e.amount) || 0;
+      const t: Record<string, { spent: number; paid: number; open: number }> = {};
+      for (const a of list.data) t[a.id] = { spent: 0, paid: 0, open: 0 };
+      for (const e of exp.data) {
+        if (!t[e.athlete_id]) continue;
+        t[e.athlete_id].spent += Number(e.amount) || 0;
+        // balance_due already accounts for applied payments; falls back to amount-paid_amount
+        const bd = Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0)));
+        t[e.athlete_id].open += bd;
+      }
       for (const p of pay.data) if (t[p.athlete_id]) t[p.athlete_id].paid += Number(p.amount) || 0;
       setTotals(t);
     } finally {
@@ -92,8 +98,8 @@ export default function AthletesScreen() {
           testID="athletes-list"
         >
           {athletes.map((a) => {
-            const t = totals[a.id] || { spent: 0, paid: 0 };
-            const balance = t.spent - t.paid;
+            const t = totals[a.id] || { spent: 0, paid: 0, open: 0 };
+            const open = Math.max(0, t.open);
             return (
               <TouchableOpacity
                 key={a.id}
@@ -114,9 +120,9 @@ export default function AthletesScreen() {
                   </View>
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.balanceLabel}>Balance</Text>
-                  <Text style={[styles.balanceValue, { color: balance > 0 ? colors.accent : colors.successText }]}>
-                    {formatCurrency(Math.max(balance, 0))}
+                  <Text style={styles.balanceLabel}>Open</Text>
+                  <Text style={[styles.balanceValue, { color: open > 0 ? colors.accent : colors.successText }]}>
+                    {formatCurrency(open)}
                   </Text>
                 </View>
               </TouchableOpacity>

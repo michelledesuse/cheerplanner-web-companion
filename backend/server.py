@@ -524,6 +524,63 @@ async def create_expense(payload: ExpenseCreate, current_user=Depends(get_curren
     return entry
 
 
+class ExpenseBulkCreate(BaseModel):
+    athlete_ids: List[str]
+    category: str
+    amount: float  # total (if equal) or per-athlete (if same)
+    split_mode: Literal["equal", "same"] = "equal"
+    incurred_on: str
+    due_date: Optional[str] = None
+    note: Optional[str] = None
+    paid: bool = False
+
+
+@api_router.post("/expenses/bulk", response_model=List[ExpenseEntry])
+async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(get_current_user)):
+    user_id = current_user["id"]
+    if not payload.athlete_ids:
+        raise HTTPException(status_code=400, detail="Select at least one athlete")
+    if payload.amount is None or payload.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    # Validate athletes belong to user
+    valid_ids = {
+        d["id"] async for d in db.athletes.find(
+            {"id": {"$in": payload.athlete_ids}, "user_id": user_id}, {"_id": 0, "id": 1}
+        )
+    }
+    missing = [aid for aid in payload.athlete_ids if aid not in valid_ids]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Athlete(s) not found: {missing}")
+    per_amt = (
+        round(payload.amount / len(payload.athlete_ids), 2)
+        if payload.split_mode == "equal" else round(payload.amount, 2)
+    )
+    if per_amt <= 0:
+        raise HTTPException(status_code=400, detail="Per-athlete amount must be greater than zero")
+    created: List[ExpenseEntry] = []
+    docs: List[dict] = []
+    for aid in payload.athlete_ids:
+        entry = ExpenseEntry(
+            user_id=user_id,
+            athlete_id=aid,
+            category=payload.category,
+            amount=per_amt,
+            note=payload.note,
+            incurred_on=payload.incurred_on,
+            due_date=payload.due_date,
+            paid=payload.paid,
+        )
+        stored = entry.model_dump()
+        stored.pop("paid_amount", None)
+        stored.pop("balance_due", None)
+        docs.append(stored)
+        entry.balance_due = round(entry.amount, 2)
+        created.append(entry)
+    if docs:
+        await db.expenses.insert_many(docs)
+    return created
+
+
 @api_router.patch("/expenses/{expense_id}", response_model=ExpenseEntry)
 async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=Depends(get_current_user)):
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
@@ -549,7 +606,7 @@ async def delete_expense(expense_id: str, current_user=Depends(get_current_user)
 
 class ApplyPaymentRequest(BaseModel):
     amount: float
-    source_type: str = "manual"  # "manual" | "fundraiser"
+    source_type: Literal["manual", "fundraiser"] = "manual"
     fundraiser_id: Optional[str] = None
     paid_on: Optional[str] = None
     note: Optional[str] = None
@@ -667,6 +724,55 @@ async def create_payment(payload: PaymentCreate, current_user=Depends(get_curren
                     {"id": eid, "user_id": current_user["id"]}, {"$set": {"paid": True}}
                 )
     return entry
+
+
+class PaymentBulkCreate(BaseModel):
+    athlete_ids: List[str]
+    amount: float  # total (if equal) or per-athlete (if same)
+    split_mode: Literal["equal", "same"] = "equal"
+    paid_on: str
+    method: Optional[str] = None
+    note: Optional[str] = None
+
+
+@api_router.post("/payments/bulk", response_model=List[PaymentEntry])
+async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(get_current_user)):
+    user_id = current_user["id"]
+    if not payload.athlete_ids:
+        raise HTTPException(status_code=400, detail="Select at least one athlete")
+    if payload.amount is None or payload.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+    valid_ids = {
+        d["id"] async for d in db.athletes.find(
+            {"id": {"$in": payload.athlete_ids}, "user_id": user_id}, {"_id": 0, "id": 1}
+        )
+    }
+    missing = [aid for aid in payload.athlete_ids if aid not in valid_ids]
+    if missing:
+        raise HTTPException(status_code=404, detail=f"Athlete(s) not found: {missing}")
+    per_amt = (
+        round(payload.amount / len(payload.athlete_ids), 2)
+        if payload.split_mode == "equal" else round(payload.amount, 2)
+    )
+    if per_amt <= 0:
+        raise HTTPException(status_code=400, detail="Per-athlete amount must be greater than zero")
+    created: List[PaymentEntry] = []
+    docs: List[dict] = []
+    for aid in payload.athlete_ids:
+        entry = PaymentEntry(
+            user_id=user_id,
+            athlete_id=aid,
+            amount=per_amt,
+            paid_on=payload.paid_on,
+            method=payload.method,
+            note=payload.note,
+            applied_expense_ids=[],
+        )
+        docs.append(entry.model_dump())
+        created.append(entry)
+    if docs:
+        await db.payments.insert_many(docs)
+    return created
 
 
 @api_router.patch("/payments/{payment_id}", response_model=PaymentEntry)

@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
+import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 
 type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string };
 
@@ -23,6 +24,7 @@ export default function FundraisersScreen() {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [raisedOn, setRaisedOn] = useState(todayISO());
+  const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -108,6 +110,16 @@ export default function FundraisersScreen() {
                     {formatDate(f.raised_on, { withYear: true })}
                     {applied > 0 ? ` • ${formatCurrency(applied)} applied` : ""}
                   </Text>
+                  {avail > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setApplyFund(f)}
+                      style={styles.applyBtn}
+                      testID={`apply-fund-btn-${f.id}`}
+                    >
+                      <Ionicons name="arrow-forward-circle" size={14} color="white" />
+                      <Text style={styles.applyBtnText}>Apply to expense</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={styles.rowAmount}>{formatCurrency(f.amount_raised)}</Text>
@@ -124,6 +136,12 @@ export default function FundraisersScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      <ApplyFundraiserSheet
+        visible={!!applyFund}
+        fundraiser={applyFund}
+        onClose={() => setApplyFund(null)}
+        onApplied={() => { load(); }}
+      />
     </SafeAreaView>
   );
 }
@@ -147,5 +165,7 @@ const styles = StyleSheet.create({
   rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
   rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   rowAmount: { ...typography.h3, color: colors.successText, marginBottom: 4 },
+  applyBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.accent, borderRadius: 999, marginTop: 6, alignSelf: "flex-start" },
+  applyBtnText: { color: "white", fontWeight: "700", fontSize: 11, letterSpacing: 0.2 },
   emptyHint: { ...typography.body, color: colors.textTertiary, textAlign: "center", marginTop: spacing.xl },
 });

@@ -1,0 +1,45 @@
+{
+  "summary": "Backend bulk endpoints tested via new pytest suite /app/backend/tests/test_bulk_endpoints.py (18 tests, all PASSING). Covered: bulk expenses equal/same split with 3 athletes, single athlete, empty list -> 400, zero/negative amount -> 400, cross-user athlete -> 404 (with missing id in detail), per-athlete rounds to 0 -> 400, dashboard unpaid_expense_balance delta verified, bulk payments equal/same/single, single endpoint regressions (POST /expenses, POST /payments), and ApplyPaymentRequest Literal strictness (source_type='card' -> 422). Full suite: 62/63 tests pass; the one failure was a pre-existing 429 (signup rate-limit) flake in test_partial_payments.py when the full 63-test run hits /auth/signup repeatedly, and that exact test passes when re-run in isolation. No backend code patches were required; all bulk endpoint behavior matches expectations from server.py.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/auth/signup",
+        "issue": "Signup rate-limit returns 429 'Too many requests, slow down.' when full pytest suite runs end-to-end (63 tests creating many users). Tests pass individually; only affects rapid back-to-back signups. Not a bulk-endpoint bug. Consider raising the signup rate-limit threshold for test environments or having tests share users where possible."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bulk_endpoints.py",
+    "/app/test_reports/pytest/pytest_bulk_endpoints.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "No bulk-endpoint changes required — backend behavior is correct.",
+    "Optional: relax /api/auth/signup rate-limit during pytest runs or refactor partial-payment test to reuse a module-scope user instead of creating a fresh user inside the test, to make the full-suite run deterministic."
+  ],
+  "critical_code_review_comments": [
+    "ExpenseBulkCreate and PaymentBulkCreate validation correctly handles empty list, zero/negative amount, cross-user athlete (404 with missing ids in detail), and per-athlete rounding to zero (400).",
+    "Bulk endpoints write paid_amount/balance_due-free docs (consistent with single POST /expenses).",
+    "ApplyPaymentRequest source_type is a strict Literal['manual','fundraiser']; arbitrary strings such as 'card' are correctly rejected by FastAPI/Pydantic with 422."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bulk_endpoints.py (created)",
+    "/app/test_reports/iteration_4.json (created)"
+  ],
+  "success_rate": {
+    "backend": "100% on bulk endpoint suite (18/18); 62/63 on full suite (only failure is unrelated signup rate-limit flake — passes individually)",
+    "frontend": "not tested this iteration (per request)"
+  },
+  "seed_data_creation": "Each test creates its own TEST_bulk_* user via /api/auth/signup; athletes are name-prefixed TEST_* for easy identification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_bulk_endpoints.py is the canonical bulk-endpoint regression. Full-suite signup 429 is a known rate-limit flake; if rerunning everything in one go, expect 1 spurious failure unless test_partial_payments.py is refactored to share users. The bulk endpoints expect: ExpenseBulkCreate{athlete_ids,category,amount,split_mode in {equal,same},incurred_on,due_date?,note?,paid?}; PaymentBulkCreate{athlete_ids,amount,split_mode,paid_on,method?,note?}. Response model is List[ExpenseEntry] / List[PaymentEntry].",
+  "rca_of_issue": "N/A — bulk endpoints work as designed. Single noted intermittent failure (test_partial_reduces_unpaid_expense_balance) RCA: pytest fixture signs up a fresh user inside the test body. When run as part of the full 63-test suite there are >40 prior signups in <15s, tripping the backend signup rate-limit middleware -> 429. Mitigation: rerun the affected test in isolation (passes), or refactor test to reuse a module-scope fixture user."
+}

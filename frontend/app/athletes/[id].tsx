@@ -14,7 +14,7 @@ import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 
 type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string; competition_ids?: string[] };
 type Expense = { id: string; category: string; amount: number; paid_amount?: number; balance_due?: number; note?: string; incurred_on: string; due_date?: string; paid: boolean };
-type Payment = { id: string; amount: number; paid_on: string; method?: string; note?: string };
+type Payment = { id: string; amount: number; paid_on: string; method?: string; note?: string; applied_expense_ids?: string[] };
 type Competition = { id: string; name: string; location?: string; event_date: string };
 
 export default function AthleteDetail() {
@@ -257,7 +257,11 @@ export default function AthleteDetail() {
             </TouchableOpacity>
             {payments.length === 0 ? (
               <Text style={styles.emptyHint}>No payments logged yet.</Text>
-            ) : payments.map((p) => (
+            ) : payments.map((p) => {
+              const linkedCats = (p.applied_expense_ids || [])
+                .map((eid) => expenses.find((e) => e.id === eid)?.category)
+                .filter(Boolean) as string[];
+              return (
               <View key={p.id} style={styles.row}>
                 <View style={[styles.iconCircle, { backgroundColor: colors.successBg }]}>
                   <Ionicons name="cash" size={16} color={colors.successText} />
@@ -265,6 +269,11 @@ export default function AthleteDetail() {
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.rowTitle}>{p.method || "Payment"}</Text>
                   <Text style={styles.rowMeta}>{formatDate(p.paid_on, { withYear: true })}</Text>
+                  {linkedCats.length > 0 && (
+                    <Text style={[styles.rowNote, { color: colors.accent, fontWeight: "600" }]} numberOfLines={1}>
+                      Applied to: {linkedCats.join(", ")}
+                    </Text>
+                  )}
                   {p.note && <Text style={styles.rowNote} numberOfLines={1}>{p.note}</Text>}
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
@@ -274,7 +283,8 @@ export default function AthleteDetail() {
                   </TouchableOpacity>
                 </View>
               </View>
-            ))}
+              );
+            })}
           </>
         )}
       </ScrollView>
