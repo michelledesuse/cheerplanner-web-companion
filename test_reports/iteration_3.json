@@ -1,0 +1,51 @@
+{
+  "summary": "Iteration 3 — backend-focused validation of the NEW partial-payment-on-expense feature. Created /app/backend/tests/test_partial_payments.py with 16 targeted tests covering: GET /api/expenses returning paid_amount/balance_due; POST /api/expenses/{id}/apply-payment for both manual and fundraiser sources; balance capping (both to remaining expense balance and to fundraiser available); validation (0/negative → 400, missing expense → 404, missing fundraiser → 404, fully-paid expense → 400); fundraiser applied_amount/available propagation; POST /api/payments no-longer-eagerly-marks-paid behavior; and dashboard.unpaid_expense_balance recalculation. Headline scenario from the request (athlete A, fundraiser F=$20, expense E=$400 → apply 20 from F → E.paid_amount=20, balance_due=380, paid=false, F.applied_amount=20, F.available=0; then $380 manual → E.paid_amount=400, balance_due=0, paid=true) PASSES end-to-end. All 16 new partial-payment tests pass; full regression suite (29 prior + 16 new = 45) is 100% green at EXPO_PUBLIC_BACKEND_URL. Frontend was not exercised this iteration (backend-first scope per request). No bugs found in the new endpoint logic.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/expenses/{id}/apply-payment", "issue": "When source_type=='fundraiser' and the cap chain reduces apply_amt below the user-requested amount (either due to remaining expense balance or fundraiser available being smaller), the API silently applies the smaller cap and returns 200 with the actual paid_amount. The request docs explicitly allow this ('cap silently — verify either by checking returned balance_due') so this is by design, but the client cannot distinguish 'requested=50, applied=20' from 'requested=20, applied=20' without diffing against the prior state. Consider returning the applied delta (e.g. {expense, applied_amount: 20}) for clearer UX."},
+      {"endpoint": "POST /api/expenses/{id}/apply-payment", "issue": "source_type is a free string field (no Literal/enum). Any unrecognized value (e.g. 'wallet') silently falls through the 'manual' branch — no validation error. Low risk but consider Literal['manual','fundraiser']."},
+      {"endpoint": "POST /api/expenses/{id}/apply-payment", "issue": "Fundraiser increment uses $inc atomic op but the cap calculation reads fund_available from a separate find_one — a concurrent apply-payment race could over-apply (theoretical, single-user not impacted in practice). Consider compare-and-set (update_one with conditional filter) or read-after-write check."},
+      {"endpoint": "_build_paid_map / share split", "issue": "When a Payment has applied_expense_ids with multiple entries, the amount is share-split equally across them. This is a documented behavior but means a single Payment.amount=100 spread across 2 expenses yields 50.00 per expense — fractional rounding (e.g. amount=100 across 3) would yield 33.33+33.33+33.33 = 99.99 (≤amount); reverse direction (paid_map could undershoot vs expectation). Currently only the apply-payment endpoint creates single-element lists, so the split path is only exercised by manual /api/payments. Worth a small note in API docs."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "expo (web bundler) — residual shadow* deprecation warnings", "issue": "Carry-over from iter 2: expo logs still emit '\"shadow*\" style props are deprecated. Use \"boxShadow\".' (see /var/log/supervisor/expo.err.log). theme.ts is already on boxShadow, so source is a third-party RN component. Recommend running `grep -rn 'shadowColor\\|shadowOffset\\|shadowOpacity\\|shadowRadius' /app/frontend/app /app/frontend/components /app/frontend/src` to confirm app code is clean."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_partial_payments.py",
+    "/app/backend/tests/test_cheertrack_backend.py",
+    "/app/test_reports/pytest/pytest_partial_payments.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional) Consider returning the actual applied amount in the apply-payment response (e.g. {applied_amount: 20, expense: {...}}) so UI can show 'Applied $20 of $50 requested (fundraiser only had $20 available)'.",
+    "(Optional) Tighten apply-payment Pydantic schema: source_type: Literal['manual','fundraiser']; fundraiser_id required when source_type=='fundraiser' (currently checked manually, would benefit from model_validator).",
+    "(Optional / low priority) Guard against concurrent fundraiser application races via update_one with conditional filter on applied_amount.",
+    "(Frontend follow-up, not done this iteration) Verify the bottom-sheet flow described in the request renders correctly: testIDs apply-payment-{expense_id}, apply-payment-sheet, apply-amount-input, source-manual, source-fundraiser, fundraiser-pick-{id}, apply-submit-btn. Also verify fundraisers list (/fundraisers) shows '$X applied' / '$Y left' indicators.",
+    "(Carry-over) Investigate residual shadow* deprecation warnings (third-party RN component).",
+    "(Carry-over from iter 1) Set JWT_SECRET >= 32 chars in backend/.env."
+  ],
+  "critical_code_review_comments": [
+    "server.py::apply_payment_to_expense (lines 559-635): logic is correct and well-structured. Validation order is right (amount>0 → expense exists → not already paid → fundraiser exists+has balance → cap → create payment → conditionally flip paid). Refetching paid_map after insert is the safe approach.",
+    "server.py::_build_paid_map (lines 471-484): O(N) over user's payments. Currently called multiple times per apply-payment request (once before, once after). Acceptable at current scale but if a user accumulates thousands of payments this becomes a hot path. Consider passing the precomputed paid_map into _expense_with_balance for the final response (already-computed paid_total = current_paid + apply_amt) to skip one round-trip.",
+    "server.py::create_payment (lines 650-669): correctly switched from eager-mark to fully-covered-mark using _build_paid_map after insert. The +1e-6 tolerance for float comparison is sensible.",
+    "server.py::dashboard (lines 940-1006): unpaid_expense_balance correctly iterates with paid_map and computes max(0, amount-paid) for paid=false expenses. Edge case: when expense.paid=True but no payments exist (manually marked), it is correctly skipped from unpaid (not double-counted).",
+    "server.py is now 1250 lines — well past the 700-line guideline. Splitting into routers/ subpackage is increasingly important. Recommend deferring to a dedicated refactor task once feature surface stabilizes.",
+    "ApplyPaymentRequest.source_type is a free str (default 'manual') — should be Literal['manual','fundraiser']. Any typo currently silently bypasses fundraiser validation and creates a manual payment."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_partial_payments.py (NEW — 16 tests for the partial-payment feature)"
+  ],
+  "success_rate": {"backend": "100% (45/45 including 16 new partial-payment tests)", "frontend": "not tested (backend-first scope per request)"},
+  "seed_data_creation": "All test data created under fresh ephemeral signup'd users (TEST_pp_*@mailinator.com / TEST_dash_pp_*@mailinator.com). Athlete/fundraiser/expense names all prefixed TEST_ for cleanup identification. No production/seeded data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/ now has 45 tests across 2 files (test_cheertrack_backend.py + test_partial_payments.py), all green at EXPO_PUBLIC_BACKEND_URL. The new partial-payment endpoint POST /api/expenses/{id}/apply-payment is fully covered: manual+fundraiser sources, balance capping (both directions), all 400/404 error paths, fundraiser applied_amount tracking, dashboard recalc, and the headline $20→$400 scenario from the original problem statement. The companion GET /api/expenses now returns paid_amount + balance_due (computed, not persisted). POST /api/payments was correctly updated to only flip paid=true when cumulative paid_amount fully covers. If frontend testing is next: relevant testIDs to verify are apply-payment-{expense_id} (button in /athletes/[id].tsx expense row), apply-payment-sheet (bottom sheet), apply-amount-input, source-manual / source-fundraiser segmented control, fundraiser-pick-{id} radios, apply-submit-btn. Fundraisers list (/fundraisers) should show 'X applied / Y left' badges.",
+  "rca_of_issue": "No bugs found this iteration. All headline scenarios from the request pass exactly as specified. Notable design observations: (a) cap-to-fundraiser and cap-to-remaining are silently applied — the response contains the actual applied amount via paid_amount diff (not a separate 'applied_amount_this_call' field), which the request acknowledged as acceptable; (b) source_type is a free string and should be Literal-constrained; (c) paid_map is recomputed twice per apply-payment, which is fine at current scale."
+}

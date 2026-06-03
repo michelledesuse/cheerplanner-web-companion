@@ -10,9 +10,10 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate } from "@/src/utils/format";
+import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 
 type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string; competition_ids?: string[] };
-type Expense = { id: string; category: string; amount: number; note?: string; incurred_on: string; due_date?: string; paid: boolean };
+type Expense = { id: string; category: string; amount: number; paid_amount?: number; balance_due?: number; note?: string; incurred_on: string; due_date?: string; paid: boolean };
 type Payment = { id: string; amount: number; paid_on: string; method?: string; note?: string };
 type Competition = { id: string; name: string; location?: string; event_date: string };
 
@@ -27,6 +28,7 @@ export default function AthleteDetail() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [savingComps, setSavingComps] = useState(false);
+  const [applySheet, setApplySheet] = useState<Expense | null>(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -187,28 +189,59 @@ export default function AthleteDetail() {
             </TouchableOpacity>
             {expenses.length === 0 ? (
               <Text style={styles.emptyHint}>No expenses logged yet.</Text>
-            ) : expenses.map((e) => (
-              <View key={e.id} style={styles.row} testID={`expense-row-${e.id}`}>
-                <TouchableOpacity onPress={() => togglePaid(e)} style={[styles.statusDot, e.paid && { backgroundColor: colors.successText, borderColor: colors.successText }]}>
-                  {e.paid && <Ionicons name="checkmark" size={14} color="white" />}
-                </TouchableOpacity>
-                <View style={{ flex: 1, marginLeft: spacing.md }}>
-                  <Text style={styles.rowTitle}>{e.category}</Text>
-                  <Text style={styles.rowMeta}>
-                    {formatDate(e.incurred_on)}{e.due_date ? ` • due ${formatDate(e.due_date)}` : ""}
-                  </Text>
-                  {e.note && <Text style={styles.rowNote} numberOfLines={1}>{e.note}</Text>}
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={[styles.rowAmount, e.paid && { color: colors.successText, textDecorationLine: "line-through" }]}>
-                    {formatCurrency(e.amount)}
-                  </Text>
-                  <TouchableOpacity onPress={() => deleteExpense(e.id)} hitSlop={10}>
-                    <Ionicons name="trash-outline" size={14} color={colors.textTertiary} />
+            ) : expenses.map((e) => {
+              const paidAmt = Number(e.paid_amount || 0);
+              const balance = Math.max(0, Number(e.balance_due ?? (Number(e.amount) - paidAmt)));
+              const fullyPaid = e.paid || balance <= 0.001;
+              const partiallyPaid = paidAmt > 0.001 && !fullyPaid;
+              const pct = Number(e.amount) > 0 ? Math.min(100, Math.round((paidAmt / Number(e.amount)) * 100)) : 0;
+              return (
+                <View key={e.id} style={styles.row} testID={`expense-row-${e.id}`}>
+                  <TouchableOpacity onPress={() => togglePaid(e)} style={[styles.statusDot, fullyPaid && { backgroundColor: colors.successText, borderColor: colors.successText }]}>
+                    {fullyPaid && <Ionicons name="checkmark" size={14} color="white" />}
                   </TouchableOpacity>
+                  <View style={{ flex: 1, marginLeft: spacing.md }}>
+                    <Text style={styles.rowTitle}>{e.category}</Text>
+                    <Text style={styles.rowMeta}>
+                      {formatDate(e.incurred_on)}{e.due_date ? ` • due ${formatDate(e.due_date)}` : ""}
+                    </Text>
+                    {partiallyPaid && (
+                      <View style={styles.progressWrap}>
+                        <View style={[styles.progressFill, { width: `${pct}%` }]} />
+                      </View>
+                    )}
+                    {(partiallyPaid || fullyPaid) && (
+                      <Text style={[styles.rowNote, { color: fullyPaid ? colors.successText : colors.textSecondary }]}>
+                        Paid {formatCurrency(paidAmt)}{!fullyPaid ? ` of ${formatCurrency(e.amount)}` : ""}
+                      </Text>
+                    )}
+                    {e.note && <Text style={styles.rowNote} numberOfLines={1}>{e.note}</Text>}
+                  </View>
+                  <View style={{ alignItems: "flex-end" }}>
+                    {fullyPaid ? (
+                      <Text style={[styles.rowAmount, { color: colors.successText, textDecorationLine: "line-through" }]}>
+                        {formatCurrency(e.amount)}
+                      </Text>
+                    ) : (
+                      <>
+                        <Text style={styles.rowAmount}>{formatCurrency(balance)}</Text>
+                        <TouchableOpacity
+                          onPress={() => setApplySheet(e)}
+                          style={styles.payBtn}
+                          testID={`apply-payment-${e.id}`}
+                        >
+                          <Ionicons name="cash-outline" size={12} color="white" />
+                          <Text style={styles.payBtnText}>Apply</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    <TouchableOpacity onPress={() => deleteExpense(e.id)} hitSlop={10} style={{ marginTop: 4 }}>
+                      <Ionicons name="trash-outline" size={14} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </>
         )}
 
@@ -245,6 +278,12 @@ export default function AthleteDetail() {
           </>
         )}
       </ScrollView>
+      <ApplyPaymentSheet
+        visible={!!applySheet}
+        expense={applySheet}
+        onClose={() => setApplySheet(null)}
+        onApplied={() => { load(); }}
+      />
     </SafeAreaView>
   );
 }
@@ -297,5 +336,9 @@ const styles = StyleSheet.create({
   rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   rowNote: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
   rowAmount: { ...typography.h3, color: colors.textPrimary, marginBottom: 4 },
+  payBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.accent, borderRadius: 999, marginTop: 2 },
+  payBtnText: { color: "white", fontWeight: "700", fontSize: 11, letterSpacing: 0.3 },
+  progressWrap: { height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 6, overflow: "hidden" },
+  progressFill: { height: 4, backgroundColor: colors.successText },
   emptyHint: { ...typography.body, color: colors.textTertiary, textAlign: "center", marginTop: spacing.xl },
 });

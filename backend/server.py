@@ -130,6 +130,9 @@ class ExpenseEntry(BaseModel):
     incurred_on: str  # ISO date
     due_date: Optional[str] = None
     paid: bool = False
+    # Response-only computed fields (not stored)
+    paid_amount: float = 0.0
+    balance_due: float = 0.0
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -303,8 +306,11 @@ class Fundraiser(BaseModel):
     athlete_id: Optional[str] = None  # null = household-level
     name: str
     amount_raised: float = 0.0
+    applied_amount: float = 0.0  # how much has been applied to expenses
     raised_on: str
     note: Optional[str] = None
+    # Response-only convenience field
+    available: float = 0.0
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -462,6 +468,33 @@ async def expense_categories():
     return {"categories": EXPENSE_CATEGORIES}
 
 
+async def _build_paid_map(user_id: str) -> dict:
+    """Return {expense_id: paid_amount_sum} from all payments for this user."""
+    paid_map: dict = {}
+    async for p in db.payments.find(
+        {"user_id": user_id},
+        {"_id": 0, "amount": 1, "applied_expense_ids": 1},
+    ).limit(20000):
+        ids = p.get("applied_expense_ids") or []
+        if not ids:
+            continue
+        share = float(p.get("amount") or 0) / len(ids)
+        for eid in ids:
+            paid_map[eid] = round(paid_map.get(eid, 0.0) + share, 2)
+    return paid_map
+
+
+def _expense_with_balance(doc: dict, paid_map: dict) -> ExpenseEntry:
+    paid = float(paid_map.get(doc["id"], 0.0))
+    amt = float(doc.get("amount") or 0.0)
+    # If marked paid manually but no payments recorded, surface full amount as paid
+    if doc.get("paid") and paid < amt:
+        paid = amt
+    balance = max(0.0, round(amt - paid, 2))
+    doc = {**doc, "paid_amount": round(paid, 2), "balance_due": balance}
+    return ExpenseEntry(**doc)
+
+
 @api_router.get("/expenses", response_model=List[ExpenseEntry])
 async def list_expenses(
     athlete_id: Optional[str] = None,
@@ -471,13 +504,23 @@ async def list_expenses(
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.expenses.find(q, {"_id": 0}).sort("incurred_on", -1).to_list(2000)
-    return [ExpenseEntry(**d) for d in docs]
+    paid_map = await _build_paid_map(current_user["id"])
+    return [_expense_with_balance(d, paid_map) for d in docs]
 
 
 @api_router.post("/expenses", response_model=ExpenseEntry)
 async def create_expense(payload: ExpenseCreate, current_user=Depends(get_current_user)):
-    entry = ExpenseEntry(user_id=current_user["id"], **payload.model_dump())
-    await db.expenses.insert_one(entry.model_dump())
+    data = payload.model_dump()
+    # Strip response-only computed fields if accidentally sent
+    for k in ("paid_amount", "balance_due"):
+        data.pop(k, None)
+    entry = ExpenseEntry(user_id=current_user["id"], **data)
+    stored = entry.model_dump()
+    # Don't persist computed fields
+    stored.pop("paid_amount", None)
+    stored.pop("balance_due", None)
+    await db.expenses.insert_one(stored)
+    entry.balance_due = round(entry.amount - entry.paid_amount, 2)
     return entry
 
 
@@ -492,7 +535,8 @@ async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=D
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Expense not found")
     doc = await db.expenses.find_one({"id": expense_id}, {"_id": 0})
-    return ExpenseEntry(**doc)
+    paid_map = await _build_paid_map(current_user["id"])
+    return _expense_with_balance(doc, paid_map)
 
 
 @api_router.delete("/expenses/{expense_id}")
@@ -501,6 +545,94 @@ async def delete_expense(expense_id: str, current_user=Depends(get_current_user)
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"deleted": True}
+
+
+class ApplyPaymentRequest(BaseModel):
+    amount: float
+    source_type: str = "manual"  # "manual" | "fundraiser"
+    fundraiser_id: Optional[str] = None
+    paid_on: Optional[str] = None
+    note: Optional[str] = None
+    method: Optional[str] = None
+
+
+@api_router.post("/expenses/{expense_id}/apply-payment", response_model=ExpenseEntry)
+async def apply_payment_to_expense(
+    expense_id: str,
+    payload: ApplyPaymentRequest,
+    current_user=Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    if payload.amount is None or payload.amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+
+    expense = await db.expenses.find_one({"id": expense_id, "user_id": user_id}, {"_id": 0})
+    if not expense:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    # Determine remaining balance for this expense
+    paid_map = await _build_paid_map(user_id)
+    current_paid = float(paid_map.get(expense_id, 0.0))
+    remaining = max(0.0, float(expense.get("amount") or 0.0) - current_paid)
+    if remaining <= 0 or expense.get("paid"):
+        raise HTTPException(status_code=400, detail="Expense is already fully paid")
+
+    apply_amt = round(min(payload.amount, remaining), 2)
+
+    # Handle fundraiser source
+    fundraiser_doc = None
+    if payload.source_type == "fundraiser":
+        if not payload.fundraiser_id:
+            raise HTTPException(status_code=400, detail="fundraiser_id required for fundraiser source")
+        fundraiser_doc = await db.fundraisers.find_one(
+            {"id": payload.fundraiser_id, "user_id": user_id}, {"_id": 0}
+        )
+        if not fundraiser_doc:
+            raise HTTPException(status_code=404, detail="Fundraiser not found")
+        fund_raised = float(fundraiser_doc.get("amount_raised") or 0.0)
+        fund_applied = float(fundraiser_doc.get("applied_amount") or 0.0)
+        fund_available = round(fund_raised - fund_applied, 2)
+        if fund_available <= 0:
+            raise HTTPException(status_code=400, detail="Fundraiser has no available balance")
+        # cap apply_amt to the smaller of remaining and fundraiser available
+        apply_amt = round(min(apply_amt, fund_available), 2)
+        await db.fundraisers.update_one(
+            {"id": payload.fundraiser_id, "user_id": user_id},
+            {"$inc": {"applied_amount": apply_amt}},
+        )
+
+    method = payload.method or ("Fundraiser" if payload.source_type == "fundraiser" else None)
+    note_parts: List[str] = []
+    if fundraiser_doc:
+        note_parts.append(f"From fundraiser: {fundraiser_doc.get('name', '')}")
+    if payload.note:
+        note_parts.append(payload.note)
+    note = " — ".join([p for p in note_parts if p]) or None
+
+    # Create a Payment record linked to this expense
+    payment = PaymentEntry(
+        user_id=user_id,
+        athlete_id=expense["athlete_id"],
+        amount=apply_amt,
+        paid_on=payload.paid_on or date.today().isoformat(),
+        method=method,
+        note=note,
+        applied_expense_ids=[expense_id],
+    )
+    await db.payments.insert_one(payment.model_dump())
+
+    # If fully covered, flip expense.paid
+    new_paid_total = round(current_paid + apply_amt, 2)
+    fully_paid = new_paid_total >= float(expense.get("amount") or 0.0) - 1e-6
+    if fully_paid and not expense.get("paid"):
+        await db.expenses.update_one(
+            {"id": expense_id, "user_id": user_id}, {"$set": {"paid": True}}
+        )
+        expense["paid"] = True
+
+    # Refresh paid map and return updated expense
+    paid_map = await _build_paid_map(user_id)
+    return _expense_with_balance(expense, paid_map)
 
 
 # ============================================================
@@ -519,12 +651,21 @@ async def list_payments(athlete_id: Optional[str] = None, current_user=Depends(g
 async def create_payment(payload: PaymentCreate, current_user=Depends(get_current_user)):
     entry = PaymentEntry(user_id=current_user["id"], **payload.model_dump())
     await db.payments.insert_one(entry.model_dump())
-    # Auto-mark linked expenses as paid
+    # Auto-mark linked expenses as paid ONLY if fully covered after this payment
     if entry.applied_expense_ids:
-        await db.expenses.update_many(
-            {"id": {"$in": entry.applied_expense_ids}, "user_id": current_user["id"]},
-            {"$set": {"paid": True}},
-        )
+        paid_map = await _build_paid_map(current_user["id"])
+        for eid in entry.applied_expense_ids:
+            exp = await db.expenses.find_one(
+                {"id": eid, "user_id": current_user["id"]}, {"_id": 0, "amount": 1, "paid": 1}
+            )
+            if not exp or exp.get("paid"):
+                continue
+            amt = float(exp.get("amount") or 0.0)
+            paid = float(paid_map.get(eid, 0.0))
+            if paid + 1e-6 >= amt:
+                await db.expenses.update_one(
+                    {"id": eid, "user_id": current_user["id"]}, {"$set": {"paid": True}}
+                )
     return entry
 
 
@@ -650,16 +791,29 @@ async def delete_booking(booking_id: str, current_user=Depends(get_current_user)
 # ============================================================
 # Fundraisers
 # ============================================================
+def _fundraiser_with_available(d: dict) -> Fundraiser:
+    raised = float(d.get("amount_raised") or 0.0)
+    applied = float(d.get("applied_amount") or 0.0)
+    d = {**d, "available": round(max(0.0, raised - applied), 2)}
+    return Fundraiser(**d)
+
+
 @api_router.get("/fundraisers", response_model=List[Fundraiser])
 async def list_fundraisers(current_user=Depends(get_current_user)):
     docs = await db.fundraisers.find({"user_id": current_user["id"]}, {"_id": 0}).sort("raised_on", -1).to_list(1000)
-    return [Fundraiser(**d) for d in docs]
+    return [_fundraiser_with_available(d) for d in docs]
 
 
 @api_router.post("/fundraisers", response_model=Fundraiser)
 async def create_fundraiser(payload: FundraiserCreate, current_user=Depends(get_current_user)):
-    fr = Fundraiser(user_id=current_user["id"], **payload.model_dump())
-    await db.fundraisers.insert_one(fr.model_dump())
+    data = payload.model_dump()
+    for k in ("available",):
+        data.pop(k, None)
+    fr = Fundraiser(user_id=current_user["id"], **data)
+    stored = fr.model_dump()
+    stored.pop("available", None)
+    await db.fundraisers.insert_one(stored)
+    fr.available = round(max(0.0, fr.amount_raised - fr.applied_amount), 2)
     return fr
 
 
@@ -805,10 +959,16 @@ async def dashboard(current_user=Depends(get_current_user)):
     async for d in db.bookings.find({"user_id": user_id}, {"_id": 0, "cost": 1, "amount_paid": 1}).limit(5000):
         booking_balance += float(d.get("cost") or 0) - float(d.get("amount_paid") or 0)
 
-    # Unpaid expense balance
+    # Unpaid expense balance — accounts for partial payments
+    paid_map = await _build_paid_map(user_id)
     unpaid_expense_balance = 0.0
-    async for d in db.expenses.find({"user_id": user_id, "paid": False}, {"_id": 0, "amount": 1}).limit(20000):
-        unpaid_expense_balance += float(d.get("amount") or 0)
+    async for d in db.expenses.find({"user_id": user_id}, {"_id": 0, "id": 1, "amount": 1, "paid": 1}).limit(20000):
+        if d.get("paid"):
+            continue
+        amt = float(d.get("amount") or 0)
+        paid = float(paid_map.get(d.get("id"), 0.0))
+        remaining = max(0.0, amt - paid)
+        unpaid_expense_balance += remaining
 
     # Next competition
     next_comp = None

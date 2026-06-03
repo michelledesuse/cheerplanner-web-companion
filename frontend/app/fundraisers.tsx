@@ -12,7 +12,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
-type Fundraiser = { id: string; name: string; amount_raised: number; raised_on: string; note?: string };
+type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string };
 
 export default function FundraisersScreen() {
   const router = useRouter();
@@ -65,7 +65,14 @@ export default function FundraisersScreen() {
           <View style={styles.heroCard}>
             <Text style={styles.heroLabel}>TOTAL RAISED</Text>
             <Text style={styles.heroAmount}>{formatCurrency(total)}</Text>
-            <Text style={styles.heroMeta}>{items.length} {items.length === 1 ? "fundraiser" : "fundraisers"}</Text>
+            <Text style={styles.heroMeta}>
+              {items.length} {items.length === 1 ? "fundraiser" : "fundraisers"}
+              {(() => {
+                const totalApplied = items.reduce((s, i) => s + Number(i.applied_amount || 0), 0);
+                const available = Math.max(0, total - totalApplied);
+                return totalApplied > 0 ? ` • ${formatCurrency(available)} available` : "";
+              })()}
+            </Text>
           </View>
 
           {showAdd && (
@@ -87,23 +94,33 @@ export default function FundraisersScreen() {
           ) : items.length === 0 ? (
             <Text style={styles.emptyHint}>No fundraisers yet. Add your first one!</Text>
           ) : (
-            items.map((f) => (
+            items.map((f) => {
+              const applied = Number(f.applied_amount || 0);
+              const avail = Number(f.available ?? Math.max(0, Number(f.amount_raised) - applied));
+              return (
               <View key={f.id} style={styles.row}>
                 <View style={[styles.iconCircle, { backgroundColor: colors.warningBg }]}>
                   <Ionicons name="gift" size={16} color={colors.warningText} />
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.rowTitle}>{f.name}</Text>
-                  <Text style={styles.rowMeta}>{formatDate(f.raised_on, { withYear: true })}</Text>
+                  <Text style={styles.rowMeta}>
+                    {formatDate(f.raised_on, { withYear: true })}
+                    {applied > 0 ? ` • ${formatCurrency(applied)} applied` : ""}
+                  </Text>
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={styles.rowAmount}>{formatCurrency(f.amount_raised)}</Text>
+                  {applied > 0 && (
+                    <Text style={styles.rowMeta}>{formatCurrency(avail)} left</Text>
+                  )}
                   <TouchableOpacity onPress={() => remove(f.id)} hitSlop={10}>
                     <Ionicons name="trash-outline" size={14} color={colors.textTertiary} />
                   </TouchableOpacity>
                 </View>
               </View>
-            ))
+              );
+            })
           )}
         </ScrollView>
       </KeyboardAvoidingView>
