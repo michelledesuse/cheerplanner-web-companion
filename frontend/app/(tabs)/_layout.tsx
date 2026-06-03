@@ -36,6 +36,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="expenses"
+        options={{
+          title: "Expenses",
+          tabBarIcon: ({ color, size }) => <Ionicons name="wallet" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="competitions"
         options={{
           title: "Comps",
@@ -43,19 +50,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="reminders"
+        name="calendar"
         options={{
-          title: "Reminders",
-          tabBarIcon: ({ color, size }) => <Ionicons name="notifications" size={size} color={color} />,
+          title: "Calendar",
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "Settings",
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-circle" size={size} color={color} />,
-        }}
-      />
+      {/* Hidden routes — accessible via navigation but not shown in the tab bar */}
+      <Tabs.Screen name="reminders" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -49,6 +49,12 @@ export default function ApplyPaymentSheet({ visible, onClose, expense, onApplied
       try {
         const r = await api.get<Fundraiser[]>("/fundraisers");
         setFundraisers(r.data);
+        // Smart suggest: if any fundraiser exactly matches the balance, preselect it
+        const exact = r.data.find((f) => Math.abs(Number(f.available ?? f.amount_raised) - balance) < 0.01);
+        if (exact && balance > 0) {
+          setSourceType("fundraiser");
+          setFundraiserId(exact.id);
+        }
       } catch (_e) {} finally { setLoading(false); }
     })();
   }, [visible, balance]);

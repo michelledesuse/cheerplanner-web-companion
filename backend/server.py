@@ -155,6 +155,11 @@ class ExpenseUpdate(BaseModel):
     paid: Optional[bool] = None
 
 
+class PaymentAllocation(BaseModel):
+    expense_id: str
+    amount: float
+
+
 class PaymentEntry(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -164,6 +169,8 @@ class PaymentEntry(BaseModel):
     method: Optional[str] = None
     note: Optional[str] = None
     applied_expense_ids: List[str] = Field(default_factory=list)
+    # Optional per-expense breakdown (used by bulk auto-allocation)
+    allocations: Optional[List[PaymentAllocation]] = None
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -473,8 +480,17 @@ async def _build_paid_map(user_id: str) -> dict:
     paid_map: dict = {}
     async for p in db.payments.find(
         {"user_id": user_id},
-        {"_id": 0, "amount": 1, "applied_expense_ids": 1},
+        {"_id": 0, "amount": 1, "applied_expense_ids": 1, "allocations": 1},
     ).limit(20000):
+        allocs = p.get("allocations") or []
+        if allocs:
+            # Precise per-expense breakdown (used by bulk auto-allocation)
+            for a in allocs:
+                eid = a.get("expense_id")
+                amt = float(a.get("amount") or 0)
+                if eid and amt:
+                    paid_map[eid] = round(paid_map.get(eid, 0.0) + amt, 2)
+            continue
         ids = p.get("applied_expense_ids") or []
         if not ids:
             continue
@@ -756,9 +772,37 @@ async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(
     )
     if per_amt <= 0:
         raise HTTPException(status_code=400, detail="Per-athlete amount must be greater than zero")
+
+    # Auto-allocate per-athlete amount across that athlete's oldest unpaid expenses (by due_date)
+    paid_map = await _build_paid_map(user_id)
     created: List[PaymentEntry] = []
     docs: List[dict] = []
+    expense_paid_flips: List[str] = []
     for aid in payload.athlete_ids:
+        # Find athlete's open expenses sorted by due_date asc (oldest first)
+        open_exps: List[dict] = []
+        async for e in db.expenses.find(
+            {"user_id": user_id, "athlete_id": aid, "paid": False}, {"_id": 0}
+        ).sort([("due_date", 1), ("incurred_on", 1)]):
+            bal = max(0.0, float(e.get("amount") or 0) - float(paid_map.get(e["id"], 0.0)))
+            if bal > 0:
+                open_exps.append({"id": e["id"], "balance": bal, "amount": float(e.get("amount") or 0)})
+        # Allocate per_amt across them (oldest first, fill each fully)
+        remaining = per_amt
+        applied: List[str] = []
+        allocations: List[PaymentAllocation] = []
+        for oe in open_exps:
+            if remaining <= 0:
+                break
+            take = round(min(remaining, oe["balance"]), 2)
+            if take > 0:
+                applied.append(oe["id"])
+                allocations.append(PaymentAllocation(expense_id=oe["id"], amount=take))
+                # update paid_map in-memory for subsequent dashboard math (best-effort)
+                paid_map[oe["id"]] = round(paid_map.get(oe["id"], 0.0) + take, 2)
+                if paid_map[oe["id"]] + 1e-6 >= oe["amount"]:
+                    expense_paid_flips.append(oe["id"])
+                remaining = round(remaining - take, 2)
         entry = PaymentEntry(
             user_id=user_id,
             athlete_id=aid,
@@ -766,12 +810,19 @@ async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(
             paid_on=payload.paid_on,
             method=payload.method,
             note=payload.note,
-            applied_expense_ids=[],
+            applied_expense_ids=applied,
+            allocations=allocations if allocations else None,
         )
         docs.append(entry.model_dump())
         created.append(entry)
     if docs:
         await db.payments.insert_many(docs)
+    # Flip fully-covered expenses as paid
+    if expense_paid_flips:
+        await db.expenses.update_many(
+            {"id": {"$in": list(set(expense_paid_flips))}, "user_id": user_id},
+            {"$set": {"paid": True}},
+        )
     return created
 
 
@@ -892,6 +943,159 @@ async def delete_booking(booking_id: str, current_user=Depends(get_current_user)
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Booking not found")
     return {"deleted": True}
+
+
+# ============================================================
+# Calendar (aggregated)
+# ============================================================
+@api_router.get("/calendar")
+async def calendar_feed(
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    current_user=Depends(get_current_user),
+):
+    """Return all dated events for the user in [start, end] (ISO YYYY-MM-DD).
+    Items: due dates (expense), competitions, hotel check-in/out, flight depart/arrive, fundraisers.
+    Each item: { id, kind, date, title, subtitle?, amount?, color, athlete_id?, link }
+    """
+    user_id = current_user["id"]
+
+    def in_range(d: Optional[str]) -> bool:
+        if not d:
+            return False
+        if start and d < start:
+            return False
+        if end and d > end:
+            return False
+        return True
+
+    items: List[dict] = []
+
+    # Athletes map for names
+    athletes = {a["id"]: a async for a in db.athletes.find({"user_id": user_id}, {"_id": 0, "id": 1, "name": 1, "avatar_color": 1})}
+
+    # Expenses — incurred_on (history) and due_date (planning)
+    paid_map = await _build_paid_map(user_id)
+    async for e in db.expenses.find({"user_id": user_id}, {"_id": 0}):
+        ath = athletes.get(e.get("athlete_id"), {})
+        amt = float(e.get("amount") or 0)
+        paid = float(paid_map.get(e.get("id"), 0.0))
+        bal = max(0.0, round(amt - paid, 2))
+        if in_range(e.get("due_date")) and not e.get("paid"):
+            items.append({
+                "id": f"expense-due-{e['id']}",
+                "kind": "expense_due",
+                "date": e["due_date"],
+                "title": f"{e.get('category', 'Expense')} due",
+                "subtitle": ath.get("name", ""),
+                "amount": bal,
+                "color": "#E11D48",  # red
+                "athlete_id": e.get("athlete_id"),
+                "link": f"/athletes/{e.get('athlete_id')}",
+            })
+    # Competitions
+    async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
+        if in_range(c.get("event_date")):
+            items.append({
+                "id": f"comp-{c['id']}",
+                "kind": "competition",
+                "date": c["event_date"],
+                "title": c.get("name", "Competition"),
+                "subtitle": c.get("location") or "",
+                "color": "#007CFF",  # blue (brand)
+                "link": f"/competitions/{c['id']}",
+            })
+        if c.get("end_date") and c.get("end_date") != c.get("event_date") and in_range(c.get("end_date")):
+            items.append({
+                "id": f"comp-end-{c['id']}",
+                "kind": "competition",
+                "date": c["end_date"],
+                "title": f"{c.get('name', 'Competition')} (ends)",
+                "subtitle": c.get("location") or "",
+                "color": "#007CFF",
+                "link": f"/competitions/{c['id']}",
+            })
+
+    # Bookings — hotels, flights, ground
+    async for b in db.bookings.find({"user_id": user_id}, {"_id": 0}):
+        btype = b.get("type", "booking")
+        comp_link = f"/competitions/{b.get('competition_id')}" if b.get("competition_id") else "/"
+        vendor = b.get("provider") or btype.capitalize()
+        conf = b.get("confirmation") or ""
+        if btype == "hotel":
+            if in_range(b.get("check_in")):
+                items.append({
+                    "id": f"hotel-in-{b['id']}",
+                    "kind": "hotel_checkin",
+                    "date": b["check_in"],
+                    "title": f"Check-in: {vendor}",
+                    "subtitle": conf,
+                    "color": "#7C3AED",  # purple
+                    "link": comp_link,
+                })
+            if in_range(b.get("check_out")):
+                items.append({
+                    "id": f"hotel-out-{b['id']}",
+                    "kind": "hotel_checkout",
+                    "date": b["check_out"],
+                    "title": f"Check-out: {vendor}",
+                    "subtitle": conf,
+                    "color": "#7C3AED",
+                    "link": comp_link,
+                })
+        elif btype == "flight":
+            dep = b.get("depart_time")
+            if dep and in_range(dep[:10]):
+                items.append({
+                    "id": f"flight-dep-{b['id']}",
+                    "kind": "flight_depart",
+                    "date": dep[:10],
+                    "title": f"Flight {b.get('depart_airport') or ''} → {b.get('arrive_airport') or ''}".strip(),
+                    "subtitle": f"{vendor} {b.get('flight_number') or ''}".strip(),
+                    "color": "#7C3AED",
+                    "link": comp_link,
+                })
+            ret = b.get("return_depart_time")
+            if ret and in_range(ret[:10]):
+                items.append({
+                    "id": f"flight-ret-{b['id']}",
+                    "kind": "flight_return",
+                    "date": ret[:10],
+                    "title": f"Return {b.get('return_depart_airport') or ''} → {b.get('return_arrive_airport') or ''}".strip(),
+                    "subtitle": f"{vendor} {b.get('return_flight_number') or ''}".strip(),
+                    "color": "#7C3AED",
+                    "link": comp_link,
+                })
+        else:  # ground / other
+            d = b.get("check_in") or (b.get("depart_time") or "")[:10] or None
+            if in_range(d):
+                items.append({
+                    "id": f"trans-{b['id']}",
+                    "kind": "transport",
+                    "date": d,
+                    "title": vendor,
+                    "subtitle": btype,
+                    "color": "#7C3AED",
+                    "link": comp_link,
+                })
+
+    # Fundraisers — raised_on
+    async for f in db.fundraisers.find({"user_id": user_id}, {"_id": 0}):
+        if in_range(f.get("raised_on")):
+            items.append({
+                "id": f"fund-{f['id']}",
+                "kind": "fundraiser",
+                "date": f["raised_on"],
+                "title": f.get("name", "Fundraiser"),
+                "subtitle": "Raised",
+                "amount": float(f.get("amount_raised") or 0.0),
+                "color": "#16A34A",  # green
+                "link": "/fundraisers",
+            })
+
+    # Sort by date asc
+    items.sort(key=lambda x: x["date"])
+    return {"items": items}
 
 
 # ============================================================

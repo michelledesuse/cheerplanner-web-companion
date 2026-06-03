@@ -1,0 +1,39 @@
+{
+  "summary": "Backend-only testing for CheerPlanner Calendar feed (GET /api/calendar) and bulk-payment auto-allocation (POST /api/payments/bulk). Wrote 13 new test cases (9 calendar + 3 bulk auto-alloc + 1 single-payment regression) in /app/backend/tests/test_calendar_and_bulk_alloc.py covering all scenarios from the request. Found and patched a bug in /app/backend/server.py: the bulk auto-allocation correctly walked oldest-unpaid expenses but persisted only applied_expense_ids; _build_paid_map then evenly split the payment amount across those ids, masking the true per-expense allocation (e.g., $50/$70 was reported as $60/$60). Added per-expense `allocations: List[{expense_id, amount}]` field to PaymentEntry, populated by /payments/bulk, and read first by _build_paid_map (fallback to legacy equal-split share for older payments). All 13 new tests pass and the full suite (76 tests across 4 files) passes with no regressions.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/signup", "issue": "Rate limit 10/min per IP causes flakiness when running test suite from same IP; new tests retry on 429 with 11s backoff. Pre-existing limiter, not a new issue."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_and_bulk_alloc.py",
+    "/app/test_reports/pytest/pytest_calendar_and_bulk_alloc.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Review the minimal server.py patch (added PaymentAllocation model + allocations field on PaymentEntry; _build_paid_map now prefers allocations[] when present; bulk endpoint populates allocations). Frontend reads only applied_expense_ids today so no FE changes required, but you may surface allocations[] in the UI if useful for payment receipts.",
+    "Optional: consider also writing allocations[] from POST /api/expenses/{id}/apply-payment so all payment paths share a single source of truth (today apply-payment uses 1-element applied_expense_ids which produces correct paid_map via legacy share-split, so it works, but uniformity would be nicer)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1540+ lines (>700-line threshold). Server refactor was acknowledged as deferred; flagging again for tracking.",
+    "Calendar feed uses async-for + Python-side date filtering across expenses/competitions/bookings/fundraisers; OK for current scale but could push date-range filters into Mongo queries if collections grow.",
+    "passlib bcrypt warning at startup (`module 'bcrypt' has no attribute '__about__'`) — cosmetic; consider pinning bcrypt<4 or upgrading passlib."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (added PaymentAllocation model + allocations field on PaymentEntry; _build_paid_map prefers allocations; /payments/bulk now records per-expense allocations)",
+    "/app/backend/tests/test_calendar_and_bulk_alloc.py (new test file with 13 scenarios)"
+  ],
+  "success_rate": {"backend": "100% (76/76 across full suite; 13/13 new)", "frontend": "not tested per request"},
+  "seed_data_creation": "Each test creates its own isolated TEST_* user via /api/auth/signup; no shared/seeded fixtures.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "If signup 429s recur, wait 60s between runs OR use a single module-scoped user per test class. The new allocations[] field is optional/back-compat: pre-existing payments without allocations still compute paid_amount via legacy equal-split across applied_expense_ids. Bulk-payment behavior now satisfies the spec: per-athlete amount is walked across that athlete's oldest unpaid expenses by due_date asc; fully-covered expenses flip paid=true automatically.",
+  "rca_of_issue": "Bug: When POST /api/payments/bulk created a single Payment touching multiple expenses (e.g., $120 across $50 + $100 open expenses), the Payment was stored with applied_expense_ids=[e1,e2] only, NOT the per-expense breakdown ($50 vs $70). _build_paid_map (used by GET /expenses, dashboard, calendar) then assumed equal split: $120/2 = $60 each. Result: e1 showed paid_amount=$60 (not $50) and e2 showed paid_amount=$60 (not $70); e1.paid was correctly flipped via in-memory flip-set during the bulk handler, but UI/list views showed inconsistent paid_amount values. Fix: add per-expense allocations[] on PaymentEntry, populate in bulk handler, prefer allocations in _build_paid_map (with legacy equal-split fallback). Reproduction: see test_one_athlete_two_open_expenses_partial — previously failed with `assert 60.0 == 70.0`, now passes."
+}

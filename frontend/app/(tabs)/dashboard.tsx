@@ -103,9 +103,18 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>Hi {user?.name || user?.email?.split("@")[0]}</Text>
             <Text style={styles.subGreeting}>Here's your cheer season at a glance</Text>
           </View>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{(user?.name || user?.email || "?")[0]?.toUpperCase()}</Text>
-          </View>
+          <TouchableOpacity
+            onPress={() => router.push("/settings")}
+            style={styles.headerRight}
+            testID="settings-gear"
+          >
+            <View style={styles.gearBtn}>
+              <Ionicons name="settings-outline" size={18} color={colors.textSecondary} />
+            </View>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{(user?.name || user?.email || "?")[0]?.toUpperCase()}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Stat tiles */}
@@ -267,6 +276,13 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  gearBtn: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: colors.card,
+    borderWidth: 1, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center",
+  },
   miniBalanceCard: {
     marginTop: spacing.lg,
     backgroundColor: colors.card,
