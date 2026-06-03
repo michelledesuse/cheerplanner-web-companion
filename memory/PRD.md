@@ -16,8 +16,9 @@ A mobile app for cheer parents to keep every dollar, due date, hotel block, and 
 6. **Travel & accommodations** – per competition: hotel (provider, conf#, check-in/out, cancel-by, cost, paid, balance, due), rental car (provider, conf#, cost), flight (airline, conf#, depart/arrive, return leg, cost). Travel-budget summary per competition.
 7. **Reminders** – auto computed from expense due dates, hotel/booking balance due dates, hotel cancel-by, and competition booking release datetimes. Urgency levels: overdue / due soon (≤3d) / upcoming (≤7d) / future. Surfaced on dashboard & dedicated tab.
 8. **Fundraisers** – simple ledger of money raised; totals on dashboard.
-9. **Dashboard** – outstanding balance (split: expenses vs travel), month-to-date spend, paid YTD, athlete count, total raised, next competition card, top reminders.
+9. **Dashboard** – top-of-screen 4 stat tiles (this month, paid YTD, athletes, raised), next competition card, top reminders, and a compact bottom balance row (outstanding / expenses due / travel). Hero balance card was removed in v1.1 in favor of the minimized bottom strip.
 10. **Settings** – profile, currency (USD), preferences view, sign out.
+11. **Competition assignment** – each athlete can be assigned to one or many competitions (multi-select). Toggles available from both Athlete detail and Competition detail screens. Stored as `competition_ids: List[str]` on the Athlete document.
 
 ## Tech
 - Backend: FastAPI + Motor (MongoDB) + bcrypt + PyJWT + slowapi. UUID ids, ISO-string datetimes. `_id` excluded from all responses.
