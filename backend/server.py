@@ -87,6 +87,7 @@ class Athlete(BaseModel):
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
+    avatar_image: Optional[str] = None  # base64 data URL (e.g. data:image/jpeg;base64,...)
     competition_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
@@ -96,6 +97,7 @@ class AthleteCreate(BaseModel):
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
+    avatar_image: Optional[str] = None
     competition_ids: Optional[List[str]] = None
 
 
@@ -104,6 +106,7 @@ class AthleteUpdate(BaseModel):
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = None
+    avatar_image: Optional[str] = None
     competition_ids: Optional[List[str]] = None
 
 
@@ -970,6 +973,25 @@ async def calendar_feed(
             return False
         return True
 
+    def iter_days(start_date: Optional[str], end_date: Optional[str]):
+        """Yield ISO date strings from start_date to end_date inclusive."""
+        from datetime import datetime, timedelta
+        if not start_date:
+            return
+        try:
+            d1 = datetime.fromisoformat(start_date[:10]).date()
+        except Exception:
+            return
+        try:
+            d2 = datetime.fromisoformat((end_date or start_date)[:10]).date()
+        except Exception:
+            d2 = d1
+        if d2 < d1:
+            d1, d2 = d2, d1
+        delta = (d2 - d1).days
+        for offset in range(delta + 1):
+            yield (d1 + timedelta(days=offset)).isoformat(), offset, delta
+
     items: List[dict] = []
 
     # Athletes map for names
@@ -994,24 +1016,28 @@ async def calendar_feed(
                 "athlete_id": e.get("athlete_id"),
                 "link": f"/athletes/{e.get('athlete_id')}",
             })
-    # Competitions
+    # Competitions — span every day from event_date to end_date inclusive
     async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
-        if in_range(c.get("event_date")):
+        ev = c.get("event_date")
+        end_d = c.get("end_date") or ev
+        if not ev:
+            continue
+        for day, offset, delta in iter_days(ev, end_d):
+            if not in_range(day):
+                continue
+            if delta == 0:
+                title = c.get("name", "Competition")
+            elif offset == 0:
+                title = f"{c.get('name', 'Competition')} starts"
+            elif offset == delta:
+                title = f"{c.get('name', 'Competition')} ends"
+            else:
+                title = f"{c.get('name', 'Competition')} (day {offset + 1} of {delta + 1})"
             items.append({
-                "id": f"comp-{c['id']}",
+                "id": f"comp-{c['id']}-{day}",
                 "kind": "competition",
-                "date": c["event_date"],
-                "title": c.get("name", "Competition"),
-                "subtitle": c.get("location") or "",
-                "color": "#007CFF",  # blue (brand)
-                "link": f"/competitions/{c['id']}",
-            })
-        if c.get("end_date") and c.get("end_date") != c.get("event_date") and in_range(c.get("end_date")):
-            items.append({
-                "id": f"comp-end-{c['id']}",
-                "kind": "competition",
-                "date": c["end_date"],
-                "title": f"{c.get('name', 'Competition')} (ends)",
+                "date": day,
+                "title": title,
                 "subtitle": c.get("location") or "",
                 "color": "#007CFF",
                 "link": f"/competitions/{c['id']}",
@@ -1024,28 +1050,36 @@ async def calendar_feed(
         vendor = b.get("provider") or btype.capitalize()
         conf = b.get("confirmation") or ""
         if btype == "hotel":
-            if in_range(b.get("check_in")):
-                items.append({
-                    "id": f"hotel-in-{b['id']}",
-                    "kind": "hotel_checkin",
-                    "date": b["check_in"],
-                    "title": f"Check-in: {vendor}",
-                    "subtitle": conf,
-                    "color": "#7C3AED",  # purple
-                    "link": comp_link,
-                })
-            if in_range(b.get("check_out")):
-                items.append({
-                    "id": f"hotel-out-{b['id']}",
-                    "kind": "hotel_checkout",
-                    "date": b["check_out"],
-                    "title": f"Check-out: {vendor}",
-                    "subtitle": conf,
-                    "color": "#7C3AED",
-                    "link": comp_link,
-                })
+            ci, co = b.get("check_in"), b.get("check_out")
+            if ci:
+                for day, offset, delta in iter_days(ci, co or ci):
+                    if not in_range(day):
+                        continue
+                    if delta == 0:
+                        title = f"Hotel: {vendor}"
+                        kind = "hotel_checkin"
+                    elif offset == 0:
+                        title = f"Check-in: {vendor}"
+                        kind = "hotel_checkin"
+                    elif offset == delta:
+                        title = f"Check-out: {vendor}"
+                        kind = "hotel_checkout"
+                    else:
+                        title = f"Stay: {vendor} (night {offset + 1} of {delta + 1})"
+                        kind = "hotel_stay"
+                    items.append({
+                        "id": f"hotel-{b['id']}-{day}",
+                        "kind": kind,
+                        "date": day,
+                        "title": title,
+                        "subtitle": conf,
+                        "color": "#7C3AED",
+                        "link": comp_link,
+                    })
         elif btype == "flight":
             dep = b.get("depart_time")
+            ret = b.get("return_depart_time")
+            # Outbound day
             if dep and in_range(dep[:10]):
                 items.append({
                     "id": f"flight-dep-{b['id']}",
@@ -1056,7 +1090,7 @@ async def calendar_feed(
                     "color": "#7C3AED",
                     "link": comp_link,
                 })
-            ret = b.get("return_depart_time")
+            # Return day
             if ret and in_range(ret[:10]):
                 items.append({
                     "id": f"flight-ret-{b['id']}",
@@ -1067,6 +1101,22 @@ async def calendar_feed(
                     "color": "#7C3AED",
                     "link": comp_link,
                 })
+            # Travel-window dots for in-between days (only if both legs exist)
+            if dep and ret:
+                dep_d, ret_d = dep[:10], ret[:10]
+                for day, offset, delta in iter_days(dep_d, ret_d):
+                    if offset == 0 or offset == delta:
+                        continue  # already emitted depart/return events above
+                    if in_range(day):
+                        items.append({
+                            "id": f"flight-trip-{b['id']}-{day}",
+                            "kind": "travel_day",
+                            "date": day,
+                            "title": "Travel day",
+                            "subtitle": vendor,
+                            "color": "#7C3AED",
+                            "link": comp_link,
+                        })
         else:  # ground / other
             d = b.get("check_in") or (b.get("depart_time") or "")[:10] or None
             if in_range(d):

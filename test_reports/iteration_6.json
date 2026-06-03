@@ -1,0 +1,43 @@
+{
+  "summary": "Backend-only iteration 6 validation. Created /app/backend/tests/test_calendar_spans_and_avatar.py with 11 new scenarios covering multi-day calendar span dots (competitions, hotels, flight travel-window) and athlete avatar_image (base64 data URL). All 11 new tests PASS. Also patched 2 stale tests in test_calendar_and_bulk_alloc.py (test_competition_with_end_date_emits_two_items + test_hotel_booking_emits_checkin_checkout) whose assertions were written for the OLD non-spanning behavior; they now reflect the new per-day span contract and pass. Combined re-run of both calendar suites: 24/24 passed. Avatar PATCH null-clear known limitation confirmed (PATCH filters None values, so explicitly clearing avatar_image back to null is a no-op — test records and asserts actual behavior, not a failure).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "PATCH /api/athletes/{id}",
+        "issue": "Cannot clear avatar_image back to null because update_athlete filters None values from model_dump(). Acceptable per spec; documented in test. If clearing needs to be supported, switch to model_dump(exclude_unset=True) so explicit nulls are honored."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_spans_and_avatar.py",
+    "/app/test_reports/pytest/pytest_calendar_spans_and_avatar.xml"
+  ],
+  "action_items": [
+    "(Optional) If product wants clearing avatar_image to null to take effect, update PATCH /athletes to use payload.model_dump(exclude_unset=True) so explicitly-passed nulls overwrite stored value.",
+    "(Optional/infra) Backend /api/auth/signup is rate-limited 10/min; running the full pytest suite end-to-end triggers 429s on later tests. Tests have retries but the limit causes errors when several files share the same source IP. Consider raising the limit in non-prod or making tests fall back to login for an existing user."
+  ],
+  "critical_code_review_comments": [
+    "calendar_feed in server.py is large (~200 lines for one endpoint). It works but could be split into per-source helpers (expenses, competitions, hotels, flights, fundraisers) for testability — not blocking.",
+    "Athlete avatar_image stored as base64 data URL inline in Mongo doc; fine for tiny PNGs but for real photo uploads consider object storage and a URL field instead. Not required for current spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_calendar_spans_and_avatar.py (new, 11 tests)",
+    "/app/backend/tests/test_calendar_and_bulk_alloc.py (patched 2 stale assertions to match new per-day span contract)"
+  ],
+  "success_rate": {
+    "backend": "100% (24/24 across new + updated calendar suites)",
+    "frontend": "N/A (skipped per request)"
+  },
+  "seed_data_creation": "No persistent seed data. Each test creates an isolated user via signup with TEST_ prefix; data is per-user-scoped and ephemeral.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend signup endpoint is rate-limited to 10/min per IP. When running the FULL backend pytest suite (test_cheertrack_backend + test_partial_payments + test_bulk_endpoints + the two calendar suites) back-to-back, expect 429s on later files. Mitigation: run files sequentially with a ~70s sleep between, OR run individual files. Test_calendar_and_bulk_alloc.py + test_calendar_spans_and_avatar.py together pass cleanly when run alone (133s). All 11 new scenarios specified in iteration 6 are covered and passing.",
+  "rca_of_issue": "No production bug found. The 2 stale assertions in test_calendar_and_bulk_alloc.py were a TEST artifact: they expected the OLD 'emit only start+end' behavior for multi-day competitions/hotels, but the new implementation correctly emits one item PER DAY (matching iteration 6 spec). I updated those 2 assertions in-place to match the new per-day contract — no server-side fix required."
+}

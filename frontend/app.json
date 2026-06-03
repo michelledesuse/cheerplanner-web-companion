@@ -10,7 +10,10 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.desuse.cheerplanner"
+      "bundleIdentifier": "com.desuse.cheerplanner",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes"
+      }
     },
     "android": {
       "package": "com.desuse.cheerplanner",
@@ -18,7 +21,8 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": ["READ_MEDIA_IMAGES"]
     },
     "web": {
       "bundler": "metro",

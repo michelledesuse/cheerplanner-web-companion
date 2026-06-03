@@ -28,9 +28,11 @@ const KIND_ICONS: Record<string, any> = {
   competition: "trophy",
   hotel_checkin: "bed",
   hotel_checkout: "bed-outline",
+  hotel_stay: "bed",
   flight_depart: "airplane",
   flight_return: "airplane",
   flight_arrive: "airplane",
+  travel_day: "navigate",
   transport: "car",
   fundraiser: "gift",
 };

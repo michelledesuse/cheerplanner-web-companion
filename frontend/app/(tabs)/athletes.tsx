@@ -23,6 +23,7 @@ type Athlete = {
   team?: string | null;
   gym?: string | null;
   avatar_color?: string | null;
+  avatar_image?: string | null;
 };
 
 export default function AthletesScreen() {
@@ -109,7 +110,11 @@ export default function AthletesScreen() {
                 testID={`athlete-card-${a.id}`}
               >
                 <View style={[styles.avatar, { backgroundColor: a.avatar_color || colors.accent }]}>
-                  <Text style={styles.avatarText}>{a.name[0]?.toUpperCase() || "?"}</Text>
+                  {a.avatar_image ? (
+                    <Image source={{ uri: a.avatar_image }} style={styles.avatarImage} />
+                  ) : (
+                    <Text style={styles.avatarText}>{a.name[0]?.toUpperCase() || "?"}</Text>
+                  )}
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.name}>{a.name}</Text>
@@ -151,8 +156,9 @@ const styles = StyleSheet.create({
     padding: spacing.lg, borderRadius: radius.lg, marginBottom: spacing.md,
     borderWidth: 1, borderColor: colors.border,
   },
-  avatar: { width: 52, height: 52, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  avatar: { width: 52, height: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarText: { color: "white", fontSize: 20, fontWeight: "800" },
+  avatarImage: { width: 52, height: 52, borderRadius: 18 },
   name: { ...typography.h3, color: colors.textPrimary },
   meta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   statsRow: { flexDirection: "row", gap: spacing.md, marginTop: 6 },

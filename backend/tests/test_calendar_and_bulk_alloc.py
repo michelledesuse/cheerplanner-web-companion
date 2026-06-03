@@ -190,11 +190,12 @@ class TestCalendarCompetition:
         assert r.status_code == 200
         items = r.json()["items"]
         comp_items = [x for x in items if x["kind"] == "competition"]
-        assert len(comp_items) == 2
+        # New behavior: span emits one item PER DAY (3 days = 3 items)
+        assert len(comp_items) == 3
         for it in comp_items:
             assert it["color"] == "#007CFF"
         dates = sorted([x["date"] for x in comp_items])
-        assert dates == ["2026-06-10", "2026-06-12"]
+        assert dates == ["2026-06-10", "2026-06-11", "2026-06-12"]
         # The "(ends)" item has title containing "ends"
         ends = [x for x in comp_items if "ends" in x["title"].lower()]
         assert len(ends) == 1
@@ -216,8 +217,9 @@ class TestCalendarBookings:
         )
         assert r.status_code == 200
         items = r.json()["items"]
+        # New behavior: 3-day hotel span -> checkin + stay + checkout
         kinds = sorted([x["kind"] for x in items if x["kind"].startswith("hotel")])
-        assert kinds == ["hotel_checkin", "hotel_checkout"]
+        assert kinds == ["hotel_checkin", "hotel_checkout", "hotel_stay"]
         for x in items:
             if x["kind"].startswith("hotel"):
                 assert x["color"] == "#7C3AED"

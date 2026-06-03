@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Alert,
+  RefreshControl, Alert, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,7 +12,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 
-type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string; competition_ids?: string[] };
+type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string; avatar_image?: string | null; competition_ids?: string[] };
 type Expense = { id: string; category: string; amount: number; paid_amount?: number; balance_due?: number; note?: string; incurred_on: string; due_date?: string; paid: boolean };
 type Payment = { id: string; amount: number; paid_on: string; method?: string; note?: string; applied_expense_ids?: string[] };
 type Competition = { id: string; name: string; location?: string; event_date: string };
@@ -105,9 +105,18 @@ export default function AthleteDetail() {
           <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{athlete?.name || "Athlete"}</Text>
-        <TouchableOpacity onPress={removeAthlete} style={styles.iconBtn} testID="athlete-delete-btn">
-          <Ionicons name="trash-outline" size={20} color={colors.dangerText} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: "/athletes/new", params: { id } })}
+            style={styles.iconBtn}
+            testID="athlete-edit-btn"
+          >
+            <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={removeAthlete} style={styles.iconBtn} testID="athlete-delete-btn">
+            <Ionicons name="trash-outline" size={20} color={colors.dangerText} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -116,7 +125,11 @@ export default function AthleteDetail() {
       >
         <View style={styles.summaryCard}>
           <View style={[styles.avatar, { backgroundColor: athlete?.avatar_color || colors.accent }]}>
-            <Text style={styles.avatarText}>{athlete?.name?.[0]?.toUpperCase() || "?"}</Text>
+            {athlete?.avatar_image ? (
+              <Image source={{ uri: athlete.avatar_image }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarText}>{athlete?.name?.[0]?.toUpperCase() || "?"}</Text>
+            )}
           </View>
           <Text style={styles.athleteName}>{athlete?.name}</Text>
           {(athlete?.team || athlete?.gym) && (
@@ -314,8 +327,9 @@ const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.textPrimary, flex: 1, textAlign: "center", marginHorizontal: spacing.md },
   summaryCard: { backgroundColor: colors.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: colors.border },
-  avatar: { width: 64, height: 64, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+  avatar: { width: 64, height: 64, borderRadius: 22, alignItems: "center", justifyContent: "center", marginBottom: spacing.md, overflow: "hidden" },
   avatarText: { color: "white", fontSize: 28, fontWeight: "800" },
+  avatarImage: { width: 64, height: 64, borderRadius: 22 },
   athleteName: { ...typography.h2, color: colors.textPrimary },
   athleteMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   summaryRow: { flexDirection: "row", marginTop: spacing.lg, width: "100%" },
