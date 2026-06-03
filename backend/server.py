@@ -691,6 +691,7 @@ async def apply_payment_to_expense(
         method=method,
         note=note,
         applied_expense_ids=[expense_id],
+        allocations=[PaymentAllocation(expense_id=expense_id, amount=apply_amt)],
     )
     await db.payments.insert_one(payment.model_dump())
 
