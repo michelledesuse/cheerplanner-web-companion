@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
+import DateField from "@/src/components/DateField";
 
 export default function CompetitionForm() {
   const router = useRouter();
@@ -36,8 +37,8 @@ export default function CompetitionForm() {
         const c = res.data;
         setName(c.name || "");
         setLocation(c.location || "");
-        setEventDate(isoToInput(c.event_date));
-        setEndDate(isoToInput(c.end_date));
+        setEventDate(c.event_date || "");
+        setEndDate(c.end_date || "");
         setHousingRequired(!!c.housing_required);
         setBookingLink(c.booking_link || "");
         setBookingReleaseAt(c.booking_release_at || "");
@@ -57,8 +58,8 @@ export default function CompetitionForm() {
       const payload = {
         name: name.trim(),
         location: location.trim() || null,
-        event_date: userDateToISO(eventDate),
-        end_date: userDateToISO(endDate),
+        event_date: eventDate,
+        end_date: endDate || null,
         housing_required: housingRequired,
         booking_link: bookingLink.trim() || null,
         booking_release_at: bookingReleaseAt || null,
@@ -104,10 +105,10 @@ export default function CompetitionForm() {
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Houston, TX" placeholderTextColor={colors.textTertiary} testID="comp-location-input" />
 
           <Text style={styles.label}>Event date</Text>
-          <TextInput style={styles.input} value={eventDate} onChangeText={setEventDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="comp-date-input" />
+          <DateField value={eventDate} onChange={setEventDate} testID="comp-date-input" />
 
           <Text style={styles.label}>End date (optional)</Text>
-          <TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} />
+          <DateField value={endDate} onChange={setEndDate} />
 
           <View style={styles.switchRow}>
             <View style={{ flex: 1 }}>

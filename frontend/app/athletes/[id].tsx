@@ -11,9 +11,10 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 
-type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string };
+type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string; competition_ids?: string[] };
 type Expense = { id: string; category: string; amount: number; note?: string; incurred_on: string; due_date?: string; paid: boolean };
 type Payment = { id: string; amount: number; paid_on: string; method?: string; note?: string };
+type Competition = { id: string; name: string; location?: string; event_date: string };
 
 export default function AthleteDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -21,21 +22,25 @@ export default function AthleteDetail() {
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [tab, setTab] = useState<"expenses" | "payments">("expenses");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [savingComps, setSavingComps] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [a, e, p] = await Promise.all([
+      const [a, e, p, c] = await Promise.all([
         api.get<Athlete[]>("/athletes"),
         api.get<Expense[]>(`/expenses?athlete_id=${id}`),
         api.get<Payment[]>(`/payments?athlete_id=${id}`),
+        api.get<Competition[]>("/competitions"),
       ]);
       setAthlete(a.data.find((x) => x.id === id) || null);
       setExpenses(e.data);
       setPayments(p.data);
+      setCompetitions(c.data);
     } finally { setLoading(false); setRefreshing(false); }
   }, [id]);
 
@@ -66,6 +71,25 @@ export default function AthleteDetail() {
   const deletePayment = async (pid: string) => {
     await api.delete(`/payments/${pid}`);
     load();
+  };
+
+  const toggleCompetition = async (compId: string) => {
+    if (!athlete) return;
+    const current = new Set(athlete.competition_ids || []);
+    if (current.has(compId)) current.delete(compId); else current.add(compId);
+    const next = Array.from(current);
+    // Optimistic update
+    setAthlete({ ...athlete, competition_ids: next });
+    setSavingComps(true);
+    try {
+      await api.patch(`/athletes/${athlete.id}`, { competition_ids: next });
+    } catch (_e) {
+      // Revert on failure
+      setAthlete(athlete);
+      Alert.alert("Error", "Could not update competitions.");
+    } finally {
+      setSavingComps(false);
+    }
   };
 
   if (loading) {
@@ -112,6 +136,43 @@ export default function AthleteDetail() {
           <TouchableOpacity onPress={() => setTab("payments")} style={[styles.tab, tab === "payments" && styles.tabActive]} testID="tab-payments">
             <Text style={[styles.tabText, tab === "payments" && styles.tabTextActive]}>Payments ({payments.length})</Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Competitions attending */}
+        <View style={styles.compSection} testID="athlete-competitions-section">
+          <View style={styles.compHeader}>
+            <Text style={styles.sectionTitle}>Competitions attending</Text>
+            {savingComps && <ActivityIndicator size="small" color={colors.accent} />}
+          </View>
+          {competitions.length === 0 ? (
+            <TouchableOpacity onPress={() => router.push("/competitions/new")} style={styles.compEmpty}>
+              <Ionicons name="add-circle-outline" size={18} color={colors.accent} />
+              <Text style={styles.compEmptyText}>Add a competition first</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.compChips}>
+              {competitions.map((c) => {
+                const on = (athlete?.competition_ids || []).includes(c.id);
+                return (
+                  <TouchableOpacity
+                    key={c.id}
+                    onPress={() => toggleCompetition(c.id)}
+                    style={[styles.compChip, on && styles.compChipOn]}
+                    testID={`comp-toggle-${c.id}`}
+                  >
+                    <Ionicons
+                      name={on ? "checkmark-circle" : "ellipse-outline"}
+                      size={16}
+                      color={on ? "white" : colors.textSecondary}
+                    />
+                    <Text style={[styles.compChipText, on && styles.compChipTextOn]} numberOfLines={1}>
+                      {c.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
         </View>
 
         {tab === "expenses" && (
@@ -217,6 +278,16 @@ const styles = StyleSheet.create({
   tabActive: { backgroundColor: colors.primary },
   tabText: { ...typography.caption, color: colors.textSecondary, fontWeight: "700" },
   tabTextActive: { color: "white" },
+  compSection: { marginTop: spacing.lg, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  compHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  sectionTitle: { ...typography.h3, color: colors.textPrimary },
+  compChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  compChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, maxWidth: "100%" },
+  compChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  compChipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600" },
+  compChipTextOn: { color: "white" },
+  compEmpty: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: spacing.sm },
+  compEmptyText: { ...typography.body, color: colors.accent, fontWeight: "600" },
   addRow: { flexDirection: "row", alignItems: "center", gap: 8, padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
   addRowText: { color: colors.accent, fontWeight: "700" },
   row: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm },

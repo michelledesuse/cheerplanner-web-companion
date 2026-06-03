@@ -539,3 +539,205 @@ class TestCascadeDeletes:
         assert r.status_code == 200
         r = session.get(f"{API}/bookings", headers=h, params={"competition_id": cid})
         assert b["id"] not in [x["id"] for x in r.json()]
+
+
+
+# ---------------- NEW: Athlete competition_ids round-trip ----------------
+class TestAthleteCompetitionIds:
+    """Verifies new `competition_ids` field on Athlete (create + patch round-trip).
+
+    Covers:
+      - Default value is empty list when not supplied on create
+      - POST /api/athletes accepts competition_ids on create and persists them
+      - PATCH /api/athletes/{id} with competition_ids replaces the list
+      - PATCH with competition_ids=[] (empty list) is accepted (not filtered out as None)
+      - GET /api/athletes returns the updated list (round-trip)
+      - Cross-user scoping still applies for the new field
+    """
+
+    def test_create_athlete_defaults_competition_ids_empty(self, session, user_a):
+        h = auth_headers(user_a["token"])
+        r = session.post(f"{API}/athletes", headers=h, json={"name": "TEST_CompIdsDefault"})
+        assert r.status_code == 200, r.text
+        a = r.json()
+        assert "competition_ids" in a, "competition_ids missing on Athlete response"
+        assert a["competition_ids"] == [], f"expected [] default, got {a['competition_ids']}"
+        _no_mongo_id(a)
+        # cleanup
+        session.delete(f"{API}/athletes/{a['id']}", headers=h)
+
+    def test_create_athlete_with_competition_ids(self, session, user_a):
+        h = auth_headers(user_a["token"])
+        # Create two competitions to reference
+        c1 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_CompA", "event_date": _future_iso(30)
+        }).json()
+        c2 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_CompB", "event_date": _future_iso(60)
+        }).json()
+        comp_ids = [c1["id"], c2["id"]]
+
+        # Create athlete WITH competition_ids
+        r = session.post(f"{API}/athletes", headers=h, json={
+            "name": "TEST_AthWithComps",
+            "competition_ids": comp_ids,
+        })
+        assert r.status_code == 200, r.text
+        a = r.json()
+        assert set(a["competition_ids"]) == set(comp_ids)
+
+        # Round-trip via GET list
+        r = session.get(f"{API}/athletes", headers=h)
+        assert r.status_code == 200
+        fetched = next((x for x in r.json() if x["id"] == a["id"]), None)
+        assert fetched is not None
+        assert set(fetched["competition_ids"]) == set(comp_ids)
+
+        # cleanup
+        session.delete(f"{API}/athletes/{a['id']}", headers=h)
+        session.delete(f"{API}/competitions/{c1['id']}", headers=h)
+        session.delete(f"{API}/competitions/{c2['id']}", headers=h)
+
+    def test_patch_athlete_replaces_competition_ids(self, session, user_a):
+        h = auth_headers(user_a["token"])
+        c1 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_PatchComp1", "event_date": _future_iso(20)
+        }).json()
+        c2 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_PatchComp2", "event_date": _future_iso(40)
+        }).json()
+        c3 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_PatchComp3", "event_date": _future_iso(80)
+        }).json()
+
+        a = session.post(f"{API}/athletes", headers=h, json={
+            "name": "TEST_PatchCompAth", "competition_ids": [c1["id"]]
+        }).json()
+        assert a["competition_ids"] == [c1["id"]]
+
+        # PATCH to replace with two new ids
+        new_ids = [c2["id"], c3["id"]]
+        r = session.patch(f"{API}/athletes/{a['id']}", headers=h, json={
+            "competition_ids": new_ids
+        })
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert set(body["competition_ids"]) == set(new_ids), \
+            f"PATCH didn't replace list: {body['competition_ids']}"
+
+        # Re-GET to confirm persistence
+        r = session.get(f"{API}/athletes", headers=h)
+        fetched = next((x for x in r.json() if x["id"] == a["id"]), None)
+        assert fetched is not None
+        assert set(fetched["competition_ids"]) == set(new_ids)
+
+        # cleanup
+        session.delete(f"{API}/athletes/{a['id']}", headers=h)
+        for cc in (c1, c2, c3):
+            session.delete(f"{API}/competitions/{cc['id']}", headers=h)
+
+    def test_patch_athlete_empty_competition_ids_accepted(self, session, user_a):
+        """Critical regression: PATCH with competition_ids=[] (empty list) must be accepted
+        and clear the field — must NOT be filtered out as if it were None.
+        """
+        h = auth_headers(user_a["token"])
+        c1 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_EmptyListComp", "event_date": _future_iso(15)
+        }).json()
+        a = session.post(f"{API}/athletes", headers=h, json={
+            "name": "TEST_EmptyListAth", "competition_ids": [c1["id"]]
+        }).json()
+        assert a["competition_ids"] == [c1["id"]]
+
+        # PATCH with explicit empty list
+        r = session.patch(f"{API}/athletes/{a['id']}", headers=h, json={
+            "competition_ids": []
+        })
+        assert r.status_code == 200, \
+            f"empty list PATCH rejected: {r.status_code} {r.text}"
+        body = r.json()
+        assert body["competition_ids"] == [], \
+            f"empty list not persisted: got {body['competition_ids']}"
+
+        # GET again to confirm
+        r = session.get(f"{API}/athletes", headers=h)
+        fetched = next((x for x in r.json() if x["id"] == a["id"]), None)
+        assert fetched is not None
+        assert fetched["competition_ids"] == []
+
+        # cleanup
+        session.delete(f"{API}/athletes/{a['id']}", headers=h)
+        session.delete(f"{API}/competitions/{c1['id']}", headers=h)
+
+    def test_patch_athlete_other_field_does_not_clear_competition_ids(self, session, user_a):
+        """Patching a different field (e.g. team) should not wipe competition_ids."""
+        h = auth_headers(user_a["token"])
+        c1 = session.post(f"{API}/competitions", headers=h, json={
+            "name": "TEST_PreserveComp", "event_date": _future_iso(25)
+        }).json()
+        a = session.post(f"{API}/athletes", headers=h, json={
+            "name": "TEST_PreserveAth", "competition_ids": [c1["id"]]
+        }).json()
+        # patch unrelated field
+        r = session.patch(f"{API}/athletes/{a['id']}", headers=h, json={"team": "Worlds"})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["team"] == "Worlds"
+        assert body["competition_ids"] == [c1["id"]], \
+            f"competition_ids was clobbered: {body['competition_ids']}"
+
+        # cleanup
+        session.delete(f"{API}/athletes/{a['id']}", headers=h)
+        session.delete(f"{API}/competitions/{c1['id']}", headers=h)
+
+    def test_competition_ids_user_scoped(self, session, user_a, user_b):
+        """User B cannot patch competition_ids on User A's athlete."""
+        ha = auth_headers(user_a["token"])
+        hb = auth_headers(user_b["token"])
+        a = session.post(f"{API}/athletes", headers=ha, json={
+            "name": "TEST_ScopedAth"
+        }).json()
+        r = session.patch(f"{API}/athletes/{a['id']}", headers=hb, json={
+            "competition_ids": ["fake-comp-id"]
+        })
+        assert r.status_code == 404, \
+            f"cross-user PATCH should 404, got {r.status_code}"
+        # cleanup
+        session.delete(f"{API}/athletes/{a['id']}", headers=ha)
+
+
+# ---------------- NEW: Dashboard balance fields (post-layout-change) ----------------
+class TestDashboardBalanceFields:
+    """After the dashboard UI moved the balance card to the bottom, ensure backend
+    still exposes ALL balance/stat fields the new tiles depend on.
+    """
+
+    def test_dashboard_returns_all_balance_and_stat_fields(self, session, user_a):
+        h = auth_headers(user_a["token"])
+        r = session.get(f"{API}/dashboard", headers=h)
+        assert r.status_code == 200, r.text
+        d = r.json()
+        required = {
+            # compact 3-col bottom row
+            "outstanding_balance",   # Outstanding
+            "unpaid_expense_balance",  # Expenses due
+            "booking_balance",       # Travel
+            # top stat tiles
+            "month_spend",           # This month
+            "total_payments_ytd",    # Paid YTD
+            "athletes_count",        # Athletes
+            "total_raised",          # Raised
+            # plus the rest
+            "competitions_count",
+            "total_expenses_ytd",
+            "next_competition",
+        }
+        missing = required - set(d.keys())
+        assert not missing, f"dashboard missing fields: {missing}"
+        # Types: all numeric balance fields should be numbers (int|float)
+        for k in ("outstanding_balance", "unpaid_expense_balance", "booking_balance",
+                  "month_spend", "total_payments_ytd", "total_expenses_ytd", "total_raised"):
+            assert isinstance(d[k], (int, float)), f"{k} should be numeric, got {type(d[k])}"
+        for k in ("athletes_count", "competitions_count"):
+            assert isinstance(d[k], int), f"{k} should be int, got {type(d[k])}"
+        _no_mongo_id(d)

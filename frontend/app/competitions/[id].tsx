@@ -23,6 +23,8 @@ type Competition = {
   notes?: string;
 };
 
+type Athlete = { id: string; name: string; avatar_color?: string; competition_ids?: string[] };
+
 type Booking = {
   id: string;
   type: string;
@@ -52,17 +54,20 @@ export default function CompetitionDetail() {
   const router = useRouter();
   const [comp, setComp] = useState<Competition | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [togglingAthlete, setTogglingAthlete] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [c, b] = await Promise.all([
+      const [c, b, a] = await Promise.all([
         api.get<Competition>(`/competitions/${id}`),
         api.get<Booking[]>(`/bookings?competition_id=${id}`),
+        api.get<Athlete[]>("/athletes"),
       ]);
-      setComp(c.data); setBookings(b.data);
+      setComp(c.data); setBookings(b.data); setAthletes(a.data);
     } catch (e) {}
     finally { setLoading(false); setRefreshing(false); }
   }, [id]);
@@ -79,6 +84,24 @@ export default function CompetitionDetail() {
   };
   const deleteBooking = async (bid: string) => {
     await api.delete(`/bookings/${bid}`); load();
+  };
+
+  const toggleAthlete = async (a: Athlete) => {
+    if (!id) return;
+    const current = new Set(a.competition_ids || []);
+    if (current.has(id)) current.delete(id); else current.add(id);
+    const next = Array.from(current);
+    // optimistic
+    setAthletes((list) => list.map((x) => x.id === a.id ? { ...x, competition_ids: next } : x));
+    setTogglingAthlete(true);
+    try {
+      await api.patch(`/athletes/${a.id}`, { competition_ids: next });
+    } catch (_e) {
+      Alert.alert("Error", "Could not update athlete.");
+      load();
+    } finally {
+      setTogglingAthlete(false);
+    }
   };
 
   if (loading || !comp) {
@@ -149,6 +172,34 @@ export default function CompetitionDetail() {
               <Text style={styles.smallLabel}>BALANCE DUE</Text>
               <Text style={[styles.balanceMain, { color: balance > 0 ? colors.accent : colors.successText }]}>{formatCurrency(Math.max(balance, 0))}</Text>
             </View>
+          </View>
+        )}
+
+        <Text style={styles.sectionHead}>Athletes attending</Text>
+        {athletes.length === 0 ? (
+          <Text style={styles.emptyHint}>No athletes yet. Add one from the Athletes tab.</Text>
+        ) : (
+          <View style={styles.athleteChips}>
+            {athletes.map((a) => {
+              const on = (a.competition_ids || []).includes(id!);
+              return (
+                <TouchableOpacity
+                  key={a.id}
+                  onPress={() => toggleAthlete(a)}
+                  style={[styles.athleteChip, on && styles.athleteChipOn]}
+                  testID={`comp-attend-${a.id}`}
+                  disabled={togglingAthlete}
+                >
+                  <View style={[styles.athleteDot, { backgroundColor: a.avatar_color || colors.accent }]}>
+                    <Text style={styles.athleteDotText}>{a.name[0]?.toUpperCase()}</Text>
+                  </View>
+                  <Text style={[styles.athleteChipText, on && styles.athleteChipTextOn]} numberOfLines={1}>
+                    {a.name}
+                  </Text>
+                  {on && <Ionicons name="checkmark-circle" size={16} color="white" />}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -292,6 +343,13 @@ const styles = StyleSheet.create({
   typeIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSubtle, alignItems: "center", justifyContent: "center", marginBottom: 6 },
   typeLabel: { ...typography.caption, color: colors.textPrimary, fontWeight: "700" },
   emptyHint: { ...typography.body, color: colors.textTertiary, textAlign: "center", marginTop: spacing.lg },
+  athleteChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  athleteChip: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
+  athleteChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  athleteChipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600" },
+  athleteChipTextOn: { color: "white" },
+  athleteDot: { width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center" },
+  athleteDotText: { color: "white", fontWeight: "800", fontSize: 11 },
   bookingCard: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md },
   bookingHead: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.md },
   bookingIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.accentSubtle, alignItems: "center", justifyContent: "center" },

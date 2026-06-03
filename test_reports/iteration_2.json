@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 2 — backend-focused regression on the new athlete `competition_ids` feature + dashboard contract. Ran the full pytest suite (29 tests total, 7 new for this iteration) against EXPO_PUBLIC_BACKEND_URL. Initial run uncovered 1 CRITICAL bug (POST /api/athletes 500 when client omits `competition_ids`). Applied a one-line fix in /app/backend/server.py::create_athlete (filter None before splat into strict Athlete model). After fix, 29/29 pass (100%). Verified competition_ids round-trips through POST + PATCH + GET; verified PATCH with empty list [] is accepted (not filtered as None); verified other-field PATCH does not clobber competition_ids; verified user-scoping still enforced (User B → 404 on User A's athlete). Verified GET /api/dashboard returns all 10 fields needed by the new top stat tiles + bottom 3-column compact stat row (outstanding_balance, unpaid_expense_balance, booking_balance, month_spend, total_payments_ytd, athletes_count, total_raised, competitions_count, total_expenses_ytd, next_competition). Frontend smoke test was NOT performed (scope: backend-first). Deprecated shadow* warnings still emitted in expo logs by some upstream/third-party component(s) — theme.ts is fixed but warnings persist (low priority, see action items).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/athletes", "issue": "Carry-over from prior iter: no input validation that competition_ids[] strings actually reference real Competition rows for the user. Currently any string accepted. Not breaking but allows orphan references. Consider validating via $in lookup or accept-as-is and treat UI as source of truth."},
+      {"endpoint": "PATCH /api/athletes/{id}", "issue": "Same as above — competition_ids strings are not validated against existing competitions; cross-user comp IDs could be persisted on an athlete (though never resolved by other queries). Low risk."},
+      {"endpoint": "PATCH /api/athletes/{id} & PATCH /api/expenses/{id} & PATCH /api/competitions/{id} & PATCH /api/bookings/{id} & PATCH /api/payments/{id}", "issue": "All PATCH endpoints filter `None` values via `{k:v for k,v in dump().items() if v is not None}`. This means clients cannot explicitly null-out an optional field (e.g. clear `notes`, `booking_link`, `due_date`). Acceptable for now but worth noting — use exclude_unset semantics if explicit clears become needed."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "expo (web bundler) — third-party shadow warnings", "issue": "Despite /app/frontend/src/theme.ts migrating to `boxShadow` string, expo logs still show repeated '\"shadow*\" style props are deprecated. Use \"boxShadow\".' warnings. Likely originate from a third-party RN component (e.g. react-native-paper, react-native-elements, or @react-navigation drawer/elements) still using shadowColor/shadowOffset. Reference: /var/log/supervisor/expo.err.log. Low priority — does not affect functionality. Recommend grepping node_modules-using callsites: `grep -rn 'shadowColor\\|shadowOffset\\|shadowOpacity\\|shadowRadius' /app/frontend/app /app/frontend/components /app/frontend/src 2>/dev/null` and (if all clean) upgrading the offending third-party lib."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cheertrack_backend.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Done by tester) Fixed CRITICAL 500 in POST /api/athletes when `competition_ids` not supplied — filter None from model_dump() before splatting into strict Athlete(...). See server.py::create_athlete. Pre-existing mobile create-athlete UI was about to break with this iteration's new field (any client that doesn't send competition_ids → 500).",
+    "(Optional) Validate `competition_ids` entries on POST/PATCH /api/athletes refer to real Competition rows owned by current_user. Currently any string accepted.",
+    "(Optional) The CompetitionUpdate / BookingUpdate / PATCH filter pattern `{k:v ... if v is not None}` blocks explicit field-clears. Consider exclude_unset semantics if UI ever needs to clear a field to null.",
+    "(Optional / low priority) Investigate residual 'shadow* deprecated' warnings in expo logs — likely from a third-party RN component still using shadowColor etc. theme.ts itself is correct now.",
+    "(Carry-over from iter 1) Set JWT_SECRET >= 32 chars in backend/.env; pin bcrypt<4.1 or upgrade passlib; (optional) HTTPBearer(auto_error=False) for consistent 401 on missing token."
+  ],
+  "critical_code_review_comments": [
+    "ROOT CAUSE of the create-athlete 500: `AthleteCreate.competition_ids: Optional[List[str]] = None` was added, but in the endpoint `Athlete(**payload.model_dump())` passes `competition_ids=None` to the strict `Athlete` model whose field is `List[str] = Field(default_factory=list)`. Pydantic v2 rejects None for non-Optional list → 500. Pattern smell: anywhere a non-strict Create model splats into a strict storage model, None-tolerant filtering is required. Same pattern is used elsewhere in server.py (e.g. fundraisers, payments) and is currently safe only because those Create models have hard defaults rather than Optional.",
+    "PATCH /api/athletes correctly accepts `competition_ids: []` because the filter `if v is not None` keeps empty list (verified by test_patch_athlete_empty_competition_ids_accepted).",
+    "Dashboard endpoint contract is unchanged and fully backward-compatible — all 10 fields the new dashboard tiles consume are present and numeric (verified by TestDashboardBalanceFields).",
+    "server.py is still a single 1088-line file (>700 guideline). Recommend splitting into routers/ subpackage as feature surface grows (auth, athletes, expenses, payments, competitions, bookings, fundraisers, dashboard, reminders, imports)."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (create_athlete: filter None from payload.model_dump() before splatting into Athlete — fixes 500 on POST /api/athletes when competition_ids omitted)",
+    "/app/backend/tests/test_cheertrack_backend.py (added TestAthleteCompetitionIds [6 tests] and TestDashboardBalanceFields [1 test])"
+  ],
+  "success_rate": {"backend": "100% (29/29)", "frontend": "not tested (backend-first scope)"},
+  "seed_data_creation": "All test data is created per-test under ephemeral signup'd users (TEST_a_*@mailinator.com / TEST_b_*@mailinator.com) and named with TEST_ prefix; each test cleans up its own athletes/competitions via DELETE. No production/seeded data was touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/test_cheertrack_backend.py now has 29 tests and is fully green at EXPO_PUBLIC_BACKEND_URL. New `competition_ids` field is on both POST and PATCH /api/athletes. CREATE bug (None splatted into strict List[str]) is already fixed in server.py::create_athlete. PATCH endpoint accepts empty list []. If main agent does frontend tests next, the relevant testIDs to verify are: `dashboard-balance-card` (now at BOTTOM of /(tabs)/dashboard.tsx, after reminders), `athlete-competitions-section` + `comp-toggle-{id}` (in /athletes/[id].tsx), `comp-attend-{athlete_id}` (in /competitions/[id].tsx). Optimistic UI should call PATCH /api/athletes/{id} with `competition_ids` array.",
+  "rca_of_issue": "Bug: POST /api/athletes returned 500 whenever the request body omitted `competition_ids`. Repro: `curl -X POST $API/athletes -H 'Auth: Bearer …' -d '{\"name\":\"X\"}'` → 500. RCA: New `AthleteCreate.competition_ids: Optional[List[str]] = None` produced `payload.model_dump() = {..., 'competition_ids': None}`. The endpoint then did `Athlete(**dump)` which feeds None to `Athlete.competition_ids: List[str]` (no Optional, no None allowed) — Pydantic v2 raised ValidationError → FastAPI mapped to 500. Mitigation applied: in `create_athlete`, build `data = {k:v for k,v in payload.model_dump().items() if v is not None}` before splatting, allowing the strict Athlete model's `default_factory=list` to kick in. Re-tested with 29/29 pass."
+}

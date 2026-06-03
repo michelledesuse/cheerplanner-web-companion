@@ -9,7 +9,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { formatCurrency, formatDate, todayDisplay, userDateToISO } from "@/src/utils/format";
+import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
+import DateField from "@/src/components/DateField";
 
 type Fundraiser = { id: string; name: string; amount_raised: number; raised_on: string; note?: string };
 
@@ -21,7 +22,7 @@ export default function FundraisersScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
-  const [raisedOn, setRaisedOn] = useState(todayDisplay());
+  const [raisedOn, setRaisedOn] = useState(todayISO());
 
   const load = useCallback(async () => {
     try {
@@ -38,8 +39,8 @@ export default function FundraisersScreen() {
     if (!name.trim()) { Alert.alert("Missing", "Add a name"); return; }
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { Alert.alert("Missing", "Enter a valid amount"); return; }
-    await api.post("/fundraisers", { name: name.trim(), amount_raised: amt, raised_on: userDateToISO(raisedOn) });
-    setName(""); setAmount(""); setRaisedOn(todayDisplay()); setShowAdd(false);
+    await api.post("/fundraisers", { name: name.trim(), amount_raised: amt, raised_on: raisedOn });
+    setName(""); setAmount(""); setRaisedOn(todayISO()); setShowAdd(false);
     load();
   };
   const remove = async (id: string) => { await api.delete(`/fundraisers/${id}`); load(); };
@@ -74,7 +75,7 @@ export default function FundraisersScreen() {
               <Text style={styles.label}>Amount raised (USD)</Text>
               <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="fundraiser-amount-input" />
               <Text style={styles.label}>Date</Text>
-              <TextInput style={styles.input} value={raisedOn} onChangeText={setRaisedOn} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} />
+              <DateField value={raisedOn} onChange={setRaisedOn} />
               <TouchableOpacity style={styles.saveBtn} onPress={save} testID="fundraiser-save-btn">
                 <Text style={styles.saveBtnText}>Add fundraiser</Text>
               </TouchableOpacity>

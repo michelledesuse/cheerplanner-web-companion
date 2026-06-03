@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
+import DateField from "@/src/components/DateField";
 
 export default function BookingForm() {
   const router = useRouter();
@@ -66,11 +67,11 @@ export default function BookingForm() {
         setConfirmation(b.confirmation || "");
         setCost(b.cost != null ? String(b.cost) : "");
         setAmountPaid(b.amount_paid != null ? String(b.amount_paid) : "");
-        setBalanceDueDate(isoToInput(b.balance_due_date));
+        setBalanceDueDate(b.balance_due_date || "");
         setNotes(b.notes || "");
-        setCheckIn(isoToInput(b.check_in));
-        setCheckOut(isoToInput(b.check_out));
-        setCancelBy(isoToInput(b.cancel_by));
+        setCheckIn(b.check_in || "");
+        setCheckOut(b.check_out || "");
+        setCancelBy(b.cancel_by || "");
         setFlightNumber(b.flight_number || "");
         setDepartAirport(b.depart_airport || "");
         setArriveAirport(b.arrive_airport || "");
@@ -97,11 +98,11 @@ export default function BookingForm() {
         confirmation: confirmation.trim() || null,
         cost: parseFloat(cost) || 0,
         amount_paid: parseFloat(amountPaid) || 0,
-        balance_due_date: userDateToISO(balanceDueDate),
+        balance_due_date: balanceDueDate || null,
         notes: notes.trim() || null,
-        check_in: type === "hotel" ? userDateToISO(checkIn) : null,
-        check_out: type === "hotel" ? userDateToISO(checkOut) : null,
-        cancel_by: type === "hotel" ? userDateToISO(cancelBy) : null,
+        check_in: type === "hotel" ? (checkIn || null) : null,
+        check_out: type === "hotel" ? (checkOut || null) : null,
+        cancel_by: type === "hotel" ? (cancelBy || null) : null,
         flight_number: type === "flight" ? (flightNumber.trim() || null) : null,
         depart_airport: type === "flight" ? (departAirport.trim().toUpperCase() || null) : null,
         arrive_airport: type === "flight" ? (arriveAirport.trim().toUpperCase() || null) : null,
@@ -156,11 +157,11 @@ export default function BookingForm() {
           {type === "hotel" && (
             <>
               <Text style={styles.label}>Check-in</Text>
-              <TextInput style={styles.input} value={checkIn} onChangeText={setCheckIn} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="booking-checkin-input" />
+              <DateField value={checkIn} onChange={setCheckIn} testID="booking-checkin-input" />
               <Text style={styles.label}>Check-out</Text>
-              <TextInput style={styles.input} value={checkOut} onChangeText={setCheckOut} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="booking-checkout-input" />
+              <DateField value={checkOut} onChange={setCheckOut} testID="booking-checkout-input" />
               <Text style={styles.label}>Free cancellation by (optional)</Text>
-              <TextInput style={styles.input} value={cancelBy} onChangeText={setCancelBy} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} />
+              <DateField value={cancelBy} onChange={setCancelBy} />
             </>
           )}
 
@@ -214,7 +215,7 @@ export default function BookingForm() {
           <Text style={styles.label}>Amount already paid (USD)</Text>
           <TextInput style={styles.input} value={amountPaid} onChangeText={setAmountPaid} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-paid-input" />
           <Text style={styles.label}>Balance due date (optional)</Text>
-          <TextInput style={styles.input} value={balanceDueDate} onChangeText={setBalanceDueDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="booking-due-input" />
+          <DateField value={balanceDueDate} onChange={setBalanceDueDate} testID="booking-due-input" />
 
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />

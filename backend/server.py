@@ -87,6 +87,7 @@ class Athlete(BaseModel):
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
+    competition_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -95,6 +96,7 @@ class AthleteCreate(BaseModel):
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
+    competition_ids: Optional[List[str]] = None
 
 
 class AthleteUpdate(BaseModel):
@@ -102,6 +104,7 @@ class AthleteUpdate(BaseModel):
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
 
 
 ExpenseCategory = Literal[
@@ -157,6 +160,7 @@ class PaymentEntry(BaseModel):
     paid_on: str
     method: Optional[str] = None
     note: Optional[str] = None
+    applied_expense_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -166,6 +170,15 @@ class PaymentCreate(BaseModel):
     paid_on: str
     method: Optional[str] = None
     note: Optional[str] = None
+    applied_expense_ids: List[str] = Field(default_factory=list)
+
+
+class PaymentUpdate(BaseModel):
+    amount: Optional[float] = None
+    paid_on: Optional[str] = None
+    method: Optional[str] = None
+    note: Optional[str] = None
+    applied_expense_ids: Optional[List[str]] = None
 
 
 class Competition(BaseModel):
@@ -410,7 +423,9 @@ async def list_athletes(current_user=Depends(get_current_user)):
 
 @api_router.post("/athletes", response_model=Athlete)
 async def create_athlete(payload: AthleteCreate, current_user=Depends(get_current_user)):
-    athlete = Athlete(user_id=current_user["id"], **payload.model_dump())
+    # exclude None so Pydantic can apply default_factory (e.g. competition_ids=[])
+    data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    athlete = Athlete(user_id=current_user["id"], **data)
     await db.athletes.insert_one(athlete.model_dump())
     return athlete
 
@@ -504,7 +519,27 @@ async def list_payments(athlete_id: Optional[str] = None, current_user=Depends(g
 async def create_payment(payload: PaymentCreate, current_user=Depends(get_current_user)):
     entry = PaymentEntry(user_id=current_user["id"], **payload.model_dump())
     await db.payments.insert_one(entry.model_dump())
+    # Auto-mark linked expenses as paid
+    if entry.applied_expense_ids:
+        await db.expenses.update_many(
+            {"id": {"$in": entry.applied_expense_ids}, "user_id": current_user["id"]},
+            {"$set": {"paid": True}},
+        )
     return entry
+
+
+@api_router.patch("/payments/{payment_id}", response_model=PaymentEntry)
+async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=Depends(get_current_user)):
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.payments.update_one(
+        {"id": payment_id, "user_id": current_user["id"]}, {"$set": updates}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    doc = await db.payments.find_one({"id": payment_id}, {"_id": 0})
+    return PaymentEntry(**doc)
 
 
 @api_router.delete("/payments/{payment_id}")

@@ -108,23 +108,6 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Hero balance card */}
-        <View style={styles.heroCard} testID="dashboard-balance-card">
-          <Text style={styles.heroLabel}>OUTSTANDING BALANCE</Text>
-          <Text style={styles.heroAmount}>{formatCurrency(data?.outstanding_balance || 0)}</Text>
-          <View style={styles.heroSplit}>
-            <View style={styles.heroSplitItem}>
-              <Text style={styles.heroSplitLabel}>Expenses due</Text>
-              <Text style={styles.heroSplitValue}>{formatCurrency(data?.unpaid_expense_balance || 0)}</Text>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.heroSplitItem}>
-              <Text style={styles.heroSplitLabel}>Travel balance</Text>
-              <Text style={styles.heroSplitValue}>{formatCurrency(data?.booking_balance || 0)}</Text>
-            </View>
-          </View>
-        </View>
-
         {/* Stat tiles */}
         <View style={styles.tileRow}>
           <View style={styles.tile}>
@@ -225,6 +208,24 @@ export default function DashboardScreen() {
           </View>
         )}
 
+        {/* Minimized balance summary — moved to bottom */}
+        <View style={styles.miniBalanceCard} testID="dashboard-balance-card">
+          <View style={styles.miniBalanceItem}>
+            <Text style={styles.miniBalanceLabel}>Outstanding</Text>
+            <Text style={styles.miniBalanceValue}>{formatCurrency(data?.outstanding_balance || 0)}</Text>
+          </View>
+          <View style={styles.miniDivider} />
+          <View style={styles.miniBalanceItem}>
+            <Text style={styles.miniBalanceLabel}>Expenses due</Text>
+            <Text style={styles.miniBalanceValueSm}>{formatCurrency(data?.unpaid_expense_balance || 0)}</Text>
+          </View>
+          <View style={styles.miniDivider} />
+          <View style={styles.miniBalanceItem}>
+            <Text style={styles.miniBalanceLabel}>Travel</Text>
+            <Text style={styles.miniBalanceValueSm}>{formatCurrency(data?.booking_balance || 0)}</Text>
+          </View>
+        </View>
+
         <View style={{ height: 80 }} />
       </ScrollView>
     </SafeAreaView>
@@ -266,6 +267,22 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },
+  miniBalanceCard: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  miniBalanceItem: { flex: 1, alignItems: "center" },
+  miniBalanceLabel: { ...typography.micro, color: colors.textSecondary, marginBottom: 4 },
+  miniBalanceValue: { fontSize: 17, fontWeight: "800", color: colors.textPrimary, letterSpacing: -0.2 },
+  miniBalanceValueSm: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
+  miniDivider: { width: 1, height: 28, backgroundColor: colors.border },
   heroCard: {
     backgroundColor: colors.primary, borderRadius: radius.xl, padding: spacing.xl,
     ...shadow.card,

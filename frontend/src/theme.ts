@@ -6,9 +6,9 @@ export const colors = {
   borderSoft: "#F5F5F4",
   primary: "#0F172A",      // slate-900
   primaryText: "#FFFFFF",
-  accent: "#E11D48",       // rose-600
-  accentSubtle: "#FFF1F2", // rose-50
-  accentBorder: "#FECDD3", // rose-200
+  accent: "#007CFF",       // CheerPlanner blue (from logo)
+  accentSubtle: "#E6F2FF", // light blue background
+  accentBorder: "#BFDCFF", // blue border
   textPrimary: "#0F172A",
   textSecondary: "#64748B", // slate-500
   textTertiary: "#94A3B8",  // slate-400
@@ -18,9 +18,9 @@ export const colors = {
   warning: "#D97706",       // amber-600
   warningBg: "#FEF3C7",
   warningText: "#B45309",
-  danger: "#E11D48",
-  dangerBg: "#FFE4E6",
-  dangerText: "#BE123C",
+  danger: "#DC2626",       // red-600 (kept distinct from brand blue)
+  dangerBg: "#FEE2E2",
+  dangerText: "#B91C1C",
   divider: "#F1F5F9",
 };
 
@@ -55,10 +55,7 @@ export const typography = {
 
 export const shadow = {
   card: {
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.05,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.05)",
     elevation: 2,
   },
 };

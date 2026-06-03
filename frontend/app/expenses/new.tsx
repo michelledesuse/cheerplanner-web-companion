@@ -9,30 +9,48 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { todayDisplay, userDateToISO } from "@/src/utils/format";
+import { todayISO } from "@/src/utils/format";
+import DateField from "@/src/components/DateField";
 
-export default function NewExpense() {
+export default function ExpenseForm() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ athlete_id?: string }>();
+  const params = useLocalSearchParams<{ athlete_id?: string; id?: string }>();
+  const editingId = params.id;
+  const isEdit = !!editingId;
+
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState<string>("Tuition");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
-  const [incurredOn, setIncurredOn] = useState(todayDisplay());
+  const [incurredOn, setIncurredOn] = useState(todayISO());
   const [dueDate, setDueDate] = useState("");
   const [paid, setPaid] = useState(false);
   const [athletes, setAthletes] = useState<{ id: string; name: string }[]>([]);
   const [athleteId, setAthleteId] = useState<string>(params.athlete_id || "");
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(isEdit);
 
   useEffect(() => {
     (async () => {
-      try {
-        const [c, a] = await Promise.all([api.get("/expenses/categories"), api.get("/athletes")]);
-        setCategories(c.data.categories);
-        setAthletes(a.data);
-        if (!athleteId && a.data.length) setAthleteId(a.data[0].id);
-      } catch (_e) { /* noop */ }
+      const [c, a] = await Promise.all([api.get("/expenses/categories"), api.get("/athletes")]);
+      setCategories(c.data.categories);
+      setAthletes(a.data);
+      if (!athleteId && a.data.length) setAthleteId(a.data[0].id);
+      if (isEdit) {
+        try {
+          const all = await api.get("/expenses");
+          const e = (all.data as any[]).find((x) => x.id === editingId);
+          if (e) {
+            setAthleteId(e.athlete_id);
+            setCategory(e.category);
+            setAmount(String(e.amount));
+            setNote(e.note || "");
+            setIncurredOn(e.incurred_on || "");
+            setDueDate(e.due_date || "");
+            setPaid(!!e.paid);
+          }
+        } finally { setLoading(false); }
+      }
     })();
   }, []);
 
@@ -42,15 +60,21 @@ export default function NewExpense() {
     if (isNaN(amt) || amt <= 0) { Alert.alert("Missing", "Enter a valid amount."); return; }
     setSaving(true);
     try {
-      await api.post("/expenses", {
+      const payload = {
         athlete_id: athleteId, category, amount: amt, note: note || null,
-        incurred_on: userDateToISO(incurredOn), due_date: userDateToISO(dueDate), paid,
-      });
+        incurred_on: incurredOn || todayISO(), due_date: dueDate || null, paid,
+      };
+      if (isEdit) await api.patch(`/expenses/${editingId}`, payload);
+      else await api.post("/expenses", payload);
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
     } finally { setSaving(false); }
   };
+
+  if (loading) {
+    return <SafeAreaView style={styles.safe}><View style={{flex:1,alignItems:"center",justifyContent:"center"}}><ActivityIndicator color={colors.accent}/></View></SafeAreaView>;
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -59,7 +83,7 @@ export default function NewExpense() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>New expense</Text>
+          <Text style={styles.headerTitle}>{isEdit ? "Edit" : "New"} expense</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -90,10 +114,10 @@ export default function NewExpense() {
           <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="expense-amount-input" />
 
           <Text style={styles.label}>Date</Text>
-          <TextInput style={styles.input} value={incurredOn} onChangeText={setIncurredOn} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="expense-date-input" />
+          <DateField value={incurredOn} onChange={setIncurredOn} testID="expense-date-input" />
 
           <Text style={styles.label}>Due date (optional)</Text>
-          <TextInput style={styles.input} value={dueDate} onChangeText={setDueDate} placeholder="DD-MM-YYYY" placeholderTextColor={colors.textTertiary} testID="expense-due-input" />
+          <DateField value={dueDate} onChange={setDueDate} testID="expense-due-input" />
 
           <Text style={styles.label}>Note (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={note} onChangeText={setNote} placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} multiline />
@@ -104,7 +128,7 @@ export default function NewExpense() {
           </View>
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="expense-save-btn">
-            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>Save expense</Text>}
+            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save expense"}</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
