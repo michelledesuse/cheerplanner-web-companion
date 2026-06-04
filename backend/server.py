@@ -133,6 +133,8 @@ class ExpenseEntry(BaseModel):
     incurred_on: str  # ISO date
     due_date: Optional[str] = None
     paid: bool = False
+    receipt_image: Optional[str] = None  # base64 data URL
+    recurrence_group_id: Optional[str] = None  # links a series of recurring expenses
     # Response-only computed fields (not stored)
     paid_amount: float = 0.0
     balance_due: float = 0.0
@@ -147,15 +149,21 @@ class ExpenseCreate(BaseModel):
     incurred_on: str
     due_date: Optional[str] = None
     paid: bool = False
+    receipt_image: Optional[str] = None
+    # Recurrence options (NEW): when set, server creates N additional occurrences
+    recurrence: Optional[Literal["monthly", "weekly", "biweekly"]] = None
+    recurrence_count: Optional[int] = None  # total entries to create (including this one); default 1
 
 
 class ExpenseUpdate(BaseModel):
+    athlete_id: Optional[str] = None
     category: Optional[str] = None
     amount: Optional[float] = None
     note: Optional[str] = None
     incurred_on: Optional[str] = None
     due_date: Optional[str] = None
     paid: Optional[bool] = None
+    receipt_image: Optional[str] = None
 
 
 class PaymentAllocation(BaseModel):
@@ -542,23 +550,61 @@ async def list_expenses(
     return [_expense_with_balance(d, paid_map) for d in docs]
 
 
-@api_router.post("/expenses", response_model=ExpenseEntry)
+@api_router.post("/expenses", response_model=List[ExpenseEntry])
 async def create_expense(payload: ExpenseCreate, current_user=Depends(get_current_user)):
+    from datetime import datetime as _dt, timedelta as _td
     data = payload.model_dump()
-    # Strip response-only computed fields if accidentally sent
-    for k in ("paid_amount", "balance_due"):
+    # Strip response-only / non-stored fields
+    for k in ("paid_amount", "balance_due", "recurrence", "recurrence_count"):
         data.pop(k, None)
     # Auto-populate due_date from incurred_on if not provided
     if not data.get("due_date"):
         data["due_date"] = data.get("incurred_on")
-    entry = ExpenseEntry(user_id=current_user["id"], **data)
-    stored = entry.model_dump()
-    # Don't persist computed fields
-    stored.pop("paid_amount", None)
-    stored.pop("balance_due", None)
-    await db.expenses.insert_one(stored)
-    entry.balance_due = round(entry.amount - entry.paid_amount, 2)
-    return entry
+
+    recurrence = payload.recurrence
+    count = max(1, int(payload.recurrence_count or 1)) if recurrence else 1
+    group_id = str(uuid.uuid4()) if (recurrence and count > 1) else None
+
+    created: List[ExpenseEntry] = []
+    docs: List[dict] = []
+
+    def _shift(date_str: str, n: int) -> Optional[str]:
+        """Shift an ISO date string by n iterations of the recurrence."""
+        if not date_str or not recurrence or n == 0:
+            return date_str
+        try:
+            base = _dt.fromisoformat(date_str[:10]).date()
+        except Exception:
+            return date_str
+        if recurrence == "monthly":
+            # Add n months, clamping day to month length
+            y, m = base.year, base.month + n
+            y += (m - 1) // 12
+            m = ((m - 1) % 12) + 1
+            from calendar import monthrange
+            d = min(base.day, monthrange(y, m)[1])
+            return _dt(y, m, d).date().isoformat()
+        if recurrence == "weekly":
+            return (base + _td(days=7 * n)).isoformat()
+        if recurrence == "biweekly":
+            return (base + _td(days=14 * n)).isoformat()
+        return date_str
+
+    for i in range(count):
+        entry = ExpenseEntry(
+            user_id=current_user["id"],
+            **{**data, "incurred_on": _shift(data["incurred_on"], i), "due_date": _shift(data.get("due_date"), i)},
+            recurrence_group_id=group_id,
+        )
+        stored = entry.model_dump()
+        stored.pop("paid_amount", None)
+        stored.pop("balance_due", None)
+        docs.append(stored)
+        entry.balance_due = round(entry.amount - entry.paid_amount, 2)
+        created.append(entry)
+    if docs:
+        await db.expenses.insert_many(docs)
+    return created
 
 
 class ExpenseBulkCreate(BaseModel):
@@ -1708,6 +1754,97 @@ async def startup_db_client():
         logger.warning(f"Startup backfill skipped: {exc}")
 
 
+# ============================================================
+# Export — CSV (expenses, payments) and ICS (calendar)
+# ============================================================
+from fastapi.responses import PlainTextResponse  # noqa: E402
+import csv as _csv  # noqa: E402
+import io as _io  # noqa: E402
+
+
+@api_router.get("/export/expenses.csv", response_class=PlainTextResponse)
+async def export_expenses_csv(current_user=Depends(get_current_user)):
+    user_id = current_user["id"]
+    paid_map = await _build_paid_map(user_id)
+    ath_map = {
+        a["id"]: a["name"]
+        async for a in db.athletes.find({"user_id": user_id}, {"_id": 0, "id": 1, "name": 1})
+    }
+    buf = _io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["id", "athlete", "category", "amount", "paid_amount", "balance_due", "incurred_on", "due_date", "paid", "note"])
+    async for e in db.expenses.find({"user_id": user_id}, {"_id": 0}).sort("incurred_on", -1):
+        amt = float(e.get("amount") or 0)
+        paid = float(paid_map.get(e["id"], 0.0))
+        bal = max(0.0, round(amt - paid, 2))
+        w.writerow([
+            e["id"], ath_map.get(e.get("athlete_id"), ""), e.get("category", ""),
+            f"{amt:.2f}", f"{paid:.2f}", f"{bal:.2f}",
+            e.get("incurred_on", ""), e.get("due_date") or "",
+            "yes" if e.get("paid") else "no",
+            (e.get("note") or "").replace("\n", " "),
+        ])
+    return PlainTextResponse(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=expenses.csv"})
+
+
+@api_router.get("/export/payments.csv", response_class=PlainTextResponse)
+async def export_payments_csv(current_user=Depends(get_current_user)):
+    user_id = current_user["id"]
+    ath_map = {
+        a["id"]: a["name"]
+        async for a in db.athletes.find({"user_id": user_id}, {"_id": 0, "id": 1, "name": 1})
+    }
+    cat_map = {
+        e["id"]: e.get("category", "")
+        async for e in db.expenses.find({"user_id": user_id}, {"_id": 0, "id": 1, "category": 1})
+    }
+    buf = _io.StringIO()
+    w = _csv.writer(buf)
+    w.writerow(["id", "athlete", "amount", "paid_on", "method", "applied_to", "note"])
+    async for p in db.payments.find({"user_id": user_id}, {"_id": 0}).sort("paid_on", -1):
+        applied = ", ".join(cat_map.get(eid, "") for eid in (p.get("applied_expense_ids") or []) if cat_map.get(eid))
+        w.writerow([
+            p["id"], ath_map.get(p.get("athlete_id"), ""),
+            f"{float(p.get('amount') or 0):.2f}",
+            p.get("paid_on", ""), p.get("method") or "", applied,
+            (p.get("note") or "").replace("\n", " "),
+        ])
+    return PlainTextResponse(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=payments.csv"})
+
+
+@api_router.get("/export/calendar.ics", response_class=PlainTextResponse)
+async def export_calendar_ics(current_user=Depends(get_current_user)):
+    # Reuse the calendar feed for a wide range (1 year back to 2 years forward)
+    from datetime import date as _d, timedelta as _td
+    today = _d.today()
+    start = (today - _td(days=365)).isoformat()
+    end = (today + _td(days=730)).isoformat()
+    feed = await calendar_feed(start=start, end=end, current_user=current_user)
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//CheerPlanner//EN", "CALSCALE:GREGORIAN"]
+    now = utcnow_iso().replace("-", "").replace(":", "").replace(".", "")[:15] + "Z"
+    for item in feed.get("items", []):
+        d = item["date"].replace("-", "")
+        uid = f"{item['id']}@cheerplanner"
+        summary = (item.get("title") or "Event").replace(",", "\\,").replace(";", "\\;")
+        desc = (item.get("subtitle") or "").replace(",", "\\,").replace(";", "\\;")
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now}",
+            f"DTSTART;VALUE=DATE:{d}",
+            f"SUMMARY:{summary}",
+        ]
+        if desc:
+            lines.append(f"DESCRIPTION:{desc}")
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return PlainTextResponse(content="\r\n".join(lines), media_type="text/calendar", headers={"Content-Disposition": "attachment; filename=cheerplanner.ics"})
+
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+# Re-include router AFTER all routes are registered (export endpoints added after first include_router)
+app.include_router(api_router)

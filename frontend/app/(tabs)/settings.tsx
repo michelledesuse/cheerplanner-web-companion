@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -10,6 +10,38 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const apiBase = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "") + "/api";
+
+  const openExport = async (path: string, suggestedName: string) => {
+    try {
+      const { api } = await import("@/src/api/client");
+      const r = await api.get(path, { responseType: "blob" as any });
+      const isWeb = typeof window !== "undefined" && (window as any).document;
+      if (isWeb) {
+        // Browser: create blob URL and trigger download
+        const blob = r.data instanceof Blob ? r.data : new Blob([r.data]);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = suggestedName; document.body.appendChild(a);
+        a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } else {
+        // Native: persist + share
+        const FS: any = await import("expo-file-system");
+        const Sharing: any = await import("expo-sharing");
+        const path2 = `${FS.cacheDirectory}${suggestedName}`;
+        const text = typeof r.data === "string" ? r.data : await (r.data as Blob).text();
+        await FS.writeAsStringAsync(path2, text, { encoding: FS.EncodingType.UTF8 });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(path2);
+        } else {
+          Alert.alert("Saved", `File saved to ${path2}`);
+        }
+      }
+    } catch (_e) {
+      Alert.alert("Export failed", "Could not generate the export.");
+    }
+  };
 
   const onSignOut = () => {
     Alert.alert("Sign out", "Are you sure you want to sign out?", [
@@ -47,6 +79,9 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHead}>Data</Text>
         <View style={styles.group}>
           <SettingRow icon="cloud-upload-outline" label="Import from spreadsheet" onPress={() => router.push("/import")} chevron />
+          <SettingRow icon="download-outline" label="Export expenses (CSV)" onPress={() => openExport("/export/expenses.csv", "expenses.csv")} chevron testID="export-expenses" />
+          <SettingRow icon="download-outline" label="Export payments (CSV)" onPress={() => openExport("/export/payments.csv", "payments.csv")} chevron testID="export-payments" />
+          <SettingRow icon="calendar-outline" label="Export calendar (.ics)" onPress={() => openExport("/export/calendar.ics", "cheerplanner.ics")} chevron testID="export-calendar" />
           <SettingRow icon="people-outline" label="Athletes" onPress={() => router.push("/(tabs)/athletes")} chevron />
           <SettingRow icon="trophy-outline" label="Competitions" onPress={() => router.push("/(tabs)/competitions")} chevron />
           <SettingRow icon="gift-outline" label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Switch,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Switch, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -37,6 +38,9 @@ export default function ExpenseForm() {
     setDueDateTouched(true);
   };
   const [paid, setPaid] = useState(false);
+  const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  const [recurrence, setRecurrence] = useState<"none" | "monthly" | "weekly" | "biweekly">("none");
+  const [recurrenceCount, setRecurrenceCount] = useState("1");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   // Multi-select set of athlete ids
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
@@ -68,6 +72,7 @@ export default function ExpenseForm() {
             setDueDate(e.due_date || e.incurred_on || "");  // fallback to incurred_on for legacy data
             setDueDateTouched(true);  // editing existing record — user owns the value
             setPaid(!!e.paid);
+            setReceiptImage(e.receipt_image || null);
           }
         } finally { setLoading(false); }
       }
@@ -104,14 +109,20 @@ export default function ExpenseForm() {
           athlete_id: Array.from(selectedIds)[0],
           category, amount: amt, note: note || null,
           incurred_on: incurredOn || todayISO(), due_date: dueDate || null, paid,
+          receipt_image: receiptImage,
         };
         await api.patch(`/expenses/${editingId}`, payload);
       } else if (selectedIds.size === 1) {
-        const payload = {
+        const payload: any = {
           athlete_id: Array.from(selectedIds)[0],
           category, amount: amt, note: note || null,
           incurred_on: incurredOn || todayISO(), due_date: dueDate || null, paid,
+          receipt_image: receiptImage,
         };
+        if (recurrence !== "none") {
+          payload.recurrence = recurrence;
+          payload.recurrence_count = Math.max(1, parseInt(recurrenceCount) || 1);
+        }
         await api.post("/expenses", payload);
       } else {
         // bulk
@@ -126,6 +137,27 @@ export default function ExpenseForm() {
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
     } finally { setSaving(false); }
+  };
+
+  const pickReceipt = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        if (!perm.canAskAgain) Alert.alert("Permission needed", "Enable photo access in Settings.");
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.4,
+        base64: true,
+      });
+      if (!res.canceled && res.assets[0]) {
+        const a = res.assets[0];
+        const mime = a.mimeType || "image/jpeg";
+        if (a.base64) setReceiptImage(`data:${mime};base64,${a.base64}`);
+      }
+    } catch (_e) { Alert.alert("Error", "Could not load image."); }
   };
 
   if (loading) {
@@ -222,6 +254,60 @@ export default function ExpenseForm() {
             <Switch value={paid} onValueChange={setPaid} trackColor={{ true: colors.accent, false: colors.border }} thumbColor="white" />
           </View>
 
+          {/* Receipt attachment */}
+          <Text style={styles.label}>Receipt photo (optional)</Text>
+          {receiptImage ? (
+            <View style={styles.receiptBox}>
+              <Image source={{ uri: receiptImage }} style={styles.receiptImg} resizeMode="contain" />
+              <View style={styles.receiptActions}>
+                <TouchableOpacity onPress={pickReceipt} style={styles.smallBtn}>
+                  <Ionicons name="image" size={14} color={colors.accent} />
+                  <Text style={styles.smallBtnText}>Replace</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setReceiptImage(null)} style={[styles.smallBtn, { backgroundColor: colors.dangerBg }]}>
+                  <Ionicons name="trash" size={14} color={colors.dangerText} />
+                  <Text style={[styles.smallBtnText, { color: colors.dangerText }]}>Remove</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.receiptUpload} onPress={pickReceipt} testID="expense-pick-receipt">
+              <Ionicons name="receipt-outline" size={22} color={colors.accent} />
+              <Text style={styles.receiptUploadText}>Attach receipt photo</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Recurrence — only available for single-athlete create (NOT edit, NOT multi) */}
+          {!isEdit && selectedCount === 1 && (
+            <>
+              <Text style={styles.label}>Repeat (optional)</Text>
+              <View style={styles.chips}>
+                {(["none","weekly","biweekly","monthly"] as const).map((r) => (
+                  <TouchableOpacity key={r} onPress={() => setRecurrence(r)} style={[styles.chip, recurrence === r && styles.chipActive]} testID={`recur-${r}`}>
+                    <Text style={[styles.chipText, recurrence === r && styles.chipTextActive]}>
+                      {r === "none" ? "One-time" : r === "biweekly" ? "Bi-weekly" : r[0].toUpperCase() + r.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {recurrence !== "none" && (
+                <>
+                  <Text style={styles.label}>How many occurrences?</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={recurrenceCount}
+                    onChangeText={setRecurrenceCount}
+                    keyboardType="number-pad"
+                    placeholder="e.g. 12"
+                    placeholderTextColor={colors.textTertiary}
+                    testID="recur-count-input"
+                  />
+                  <Text style={styles.helperText}>Creates {parseInt(recurrenceCount) || 1} {recurrence} entries starting on the expense date.</Text>
+                </>
+              )}
+            </>
+          )}
+
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="expense-save-btn">
             {saving ? <ActivityIndicator color="white" /> : (
               <Text style={styles.saveBtnText}>
@@ -258,4 +344,12 @@ const styles = StyleSheet.create({
   bodyText: { ...typography.bodyMedium, color: colors.textPrimary },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+  helperText: { ...typography.caption, color: colors.textTertiary, marginTop: 4 },
+  receiptUpload: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, borderStyle: "dashed", backgroundColor: colors.card },
+  receiptUploadText: { ...typography.bodyMedium, color: colors.accent, fontWeight: "700" },
+  receiptBox: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, padding: spacing.sm, alignItems: "center" },
+  receiptImg: { width: "100%", height: 220, borderRadius: radius.md, backgroundColor: colors.bg },
+  receiptActions: { flexDirection: "row", gap: 8, marginTop: spacing.sm },
+  smallBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999 },
+  smallBtnText: { color: colors.accent, fontWeight: "700", fontSize: 12 },
 });

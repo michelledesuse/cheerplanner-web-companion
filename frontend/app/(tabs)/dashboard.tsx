@@ -218,7 +218,12 @@ export default function DashboardScreen() {
         )}
 
         {/* Minimized balance summary — moved to bottom */}
-        <View style={styles.miniBalanceCard} testID="dashboard-balance-card">
+        <TouchableOpacity
+          style={styles.miniBalanceCard}
+          testID="dashboard-balance-card"
+          activeOpacity={0.85}
+          onPress={() => router.push("/athletes")}
+        >
           <View style={styles.miniBalanceItem}>
             <Text style={styles.miniBalanceLabel}>Outstanding</Text>
             <Text style={styles.miniBalanceValue}>{formatCurrency(data?.outstanding_balance || 0)}</Text>
@@ -233,7 +238,7 @@ export default function DashboardScreen() {
             <Text style={styles.miniBalanceLabel}>Travel</Text>
             <Text style={styles.miniBalanceValueSm}>{formatCurrency(data?.booking_balance || 0)}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         <View style={{ height: 80 }} />
       </ScrollView>
