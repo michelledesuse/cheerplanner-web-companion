@@ -213,7 +213,12 @@ export default function AthleteDetail() {
                   <TouchableOpacity onPress={() => togglePaid(e)} style={[styles.statusDot, fullyPaid && { backgroundColor: colors.successText, borderColor: colors.successText }]}>
                     {fullyPaid && <Ionicons name="checkmark" size={14} color="white" />}
                   </TouchableOpacity>
-                  <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <TouchableOpacity
+                    style={{ flex: 1, marginLeft: spacing.md }}
+                    onPress={() => router.push({ pathname: "/expenses/new", params: { id: e.id } })}
+                    activeOpacity={0.7}
+                    testID={`expense-edit-${e.id}`}
+                  >
                     <Text style={styles.rowTitle}>{e.category}</Text>
                     <Text style={styles.rowMeta}>
                       {formatDate(e.incurred_on)}{e.due_date ? ` • due ${formatDate(e.due_date)}` : ""}
@@ -229,7 +234,7 @@ export default function AthleteDetail() {
                       </Text>
                     )}
                     {e.note && <Text style={styles.rowNote} numberOfLines={1}>{e.note}</Text>}
-                  </View>
+                  </TouchableOpacity>
                   <View style={{ alignItems: "flex-end" }}>
                     {fullyPaid ? (
                       <Text style={[styles.rowAmount, { color: colors.successText, textDecorationLine: "line-through" }]}>

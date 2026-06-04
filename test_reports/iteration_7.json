@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 7: validated calendar flight-date normalization and expense PATCH editing on the CheerPlanner backend. Created /app/backend/tests/test_flight_calendar_normalize_and_expense_edit.py with 13 scenarios covering ISO, DD-MM-YYYY [HH:MM], DD/MM/YYYY, garbage and mixed flight date formats on GET /api/calendar, plus PATCH /api/expenses/{id} happy path, validation, cross-user isolation, and post-paid apply-payment guard. All 13 tests passed against the public EXPO_PUBLIC_BACKEND_URL (62.47s, no retries/flakes). No backend code changes required.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_flight_calendar_normalize_and_expense_edit.py",
+    "/app/test_reports/pytest/pytest_flight_normalize_expense_edit.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py PATCH /expenses/{id} filters out any field whose value is None (`if v is not None`). This is OK for the current ExpenseUpdate schema (no field is meant to be cleared to null), but it means callers cannot explicitly clear `note` or `due_date` to null via PATCH — only via empty string for note. Document this if frontend ever needs to clear dates.",
+    "_normalize_date() inside calendar_feed silently returns None for unparseable dates. Good for resilience, but consider logging a debug warning so malformed booking dates can be surfaced in admin/observability later.",
+    "server.py is 1652 lines — exceeds the 700-line guideline; consider splitting into routers (auth, athletes, expenses, bookings, calendar, fundraisers) for maintainability. Not a blocker for this iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_flight_calendar_normalize_and_expense_edit.py (new)",
+    "/app/test_reports/pytest/pytest_flight_normalize_expense_edit.xml (new)",
+    "/app/test_reports/iteration_7.json (new)"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "not tested (per request)"},
+  "seed_data_creation": "Each test signs up a fresh TEST_it7_* user via /api/auth/signup with 11s back-off on 429. Test athletes/competitions/bookings/expenses all prefixed TEST_ for cleanup identification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All flight calendar normalization formats (ISO, DD-MM-YYYY[ HH:MM], DD/MM/YYYY, garbage) and expense PATCH paths are covered by /app/backend/tests/test_flight_calendar_normalize_and_expense_edit.py. Existing iteration suites (bulk_endpoints, calendar_and_bulk_alloc, calendar_spans_and_avatar, partial_payments, cheertrack_backend) were NOT re-run this iteration due to the ~10s/signup rate limit; they should still be regression-safe since no server.py changes were made. If retesting, allow ~70s per suite and stagger runs.",
+  "rca_of_issue": "Not applicable — no bug discovered. The _normalize_date helper (server.py L974-1008) correctly handles all four input shapes specified in the request: ISO YYYY-MM-DD[Thh:mm], DD-MM-YYYY [HH:MM], DD/MM/YYYY, and falls through to None for unparseable strings. The flight emit block (L1122-1161) only adds items when the normalized value is truthy and in range, and the travel_day loop only runs when both legs normalize, so a garbage depart_time yields zero flight items (HTTP 200, no 500)."
+}

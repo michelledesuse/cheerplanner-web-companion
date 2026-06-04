@@ -971,6 +971,42 @@ async def calendar_feed(
     """
     user_id = current_user["id"]
 
+    def _normalize_date(value: Optional[str]) -> Optional[str]:
+        """Normalize a date string into ISO YYYY-MM-DD.
+        Accepts: 'YYYY-MM-DD', 'YYYY-MM-DDTHH:MM[:SS]', 'DD-MM-YYYY [HH:MM]', 'DD/MM/YYYY'.
+        Returns None if unparseable.
+        """
+        if not value:
+            return None
+        v = str(value).strip()
+        if not v:
+            return None
+        # Already ISO?
+        first10 = v[:10]
+        if len(first10) == 10 and first10[4] == "-" and first10[7] == "-":
+            # YYYY-MM-DD
+            try:
+                from datetime import date as _date
+                _date.fromisoformat(first10)
+                return first10
+            except Exception:
+                pass
+        # DD-MM-YYYY or DD/MM/YYYY (with optional time)
+        head = v.split(" ")[0].replace("/", "-")
+        parts = head.split("-")
+        if len(parts) == 3:
+            a, b, c = parts
+            try:
+                if len(c) == 4 and len(a) <= 2 and len(b) <= 2:
+                    # DD-MM-YYYY
+                    return f"{int(c):04d}-{int(b):02d}-{int(a):02d}"
+                if len(a) == 4 and len(b) <= 2 and len(c) <= 2:
+                    # YYYY-MM-DD (already, but with single digits)
+                    return f"{int(a):04d}-{int(b):02d}-{int(c):02d}"
+            except Exception:
+                return None
+        return None
+
     def in_range(d: Optional[str]) -> bool:
         if not d:
             return False
@@ -986,11 +1022,11 @@ async def calendar_feed(
         if not start_date:
             return
         try:
-            d1 = datetime.fromisoformat(start_date[:10]).date()
+            d1 = datetime.fromisoformat(_normalize_date(start_date)).date()
         except Exception:
             return
         try:
-            d2 = datetime.fromisoformat((end_date or start_date)[:10]).date()
+            d2 = datetime.fromisoformat(_normalize_date(end_date or start_date)).date()
         except Exception:
             d2 = d1
         if d2 < d1:
@@ -1057,7 +1093,7 @@ async def calendar_feed(
         vendor = b.get("provider") or btype.capitalize()
         conf = b.get("confirmation") or ""
         if btype == "hotel":
-            ci, co = b.get("check_in"), b.get("check_out")
+            ci, co = _normalize_date(b.get("check_in")), _normalize_date(b.get("check_out"))
             if ci:
                 for day, offset, delta in iter_days(ci, co or ci):
                     if not in_range(day):
@@ -1084,25 +1120,25 @@ async def calendar_feed(
                         "link": comp_link,
                     })
         elif btype == "flight":
-            dep = b.get("depart_time")
-            ret = b.get("return_depart_time")
+            dep = _normalize_date(b.get("depart_time"))
+            ret = _normalize_date(b.get("return_depart_time"))
             # Outbound day
-            if dep and in_range(dep[:10]):
+            if dep and in_range(dep):
                 items.append({
                     "id": f"flight-dep-{b['id']}",
                     "kind": "flight_depart",
-                    "date": dep[:10],
+                    "date": dep,
                     "title": f"Flight {b.get('depart_airport') or ''} → {b.get('arrive_airport') or ''}".strip(),
                     "subtitle": f"{vendor} {b.get('flight_number') or ''}".strip(),
                     "color": "#7C3AED",
                     "link": comp_link,
                 })
             # Return day
-            if ret and in_range(ret[:10]):
+            if ret and in_range(ret):
                 items.append({
                     "id": f"flight-ret-{b['id']}",
                     "kind": "flight_return",
-                    "date": ret[:10],
+                    "date": ret,
                     "title": f"Return {b.get('return_depart_airport') or ''} → {b.get('return_arrive_airport') or ''}".strip(),
                     "subtitle": f"{vendor} {b.get('return_flight_number') or ''}".strip(),
                     "color": "#7C3AED",
@@ -1110,8 +1146,7 @@ async def calendar_feed(
                 })
             # Travel-window dots for in-between days (only if both legs exist)
             if dep and ret:
-                dep_d, ret_d = dep[:10], ret[:10]
-                for day, offset, delta in iter_days(dep_d, ret_d):
+                for day, offset, delta in iter_days(dep, ret):
                     if offset == 0 or offset == delta:
                         continue  # already emitted depart/return events above
                     if in_range(day):

@@ -127,7 +127,7 @@ export default function ExpensesTab() {
               return (
                 <TouchableOpacity
                   key={e.id}
-                  onPress={() => router.push(`/athletes/${e.athlete_id}`)}
+                  onPress={() => router.push({ pathname: "/expenses/new", params: { id: e.id } })}
                   activeOpacity={0.8}
                   style={styles.row}
                   testID={`expense-row-${e.id}`}
