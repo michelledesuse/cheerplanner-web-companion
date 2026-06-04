@@ -25,7 +25,17 @@ export default function ExpenseForm() {
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [incurredOn, setIncurredOn] = useState(todayISO());
-  const [dueDate, setDueDate] = useState("");
+  // Mirror incurred_on into due_date by default; user can manually override.
+  const [dueDate, setDueDate] = useState(todayISO());
+  const [dueDateTouched, setDueDateTouched] = useState(false);
+  const handleIncurredOnChange = (next: string) => {
+    setIncurredOn(next);
+    if (!dueDateTouched) setDueDate(next);
+  };
+  const handleDueDateChange = (next: string) => {
+    setDueDate(next);
+    setDueDateTouched(true);
+  };
   const [paid, setPaid] = useState(false);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   // Multi-select set of athlete ids
@@ -56,6 +66,7 @@ export default function ExpenseForm() {
             setNote(e.note || "");
             setIncurredOn(e.incurred_on || "");
             setDueDate(e.due_date || "");
+            setDueDateTouched(true);  // editing existing record — user owns the value
             setPaid(!!e.paid);
           }
         } finally { setLoading(false); }
@@ -198,10 +209,10 @@ export default function ExpenseForm() {
           <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="expense-amount-input" />
 
           <Text style={styles.label}>Date</Text>
-          <DateField value={incurredOn} onChange={setIncurredOn} testID="expense-date-input" />
+          <DateField value={incurredOn} onChange={handleIncurredOnChange} testID="expense-date-input" />
 
-          <Text style={styles.label}>Due date (optional)</Text>
-          <DateField value={dueDate} onChange={setDueDate} testID="expense-due-input" />
+          <Text style={styles.label}>Due date</Text>
+          <DateField value={dueDate} onChange={handleDueDateChange} testID="expense-due-input" />
 
           <Text style={styles.label}>Note (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={note} onChangeText={setNote} placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} multiline />

@@ -540,6 +540,9 @@ async def create_expense(payload: ExpenseCreate, current_user=Depends(get_curren
     # Strip response-only computed fields if accidentally sent
     for k in ("paid_amount", "balance_due"):
         data.pop(k, None)
+    # Auto-populate due_date from incurred_on if not provided
+    if not data.get("due_date"):
+        data["due_date"] = data.get("incurred_on")
     entry = ExpenseEntry(user_id=current_user["id"], **data)
     stored = entry.model_dump()
     # Don't persist computed fields
@@ -583,6 +586,8 @@ async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(
     )
     if per_amt <= 0:
         raise HTTPException(status_code=400, detail="Per-athlete amount must be greater than zero")
+    # Auto-populate due_date from incurred_on if not provided
+    due = payload.due_date or payload.incurred_on
     created: List[ExpenseEntry] = []
     docs: List[dict] = []
     for aid in payload.athlete_ids:
@@ -593,7 +598,7 @@ async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(
             amount=per_amt,
             note=payload.note,
             incurred_on=payload.incurred_on,
-            due_date=payload.due_date,
+            due_date=due,
             paid=payload.paid,
         )
         stored = entry.model_dump()
