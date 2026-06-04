@@ -76,6 +76,11 @@ export default function SettingsScreen() {
           <SettingRow icon="notifications-outline" label="In-app reminders" value="7 / 3 / 1 days before" />
         </View>
 
+        <Text style={styles.sectionHead}>Sharing</Text>
+        <View style={styles.group}>
+          <SettingRow icon="people-circle-outline" label="Household (share with co-parent)" onPress={() => router.push("/household")} chevron testID="settings-household" />
+        </View>
+
         <Text style={styles.sectionHead}>Data</Text>
         <View style={styles.group}>
           <SettingRow icon="cloud-upload-outline" label="Import from spreadsheet" onPress={() => router.push("/import")} chevron />

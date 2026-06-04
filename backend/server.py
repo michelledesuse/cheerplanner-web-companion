@@ -74,6 +74,26 @@ class UserPublic(BaseModel):
     created_at: str
 
 
+class Household(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    member_user_ids: List[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class HouseholdInvite(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    household_id: str
+    invited_by: str
+    code: str
+    expires_at: str
+    used_at: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class HouseholdJoinRequest(BaseModel):
+    code: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -449,7 +469,7 @@ async def me(current_user=Depends(get_current_user)):
 # ============================================================
 @api_router.get("/athletes", response_model=List[Athlete])
 async def list_athletes(current_user=Depends(get_current_user)):
-    docs = await db.athletes.find({"user_id": current_user["id"]}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    docs = await db.athletes.find({"user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0}).sort("created_at", 1).to_list(500)
     return [Athlete(**d) for d in docs]
 
 
@@ -475,7 +495,7 @@ async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=D
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.athletes.update_one(
-        {"id": athlete_id, "user_id": current_user["id"]}, {"$set": updates}
+        {"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Athlete not found")
@@ -485,11 +505,11 @@ async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=D
 
 @api_router.delete("/athletes/{athlete_id}")
 async def delete_athlete(athlete_id: str, current_user=Depends(get_current_user)):
-    res = await db.athletes.delete_one({"id": athlete_id, "user_id": current_user["id"]})
+    res = await db.athletes.delete_one({"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Athlete not found")
-    await db.expenses.delete_many({"athlete_id": athlete_id, "user_id": current_user["id"]})
-    await db.payments.delete_many({"athlete_id": athlete_id, "user_id": current_user["id"]})
+    await db.expenses.delete_many({"athlete_id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
+    await db.payments.delete_many({"athlete_id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     return {"deleted": True}
 
 
@@ -542,7 +562,7 @@ async def list_expenses(
     athlete_id: Optional[str] = None,
     current_user=Depends(get_current_user),
 ):
-    q = {"user_id": current_user["id"]}
+    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.expenses.find(q, {"_id": 0}).sort("incurred_on", -1).to_list(2000)
@@ -672,7 +692,7 @@ async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=D
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.expenses.update_one(
-        {"id": expense_id, "user_id": current_user["id"]}, {"$set": updates}
+        {"id": expense_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Expense not found")
@@ -683,7 +703,7 @@ async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=D
 
 @api_router.delete("/expenses/{expense_id}")
 async def delete_expense(expense_id: str, current_user=Depends(get_current_user)):
-    res = await db.expenses.delete_one({"id": expense_id, "user_id": current_user["id"]})
+    res = await db.expenses.delete_one({"id": expense_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"deleted": True}
@@ -783,7 +803,7 @@ async def apply_payment_to_expense(
 # ============================================================
 @api_router.get("/payments", response_model=List[PaymentEntry])
 async def list_payments(athlete_id: Optional[str] = None, current_user=Depends(get_current_user)):
-    q = {"user_id": current_user["id"]}
+    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.payments.find(q, {"_id": 0}).sort("paid_on", -1).to_list(2000)
@@ -799,7 +819,7 @@ async def create_payment(payload: PaymentCreate, current_user=Depends(get_curren
         paid_map = await _build_paid_map(current_user["id"])
         for eid in entry.applied_expense_ids:
             exp = await db.expenses.find_one(
-                {"id": eid, "user_id": current_user["id"]}, {"_id": 0, "amount": 1, "paid": 1}
+                {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0, "amount": 1, "paid": 1}
             )
             if not exp or exp.get("paid"):
                 continue
@@ -807,7 +827,7 @@ async def create_payment(payload: PaymentCreate, current_user=Depends(get_curren
             paid = float(paid_map.get(eid, 0.0))
             if paid + 1e-6 >= amt:
                 await db.expenses.update_one(
-                    {"id": eid, "user_id": current_user["id"]}, {"$set": {"paid": True}}
+                    {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": {"paid": True}}
                 )
     return entry
 
@@ -902,7 +922,7 @@ async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=D
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.payments.update_one(
-        {"id": payment_id, "user_id": current_user["id"]}, {"$set": updates}
+        {"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Payment not found")
@@ -912,7 +932,7 @@ async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=D
 
 @api_router.delete("/payments/{payment_id}")
 async def delete_payment(payment_id: str, current_user=Depends(get_current_user)):
-    res = await db.payments.delete_one({"id": payment_id, "user_id": current_user["id"]})
+    res = await db.payments.delete_one({"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Payment not found")
     return {"deleted": True}
@@ -923,7 +943,7 @@ async def delete_payment(payment_id: str, current_user=Depends(get_current_user)
 # ============================================================
 @api_router.get("/competitions", response_model=List[Competition])
 async def list_competitions(current_user=Depends(get_current_user)):
-    docs = await db.competitions.find({"user_id": current_user["id"]}, {"_id": 0}).sort("event_date", 1).to_list(500)
+    docs = await db.competitions.find({"user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0}).sort("event_date", 1).to_list(500)
     return [Competition(**d) for d in docs]
 
 
@@ -937,7 +957,7 @@ async def create_competition(payload: CompetitionCreate, current_user=Depends(ge
 @api_router.get("/competitions/{competition_id}", response_model=Competition)
 async def get_competition(competition_id: str, current_user=Depends(get_current_user)):
     doc = await db.competitions.find_one(
-        {"id": competition_id, "user_id": current_user["id"]}, {"_id": 0}
+        {"id": competition_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0}
     )
     if not doc:
         raise HTTPException(status_code=404, detail="Competition not found")
@@ -950,7 +970,7 @@ async def update_competition(competition_id: str, payload: CompetitionUpdate, cu
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.competitions.update_one(
-        {"id": competition_id, "user_id": current_user["id"]}, {"$set": updates}
+        {"id": competition_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Competition not found")
@@ -961,11 +981,11 @@ async def update_competition(competition_id: str, payload: CompetitionUpdate, cu
 @api_router.delete("/competitions/{competition_id}")
 async def delete_competition(competition_id: str, current_user=Depends(get_current_user)):
     res = await db.competitions.delete_one(
-        {"id": competition_id, "user_id": current_user["id"]}
+        {"id": competition_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}
     )
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Competition not found")
-    await db.bookings.delete_many({"competition_id": competition_id, "user_id": current_user["id"]})
+    await db.bookings.delete_many({"competition_id": competition_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     return {"deleted": True}
 
 
@@ -977,7 +997,7 @@ async def list_bookings(
     competition_id: Optional[str] = None,
     current_user=Depends(get_current_user),
 ):
-    q = {"user_id": current_user["id"]}
+    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
     if competition_id:
         q["competition_id"] = competition_id
     docs = await db.bookings.find(q, {"_id": 0}).sort("created_at", 1).to_list(500)
@@ -999,7 +1019,7 @@ async def update_booking(booking_id: str, payload: BookingUpdate, current_user=D
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.bookings.update_one(
-        {"id": booking_id, "user_id": current_user["id"]}, {"$set": updates}
+        {"id": booking_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Booking not found")
@@ -1009,7 +1029,7 @@ async def update_booking(booking_id: str, payload: BookingUpdate, current_user=D
 
 @api_router.delete("/bookings/{booking_id}")
 async def delete_booking(booking_id: str, current_user=Depends(get_current_user)):
-    res = await db.bookings.delete_one({"id": booking_id, "user_id": current_user["id"]})
+    res = await db.bookings.delete_one({"id": booking_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Booking not found")
     return {"deleted": True}
@@ -1269,7 +1289,7 @@ def _fundraiser_with_available(d: dict) -> Fundraiser:
 
 @api_router.get("/fundraisers", response_model=List[Fundraiser])
 async def list_fundraisers(current_user=Depends(get_current_user)):
-    docs = await db.fundraisers.find({"user_id": current_user["id"]}, {"_id": 0}).sort("raised_on", -1).to_list(1000)
+    docs = await db.fundraisers.find({"user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0}).sort("raised_on", -1).to_list(1000)
     return [_fundraiser_with_available(d) for d in docs]
 
 
@@ -1298,7 +1318,7 @@ async def update_fundraiser(fundraiser_id: str, payload: FundraiserUpdate, curre
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.fundraisers.update_one(
-        {"id": fundraiser_id, "user_id": current_user["id"]}, {"$set": updates}
+        {"id": fundraiser_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Fundraiser not found")
@@ -1308,7 +1328,7 @@ async def update_fundraiser(fundraiser_id: str, payload: FundraiserUpdate, curre
 
 @api_router.delete("/fundraisers/{fundraiser_id}")
 async def delete_fundraiser(fundraiser_id: str, current_user=Depends(get_current_user)):
-    res = await db.fundraisers.delete_one({"id": fundraiser_id, "user_id": current_user["id"]})
+    res = await db.fundraisers.delete_one({"id": fundraiser_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Fundraiser not found")
     return {"deleted": True}
@@ -1338,7 +1358,7 @@ async def reminders(current_user=Depends(get_current_user)):
 
     # Unpaid expenses with due date
     async for d in db.expenses.find(
-        {"user_id": current_user["id"], "due_date": {"$ne": None}, "paid": False}, {"_id": 0}
+        {"user_id": {"$in": await _household_user_ids(current_user["id"])}, "due_date": {"$ne": None}, "paid": False}, {"_id": 0}
     ):
         due = parse_date(d.get("due_date"))
         if not due:
@@ -1358,7 +1378,7 @@ async def reminders(current_user=Depends(get_current_user)):
 
     # Bookings with balance_due_date and balance > 0
     async for d in db.bookings.find(
-        {"user_id": current_user["id"], "balance_due_date": {"$ne": None}}, {"_id": 0}
+        {"user_id": {"$in": await _household_user_ids(current_user["id"])}, "balance_due_date": {"$ne": None}}, {"_id": 0}
     ):
         due = parse_date(d.get("balance_due_date"))
         if not due:
@@ -1381,7 +1401,7 @@ async def reminders(current_user=Depends(get_current_user)):
 
     # Booking release datetimes for competitions
     async for d in db.competitions.find(
-        {"user_id": current_user["id"], "booking_release_at": {"$ne": None}}, {"_id": 0}
+        {"user_id": {"$in": await _household_user_ids(current_user["id"])}, "booking_release_at": {"$ne": None}}, {"_id": 0}
     ):
         rel = parse_date(d.get("booking_release_at"))
         if not rel:
@@ -1402,7 +1422,7 @@ async def reminders(current_user=Depends(get_current_user)):
 
     # Cancel-by dates for hotels
     async for d in db.bookings.find(
-        {"user_id": current_user["id"], "cancel_by": {"$ne": None}, "type": "hotel"}, {"_id": 0}
+        {"user_id": {"$in": await _household_user_ids(current_user["id"])}, "cancel_by": {"$ne": None}, "type": "hotel"}, {"_id": 0}
     ):
         cb = parse_date(d.get("cancel_by"))
         if not cb:
@@ -1531,11 +1551,11 @@ async def import_preview(
         if kind == "travel":
             rows = import_helpers.parse_travel(file.filename or "upload", content)
             # also get existing competition names for matching
-            existing = await db.competitions.find({"user_id": current_user["id"]}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+            existing = await db.competitions.find({"user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
             return {"kind": kind, "rows": rows, "count": len(rows), "existing_competitions": existing}
         if kind == "expenses":
             data = import_helpers.parse_expenses(file.filename or "upload", content)
-            existing_athletes = await db.athletes.find({"user_id": current_user["id"]}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+            existing_athletes = await db.athletes.find({"user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
             return {
                 "kind": kind,
                 "format": data["format"],
@@ -1752,6 +1772,106 @@ async def startup_db_client():
             logger.info(f"Startup backfill: due_date set on {backfilled} expense(s)")
     except Exception as exc:
         logger.warning(f"Startup backfill skipped: {exc}")
+
+
+# ============================================================
+# Household — shared data between co-parents/guardians
+# ============================================================
+async def _get_or_create_household(user_id: str) -> dict:
+    """Return the household this user belongs to. Lazy-creates a solo household for legacy users."""
+    h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
+    if h:
+        return h
+    new_h = Household(member_user_ids=[user_id]).model_dump()
+    await db.households.insert_one(new_h)
+    return new_h
+
+
+async def _household_user_ids(user_id: str) -> List[str]:
+    """Return all user_ids in the same household as the requester (including the requester)."""
+    h = await _get_or_create_household(user_id)
+    return h.get("member_user_ids", [user_id])
+
+
+@api_router.get("/household")
+async def get_household(current_user=Depends(get_current_user)):
+    h = await _get_or_create_household(current_user["id"])
+    members = []
+    async for u in db.users.find({"id": {"$in": h["member_user_ids"]}}, {"_id": 0, "id": 1, "email": 1, "name": 1}):
+        members.append(u)
+    return {"id": h["id"], "members": members}
+
+
+@api_router.post("/household/invite")
+async def create_household_invite(current_user=Depends(get_current_user)):
+    h = await _get_or_create_household(current_user["id"])
+    # Generate 6-char alphanumeric code
+    import secrets
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # no confusing 0/O/1/I
+    code = "".join(secrets.choice(alphabet) for _ in range(6))
+    from datetime import timedelta as _td, datetime as _dt
+    expires = (_dt.utcnow() + _td(days=7)).isoformat() + "Z"
+    invite = HouseholdInvite(
+        household_id=h["id"],
+        invited_by=current_user["id"],
+        code=code,
+        expires_at=expires,
+    ).model_dump()
+    await db.household_invites.insert_one(invite)
+    return {"code": code, "expires_at": expires}
+
+
+@api_router.post("/household/join")
+async def join_household(payload: HouseholdJoinRequest, current_user=Depends(get_current_user)):
+    code = payload.code.strip().upper()
+    invite = await db.household_invites.find_one({"code": code, "used_at": None}, {"_id": 0})
+    if not invite:
+        raise HTTPException(status_code=404, detail="Invalid or expired invite code")
+    from datetime import datetime as _dt
+    try:
+        expires = _dt.fromisoformat(invite["expires_at"].replace("Z", ""))
+        if expires < _dt.utcnow():
+            raise HTTPException(status_code=400, detail="Invite code has expired")
+    except (ValueError, KeyError):
+        pass
+    user_id = current_user["id"]
+    if user_id == invite["invited_by"]:
+        raise HTTPException(status_code=400, detail="You can't use your own invite code")
+    # Remove user from current household (and delete household if empty)
+    current_h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
+    if current_h and current_h["id"] != invite["household_id"]:
+        new_members = [u for u in current_h["member_user_ids"] if u != user_id]
+        if new_members:
+            await db.households.update_one({"id": current_h["id"]}, {"$set": {"member_user_ids": new_members}})
+        else:
+            await db.households.delete_one({"id": current_h["id"]})
+    # Add user to target household
+    await db.households.update_one(
+        {"id": invite["household_id"]},
+        {"$addToSet": {"member_user_ids": user_id}},
+    )
+    # Mark invite as used
+    await db.household_invites.update_one(
+        {"id": invite["id"]}, {"$set": {"used_at": utcnow_iso()}}
+    )
+    return {"joined": True, "household_id": invite["household_id"]}
+
+
+@api_router.post("/household/leave")
+async def leave_household(current_user=Depends(get_current_user)):
+    user_id = current_user["id"]
+    h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
+    if not h:
+        raise HTTPException(status_code=404, detail="No household")
+    remaining = [u for u in h["member_user_ids"] if u != user_id]
+    if remaining:
+        await db.households.update_one({"id": h["id"]}, {"$set": {"member_user_ids": remaining}})
+    else:
+        await db.households.delete_one({"id": h["id"]})
+    # Create a new solo household for this user
+    new_h = Household(member_user_ids=[user_id]).model_dump()
+    await db.households.insert_one(new_h)
+    return {"left": True, "new_household_id": new_h["id"]}
 
 
 # ============================================================
