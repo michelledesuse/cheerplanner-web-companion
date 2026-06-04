@@ -11,30 +11,35 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
+import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 type Expense = { id: string; athlete_id: string; category: string; amount: number; paid_amount?: number; balance_due?: number; incurred_on: string; due_date?: string; paid: boolean; note?: string };
 type Payment = { id: string; athlete_id: string; amount: number; paid_on: string; method?: string; note?: string; applied_expense_ids?: string[] };
+type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string };
 
 export default function ExpensesTab() {
   const router = useRouter();
-  const [tab, setTab] = useState<"expenses" | "payments">("expenses");
+  const [tab, setTab] = useState<"expenses" | "payments" | "fundraisers">("expenses");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [applySheet, setApplySheet] = useState<Expense | null>(null);
+  const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const [a, e, p] = await Promise.all([
+      const [a, e, p, f] = await Promise.all([
         api.get<Athlete[]>("/athletes"),
         api.get<Expense[]>("/expenses"),
         api.get<Payment[]>("/payments"),
+        api.get<Fundraiser[]>("/fundraisers"),
       ]);
-      setAthletes(a.data); setExpenses(e.data); setPayments(p.data);
+      setAthletes(a.data); setExpenses(e.data); setPayments(p.data); setFundraisers(f.data);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -73,34 +78,59 @@ export default function ExpensesTab() {
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Money</Text>
         <TouchableOpacity
-          onPress={() => router.push(tab === "expenses" ? "/expenses/new" : "/payments/new")}
+          onPress={() =>
+            router.push(
+              tab === "expenses" ? "/expenses/new"
+              : tab === "payments" ? "/payments/new"
+              : "/fundraisers"
+            )
+          }
           style={styles.addBtn}
           testID="add-money-entry"
         >
           <Ionicons name="add" size={20} color="white" />
-          <Text style={styles.addBtnText}>{tab === "expenses" ? "Expense" : "Payment"}</Text>
+          <Text style={styles.addBtnText}>{tab === "expenses" ? "Expense" : tab === "payments" ? "Payment" : "Fundraiser"}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.tabs}>
         <TouchableOpacity onPress={() => setTab("expenses")} style={[styles.tab, tab === "expenses" && styles.tabActive]} testID="tab-expenses">
-          <Text style={[styles.tabText, tab === "expenses" && styles.tabTextActive]}>Expenses ({expenses.length})</Text>
+          <Text style={[styles.tabText, tab === "expenses" && styles.tabTextActive]}>Expenses</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => setTab("payments")} style={[styles.tab, tab === "payments" && styles.tabActive]} testID="tab-payments">
-          <Text style={[styles.tabText, tab === "payments" && styles.tabTextActive]}>Payments ({payments.length})</Text>
+          <Text style={[styles.tabText, tab === "payments" && styles.tabTextActive]}>Payments</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setTab("fundraisers")} style={[styles.tab, tab === "fundraisers" && styles.tabActive]} testID="tab-fundraisers">
+          <Text style={[styles.tabText, tab === "fundraisers" && styles.tabTextActive]}>Fundraisers</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.summary}>
-        <View style={styles.sumItem}>
-          <Text style={styles.sumLabel}>Open balance</Text>
-          <Text style={[styles.sumValue, { color: colors.accent }]}>{formatCurrency(totals.totalDue)}</Text>
-        </View>
-        <View style={styles.divider} />
-        <View style={styles.sumItem}>
-          <Text style={styles.sumLabel}>Paid YTD</Text>
-          <Text style={[styles.sumValue, { color: colors.successText }]}>{formatCurrency(totals.totalPaid)}</Text>
-        </View>
+        {tab === "fundraisers" ? (
+          <>
+            <View style={styles.sumItem}>
+              <Text style={styles.sumLabel}>Total raised</Text>
+              <Text style={[styles.sumValue, { color: colors.successText }]}>{formatCurrency(fundraisers.reduce((s, f) => s + Number(f.amount_raised || 0), 0))}</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.sumItem}>
+              <Text style={styles.sumLabel}>Available</Text>
+              <Text style={[styles.sumValue, { color: colors.accent }]}>{formatCurrency(fundraisers.reduce((s, f) => s + Number(f.available ?? Math.max(0, Number(f.amount_raised) - Number(f.applied_amount || 0))), 0))}</Text>
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.sumItem}>
+              <Text style={styles.sumLabel}>Open balance</Text>
+              <Text style={[styles.sumValue, { color: colors.accent }]}>{formatCurrency(totals.totalDue)}</Text>
+            </View>
+            <View style={styles.divider} />
+            <View style={styles.sumItem}>
+              <Text style={styles.sumLabel}>Paid YTD</Text>
+              <Text style={[styles.sumValue, { color: colors.successText }]}>{formatCurrency(totals.totalPaid)}</Text>
+            </View>
+          </>
+        )}
       </View>
 
       <ScrollView
@@ -194,12 +224,69 @@ export default function ExpensesTab() {
             );
           })
         )}
+
+        {tab === "fundraisers" && (
+          fundraisers.length === 0 ? (
+            <View style={styles.emptyBlock}>
+              <Ionicons name="gift-outline" size={36} color={colors.textTertiary} />
+              <Text style={styles.empty}>No fundraisers yet.</Text>
+              <TouchableOpacity onPress={() => router.push("/fundraisers")} style={styles.bigAddBtn} testID="fund-empty-add">
+                <Ionicons name="add-circle" size={18} color="white" />
+                <Text style={styles.bigAddBtnText}>Add fundraiser</Text>
+              </TouchableOpacity>
+            </View>
+          ) : fundraisers.map((f) => {
+            const applied = Number(f.applied_amount || 0);
+            const avail = Number(f.available ?? Math.max(0, Number(f.amount_raised) - applied));
+            return (
+              <TouchableOpacity
+                key={f.id}
+                onPress={() => router.push("/fundraisers")}
+                activeOpacity={0.8}
+                style={styles.row}
+                testID={`fundraiser-row-${f.id}`}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: colors.warningBg }]}>
+                  <Ionicons name="gift" size={16} color={colors.warningText} />
+                </View>
+                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                  <Text style={styles.rowTitle}>{f.name}</Text>
+                  <Text style={styles.rowMeta}>
+                    {formatDate(f.raised_on, { withYear: true })}
+                    {applied > 0 ? ` • ${formatCurrency(applied)} applied` : ""}
+                  </Text>
+                  {avail > 0 && (
+                    <TouchableOpacity
+                      onPress={(ev) => { ev.stopPropagation?.(); setApplyFund(f); }}
+                      style={styles.payBtn}
+                      testID={`apply-fund-${f.id}`}
+                    >
+                      <Text style={styles.payBtnText}>Apply to expense</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={[styles.amount, { color: colors.successText }]}>{formatCurrency(f.amount_raised)}</Text>
+                  {applied > 0 && (
+                    <Text style={styles.rowMeta}>{formatCurrency(avail)} left</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
       <ApplyPaymentSheet
         visible={!!applySheet}
         expense={applySheet}
         onClose={() => setApplySheet(null)}
+        onApplied={() => { load(); }}
+      />
+      <ApplyFundraiserSheet
+        visible={!!applyFund}
+        fundraiser={applyFund}
+        onClose={() => setApplyFund(null)}
         onApplied={() => { load(); }}
       />
     </SafeAreaView>
@@ -241,5 +328,8 @@ const styles = StyleSheet.create({
   progressWrap: { height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 6, overflow: "hidden" },
   progressFill: { height: 4, backgroundColor: colors.successText },
   appliedText: { ...typography.caption, color: colors.accent, fontWeight: "600", marginTop: 2 },
-  empty: { ...typography.body, color: colors.textTertiary, textAlign: "center", marginTop: spacing.xl },
+  empty: { ...typography.body, color: colors.textTertiary, textAlign: "center", marginTop: spacing.md },
+  emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
+  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.accent, borderRadius: 999, marginTop: spacing.md },
+  bigAddBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
 });
