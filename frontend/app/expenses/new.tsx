@@ -65,7 +65,7 @@ export default function ExpenseForm() {
             setAmount(String(e.amount));
             setNote(e.note || "");
             setIncurredOn(e.incurred_on || "");
-            setDueDate(e.due_date || "");
+            setDueDate(e.due_date || e.incurred_on || "");  // fallback to incurred_on for legacy data
             setDueDateTouched(true);  // editing existing record — user owns the value
             setPaid(!!e.paid);
           }

@@ -1053,25 +1053,32 @@ async def calendar_feed(
     # Athletes map for names
     athletes = {a["id"]: a async for a in db.athletes.find({"user_id": user_id}, {"_id": 0, "id": 1, "name": 1, "avatar_color": 1})}
 
-    # Expenses — incurred_on (history) and due_date (planning)
+    # Expenses — emit due-date (or fall back to incurred_on if due_date is missing)
     paid_map = await _build_paid_map(user_id)
     async for e in db.expenses.find({"user_id": user_id}, {"_id": 0}):
         ath = athletes.get(e.get("athlete_id"), {})
         amt = float(e.get("amount") or 0)
         paid = float(paid_map.get(e.get("id"), 0.0))
         bal = max(0.0, round(amt - paid, 2))
-        if in_range(e.get("due_date")) and not e.get("paid"):
-            items.append({
-                "id": f"expense-due-{e['id']}",
-                "kind": "expense_due",
-                "date": e["due_date"],
-                "title": f"{e.get('category', 'Expense')} due",
-                "subtitle": ath.get("name", ""),
-                "amount": bal,
-                "color": "#E11D48",  # red
-                "athlete_id": e.get("athlete_id"),
-                "link": f"/athletes/{e.get('athlete_id')}",
-            })
+        # Skip fully paid items
+        if e.get("paid") or bal <= 0.001:
+            continue
+        # Fall back to incurred_on so legacy expenses without due_date still appear
+        raw = e.get("due_date") or e.get("incurred_on")
+        day = _normalize_date(raw)
+        if not day or not in_range(day):
+            continue
+        items.append({
+            "id": f"expense-due-{e['id']}",
+            "kind": "expense_due",
+            "date": day,
+            "title": f"{e.get('category', 'Expense')} due",
+            "subtitle": ath.get("name", ""),
+            "amount": bal,
+            "color": "#E11D48",  # red
+            "athlete_id": e.get("athlete_id"),
+            "link": f"/expenses/new?id={e['id']}",
+        })
     # Competitions — span every day from event_date to end_date inclusive
     async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
         ev = c.get("event_date")
@@ -1678,6 +1685,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def startup_db_client():
+    # One-time backfill: ensure expenses with missing/null due_date inherit incurred_on
+    try:
+        cursor = db.expenses.find(
+            {"$or": [{"due_date": None}, {"due_date": ""}, {"due_date": {"$exists": False}}]},
+            {"_id": 0, "id": 1, "incurred_on": 1},
+        )
+        backfilled = 0
+        async for e in cursor:
+            if e.get("incurred_on"):
+                await db.expenses.update_one(
+                    {"id": e["id"]}, {"$set": {"due_date": e["incurred_on"]}}
+                )
+                backfilled += 1
+        if backfilled:
+            logger.info(f"Startup backfill: due_date set on {backfilled} expense(s)")
+    except Exception as exc:
+        logger.warning(f"Startup backfill skipped: {exc}")
 
 
 @app.on_event("shutdown")
