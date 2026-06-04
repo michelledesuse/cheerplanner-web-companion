@@ -94,6 +94,42 @@ class HouseholdJoinRequest(BaseModel):
     code: str
 
 
+class ScheduleEvent(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    athlete_ids: List[str] = Field(default_factory=list)  # empty = all/household
+    event_type: str = "practice"  # practice|team_bonding|private_lesson|choreography|class|other
+    title: str
+    location: Optional[str] = None
+    date: str  # ISO YYYY-MM-DD
+    start_time: Optional[str] = None  # "18:00"
+    end_time: Optional[str] = None
+    notes: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class ScheduleEventCreate(BaseModel):
+    athlete_ids: List[str] = Field(default_factory=list)
+    event_type: str = "practice"
+    title: str
+    location: Optional[str] = None
+    date: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class ScheduleEventUpdate(BaseModel):
+    athlete_ids: Optional[List[str]] = None
+    event_type: Optional[str] = None
+    title: Optional[str] = None
+    location: Optional[str] = None
+    date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
@@ -1259,7 +1295,8 @@ async def calendar_feed(
                 })
 
     # Fundraisers — raised_on
-    async for f in db.fundraisers.find({"user_id": user_id}, {"_id": 0}):
+    member_ids = await _household_user_ids(user_id)
+    async for f in db.fundraisers.find({"user_id": {"$in": member_ids}}, {"_id": 0}):
         if in_range(f.get("raised_on")):
             items.append({
                 "id": f"fund-{f['id']}",
@@ -1271,6 +1308,37 @@ async def calendar_feed(
                 "color": "#16A34A",  # green
                 "link": "/fundraisers",
             })
+
+    # Schedule events
+    async for s in db.schedule_events.find({"user_id": {"$in": member_ids}}, {"_id": 0}):
+        day = _normalize_date(s.get("date"))
+        if not day or not in_range(day):
+            continue
+        et = s.get("event_type", "practice")
+        # Color by type
+        colors_by_type = {
+            "practice": "#EA580C",          # orange
+            "team_bonding": "#0EA5E9",       # light blue
+            "private_lesson": "#DB2777",     # pink
+            "choreography": "#9333EA",       # violet
+            "class": "#0891B2",              # cyan
+            "other": "#64748B",              # slate
+        }
+        time_str = ""
+        if s.get("start_time"):
+            time_str = s["start_time"]
+            if s.get("end_time"):
+                time_str += f" – {s['end_time']}"
+        subtitle = " · ".join([x for x in [time_str, s.get("location") or ""] if x])
+        items.append({
+            "id": f"schedule-{s['id']}",
+            "kind": "schedule",
+            "date": day,
+            "title": s.get("title", "Event"),
+            "subtitle": subtitle,
+            "color": colors_by_type.get(et, "#64748B"),
+            "link": f"/schedule/new?id={s['id']}",
+        })
 
     # Sort by date asc
     items.sort(key=lambda x: x["date"])
@@ -1772,6 +1840,55 @@ async def startup_db_client():
             logger.info(f"Startup backfill: due_date set on {backfilled} expense(s)")
     except Exception as exc:
         logger.warning(f"Startup backfill skipped: {exc}")
+
+
+# ============================================================
+# Schedule events (practices, lessons, classes, etc.)
+# ============================================================
+@api_router.get("/schedule", response_model=List[ScheduleEvent])
+async def list_schedule(
+    athlete_id: Optional[str] = None,
+    current_user=Depends(get_current_user),
+):
+    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
+    if athlete_id:
+        q["athlete_ids"] = athlete_id
+    docs = await db.schedule_events.find(q, {"_id": 0}).sort("date", 1).to_list(5000)
+    return [ScheduleEvent(**d) for d in docs]
+
+
+@api_router.post("/schedule", response_model=ScheduleEvent)
+async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get_current_user)):
+    entry = ScheduleEvent(user_id=current_user["id"], **payload.model_dump())
+    await db.schedule_events.insert_one(entry.model_dump())
+    return entry
+
+
+@api_router.patch("/schedule/{event_id}", response_model=ScheduleEvent)
+async def update_schedule(event_id: str, payload: ScheduleEventUpdate, current_user=Depends(get_current_user)):
+    sent = payload.model_dump(exclude_unset=True)
+    nullable = {"location", "start_time", "end_time", "notes"}
+    updates = {k: v for k, v in sent.items() if v is not None or k in nullable}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.schedule_events.update_one(
+        {"id": event_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+        {"$set": updates},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    doc = await db.schedule_events.find_one({"id": event_id}, {"_id": 0})
+    return ScheduleEvent(**doc)
+
+
+@api_router.delete("/schedule/{event_id}")
+async def delete_schedule(event_id: str, current_user=Depends(get_current_user)):
+    res = await db.schedule_events.delete_one(
+        {"id": event_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}
+    )
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return {"deleted": True}
 
 
 # ============================================================
