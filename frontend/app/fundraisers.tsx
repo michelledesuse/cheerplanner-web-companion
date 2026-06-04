@@ -26,6 +26,8 @@ export default function FundraisersScreen() {
   const [raisedOn, setRaisedOn] = useState(todayISO());
   const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     try {
       const r = await api.get("/fundraisers");
@@ -37,15 +39,36 @@ export default function FundraisersScreen() {
 
   const total = items.reduce((s, i) => s + Number(i.amount_raised || 0), 0);
 
+  const resetForm = () => {
+    setName(""); setAmount(""); setRaisedOn(todayISO()); setEditingId(null); setShowAdd(false);
+  };
+
   const save = async () => {
     if (!name.trim()) { Alert.alert("Missing", "Add a name"); return; }
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { Alert.alert("Missing", "Enter a valid amount"); return; }
-    await api.post("/fundraisers", { name: name.trim(), amount_raised: amt, raised_on: raisedOn });
-    setName(""); setAmount(""); setRaisedOn(todayISO()); setShowAdd(false);
-    load();
+    try {
+      if (editingId) {
+        await api.patch(`/fundraisers/${editingId}`, { name: name.trim(), amount_raised: amt, raised_on: raisedOn });
+      } else {
+        await api.post("/fundraisers", { name: name.trim(), amount_raised: amt, raised_on: raisedOn });
+      }
+      resetForm();
+      load();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not save");
+    }
   };
-  const remove = async (id: string) => { await api.delete(`/fundraisers/${id}`); load(); };
+
+  const startEdit = (f: Fundraiser) => {
+    setEditingId(f.id);
+    setName(f.name);
+    setAmount(String(f.amount_raised));
+    setRaisedOn(f.raised_on);
+    setShowAdd(true);
+  };
+
+  const remove = async (id: string) => { await api.delete(`/fundraisers/${id}`); if (editingId === id) resetForm(); load(); };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -86,8 +109,13 @@ export default function FundraisersScreen() {
               <Text style={styles.label}>Date</Text>
               <DateField value={raisedOn} onChange={setRaisedOn} />
               <TouchableOpacity style={styles.saveBtn} onPress={save} testID="fundraiser-save-btn">
-                <Text style={styles.saveBtnText}>Add fundraiser</Text>
+                <Text style={styles.saveBtnText}>{editingId ? "Save changes" : "Add fundraiser"}</Text>
               </TouchableOpacity>
+              {editingId && (
+                <TouchableOpacity onPress={resetForm} style={[styles.saveBtn, { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, marginTop: 6 }]} testID="fundraiser-cancel-edit">
+                  <Text style={[styles.saveBtnText, { color: colors.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -126,9 +154,14 @@ export default function FundraisersScreen() {
                   {applied > 0 && (
                     <Text style={styles.rowMeta}>{formatCurrency(avail)} left</Text>
                   )}
-                  <TouchableOpacity onPress={() => remove(f.id)} hitSlop={10}>
-                    <Ionicons name="trash-outline" size={14} color={colors.textTertiary} />
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+                    <TouchableOpacity onPress={() => startEdit(f)} hitSlop={10} testID={`fundraiser-edit-${f.id}`}>
+                      <Ionicons name="create-outline" size={16} color={colors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => remove(f.id)} hitSlop={10}>
+                      <Ionicons name="trash-outline" size={14} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
               );

@@ -332,6 +332,14 @@ class FundraiserCreate(BaseModel):
     note: Optional[str] = None
 
 
+class FundraiserUpdate(BaseModel):
+    athlete_id: Optional[str] = None
+    name: Optional[str] = None
+    amount_raised: Optional[float] = None
+    raised_on: Optional[str] = None
+    note: Optional[str] = None
+
+
 # ============================================================
 # Auth utils
 # ============================================================
@@ -1223,6 +1231,26 @@ async def create_fundraiser(payload: FundraiserCreate, current_user=Depends(get_
     await db.fundraisers.insert_one(stored)
     fr.available = round(max(0.0, fr.amount_raised - fr.applied_amount), 2)
     return fr
+
+
+@api_router.patch("/fundraisers/{fundraiser_id}", response_model=Fundraiser)
+async def update_fundraiser(fundraiser_id: str, payload: FundraiserUpdate, current_user=Depends(get_current_user)):
+    nullable_fields = {"athlete_id", "note"}
+    sent = payload.model_dump(exclude_unset=True)
+    updates: dict = {}
+    for k, v in sent.items():
+        if v is None and k not in nullable_fields:
+            continue
+        updates[k] = v
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.fundraisers.update_one(
+        {"id": fundraiser_id, "user_id": current_user["id"]}, {"$set": updates}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Fundraiser not found")
+    doc = await db.fundraisers.find_one({"id": fundraiser_id}, {"_id": 0})
+    return _fundraiser_with_available(doc)
 
 
 @api_router.delete("/fundraisers/{fundraiser_id}")

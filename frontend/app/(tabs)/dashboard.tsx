@@ -99,9 +99,9 @@ export default function DashboardScreen() {
         testID="dashboard-screen"
       >
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Hi {user?.name || user?.email?.split("@")[0]}</Text>
-            <Text style={styles.subGreeting}>Here's your cheer season at a glance</Text>
+          <View style={{ flex: 1, marginRight: spacing.md, minWidth: 0 }}>
+            <Text style={styles.greeting} numberOfLines={1}>Hi {user?.name || user?.email?.split("@")[0]}</Text>
+            <Text style={styles.subGreeting} numberOfLines={1}>Here's your cheer season at a glance</Text>
           </View>
           <TouchableOpacity
             onPress={() => router.push("/settings")}
@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },
-  headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+  headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
   gearBtn: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: colors.card,

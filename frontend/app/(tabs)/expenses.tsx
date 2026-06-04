@@ -22,6 +22,7 @@ export default function ExpensesTab() {
   const router = useRouter();
   const [tab, setTab] = useState<"expenses" | "payments" | "fundraisers">("expenses");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
+  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);  // null = all athletes
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -49,10 +50,18 @@ export default function ExpensesTab() {
   const athleteColor = (id: string) => athletes.find((a) => a.id === id)?.avatar_color || colors.accent;
 
   const filteredExpenses = useMemo(() => {
-    if (filter === "all") return expenses;
-    if (filter === "open") return expenses.filter((e) => !e.paid && Number(e.balance_due || 0) > 0);
-    return expenses.filter((e) => e.paid || Number(e.balance_due || 0) <= 0.001);
-  }, [expenses, filter]);
+    let list = athleteFilter ? expenses.filter((e) => e.athlete_id === athleteFilter) : expenses;
+    if (filter === "open") list = list.filter((e) => !e.paid && Number(e.balance_due || 0) > 0);
+    else if (filter === "paid") list = list.filter((e) => e.paid || Number(e.balance_due || 0) <= 0.001);
+    return list;
+  }, [expenses, filter, athleteFilter]);
+
+  const filteredPayments = useMemo(() => {
+    return athleteFilter ? payments.filter((p) => p.athlete_id === athleteFilter) : payments;
+  }, [payments, athleteFilter]);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isOverdue = (e: Expense) => !!e.due_date && e.due_date < todayStr && !e.paid && Number(e.balance_due ?? Number(e.amount) - Number(e.paid_amount || 0)) > 0;
 
   const totals = useMemo(() => {
     const totalDue = expenses.reduce((s, e) => s + Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0))), 0);
@@ -137,6 +146,19 @@ export default function ExpensesTab() {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
       >
+        {tab !== "fundraisers" && athletes.length > 1 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }} contentContainerStyle={{ gap: 8 }}>
+            <TouchableOpacity onPress={() => setAthleteFilter(null)} style={[styles.athChipFilter, athleteFilter === null && styles.athChipFilterOn]} testID="ath-filter-all">
+              <Text style={[styles.athChipText, athleteFilter === null && styles.athChipTextOn]}>All</Text>
+            </TouchableOpacity>
+            {athletes.map((a) => (
+              <TouchableOpacity key={a.id} onPress={() => setAthleteFilter(a.id)} style={[styles.athChipFilter, athleteFilter === a.id && styles.athChipFilterOn]} testID={`ath-filter-${a.id}`}>
+                <View style={[styles.athDotSm, { backgroundColor: a.avatar_color || colors.accent }]} />
+                <Text style={[styles.athChipText, athleteFilter === a.id && styles.athChipTextOn]}>{a.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
         {tab === "expenses" && (
           <>
             <View style={styles.filterRow}>
@@ -166,7 +188,15 @@ export default function ExpensesTab() {
                     {isPaid && <Ionicons name="checkmark" size={14} color="white" />}
                   </TouchableOpacity>
                   <View style={{ flex: 1, marginLeft: spacing.md }}>
-                    <Text style={styles.rowTitle}>{e.category}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Text style={styles.rowTitle}>{e.category}</Text>
+                      {isOverdue(e) && (
+                        <View style={styles.overdueBadge}>
+                          <Ionicons name="alert-circle" size={11} color="white" />
+                          <Text style={styles.overdueText}>OVERDUE</Text>
+                        </View>
+                      )}
+                    </View>
                     <View style={styles.athChip}>
                       <View style={[styles.athDot, { backgroundColor: athleteColor(e.athlete_id) }]} />
                       <Text style={styles.rowMeta}>{athleteName(e.athlete_id)} • {formatDate(e.incurred_on)}</Text>
@@ -194,17 +224,18 @@ export default function ExpensesTab() {
         )}
 
         {tab === "payments" && (
-          payments.length === 0 ? (
+          filteredPayments.length === 0 ? (
             <Text style={styles.empty}>No payments yet.</Text>
-          ) : payments.map((p) => {
+          ) : filteredPayments.map((p) => {
             const cats = (p.applied_expense_ids || [])
               .map((eid) => expenses.find((e) => e.id === eid)?.category).filter(Boolean) as string[];
             return (
               <TouchableOpacity
                 key={p.id}
-                onPress={() => router.push(`/athletes/${p.athlete_id}`)}
+                onPress={() => router.push({ pathname: "/payments/new", params: { id: p.id } })}
                 activeOpacity={0.8}
                 style={styles.row}
+                testID={`payment-row-${p.id}`}
               >
                 <View style={[styles.iconCircle, { backgroundColor: colors.successBg }]}>
                   <Ionicons name="cash" size={16} color={colors.successText} />
@@ -332,4 +363,11 @@ const styles = StyleSheet.create({
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
   bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.accent, borderRadius: 999, marginTop: spacing.md },
   bigAddBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
+  athChipFilter: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
+  athChipFilterOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  athChipText: { ...typography.caption, fontWeight: "600", color: colors.textPrimary },
+  athChipTextOn: { color: "white" },
+  athDotSm: { width: 8, height: 8, borderRadius: 4 },
+  overdueBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.dangerText, borderRadius: 6 },
+  overdueText: { color: "white", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 });
