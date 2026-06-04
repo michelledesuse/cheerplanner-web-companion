@@ -448,7 +448,14 @@ async def create_athlete(payload: AthleteCreate, current_user=Depends(get_curren
 
 @api_router.patch("/athletes/{athlete_id}", response_model=Athlete)
 async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=Depends(get_current_user)):
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # Honor explicit nulls for nullable fields so users can clear them (e.g. remove avatar)
+    nullable_fields = {"team", "gym", "avatar_image"}
+    sent = payload.model_dump(exclude_unset=True)
+    updates: dict = {}
+    for k, v in sent.items():
+        if v is None and k not in nullable_fields:
+            continue
+        updates[k] = v
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.athletes.update_one(
