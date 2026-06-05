@@ -16,6 +16,7 @@ type Evt = {
   id: string; event_type: string; title: string; location?: string;
   date: string; start_time?: string; end_time?: string;
   athlete_ids?: string[]; notes?: string;
+  series_id?: string | null;
 };
 
 const TYPE_LABEL: Record<string, string> = {
@@ -48,11 +49,26 @@ export default function ScheduleTab() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const remove = async (id: string) => {
-    Alert.alert("Delete event?", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => { await api.delete(`/schedule/${id}`); load(); } },
-    ]);
+  const remove = async (e: Evt) => {
+    const cleanup = async (scope: "single" | "series") => {
+      try { await api.delete(`/schedule/${e.id}?scope=${scope}`); } finally { load(); }
+    };
+    if (e.series_id) {
+      Alert.alert(
+        "Delete recurring event",
+        "This event is part of a recurring series.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "This event only", style: "destructive", onPress: () => cleanup("single") },
+          { text: "All events in series", style: "destructive", onPress: () => cleanup("series") },
+        ],
+      );
+    } else {
+      Alert.alert("Delete event?", "This can't be undone.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => cleanup("single") },
+      ]);
+    }
   };
 
   const grouped = (typeFilter ? events.filter(e => e.event_type === typeFilter) : events);
@@ -109,9 +125,9 @@ export default function ScheduleTab() {
         ) : (
           <>
             {upcoming.length > 0 && <Text style={styles.sectionHead}>Upcoming</Text>}
-            {upcoming.map(e => <Row key={e.id} e={e} athletes={athletes} onPress={() => router.push({ pathname: "/schedule/new", params: { id: e.id } })} onDelete={() => remove(e.id)} />)}
+            {upcoming.map(e => <Row key={e.id} e={e} athletes={athletes} onPress={() => router.push({ pathname: "/schedule/new", params: { id: e.id } })} onDelete={() => remove(e)} />)}
             {past.length > 0 && <Text style={styles.sectionHead}>Past</Text>}
-            {past.map(e => <Row key={e.id} e={e} athletes={athletes} onPress={() => router.push({ pathname: "/schedule/new", params: { id: e.id } })} onDelete={() => remove(e.id)} />)}
+            {past.map(e => <Row key={e.id} e={e} athletes={athletes} onPress={() => router.push({ pathname: "/schedule/new", params: { id: e.id } })} onDelete={() => remove(e)} />)}
           </>
         )}
       </ScrollView>
@@ -122,7 +138,13 @@ export default function ScheduleTab() {
 function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; onPress: () => void; onDelete: () => void }) {
   const color = TYPE_COLOR[e.event_type] || "#64748B";
   const icon = TYPE_ICON[e.event_type] || "calendar";
-  const time = e.start_time ? (e.end_time ? `${e.start_time} – ${e.end_time}` : e.start_time) : "";
+  const fmt12 = (t?: string) => {
+    if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";
+    const [hS, m] = t.split(":");
+    let h = Number(hS); const p = h >= 12 ? "PM" : "AM"; h = h % 12; if (h === 0) h = 12;
+    return `${h}:${m} ${p}`;
+  };
+  const time = e.start_time ? (e.end_time ? `${fmt12(e.start_time)} – ${fmt12(e.end_time)}` : fmt12(e.start_time)) : "";
   const names = (e.athlete_ids || []).map(id => athletes.find(a => a.id === id)?.name).filter(Boolean).join(", ");
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.row} testID={`schedule-row-${e.id}`}>
@@ -130,7 +152,10 @@ function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; 
         <Ionicons name={icon} size={18} color={color} />
       </View>
       <View style={{ flex: 1, marginLeft: spacing.md }}>
-        <Text style={styles.rowTitle}>{e.title}</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          <Text style={styles.rowTitle} numberOfLines={1}>{e.title}</Text>
+          {e.series_id ? <Ionicons name="repeat" size={14} color={colors.accent} /> : null}
+        </View>
         <Text style={styles.rowMeta}>
           {formatDate(e.date, { withYear: true })}{time ? ` • ${time}` : ""}{e.location ? ` • ${e.location}` : ""}
         </Text>

@@ -94,6 +94,12 @@ class HouseholdJoinRequest(BaseModel):
     code: str
 
 
+class RecurrenceRule(BaseModel):
+    frequency: str  # "daily" | "weekly" | "biweekly" | "monthly"
+    days_of_week: List[int] = Field(default_factory=list)  # 0=Sun..6=Sat (weekly/biweekly)
+    until: str  # ISO YYYY-MM-DD (inclusive)
+
+
 class ScheduleEvent(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -105,6 +111,8 @@ class ScheduleEvent(BaseModel):
     start_time: Optional[str] = None  # "18:00"
     end_time: Optional[str] = None
     notes: Optional[str] = None
+    series_id: Optional[str] = None  # all events of a recurring series share this id
+    recurrence_rule: Optional[RecurrenceRule] = None  # stored on every instance for convenience
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -117,6 +125,7 @@ class ScheduleEventCreate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     notes: Optional[str] = None
+    recurrence_rule: Optional[RecurrenceRule] = None
 
 
 class ScheduleEventUpdate(BaseModel):
@@ -1845,6 +1854,77 @@ async def startup_db_client():
 # ============================================================
 # Schedule events (practices, lessons, classes, etc.)
 # ============================================================
+def _expand_recurrence(base_date: str, rule: "RecurrenceRule") -> List[str]:
+    """Return a sorted, deduped list of ISO YYYY-MM-DD dates for a recurring series.
+
+    Always includes base_date as the first occurrence. `until` is inclusive.
+    """
+    try:
+        start = datetime.strptime(base_date, "%Y-%m-%d").date()
+    except Exception:
+        return [base_date]
+    try:
+        end = datetime.strptime(rule.until, "%Y-%m-%d").date()
+    except Exception:
+        return [base_date]
+    if end < start:
+        return [base_date]
+
+    freq = (rule.frequency or "weekly").lower()
+    dates: List[date] = []
+    # Safety cap so a misconfigured rule cannot blow up the DB.
+    MAX_OCC = 366
+
+    if freq == "daily":
+        cur = start
+        while cur <= end and len(dates) < MAX_OCC:
+            dates.append(cur)
+            cur = cur + timedelta(days=1)
+
+    elif freq in ("weekly", "biweekly"):
+        # Python weekday: Mon=0..Sun=6 ; rule uses Sun=0..Sat=6 → convert.
+        def _py_dow(rule_dow: int) -> int:
+            return (rule_dow - 1) % 7  # Sun=0 → 6, Mon=1 → 0, …
+        wanted = sorted({_py_dow(d) for d in (rule.days_of_week or [])}) or [start.weekday()]
+        step_weeks = 2 if freq == "biweekly" else 1
+        # Walk week by week from the week containing start (Monday-based).
+        week_anchor = start - timedelta(days=start.weekday())
+        while week_anchor <= end and len(dates) < MAX_OCC:
+            for dow in wanted:
+                d = week_anchor + timedelta(days=dow)
+                if d < start or d > end:
+                    continue
+                dates.append(d)
+            week_anchor = week_anchor + timedelta(weeks=step_weeks)
+
+    elif freq == "monthly":
+        # Same day-of-month each month.
+        y, m, d_ = start.year, start.month, start.day
+        while True:
+            try:
+                cur = date(y, m, d_)
+            except ValueError:
+                # Skip months that don't have this day (e.g., Feb 30).
+                pass
+            else:
+                if cur > end:
+                    break
+                if cur >= start:
+                    dates.append(cur)
+            # next month
+            m += 1
+            if m > 12:
+                m = 1
+                y += 1
+            if len(dates) >= MAX_OCC:
+                break
+    else:
+        return [base_date]
+
+    iso_set = sorted({d.isoformat() for d in dates})
+    return iso_set or [base_date]
+
+
 @api_router.get("/schedule", response_model=List[ScheduleEvent])
 async def list_schedule(
     athlete_id: Optional[str] = None,
@@ -1857,38 +1937,101 @@ async def list_schedule(
     return [ScheduleEvent(**d) for d in docs]
 
 
-@api_router.post("/schedule", response_model=ScheduleEvent)
+@api_router.post("/schedule", response_model=List[ScheduleEvent])
 async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get_current_user)):
-    entry = ScheduleEvent(user_id=current_user["id"], **payload.model_dump())
+    base = payload.model_dump()
+    rule = base.pop("recurrence_rule", None)
+
+    if rule:
+        rule_obj = RecurrenceRule(**rule) if not isinstance(rule, RecurrenceRule) else rule
+        dates = _expand_recurrence(base["date"], rule_obj)
+        series_id = str(uuid.uuid4())
+        entries = []
+        for d in dates:
+            ev = ScheduleEvent(
+                user_id=current_user["id"],
+                **{**base, "date": d},
+                series_id=series_id,
+                recurrence_rule=rule_obj,
+            )
+            entries.append(ev)
+        if entries:
+            await db.schedule_events.insert_many([e.model_dump() for e in entries])
+        return entries
+
+    entry = ScheduleEvent(user_id=current_user["id"], **base)
     await db.schedule_events.insert_one(entry.model_dump())
-    return entry
+    return [entry]
 
 
-@api_router.patch("/schedule/{event_id}", response_model=ScheduleEvent)
-async def update_schedule(event_id: str, payload: ScheduleEventUpdate, current_user=Depends(get_current_user)):
+@api_router.patch("/schedule/{event_id}")
+async def update_schedule(
+    event_id: str,
+    payload: ScheduleEventUpdate,
+    scope: str = "single",  # "single" | "series"
+    current_user=Depends(get_current_user),
+):
     sent = payload.model_dump(exclude_unset=True)
     nullable = {"location", "start_time", "end_time", "notes"}
     updates = {k: v for k, v in sent.items() if v is not None or k in nullable}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    res = await db.schedule_events.update_one(
-        {"id": event_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+
+    member_ids = await _household_user_ids(current_user["id"])
+    existing = await db.schedule_events.find_one(
+        {"id": event_id, "user_id": {"$in": member_ids}}, {"_id": 0}
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    if scope == "series" and existing.get("series_id"):
+        # Don't propagate date across the series — date is per-instance.
+        series_updates = {k: v for k, v in updates.items() if k != "date"}
+        if series_updates:
+            await db.schedule_events.update_many(
+                {"series_id": existing["series_id"], "user_id": {"$in": member_ids}},
+                {"$set": series_updates},
+            )
+        # If date was sent, still update just this instance.
+        if "date" in updates:
+            await db.schedule_events.update_one(
+                {"id": event_id, "user_id": {"$in": member_ids}},
+                {"$set": {"date": updates["date"]}},
+            )
+        docs = await db.schedule_events.find(
+            {"series_id": existing["series_id"], "user_id": {"$in": member_ids}}, {"_id": 0}
+        ).sort("date", 1).to_list(5000)
+        return {"updated": len(docs), "scope": "series", "events": [ScheduleEvent(**d).model_dump() for d in docs]}
+
+    await db.schedule_events.update_one(
+        {"id": event_id, "user_id": {"$in": member_ids}},
         {"$set": updates},
     )
-    if res.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Event not found")
     doc = await db.schedule_events.find_one({"id": event_id}, {"_id": 0})
-    return ScheduleEvent(**doc)
+    return {"updated": 1, "scope": "single", "events": [ScheduleEvent(**doc).model_dump()]}
 
 
 @api_router.delete("/schedule/{event_id}")
-async def delete_schedule(event_id: str, current_user=Depends(get_current_user)):
-    res = await db.schedule_events.delete_one(
-        {"id": event_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}
+async def delete_schedule(
+    event_id: str,
+    scope: str = "single",  # "single" | "series"
+    current_user=Depends(get_current_user),
+):
+    member_ids = await _household_user_ids(current_user["id"])
+    existing = await db.schedule_events.find_one(
+        {"id": event_id, "user_id": {"$in": member_ids}}, {"_id": 0}
     )
-    if res.deleted_count == 0:
+    if not existing:
         raise HTTPException(status_code=404, detail="Event not found")
-    return {"deleted": True}
+
+    if scope == "series" and existing.get("series_id"):
+        res = await db.schedule_events.delete_many(
+            {"series_id": existing["series_id"], "user_id": {"$in": member_ids}}
+        )
+        return {"deleted": res.deleted_count, "scope": "series"}
+
+    await db.schedule_events.delete_one({"id": event_id, "user_id": {"$in": member_ids}})
+    return {"deleted": 1, "scope": "single"}
 
 
 # ============================================================
@@ -1900,7 +2043,7 @@ async def _get_or_create_household(user_id: str) -> dict:
     if h:
         return h
     new_h = Household(member_user_ids=[user_id]).model_dump()
-    await db.households.insert_one(new_h)
+    await db.households.insert_one(dict(new_h))
     return new_h
 
 

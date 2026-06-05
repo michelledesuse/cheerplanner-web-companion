@@ -1,0 +1,37 @@
+{
+  "summary": "Backend-only testing of recurring schedule events. Created /app/backend/tests/test_schedule_recurrence.py with 10 pytest cases covering POST (single + daily/weekly/biweekly/monthly recurrence), GET (series_id + recurrence_rule populated), PATCH ?scope=single|series (with date-non-propagation on series), DELETE ?scope=single|series, and /api/calendar showing every recurring instance as a separate daily entry. 10/10 tests PASS against the public EXPO_PUBLIC_BACKEND_URL.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_schedule_recurrence.py",
+    "/app/test_reports/pytest/pytest_schedule_recurrence.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 2231 lines — well over the 700-line guideline. Recommend splitting per-resource (schedule, expenses, payments, bookings, calendar, household) into routers/modules.",
+    "_expand_recurrence weekly/biweekly conversion (Sun=0..Sat=6 → Python Mon=0..Sun=6 via (rule_dow-1)%7) is correct and verified by tests; days_of_week=[2] (Tuesday) produced only Tuesdays in all weekly/biweekly runs.",
+    "MAX_OCC=366 cap is good defense-in-depth; not directly tested here to avoid creating 366+ docs.",
+    "PATCH scope=series correctly drops `date` from the propagated $set — verified that per-instance dates remain stable while title/start_time propagate.",
+    "Calendar endpoint already iterates db.schedule_events per row, so recurring instances naturally surface as N daily items — verified."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_schedule_recurrence.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10)",
+    "frontend": "not tested (backend-only scope)"
+  },
+  "seed_data_creation": "Each test creates an isolated TEST_sched_<uuid>@mailinator.com user via /api/auth/signup and deletes its own schedule series at the end of the test. No shared seed data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Recurring schedule backend is fully green. Reuse /app/backend/tests/test_schedule_recurrence.py as a regression. Use EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env (the EXPO_BACKEND_URL key referenced in the system prompt does NOT exist in this project — only EXPO_PUBLIC_BACKEND_URL). Recurrence rule days_of_week uses Sun=0..Sat=6 (Tuesday=2). PATCH/DELETE accept scope=single|series query param.",
+  "rca_of_issue": "N/A — no defects found."
+}

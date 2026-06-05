@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
+import TimeField from "@/src/components/TimeField";
 
 const TYPES = [
   { key: "practice", label: "Practice", icon: "barbell", color: "#EA580C" },
@@ -21,7 +22,32 @@ const TYPES = [
   { key: "other", label: "Other", icon: "calendar", color: "#64748B" },
 ] as const;
 
+const FREQUENCIES = [
+  { key: "daily", label: "Daily" },
+  { key: "weekly", label: "Weekly" },
+  { key: "biweekly", label: "Bi-weekly" },
+  { key: "monthly", label: "Monthly" },
+] as const;
+
+// Sun=0..Sat=6 (matches JS Date.getDay() and backend rule format).
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 type Athlete = { id: string; name: string; avatar_color?: string };
+type Rule = { frequency: string; days_of_week: number[]; until: string };
+
+function defaultUntil(fromISO: string): string {
+  try {
+    const d = new Date(`${fromISO}T00:00:00`);
+    d.setMonth(d.getMonth() + 3);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  } catch {
+    return fromISO;
+  }
+}
+
+function dowFromISO(iso: string): number {
+  try { return new Date(`${iso}T00:00:00`).getDay(); } catch { return 0; }
+}
 
 export default function ScheduleForm() {
   const router = useRouter();
@@ -37,8 +63,20 @@ export default function ScheduleForm() {
   const [notes, setNotes] = useState("");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Recurrence
+  const [repeat, setRepeat] = useState(false);
+  const [frequency, setFrequency] = useState<string>("weekly");
+  const [daysOfWeek, setDaysOfWeek] = useState<Set<number>>(new Set());
+  const [until, setUntil] = useState<string>(defaultUntil(todayISO()));
+
+  // Edit-time series context (set when editing an event that is part of a series)
+  const [seriesId, setSeriesId] = useState<string | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+
+  const isPartOfSeries = !!seriesId;
 
   useEffect(() => {
     (async () => {
@@ -57,37 +95,122 @@ export default function ScheduleForm() {
             setEndTime(e.end_time || "");
             setNotes(e.notes || "");
             setSelectedIds(new Set(e.athlete_ids || []));
+            setSeriesId(e.series_id || null);
+            if (e.recurrence_rule) {
+              setRepeat(true);
+              setFrequency(e.recurrence_rule.frequency || "weekly");
+              setDaysOfWeek(new Set(e.recurrence_rule.days_of_week || []));
+              setUntil(e.recurrence_rule.until || defaultUntil(e.date || todayISO()));
+            }
           }
         } finally { setLoading(false); }
       }
     })();
   }, [isEdit, params.id]);
 
+  // When the start date changes and weekly/biweekly is on with no day picked, seed the date's DOW.
+  useEffect(() => {
+    if (repeat && (frequency === "weekly" || frequency === "biweekly") && daysOfWeek.size === 0) {
+      const d = dowFromISO(date);
+      setDaysOfWeek(new Set([d]));
+    }
+  }, [repeat, frequency, date]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const toggleAthlete = (id: string) => {
     setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
+  const toggleDow = (i: number) => {
+    setDaysOfWeek(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  };
 
-  const save = async () => {
-    if (!title.trim()) { Alert.alert("Missing", "Add a title."); return; }
+  const buildPayload = (includeRecurrence: boolean) => ({
+    event_type: eventType,
+    title: title.trim(),
+    location: location.trim() || null,
+    date,
+    start_time: startTime.trim() || null,
+    end_time: endTime.trim() || null,
+    notes: notes.trim() || null,
+    athlete_ids: Array.from(selectedIds),
+    ...(includeRecurrence && repeat ? {
+      recurrence_rule: {
+        frequency,
+        days_of_week: (frequency === "weekly" || frequency === "biweekly")
+          ? Array.from(daysOfWeek).sort((a, b) => a - b)
+          : [],
+        until,
+      },
+    } : {}),
+  });
+
+  const doSave = async (scope: "single" | "series") => {
     setSaving(true);
     try {
-      const payload = {
-        event_type: eventType,
-        title: title.trim(),
-        location: location.trim() || null,
-        date,
-        start_time: startTime.trim() || null,
-        end_time: endTime.trim() || null,
-        notes: notes.trim() || null,
-        athlete_ids: Array.from(selectedIds),
-      };
-      if (isEdit) await api.patch(`/schedule/${params.id}`, payload);
-      else await api.post("/schedule", payload);
+      if (isEdit) {
+        await api.patch(`/schedule/${params.id}?scope=${scope}`, buildPayload(false));
+      } else {
+        await api.post("/schedule", buildPayload(true));
+      }
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
     } finally { setSaving(false); }
   };
+
+  const save = async () => {
+    if (!title.trim()) { Alert.alert("Missing", "Add a title."); return; }
+    if (repeat && !until) { Alert.alert("Missing", "Pick a 'Repeat until' date."); return; }
+    if (repeat && (frequency === "weekly" || frequency === "biweekly") && daysOfWeek.size === 0) {
+      Alert.alert("Missing", "Pick at least one day of the week."); return;
+    }
+
+    if (isEdit && isPartOfSeries) {
+      Alert.alert(
+        "Apply changes to…",
+        "This event is part of a recurring series.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "This event only", onPress: () => doSave("single") },
+          { text: "All events in series", onPress: () => doSave("series") },
+        ],
+      );
+      return;
+    }
+    await doSave("single");
+  };
+
+  const onDelete = () => {
+    if (!isEdit) return;
+    const cleanup = async (scope: "single" | "series") => {
+      try {
+        await api.delete(`/schedule/${params.id}?scope=${scope}`);
+        router.back();
+      } catch (e: any) {
+        Alert.alert("Error", e?.response?.data?.detail || "Could not delete");
+      }
+    };
+    if (isPartOfSeries) {
+      Alert.alert(
+        "Delete event",
+        "This event is part of a recurring series.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "This event only", style: "destructive", onPress: () => cleanup("single") },
+          { text: "All events in series", style: "destructive", onPress: () => cleanup("series") },
+        ],
+      );
+    } else {
+      Alert.alert("Delete event?", "This can't be undone.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete", style: "destructive", onPress: () => cleanup("single") },
+      ]);
+    }
+  };
+
+  const dowLabel = useMemo(() => {
+    const arr = Array.from(daysOfWeek).sort((a, b) => a - b);
+    return arr.map(d => DOW[d]).join(", ");
+  }, [daysOfWeek]);
 
   if (loading) {
     return <SafeAreaView style={styles.safe}><View style={{flex:1,alignItems:"center",justifyContent:"center"}}><ActivityIndicator color={colors.accent}/></View></SafeAreaView>;
@@ -101,9 +224,22 @@ export default function ScheduleForm() {
             <Ionicons name="close" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{isEdit ? "Edit event" : "New event"}</Text>
-          <View style={{ width: 36 }} />
+          {isEdit ? (
+            <TouchableOpacity onPress={onDelete} style={styles.iconBtn} testID="schedule-delete">
+              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 36 }} />
+          )}
         </View>
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
+          {isPartOfSeries && (
+            <View style={styles.seriesBanner}>
+              <Ionicons name="repeat" size={16} color={colors.accent} />
+              <Text style={styles.seriesBannerText}>Part of a recurring series</Text>
+            </View>
+          )}
+
           <Text style={styles.label}>Event type</Text>
           <View style={styles.typeGrid}>
             {TYPES.map(t => {
@@ -123,19 +259,73 @@ export default function ScheduleForm() {
           <Text style={styles.label}>Location (optional)</Text>
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. California Allstars gym" placeholderTextColor={colors.textTertiary} />
 
-          <Text style={styles.label}>Date</Text>
+          <Text style={styles.label}>{repeat ? "Starts" : "Date"}</Text>
           <DateField value={date} onChange={setDate} testID="schedule-date" />
 
           <View style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>Start time</Text>
-              <TextInput style={styles.input} value={startTime} onChangeText={setStartTime} placeholder="18:00" placeholderTextColor={colors.textTertiary} />
+              <TimeField value={startTime} onChange={setStartTime} testID="schedule-start-time" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.label}>End time</Text>
-              <TextInput style={styles.input} value={endTime} onChangeText={setEndTime} placeholder="20:00" placeholderTextColor={colors.textTertiary} />
+              <TimeField value={endTime} onChange={setEndTime} testID="schedule-end-time" />
             </View>
           </View>
+
+          {/* Repeat section — hidden for series edits so the rule can't be re-expanded */}
+          {!isPartOfSeries && (
+            <View style={styles.repeatBlock}>
+              <View style={styles.repeatHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Ionicons name="repeat" size={18} color={colors.textPrimary} />
+                  <Text style={styles.repeatTitle}>Repeat</Text>
+                </View>
+                <Switch
+                  value={repeat}
+                  onValueChange={setRepeat}
+                  trackColor={{ true: colors.accent, false: "#CBD5E1" }}
+                  thumbColor={Platform.OS === "android" ? (repeat ? "white" : "#F1F5F9") : undefined}
+                  testID="schedule-repeat-toggle"
+                />
+              </View>
+
+              {repeat && (
+                <>
+                  <Text style={styles.label}>Frequency</Text>
+                  <View style={styles.freqRow}>
+                    {FREQUENCIES.map(f => {
+                      const on = frequency === f.key;
+                      return (
+                        <TouchableOpacity key={f.key} onPress={() => setFrequency(f.key)} style={[styles.freqBtn, on && styles.freqBtnOn]} testID={`freq-${f.key}`}>
+                          <Text style={[styles.freqText, on && styles.freqTextOn]}>{f.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {(frequency === "weekly" || frequency === "biweekly") && (
+                    <>
+                      <Text style={styles.label}>On {dowLabel || "—"}</Text>
+                      <View style={styles.dowRow}>
+                        {DOW.map((d, i) => {
+                          const on = daysOfWeek.has(i);
+                          return (
+                            <TouchableOpacity key={d} onPress={() => toggleDow(i)} style={[styles.dowBtn, on && styles.dowBtnOn]} testID={`dow-${i}`}>
+                              <Text style={[styles.dowText, on && styles.dowTextOn]}>{d[0]}</Text>
+                            </TouchableOpacity>
+                          );
+                        })}
+                      </View>
+                    </>
+                  )}
+
+                  <Text style={styles.label}>Repeats until</Text>
+                  <DateField value={until} onChange={setUntil} testID="schedule-until" />
+                </>
+              )}
+            </View>
+          )}
 
           {athletes.length > 0 && (
             <>
@@ -158,7 +348,7 @@ export default function ScheduleForm() {
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wear comp shoes" placeholderTextColor={colors.textTertiary} />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="schedule-save">
-            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save event"}</Text>}
+            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : (repeat ? "Save series" : "Save event")}</Text>}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -183,4 +373,21 @@ const styles = StyleSheet.create({
   chipTextActive: { color: "white" },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+
+  seriesBanner: { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, backgroundColor: colors.accentSubtle, borderRadius: radius.md },
+  seriesBannerText: { ...typography.caption, color: colors.accent, fontWeight: "700" },
+
+  repeatBlock: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  repeatHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  repeatTitle: { ...typography.bodyMedium, color: colors.textPrimary },
+  freqRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  freqBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
+  freqBtnOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  freqText: { ...typography.caption, fontWeight: "700", color: colors.textPrimary, fontSize: 13 },
+  freqTextOn: { color: "white" },
+  dowRow: { flexDirection: "row", gap: 6, justifyContent: "space-between" },
+  dowBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg, alignItems: "center" },
+  dowBtnOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  dowText: { ...typography.caption, fontWeight: "700", color: colors.textPrimary, fontSize: 13 },
+  dowTextOn: { color: "white" },
 });
