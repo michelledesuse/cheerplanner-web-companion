@@ -76,11 +76,7 @@ export default function ScheduleTab() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal showsHorizontalScrollIndicator={false}
-        style={{ maxHeight: 50 }}
-        contentContainerStyle={{ paddingHorizontal: spacing.lg, gap: 8 }}
-      >
+      <View style={styles.filterWrap}>
         <TouchableOpacity onPress={() => setTypeFilter(null)} style={[styles.chip, typeFilter === null && styles.chipOn]}>
           <Text style={[styles.chipText, typeFilter === null && styles.chipTextOn]}>All</Text>
         </TouchableOpacity>
@@ -90,7 +86,7 @@ export default function ScheduleTab() {
             <Text style={[styles.chipText, typeFilter === k && styles.chipTextOn]}>{label}</Text>
           </TouchableOpacity>
         ))}
-      </ScrollView>
+      </View>
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
@@ -154,11 +150,12 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h1, color: colors.textPrimary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.accent, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  chipDot: { width: 8, height: 8, borderRadius: 4 },
-  chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600" },
+  chipDot: { width: 7, height: 7, borderRadius: 3.5 },
+  chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600", fontSize: 12 },
   chipTextOn: { color: "white" },
+  filterWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   sectionHead: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, textTransform: "uppercase" },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
   iconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
