@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
+import DateTimeField from "@/src/components/DateTimeField";
 
 export default function BookingForm() {
   const router = useRouter();
@@ -183,9 +184,9 @@ export default function BookingForm() {
               </View>
 
               <Text style={styles.label}>Depart time</Text>
-              <TextInput style={styles.input} value={departTime} onChangeText={setDepartTime} placeholder="DD-MM-YYYY 08:30" placeholderTextColor={colors.textTertiary} />
+              <DateTimeField value={departTime} onChange={setDepartTime} testID="depart-time-input" />
               <Text style={styles.label}>Arrive time</Text>
-              <TextInput style={styles.input} value={arriveTime} onChangeText={setArriveTime} placeholder="DD-MM-YYYY 10:15" placeholderTextColor={colors.textTertiary} />
+              <DateTimeField value={arriveTime} onChange={setArriveTime} testID="arrive-time-input" />
 
               <Text style={styles.section}>Return (optional)</Text>
               <Text style={styles.label}>Flight #</Text>
@@ -203,9 +204,9 @@ export default function BookingForm() {
               </View>
 
               <Text style={styles.label}>Depart time</Text>
-              <TextInput style={styles.input} value={returnDepartTime} onChangeText={setReturnDepartTime} placeholder="DD-MM-YYYY 16:00" placeholderTextColor={colors.textTertiary} />
+              <DateTimeField value={returnDepartTime} onChange={setReturnDepartTime} testID="return-depart-time-input" />
               <Text style={styles.label}>Arrive time</Text>
-              <TextInput style={styles.input} value={returnArriveTime} onChangeText={setReturnArriveTime} placeholder="DD-MM-YYYY 18:30" placeholderTextColor={colors.textTertiary} />
+              <DateTimeField value={returnArriveTime} onChange={setReturnArriveTime} testID="return-arrive-time-input" />
             </>
           )}
 

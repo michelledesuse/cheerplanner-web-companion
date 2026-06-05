@@ -22,7 +22,7 @@ type Props = {
  * - Web: uses native <input type="date"> (no extra deps) for the best UX.
  * - Native: opens @react-native-community/datetimepicker on tap.
  */
-export default function DateField({ value, onChange, placeholder = "DD-MM-YYYY", testID, clearable = true }: Props) {
+export default function DateField({ value, onChange, placeholder = "MM-DD-YYYY", testID, clearable = true }: Props) {
   const display = isoToInput(value);
   const [open, setOpen] = useState(false);
 

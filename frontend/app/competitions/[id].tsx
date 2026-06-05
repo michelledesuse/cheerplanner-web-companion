@@ -9,7 +9,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { formatCurrency, formatDate, formatDateLong, daysBetween } from "@/src/utils/format";
+import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
 
 type Competition = {
   id: string;
@@ -150,7 +150,7 @@ export default function CompetitionDetail() {
             )}
             {comp.booking_release_at && (
               <View style={[styles.heroPill, { backgroundColor: "rgba(255,255,255,0.18)" }]}>
-                <Text style={styles.heroPillText}>Booking opens {formatDate(comp.booking_release_at)}</Text>
+                <Text style={styles.heroPillText}>Booking opens {formatDateTime12(comp.booking_release_at)}</Text>
               </View>
             )}
           </View>
@@ -274,12 +274,14 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
             <Field label="Route" value={`${booking.depart_airport || "—"} → ${booking.arrive_airport || "—"}`} />
           )}
           {booking.flight_number && <Field label="Flight #" value={booking.flight_number} />}
-          {booking.depart_time && <Field label="Depart" value={booking.depart_time} />}
-          {booking.arrive_time && <Field label="Arrive" value={booking.arrive_time} />}
+          {booking.depart_time && <Field label="Depart" value={formatDateTime12(booking.depart_time)} />}
+          {booking.arrive_time && <Field label="Arrive" value={formatDateTime12(booking.arrive_time)} />}
           {(booking.return_depart_airport || booking.return_arrive_airport) && (
             <Field label="Return route" value={`${booking.return_depart_airport || "—"} → ${booking.return_arrive_airport || "—"}`} />
           )}
           {booking.return_flight_number && <Field label="Return #" value={booking.return_flight_number} />}
+          {booking.return_depart_time && <Field label="Return depart" value={formatDateTime12(booking.return_depart_time)} />}
+          {booking.return_arrive_time && <Field label="Return arrive" value={formatDateTime12(booking.return_arrive_time)} />}
         </View>
       )}
 

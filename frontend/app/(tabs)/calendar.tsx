@@ -10,7 +10,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { formatCurrency, todayISO } from "@/src/utils/format";
+import { formatCurrency, formatDateLong, todayISO } from "@/src/utils/format";
 
 type CalEvent = {
   id: string;
@@ -137,7 +137,7 @@ export default function CalendarTab() {
         </View>
 
         <View style={styles.daySection}>
-          <Text style={styles.dayTitle}>{selected}</Text>
+          <Text style={styles.dayTitle}>{formatDateLong(selected)}</Text>
           {loading ? (
             <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.md }} />
           ) : dayEvents.length === 0 ? (

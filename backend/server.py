@@ -1335,9 +1335,9 @@ async def calendar_feed(
         }
         time_str = ""
         if s.get("start_time"):
-            time_str = s["start_time"]
+            time_str = _fmt_time_12h(s["start_time"])
             if s.get("end_time"):
-                time_str += f" – {s['end_time']}"
+                time_str += f" – {_fmt_time_12h(s['end_time'])}"
         subtitle = " · ".join([x for x in [time_str, s.get("location") or ""] if x])
         items.append({
             "id": f"schedule-{s['id']}",
@@ -1851,9 +1851,23 @@ async def startup_db_client():
         logger.warning(f"Startup backfill skipped: {exc}")
 
 
-# ============================================================
-# Schedule events (practices, lessons, classes, etc.)
-# ============================================================
+def _fmt_time_12h(value: Optional[str]) -> str:
+    """Convert 24h 'HH:MM' (or a free-form datetime string containing HH:MM) to 12h 'h:MM AM/PM'."""
+    if not value:
+        return ""
+    import re as _re
+    m = _re.search(r"(\d{1,2}):(\d{2})", str(value))
+    if not m:
+        return str(value)
+    h = int(m.group(1))
+    mm = m.group(2)
+    period = "PM" if h >= 12 else "AM"
+    h12 = h % 12
+    if h12 == 0:
+        h12 = 12
+    return f"{h12}:{mm} {period}"
+
+
 def _expand_recurrence(base_date: str, rule: "RecurrenceRule") -> List[str]:
     """Return a sorted, deduped list of ISO YYYY-MM-DD dates for a recurring series.
 

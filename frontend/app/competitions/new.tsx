@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
+import DateTimeField from "@/src/components/DateTimeField";
 
 export default function CompetitionForm() {
   const router = useRouter();
@@ -121,8 +122,8 @@ export default function CompetitionForm() {
           <Text style={styles.label}>Booking link (optional)</Text>
           <TextInput style={styles.input} value={bookingLink} onChangeText={setBookingLink} placeholder="https://..." placeholderTextColor={colors.textTertiary} autoCapitalize="none" />
 
-          <Text style={styles.label}>Booking release (e.g. 01-09-2025 10:00)</Text>
-          <TextInput style={styles.input} value={bookingReleaseAt} onChangeText={setBookingReleaseAt} placeholder="DD-MM-YYYY HH:mm" placeholderTextColor={colors.textTertiary} />
+          <Text style={styles.label}>Booking release (date &amp; time)</Text>
+          <DateTimeField value={bookingReleaseAt} onChange={setBookingReleaseAt} testID="comp-booking-release-input" />
 
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />

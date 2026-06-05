@@ -9,7 +9,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { todayISO, formatCurrency } from "@/src/utils/format";
+import { todayISO, formatCurrency, formatDate } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
 const METHODS = ["Card", "Bank", "Cash", "Fundraiser", "Other"];
@@ -237,7 +237,7 @@ export default function PaymentForm() {
                       </View>
                       <View style={{ flex: 1, marginLeft: spacing.md }}>
                         <Text style={styles.expTitle}>{e.category}</Text>
-                        <Text style={styles.expMeta}>{e.incurred_on}</Text>
+                        <Text style={styles.expMeta}>{formatDate(e.incurred_on)}</Text>
                       </View>
                       <Text style={styles.expAmount}>{formatCurrency(e.amount)}</Text>
                     </TouchableOpacity>
