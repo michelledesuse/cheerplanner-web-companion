@@ -1,12 +1,10 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
-import { TOKEN_KEY } from "@/src/api/client";
-import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing, typography } from "@/src/theme";
 
 const TYPES = [
@@ -35,31 +33,50 @@ const TYPES = [
 
 export default function ImportHub() {
   const router = useRouter();
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const downloadTemplate = async (kind: string) => {
+    if (downloading) return;
+    setDownloading(kind);
     try {
-      const token = await storage.secureGet<string>(TOKEN_KEY, "");
-      const url = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/import/template/${kind}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      const text = await res.text();
+      // Use the authenticated api client so the token header is added automatically.
+      const r = await api.get<string>(`/import/template/${kind}`, {
+        responseType: "text",
+        transformResponse: [(d) => d], // axios tries to JSON.parse by default — disable that
+      });
+      const csv = typeof r.data === "string" ? r.data : String(r.data ?? "");
+      if (!csv || csv.length < 5) {
+        throw new Error("Empty template returned by server");
+      }
+      const filename = `cheerplanner-${kind}-template.csv`;
+
       if (Platform.OS === "web") {
-        const blob = new Blob([text], { type: "text/csv" });
+        // Browser: trigger a real download via a temporary anchor.
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `cheerplanner-${kind}-template.csv`;
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
         a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
       } else {
-        // Native: write to cache and share
-        const FileSystem = await import("expo-file-system");
-        const Sharing = await import("expo-sharing");
-        const path = `${FileSystem.cacheDirectory}cheerplanner-${kind}-template.csv`;
-        await FileSystem.writeAsStringAsync(path, text);
+        // Native: write to cache then share via the OS share sheet.
+        const FS: any = await import("expo-file-system/legacy");
+        const Sharing: any = await import("expo-sharing");
+        const path = `${FS.cacheDirectory}${filename}`;
+        await FS.writeAsStringAsync(path, csv, { encoding: FS.EncodingType.UTF8 });
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(path);
+          await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Save template" });
+        } else {
+          Alert.alert("Saved", `Template saved to ${path}`);
         }
       }
-    } catch (_e) {
-      // ignore
+    } catch (e: any) {
+      Alert.alert("Download failed", e?.response?.data?.detail || e?.message || "Could not download the template. Please check your connection and try again.");
+    } finally {
+      setDownloading(null);
     }
   };
 
@@ -101,12 +118,17 @@ export default function ImportHub() {
                   <Text style={styles.primaryBtnText}>Upload file</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.ghostBtn}
+                  style={[styles.ghostBtn, downloading === t.kind && { opacity: 0.6 }]}
                   onPress={() => downloadTemplate(t.kind)}
+                  disabled={downloading === t.kind}
                   testID={`import-template-${t.kind}`}
                 >
-                  <Ionicons name="download-outline" size={14} color={colors.textPrimary} />
-                  <Text style={styles.ghostBtnText}>Template</Text>
+                  {downloading === t.kind ? (
+                    <ActivityIndicator size="small" color={colors.textPrimary} />
+                  ) : (
+                    <Ionicons name="download-outline" size={14} color={colors.textPrimary} />
+                  )}
+                  <Text style={styles.ghostBtnText}>{downloading === t.kind ? "Downloading…" : "Template"}</Text>
                 </TouchableOpacity>
               </View>
             </View>
