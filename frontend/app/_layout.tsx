@@ -1,6 +1,7 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
@@ -24,9 +25,15 @@ export default function RootLayout() {
   // the app — icons will tofu, but the app still boots.
   if (!loaded && !error) return null;
 
+  // GestureHandlerRootView MUST wrap the app for gesture-handler-backed
+  // libraries (color picker, drag-to-dismiss sheets, etc.) to function on
+  // release iOS / Android builds. Without it, native gestures throw on
+  // first touch — which was the cause of the TestFlight color-picker crash.
   return (
-    <AuthProvider>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FAFAF9" } }} />
-    </AuthProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <AuthProvider>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FAFAF9" } }} />
+      </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

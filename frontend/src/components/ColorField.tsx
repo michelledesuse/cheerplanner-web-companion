@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Modal, Pressable, StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import ColorPicker, { Panel1, HueSlider, Preview, Swatches } from "reanimated-color-picker";
@@ -27,6 +27,12 @@ const DEFAULT_PRESETS = [
 export default function ColorField({ value, onChange, testID, presets = DEFAULT_PRESETS }: Props) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
+  // Holds the latest hex from the picker without triggering a re-render on
+  // every micro-move. The library's `onChange` callback runs on the worklet
+  // (UI) thread, so calling setState from there at 60 fps will crash on iOS
+  // release builds. We instead stash the value in a ref and commit to React
+  // state only when the user lifts their finger (`onCompleteJS`).
+  const liveColor = useRef(value);
 
   const display = (value || draft || "#0EA5E9").toUpperCase();
 
@@ -35,10 +41,10 @@ export default function ColorField({ value, onChange, testID, presets = DEFAULT_
       <View style={styles.row} testID={testID}>
         <Pressable
           style={[styles.swatch, { backgroundColor: display }]}
-          onPress={() => { setDraft(display); setOpen(true); }}
+          onPress={() => { setDraft(display); liveColor.current = display; setOpen(true); }}
           testID={`${testID || "color-field"}-swatch`}
         />
-        <Pressable onPress={() => { setDraft(display); setOpen(true); }} style={styles.hexBtn}>
+        <Pressable onPress={() => { setDraft(display); liveColor.current = display; setOpen(true); }} style={styles.hexBtn}>
           <Text style={styles.hexText}>{display}</Text>
           <Ionicons name="color-palette" size={16} color={colors.textSecondary} />
         </Pressable>
@@ -57,7 +63,11 @@ export default function ColorField({ value, onChange, testID, presets = DEFAULT_
             <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 0 }}>
               <ColorPicker
                 value={draft}
-                onChange={(c) => setDraft(c.hex)}
+                // `onChange` runs on the UI thread (worklet). Calling setState
+                // from there crashes iOS release builds at high fps (see
+                // alabsi91/reanimated-color-picker#82). Use `onCompleteJS`
+                // which fires once on gesture end on the JS thread.
+                onCompleteJS={(c: any) => { liveColor.current = c.hex; setDraft(c.hex); }}
                 style={{ gap: spacing.md }}
               >
                 <Preview hideInitialColor style={styles.preview} textStyle={{ color: "white", fontWeight: "700" }} />
@@ -67,6 +77,7 @@ export default function ColorField({ value, onChange, testID, presets = DEFAULT_
                   colors={presets}
                   style={styles.swatches}
                   swatchStyle={styles.presetSwatch}
+                  onChange={(c: any) => { liveColor.current = c.hex; setDraft(c.hex); }}
                 />
               </ColorPicker>
             </ScrollView>
@@ -77,7 +88,11 @@ export default function ColorField({ value, onChange, testID, presets = DEFAULT_
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.confirmBtn}
-                onPress={() => { onChange(draft.toUpperCase()); setOpen(false); }}
+                onPress={() => {
+                  const finalHex = (liveColor.current || draft || display).toUpperCase();
+                  onChange(finalHex);
+                  setOpen(false);
+                }}
                 testID={`${testID || "color-field"}-confirm`}
               >
                 <Text style={styles.confirmText}>Use color</Text>
