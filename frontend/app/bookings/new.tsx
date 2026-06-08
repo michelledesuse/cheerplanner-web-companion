@@ -9,7 +9,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import { isoToInput, userDateToISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
 
@@ -32,23 +31,33 @@ export default function BookingForm() {
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
   const [cancelBy, setCancelBy] = useState("");
-  // flight
+  // car
+  const [pickupAt, setPickupAt] = useState("");
+  const [pickupLocation, setPickupLocation] = useState("");
+  const [dropoffAt, setDropoffAt] = useState("");
+  const [dropoffLocation, setDropoffLocation] = useState("");
+  // flight - outbound
   const [flightNumber, setFlightNumber] = useState("");
   const [departAirport, setDepartAirport] = useState("");
   const [arriveAirport, setArriveAirport] = useState("");
   const [departTime, setDepartTime] = useState("");
   const [arriveTime, setArriveTime] = useState("");
+  const [outboundCost, setOutboundCost] = useState("");
+  // flight - return
+  const [returnAirline, setReturnAirline] = useState("");
+  const [returnConfirmation, setReturnConfirmation] = useState("");
   const [returnFlightNumber, setReturnFlightNumber] = useState("");
   const [returnDepartAirport, setReturnDepartAirport] = useState("");
   const [returnArriveAirport, setReturnArriveAirport] = useState("");
   const [returnDepartTime, setReturnDepartTime] = useState("");
   const [returnArriveTime, setReturnArriveTime] = useState("");
+  const [returnCost, setReturnCost] = useState("");
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
 
   const TITLE: Record<string, string> = { hotel: "Hotel", car: "Rental car", flight: "Flight" };
-  const PROVIDER_LABEL: Record<string, string> = { hotel: "Hotel name", car: "Rental company", flight: "Airline" };
+  const PROVIDER_LABEL: Record<string, string> = { hotel: "Hotel name", car: "Rental company", flight: "Outbound airline" };
 
   useEffect(() => {
     if (!isEdit) return;
@@ -73,16 +82,24 @@ export default function BookingForm() {
         setCheckIn(b.check_in || "");
         setCheckOut(b.check_out || "");
         setCancelBy(b.cancel_by || "");
+        setPickupAt(b.pickup_at || "");
+        setPickupLocation(b.pickup_location || "");
+        setDropoffAt(b.dropoff_at || "");
+        setDropoffLocation(b.dropoff_location || "");
         setFlightNumber(b.flight_number || "");
         setDepartAirport(b.depart_airport || "");
         setArriveAirport(b.arrive_airport || "");
         setDepartTime(b.depart_time || "");
         setArriveTime(b.arrive_time || "");
+        setOutboundCost(b.outbound_cost != null ? String(b.outbound_cost) : "");
+        setReturnAirline(b.return_airline || "");
+        setReturnConfirmation(b.return_confirmation || "");
         setReturnFlightNumber(b.return_flight_number || "");
         setReturnDepartAirport(b.return_depart_airport || "");
         setReturnArriveAirport(b.return_arrive_airport || "");
         setReturnDepartTime(b.return_depart_time || "");
         setReturnArriveTime(b.return_arrive_time || "");
+        setReturnCost(b.return_cost != null ? String(b.return_cost) : "");
       } catch (_e) {
         Alert.alert("Error", "Could not load booking");
       } finally {
@@ -94,26 +111,41 @@ export default function BookingForm() {
   const save = async () => {
     setSaving(true);
     try {
+      // For flights, the total cost is computed from the two legs (so the
+      // existing balance/total displays continue to work). For other types
+      // the user still enters a single cost.
+      const flightOb = parseFloat(outboundCost) || 0;
+      const flightRt = parseFloat(returnCost) || 0;
+      const flightTotal = flightOb + flightRt;
+
       const payload: any = {
         provider: provider.trim() || null,
         confirmation: confirmation.trim() || null,
-        cost: parseFloat(cost) || 0,
+        cost: type === "flight" ? (flightTotal || parseFloat(cost) || 0) : (parseFloat(cost) || 0),
         amount_paid: parseFloat(amountPaid) || 0,
         balance_due_date: balanceDueDate || null,
         notes: notes.trim() || null,
         check_in: type === "hotel" ? (checkIn || null) : null,
         check_out: type === "hotel" ? (checkOut || null) : null,
         cancel_by: type === "hotel" ? (cancelBy || null) : null,
+        pickup_at: type === "car" ? (pickupAt || null) : null,
+        pickup_location: type === "car" ? (pickupLocation.trim() || null) : null,
+        dropoff_at: type === "car" ? (dropoffAt || null) : null,
+        dropoff_location: type === "car" ? (dropoffLocation.trim() || null) : null,
         flight_number: type === "flight" ? (flightNumber.trim() || null) : null,
         depart_airport: type === "flight" ? (departAirport.trim().toUpperCase() || null) : null,
         arrive_airport: type === "flight" ? (arriveAirport.trim().toUpperCase() || null) : null,
         depart_time: type === "flight" ? (departTime.trim() || null) : null,
         arrive_time: type === "flight" ? (arriveTime.trim() || null) : null,
+        outbound_cost: type === "flight" ? (outboundCost === "" ? null : flightOb) : null,
+        return_airline: type === "flight" ? (returnAirline.trim() || null) : null,
+        return_confirmation: type === "flight" ? (returnConfirmation.trim() || null) : null,
         return_flight_number: type === "flight" ? (returnFlightNumber.trim() || null) : null,
         return_depart_airport: type === "flight" ? (returnDepartAirport.trim().toUpperCase() || null) : null,
         return_arrive_airport: type === "flight" ? (returnArriveAirport.trim().toUpperCase() || null) : null,
         return_depart_time: type === "flight" ? (returnDepartTime.trim() || null) : null,
         return_arrive_time: type === "flight" ? (returnArriveTime.trim() || null) : null,
+        return_cost: type === "flight" ? (returnCost === "" ? null : flightRt) : null,
       };
 
       if (isEdit) {
@@ -152,7 +184,7 @@ export default function BookingForm() {
           <Text style={styles.label}>{PROVIDER_LABEL[type]}</Text>
           <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder={type === "hotel" ? "e.g. Hyatt Regency" : type === "car" ? "e.g. Enterprise" : "e.g. Southwest"} placeholderTextColor={colors.textTertiary} testID="booking-provider-input" />
 
-          <Text style={styles.label}>Confirmation #</Text>
+          <Text style={styles.label}>{type === "flight" ? "Outbound confirmation #" : "Confirmation #"}</Text>
           <TextInput style={styles.input} value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" placeholderTextColor={colors.textTertiary} testID="booking-conf-input" />
 
           {type === "hotel" && (
@@ -163,6 +195,22 @@ export default function BookingForm() {
               <DateField value={checkOut} onChange={setCheckOut} testID="booking-checkout-input" />
               <Text style={styles.label}>Free cancellation by (optional)</Text>
               <DateField value={cancelBy} onChange={setCancelBy} />
+            </>
+          )}
+
+          {type === "car" && (
+            <>
+              <Text style={styles.section}>Pick-up</Text>
+              <Text style={styles.label}>Pick-up date &amp; time</Text>
+              <DateTimeField value={pickupAt} onChange={setPickupAt} testID="car-pickup-input" />
+              <Text style={styles.label}>Pick-up location</Text>
+              <TextInput style={styles.input} value={pickupLocation} onChangeText={setPickupLocation} placeholder="e.g. Houston Airport (IAH)" placeholderTextColor={colors.textTertiary} testID="car-pickup-location-input" />
+
+              <Text style={styles.section}>Drop-off</Text>
+              <Text style={styles.label}>Drop-off date &amp; time</Text>
+              <DateTimeField value={dropoffAt} onChange={setDropoffAt} testID="car-dropoff-input" />
+              <Text style={styles.label}>Drop-off location</Text>
+              <TextInput style={styles.input} value={dropoffLocation} onChangeText={setDropoffLocation} placeholder="e.g. Houston Airport (IAH)" placeholderTextColor={colors.textTertiary} testID="car-dropoff-location-input" />
             </>
           )}
 
@@ -183,12 +231,18 @@ export default function BookingForm() {
                 </View>
               </View>
 
-              <Text style={styles.label}>Depart time</Text>
+              <Text style={styles.label}>Depart</Text>
               <DateTimeField value={departTime} onChange={setDepartTime} testID="depart-time-input" />
-              <Text style={styles.label}>Arrive time</Text>
+              <Text style={styles.label}>Arrive</Text>
               <DateTimeField value={arriveTime} onChange={setArriveTime} testID="arrive-time-input" />
+              <Text style={styles.label}>Outbound cost (USD)</Text>
+              <TextInput style={styles.input} value={outboundCost} onChangeText={setOutboundCost} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="outbound-cost-input" />
 
               <Text style={styles.section}>Return (optional)</Text>
+              <Text style={styles.label}>Return airline (if different)</Text>
+              <TextInput style={styles.input} value={returnAirline} onChangeText={setReturnAirline} placeholder="e.g. Delta" placeholderTextColor={colors.textTertiary} testID="return-airline-input" />
+              <Text style={styles.label}>Return confirmation #</Text>
+              <TextInput style={styles.input} value={returnConfirmation} onChangeText={setReturnConfirmation} autoCapitalize="characters" placeholderTextColor={colors.textTertiary} testID="return-conf-input" />
               <Text style={styles.label}>Flight #</Text>
               <TextInput style={styles.input} value={returnFlightNumber} onChangeText={setReturnFlightNumber} placeholder="WN5678" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" />
 
@@ -203,16 +257,25 @@ export default function BookingForm() {
                 </View>
               </View>
 
-              <Text style={styles.label}>Depart time</Text>
+              <Text style={styles.label}>Depart</Text>
               <DateTimeField value={returnDepartTime} onChange={setReturnDepartTime} testID="return-depart-time-input" />
-              <Text style={styles.label}>Arrive time</Text>
+              <Text style={styles.label}>Arrive</Text>
               <DateTimeField value={returnArriveTime} onChange={setReturnArriveTime} testID="return-arrive-time-input" />
+              <Text style={styles.label}>Return cost (USD)</Text>
+              <TextInput style={styles.input} value={returnCost} onChangeText={setReturnCost} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="return-cost-input" />
             </>
           )}
 
           <Text style={styles.section}>Finances</Text>
-          <Text style={styles.label}>Total cost (USD)</Text>
-          <TextInput style={styles.input} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-cost-input" />
+          {type !== "flight" && (
+            <>
+              <Text style={styles.label}>Total cost (USD)</Text>
+              <TextInput style={styles.input} value={cost} onChangeText={setCost} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-cost-input" />
+            </>
+          )}
+          {type === "flight" && (
+            <Text style={styles.helperText}>Total flight cost is calculated from the outbound + return amounts above.</Text>
+          )}
           <Text style={styles.label}>Amount already paid (USD)</Text>
           <TextInput style={styles.input} value={amountPaid} onChangeText={setAmountPaid} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-paid-input" />
           <Text style={styles.label}>Balance due date (optional)</Text>
@@ -239,6 +302,7 @@ const styles = StyleSheet.create({
   input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
   row2: { flexDirection: "row", gap: spacing.md },
   section: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
+  helperText: { ...typography.caption, color: colors.textTertiary, marginTop: 4, marginBottom: 4, fontStyle: "italic" },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
 });

@@ -1,0 +1,42 @@
+{
+  "summary": "Backend-only testing of new flight (outbound/return airline + confirmation + cost) and car (pickup/dropoff date+time+location) fields plus the updated travel CSV template/import flow. Created /app/backend/tests/test_travel_flight_car_fields.py with 12 pytest cases. Initial run: 11/12 PASS, 1 FAIL — /api/import/commit kind='travel' was dropping every new field (pickup_at, pickup_location, dropoff_at, dropoff_location, outbound_cost, return_airline, return_confirmation, return_cost, depart/arrive airport fields). Fixed by extending the Booking() constructor inside import_commit travel branch in /app/backend/server.py to pass through all new fields. Re-ran: 12/12 PASS.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_travel_flight_car_fields.py",
+    "/app/test_reports/pytest/pytest_travel_flight_car.xml"
+  ],
+  "action_items": [
+    "Optional: extend /api/import/preview travel mapping to also surface outbound depart_airport/arrive_airport + return_depart_airport/return_arrive_airport columns. Right now parse_travel does not collect airport-code columns even though Booking has the fields and import_commit now persists them (the fix made the commit forward-compatible).",
+    "Optional refactor: server.py is now 2389 lines (over the 700-line guideline). The /import/* block (~290 lines) could split cleanly into routers/import.py."
+  ],
+  "critical_code_review_comments": [
+    "RCA — bug found & fixed: import_commit's `travel` branch (server.py lines 1783-1803) constructed Booking() with an explicit subset of fields, so any new Booking field had to be manually added there. The latest change added pickup_at/pickup_location/dropoff_at/dropoff_location/outbound_cost/return_airline/return_confirmation/return_cost to the Booking model AND to parse_travel, but the commit step still used the old field list — so import preview surfaced the values but commit silently dropped them. A safer pattern would be to construct Booking via **{k: v for k,v in b.items() if k in Booking.model_fields} (or use BookingCreate.model_validate(b)) to avoid future regressions when new fields are added.",
+    "POST /api/bookings flight branch correctly auto-computes `cost = outbound_cost + return_cost` only when `cost` is missing/zero — explicit `cost: 999.99` is preserved (verified).",
+    "PATCH /api/bookings flight branch correctly recomputes `cost` when only one leg changes, using the persisted other-leg value (verified for both outbound-only and return-only PATCH).",
+    "Nullable set on PATCH /api/bookings now includes pickup_at/pickup_location/dropoff_at/dropoff_location and outbound_cost/return_airline/return_confirmation/return_cost — explicit null clears them (verified).",
+    "Travel CSV template now includes all required new headers: Pickup Date, Pickup Time, Pickup Location, Dropoff Date, Dropoff Time, Dropoff Location, Outbound Cost, Return Airline, Return Confirmation, Return Cost — while keeping legacy Flight Cost / Airline columns for back-compat (verified).",
+    "import_helpers._combine_dt correctly builds 'YYYY-MM-DD HH:mm' from separate Date + Time columns (verified: '2025-11-13' + '12:30 PM' -> '2025-11-13 12:30')."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_travel_flight_car_fields.py (new)",
+    "/app/backend/server.py (import_commit travel branch — pass-through for new car/flight fields)"
+  ],
+  "success_rate": {
+    "backend": "100% (12/12 after fix)",
+    "frontend": "not tested (backend-only scope)"
+  },
+  "seed_data_creation": "Module-scoped fixture signs up a fresh TEST_travelnew_<uuid>@mailinator.com user and creates one TEST_Comp_<uuid> competition. All bookings created under this disposable account; no shared seed touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Travel/booking new-fields flow (flight outbound+return airline/confirmation/cost + car pickup/dropoff date+time+location) is fully green end-to-end (POST/PATCH bookings + GET template + import preview + import commit + GET /api/bookings persistence). Regression file: /app/backend/tests/test_travel_flight_car_fields.py. Note: parse_travel does NOT yet emit airport-code columns (depart_airport/return_arrive_airport etc.); only times. If those columns get added to the template, parse_travel + TRAVEL_HEADERS need extending too — import_commit will already persist them once parse_travel surfaces them.",
+  "rca_of_issue": "Bug reproduced via test_commit_persists_new_car_and_flight_fields: POST /api/import/commit kind=travel returned created=2 but the resulting car booking had pickup_at=None / pickup_location=None / dropoff_at=None / dropoff_location=None, and the flight booking had outbound_cost=None / return_airline=None / return_confirmation=None / return_cost=None. Root cause: server.py import_commit travel branch hand-listed 16 Booking fields when constructing Booking(...), omitting the 12 newly-added fields. Mitigation applied: added the missing fields to the constructor (pickup_at, pickup_location, dropoff_at, dropoff_location, depart_airport, arrive_airport, outbound_cost, return_airline, return_confirmation, return_depart_airport, return_arrive_airport, return_cost). Re-ran the full file — 12/12 PASS."
+}

@@ -27,10 +27,6 @@ const TYPE_COLOR: Record<string, string> = {
   practice: "#EA580C", team_bonding: "#0EA5E9", private_lesson: "#DB2777",
   choreography: "#9333EA", class: "#0891B2", other: "#64748B",
 };
-const TYPE_ICON: Record<string, any> = {
-  practice: "barbell", team_bonding: "happy", private_lesson: "person",
-  choreography: "musical-notes", class: "school", other: "calendar",
-};
 
 export default function ScheduleTab() {
   const router = useRouter();
@@ -137,7 +133,6 @@ export default function ScheduleTab() {
 
 function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; onPress: () => void; onDelete: () => void }) {
   const color = TYPE_COLOR[e.event_type] || "#64748B";
-  const icon = TYPE_ICON[e.event_type] || "calendar";
   const fmt12 = (t?: string) => {
     if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";
     const [hS, m] = t.split(":");
@@ -148,9 +143,7 @@ function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; 
   const names = (e.athlete_ids || []).map(id => athletes.find(a => a.id === id)?.name).filter(Boolean).join(", ");
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.row} testID={`schedule-row-${e.id}`}>
-      <View style={[styles.iconCircle, { backgroundColor: color + "22" }]}>
-        <Ionicons name={icon} size={18} color={color} />
-      </View>
+      <View style={[styles.typeStripe, { backgroundColor: color }]} />
       <View style={{ flex: 1, marginLeft: spacing.md }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={styles.rowTitle} numberOfLines={1}>{e.title}</Text>
@@ -183,7 +176,7 @@ const styles = StyleSheet.create({
   filterWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   sectionHead: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, textTransform: "uppercase" },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
-  iconCircle: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
+  typeStripe: { width: 4, alignSelf: "stretch", borderRadius: 2 },
   rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
   rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   rowAthletes: { ...typography.caption, color: colors.accent, marginTop: 2, fontWeight: "600" },

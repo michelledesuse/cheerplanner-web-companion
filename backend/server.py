@@ -312,7 +312,7 @@ class Booking(BaseModel):
     competition_id: str
     type: str  # hotel | car | flight
     # common
-    provider: Optional[str] = None  # hotel name / rental car company / airline
+    provider: Optional[str] = None  # hotel name / rental car company / outbound airline
     confirmation: Optional[str] = None
     cost: Optional[float] = 0.0
     amount_paid: Optional[float] = 0.0
@@ -322,17 +322,27 @@ class Booking(BaseModel):
     check_in: Optional[str] = None
     check_out: Optional[str] = None
     cancel_by: Optional[str] = None
-    # flight
+    # car
+    pickup_at: Optional[str] = None        # "YYYY-MM-DD HH:mm"
+    pickup_location: Optional[str] = None
+    dropoff_at: Optional[str] = None
+    dropoff_location: Optional[str] = None
+    # flight - outbound
     flight_number: Optional[str] = None
     depart_airport: Optional[str] = None
     arrive_airport: Optional[str] = None
     depart_time: Optional[str] = None
     arrive_time: Optional[str] = None
+    outbound_cost: Optional[float] = None  # leg-level cost (sum into `cost`)
+    # flight - return
+    return_airline: Optional[str] = None       # blank → same as `provider`
+    return_confirmation: Optional[str] = None  # blank → same as `confirmation`
     return_flight_number: Optional[str] = None
     return_depart_airport: Optional[str] = None
     return_arrive_airport: Optional[str] = None
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
+    return_cost: Optional[float] = None
 
     created_at: str = Field(default_factory=utcnow_iso)
 
@@ -349,16 +359,24 @@ class BookingCreate(BaseModel):
     check_in: Optional[str] = None
     check_out: Optional[str] = None
     cancel_by: Optional[str] = None
+    pickup_at: Optional[str] = None
+    pickup_location: Optional[str] = None
+    dropoff_at: Optional[str] = None
+    dropoff_location: Optional[str] = None
     flight_number: Optional[str] = None
     depart_airport: Optional[str] = None
     arrive_airport: Optional[str] = None
     depart_time: Optional[str] = None
     arrive_time: Optional[str] = None
+    outbound_cost: Optional[float] = None
+    return_airline: Optional[str] = None
+    return_confirmation: Optional[str] = None
     return_flight_number: Optional[str] = None
     return_depart_airport: Optional[str] = None
     return_arrive_airport: Optional[str] = None
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
+    return_cost: Optional[float] = None
 
 
 class BookingUpdate(BaseModel):
@@ -371,16 +389,24 @@ class BookingUpdate(BaseModel):
     check_in: Optional[str] = None
     check_out: Optional[str] = None
     cancel_by: Optional[str] = None
+    pickup_at: Optional[str] = None
+    pickup_location: Optional[str] = None
+    dropoff_at: Optional[str] = None
+    dropoff_location: Optional[str] = None
     flight_number: Optional[str] = None
     depart_airport: Optional[str] = None
     arrive_airport: Optional[str] = None
     depart_time: Optional[str] = None
     arrive_time: Optional[str] = None
+    outbound_cost: Optional[float] = None
+    return_airline: Optional[str] = None
+    return_confirmation: Optional[str] = None
     return_flight_number: Optional[str] = None
     return_depart_airport: Optional[str] = None
     return_arrive_airport: Optional[str] = None
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
+    return_cost: Optional[float] = None
 
 
 class Fundraiser(BaseModel):
@@ -1053,16 +1079,45 @@ async def list_bookings(
 async def create_booking(payload: BookingCreate, current_user=Depends(get_current_user)):
     if payload.type not in ("hotel", "car", "flight"):
         raise HTTPException(status_code=400, detail="Invalid booking type")
-    booking = Booking(user_id=current_user["id"], **payload.model_dump())
+    data = payload.model_dump()
+    # For flights: if leg-level costs are provided and the total `cost` is missing/zero,
+    # derive the total automatically so balance-due calculations stay accurate.
+    if payload.type == "flight":
+        ob = data.get("outbound_cost") or 0
+        rt = data.get("return_cost") or 0
+        leg_total = float(ob) + float(rt)
+        if leg_total > 0 and (not data.get("cost")):
+            data["cost"] = leg_total
+    booking = Booking(user_id=current_user["id"], **data)
     await db.bookings.insert_one(booking.model_dump())
     return booking
 
 
 @api_router.patch("/bookings/{booking_id}", response_model=Booking)
 async def update_booking(booking_id: str, payload: BookingUpdate, current_user=Depends(get_current_user)):
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    sent = payload.model_dump(exclude_unset=True)
+    nullable = {
+        "provider", "confirmation", "balance_due_date", "notes",
+        "check_in", "check_out", "cancel_by",
+        "pickup_at", "pickup_location", "dropoff_at", "dropoff_location",
+        "flight_number", "depart_airport", "arrive_airport", "depart_time", "arrive_time",
+        "return_airline", "return_confirmation", "return_flight_number",
+        "return_depart_airport", "return_arrive_airport", "return_depart_time", "return_arrive_time",
+        "outbound_cost", "return_cost",
+    }
+    updates = {k: v for k, v in sent.items() if v is not None or k in nullable}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    # For flights: if leg-level costs are being updated, keep `cost` in sync (unless caller
+    # explicitly sent their own `cost`).
+    if ("outbound_cost" in updates or "return_cost" in updates) and "cost" not in updates:
+        existing = await db.bookings.find_one({"id": booking_id}, {"_id": 0})
+        if existing and existing.get("type") == "flight":
+            ob = updates.get("outbound_cost", existing.get("outbound_cost")) or 0
+            rt = updates.get("return_cost", existing.get("return_cost")) or 0
+            leg_total = float(ob) + float(rt)
+            if leg_total > 0:
+                updates["cost"] = leg_total
     res = await db.bookings.update_one(
         {"id": booking_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
@@ -1738,12 +1793,27 @@ async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_c
                     check_in=b.get("check_in"),
                     check_out=b.get("check_out"),
                     cancel_by=b.get("cancel_by"),
+                    # car pickup/dropoff
+                    pickup_at=b.get("pickup_at"),
+                    pickup_location=b.get("pickup_location"),
+                    dropoff_at=b.get("dropoff_at"),
+                    dropoff_location=b.get("dropoff_location"),
+                    # flight outbound
                     flight_number=b.get("flight_number"),
+                    depart_airport=b.get("depart_airport"),
+                    arrive_airport=b.get("arrive_airport"),
                     depart_time=b.get("depart_time"),
                     arrive_time=b.get("arrive_time"),
+                    outbound_cost=b.get("outbound_cost"),
+                    # flight return
+                    return_airline=b.get("return_airline"),
+                    return_confirmation=b.get("return_confirmation"),
                     return_flight_number=b.get("return_flight_number"),
+                    return_depart_airport=b.get("return_depart_airport"),
+                    return_arrive_airport=b.get("return_arrive_airport"),
                     return_depart_time=b.get("return_depart_time"),
                     return_arrive_time=b.get("return_arrive_time"),
+                    return_cost=b.get("return_cost"),
                 )
                 await db.bookings.insert_one(booking.model_dump())
                 created += 1

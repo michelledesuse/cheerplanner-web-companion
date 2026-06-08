@@ -36,16 +36,24 @@ type Booking = {
   check_in?: string;
   check_out?: string;
   cancel_by?: string;
+  pickup_at?: string;
+  pickup_location?: string;
+  dropoff_at?: string;
+  dropoff_location?: string;
   flight_number?: string;
   depart_airport?: string;
   arrive_airport?: string;
   depart_time?: string;
   arrive_time?: string;
+  outbound_cost?: number;
+  return_airline?: string;
+  return_confirmation?: string;
   return_flight_number?: string;
   return_depart_airport?: string;
   return_arrive_airport?: string;
   return_depart_time?: string;
   return_arrive_time?: string;
+  return_cost?: number;
   notes?: string;
 };
 
@@ -268,20 +276,35 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
           {booking.cancel_by && <Field label="Free cancel by" value={formatDate(booking.cancel_by)} />}
         </View>
       )}
+      {booking.type === "car" && (booking.pickup_at || booking.pickup_location || booking.dropoff_at || booking.dropoff_location) && (
+        <View style={styles.bookingGrid}>
+          {booking.pickup_at && <Field label="Pick-up" value={formatDateTime12(booking.pickup_at)} />}
+          {booking.pickup_location && <Field label="Pick-up location" value={booking.pickup_location} />}
+          {booking.dropoff_at && <Field label="Drop-off" value={formatDateTime12(booking.dropoff_at)} />}
+          {booking.dropoff_location && <Field label="Drop-off location" value={booking.dropoff_location} />}
+        </View>
+      )}
       {booking.type === "flight" && (
         <View style={styles.bookingGrid}>
           {(booking.depart_airport || booking.arrive_airport) && (
-            <Field label="Route" value={`${booking.depart_airport || "—"} → ${booking.arrive_airport || "—"}`} />
+            <Field label="Outbound route" value={`${booking.depart_airport || "—"} → ${booking.arrive_airport || "—"}`} />
           )}
-          {booking.flight_number && <Field label="Flight #" value={booking.flight_number} />}
+          {booking.flight_number && <Field label="Outbound flight #" value={booking.flight_number} />}
           {booking.depart_time && <Field label="Depart" value={formatDateTime12(booking.depart_time)} />}
           {booking.arrive_time && <Field label="Arrive" value={formatDateTime12(booking.arrive_time)} />}
+          {booking.outbound_cost != null && <Field label="Outbound cost" value={formatCurrency(booking.outbound_cost)} />}
+          {(booking.return_depart_airport || booking.return_arrive_airport || booking.return_airline || booking.return_confirmation || booking.return_flight_number || booking.return_depart_time || booking.return_arrive_time || booking.return_cost != null) && (
+            <Field label="—" value="Return" />
+          )}
+          {booking.return_airline && <Field label="Return airline" value={booking.return_airline} />}
+          {booking.return_confirmation && <Field label="Return conf #" value={booking.return_confirmation} />}
           {(booking.return_depart_airport || booking.return_arrive_airport) && (
             <Field label="Return route" value={`${booking.return_depart_airport || "—"} → ${booking.return_arrive_airport || "—"}`} />
           )}
-          {booking.return_flight_number && <Field label="Return #" value={booking.return_flight_number} />}
+          {booking.return_flight_number && <Field label="Return flight #" value={booking.return_flight_number} />}
           {booking.return_depart_time && <Field label="Return depart" value={formatDateTime12(booking.return_depart_time)} />}
           {booking.return_arrive_time && <Field label="Return arrive" value={formatDateTime12(booking.return_arrive_time)} />}
+          {booking.return_cost != null && <Field label="Return cost" value={formatCurrency(booking.return_cost)} />}
         </View>
       )}
 

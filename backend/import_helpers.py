@@ -52,19 +52,31 @@ TRAVEL_HEADERS = {
     "cost": "hotel_cost", "total cost": "hotel_cost",
     "hotel paid": "hotel_paid", "hotel amount paid": "hotel_paid", "amount paid": "hotel_paid", "paid": "hotel_paid",
     "hotel balance due date": "hotel_due", "hotel balance due": "hotel_due", "balance due date": "hotel_due", "balance due": "hotel_due",
+    # rental car
     "rental car company": "car_provider", "rental car": "car_provider", "car company": "car_provider", "car": "car_provider",
     "rental car confirmation": "car_confirmation", "car confirmation": "car_confirmation", "rental conf": "car_confirmation",
     "rental car cost": "car_cost", "car cost": "car_cost",
-    "airline": "airline",
-    "flight confirmation": "flight_confirmation", "flight conf": "flight_confirmation",
-    "flight number": "flight_number",
+    "pickup date": "car_pickup_date", "pick up date": "car_pickup_date", "pick-up date": "car_pickup_date",
+    "pickup time": "car_pickup_time", "pick up time": "car_pickup_time", "pick-up time": "car_pickup_time",
+    "pickup location": "car_pickup_location", "pick up location": "car_pickup_location", "pick-up location": "car_pickup_location",
+    "dropoff date": "car_dropoff_date", "drop off date": "car_dropoff_date", "drop-off date": "car_dropoff_date",
+    "dropoff time": "car_dropoff_time", "drop off time": "car_dropoff_time", "drop-off time": "car_dropoff_time",
+    "dropoff location": "car_dropoff_location", "drop off location": "car_dropoff_location", "drop-off location": "car_dropoff_location",
+    # flights (outbound + return separated)
+    "airline": "airline", "outbound airline": "airline",
+    "flight confirmation": "flight_confirmation", "flight conf": "flight_confirmation", "outbound confirmation": "flight_confirmation",
+    "flight number": "flight_number", "outbound flight number": "flight_number",
     "depart time": "depart_time", "departure time": "depart_time", "departure": "depart_time",
     "arrive time": "arrive_time", "arrival time": "arrive_time", "arrival": "arrive_time",
+    "outbound cost": "outbound_cost",
+    "flight cost": "flight_cost", "airfare": "flight_cost", "total flight cost": "flight_cost",
+    "flight paid": "flight_paid", "flight amount paid": "flight_paid",
+    "return airline": "return_airline",
+    "return confirmation": "return_confirmation", "return flight confirmation": "return_confirmation",
     "return flight number": "return_flight_number", "return flight": "return_flight_number",
     "return depart time": "return_depart_time", "return departure": "return_depart_time",
     "return arrive time": "return_arrive_time", "return arrival": "return_arrive_time",
-    "flight cost": "flight_cost", "airfare": "flight_cost",
-    "flight paid": "flight_paid", "flight amount paid": "flight_paid",
+    "return cost": "return_cost",
 }
 
 EXPENSE_HEADERS = {
@@ -171,6 +183,18 @@ def _datetime(v: Any) -> Optional[str]:
         except ValueError:
             continue
     return None
+
+
+def _combine_dt(date_val: Any, time_val: Any) -> Optional[str]:
+    """Build a `YYYY-MM-DD HH:mm` string from a date cell + a time cell.
+
+    Either may be missing. Returns just the date or time if the other is empty.
+    """
+    iso_date = _date(date_val) if date_val else None
+    hhmm = _time24(time_val) if time_val else None
+    if iso_date and hhmm:
+        return f"{iso_date} {hhmm}"
+    return iso_date or hhmm or None
 
 
 # ---------------------------------------------------------------------------
@@ -281,20 +305,33 @@ def parse_travel(filename: str, content: bytes) -> List[Dict[str, Any]]:
                     "amount_paid": _num(rec.get("hotel_paid")) or 0,
                     "balance_due_date": _date(rec.get("hotel_due")),
                 })
-            if rec.get("car_provider") or rec.get("car_cost"):
+            if rec.get("car_provider") or rec.get("car_cost") or rec.get("car_pickup_date") or rec.get("car_dropoff_date"):
+                pickup_at = _combine_dt(rec.get("car_pickup_date"), rec.get("car_pickup_time"))
+                dropoff_at = _combine_dt(rec.get("car_dropoff_date"), rec.get("car_dropoff_time"))
                 bookings.append({
                     "type": "car",
                     "provider": (str(rec["car_provider"]).strip() if rec.get("car_provider") else None),
                     "confirmation": (str(rec["car_confirmation"]).strip() if rec.get("car_confirmation") else None),
                     "cost": _num(rec.get("car_cost")) or 0,
                     "amount_paid": 0,
+                    "pickup_at": pickup_at,
+                    "pickup_location": (str(rec["car_pickup_location"]).strip() if rec.get("car_pickup_location") else None),
+                    "dropoff_at": dropoff_at,
+                    "dropoff_location": (str(rec["car_dropoff_location"]).strip() if rec.get("car_dropoff_location") else None),
                 })
             flight_flag = _bool_from(rec.get("flight_flag"))
             has_flight = (
                 rec.get("airline") or rec.get("flight_number") or rec.get("flight_cost")
+                or rec.get("outbound_cost") or rec.get("return_cost")
+                or rec.get("return_flight_number") or rec.get("return_airline")
                 or flight_flag is True
             )
             if has_flight:
+                ob = _num(rec.get("outbound_cost"))
+                rt = _num(rec.get("return_cost"))
+                total = _num(rec.get("flight_cost"))
+                if total is None and (ob is not None or rt is not None):
+                    total = (ob or 0) + (rt or 0)
                 bookings.append({
                     "type": "flight",
                     "provider": (str(rec["airline"]).strip() if rec.get("airline") else None),
@@ -302,10 +339,14 @@ def parse_travel(filename: str, content: bytes) -> List[Dict[str, Any]]:
                     "flight_number": (str(rec["flight_number"]).strip() if rec.get("flight_number") else None),
                     "depart_time": (str(rec["depart_time"]).strip() if rec.get("depart_time") else None),
                     "arrive_time": (str(rec["arrive_time"]).strip() if rec.get("arrive_time") else None),
+                    "outbound_cost": ob,
+                    "return_airline": (str(rec["return_airline"]).strip() if rec.get("return_airline") else None),
+                    "return_confirmation": (str(rec["return_confirmation"]).strip() if rec.get("return_confirmation") else None),
                     "return_flight_number": (str(rec["return_flight_number"]).strip() if rec.get("return_flight_number") else None),
                     "return_depart_time": (str(rec["return_depart_time"]).strip() if rec.get("return_depart_time") else None),
                     "return_arrive_time": (str(rec["return_arrive_time"]).strip() if rec.get("return_arrive_time") else None),
-                    "cost": _num(rec.get("flight_cost")) or 0,
+                    "return_cost": rt,
+                    "cost": total or 0,
                     "amount_paid": _num(rec.get("flight_paid")) or 0,
                 })
             if not bookings:
@@ -646,17 +687,23 @@ TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
         ["Competition", "Hotel Name", "Hotel Confirmation", "Check In", "Check Out",
          "Cancel Date", "Hotel Cost", "Hotel Paid", "Balance Due Date",
          "Rental Car Company", "Rental Car Confirmation", "Rental Car Cost",
+         "Pickup Date", "Pickup Time", "Pickup Location",
+         "Dropoff Date", "Dropoff Time", "Dropoff Location",
          "Airline", "Flight Confirmation", "Flight Number",
-         "Depart Time", "Arrive Time",
-         "Return Flight Number", "Return Depart Time", "Return Arrive Time",
+         "Depart Time", "Arrive Time", "Outbound Cost",
+         "Return Airline", "Return Confirmation", "Return Flight Number",
+         "Return Depart Time", "Return Arrive Time", "Return Cost",
          "Flight Cost", "Flight Paid"],
         [
             ["NCA Senior Nationals", "Hyatt Regency Houston", "ABC123", "2025-11-13", "2025-11-15",
              "2025-10-29", "650.00", "200.00", "2025-10-29",
              "Enterprise", "RES7788", "180.00",
+             "2025-11-13", "12:30 PM", "Houston Airport",
+             "2025-11-16", "3:00 PM", "Houston Airport",
              "Southwest", "WN42X", "WN1234",
-             "2025-11-13 08:30", "2025-11-13 10:15",
-             "WN5678", "2025-11-16 16:00", "2025-11-16 18:30",
+             "2025-11-13 08:30", "2025-11-13 10:15", "160.00",
+             "Southwest", "WN42Y", "WN5678",
+             "2025-11-16 16:00", "2025-11-16 18:30", "160.00",
              "320.00", "320.00"],
         ],
     ),
