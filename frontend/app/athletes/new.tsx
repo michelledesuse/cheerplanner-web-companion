@@ -10,8 +10,9 @@ import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import ColorField from "@/src/components/ColorField";
 
-const AVATAR_COLORS = ["#E11D48", "#0F172A", "#0EA5E9", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#14B8A6"];
+const DEFAULT_COLOR = "#0EA5E9";
 
 type Athlete = {
   id: string;
@@ -31,7 +32,7 @@ export default function AthleteForm() {
   const [name, setName] = useState("");
   const [team, setTeam] = useState("");
   const [gym, setGym] = useState("");
-  const [color, setColor] = useState(AVATAR_COLORS[0]);
+  const [color, setColor] = useState(DEFAULT_COLOR);
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
@@ -47,7 +48,7 @@ export default function AthleteForm() {
           setName(a.name);
           setTeam(a.team || "");
           setGym(a.gym || "");
-          setColor(a.avatar_color || AVATAR_COLORS[0]);
+          setColor(a.avatar_color || DEFAULT_COLOR);
           setAvatarImage(a.avatar_image || null);
         }
       } finally { setLoading(false); }
@@ -174,16 +175,7 @@ export default function AthleteForm() {
           <TextInput style={styles.input} value={gym} onChangeText={setGym} placeholder="e.g. California Allstars" placeholderTextColor={colors.textTertiary} testID="athlete-gym-input" />
 
           <Text style={styles.label}>Avatar color</Text>
-          <View style={styles.colorRow}>
-            {AVATAR_COLORS.map((c) => (
-              <TouchableOpacity
-                key={c}
-                onPress={() => setColor(c)}
-                style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotActive]}
-                testID={`color-${c}`}
-              />
-            ))}
-          </View>
+          <ColorField value={color} onChange={setColor} testID="athlete-color" />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="athlete-save-btn">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save athlete"}</Text>}

@@ -97,7 +97,7 @@ SCHEDULE_HEADERS = {
 KNOWN_CATEGORIES = [
     "Tuition", "Practice", "Gear", "Comp/Choreo", "Camp", "Uniform",
     "Classes & Privates", "Bow", "Warm-Up & Bag", "End of Season Comp Fees",
-    "Late Fees", "Misc",
+    "Registration", "Membership", "Late Fees", "Misc",
 ]
 
 

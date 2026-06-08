@@ -246,7 +246,6 @@ export default function ScheduleForm() {
               const on = eventType === t.key;
               return (
                 <TouchableOpacity key={t.key} onPress={() => setEventType(t.key)} style={[styles.typeBtn, on && { backgroundColor: t.color, borderColor: t.color }]} testID={`type-${t.key}`}>
-                  <Ionicons name={t.icon as any} size={16} color={on ? "white" : t.color} />
                   <Text style={[styles.typeBtnText, on && { color: "white" }]}>{t.label}</Text>
                 </TouchableOpacity>
               );
