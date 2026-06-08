@@ -1595,7 +1595,7 @@ async def dashboard(current_user=Depends(get_current_user)):
 # ============================================================
 # Imports (spreadsheet bulk upload)
 # ============================================================
-ALLOWED_IMPORT_KINDS = {"competitions", "travel", "expenses"}
+ALLOWED_IMPORT_KINDS = {"competitions", "travel", "expenses", "schedule"}
 
 
 @api_router.get("/import/template/{kind}")
@@ -1641,6 +1641,13 @@ async def import_preview(
                 "count": len(data["rows"]),
                 "existing_athletes": existing_athletes,
             }
+        if kind == "schedule":
+            rows = import_helpers.parse_schedule(file.filename or "upload", content)
+            existing_athletes = await db.athletes.find(
+                {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+                {"_id": 0, "id": 1, "name": 1},
+            ).to_list(500)
+            return {"kind": kind, "rows": rows, "count": len(rows), "existing_athletes": existing_athletes}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -1808,6 +1815,73 @@ async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_c
                 )
                 await db.expenses.insert_one(e.model_dump())
                 created += 1
+        return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    if payload.kind == "schedule":
+        existing = await db.athletes.find({"user_id": user_id}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+        name_to_id = {a["name"].strip().lower(): a["id"] for a in existing}
+
+        for row in payload.rows:
+            title = (row.get("title") or "").strip()
+            event_date = row.get("date")
+            if not title or not event_date:
+                skipped += 1
+                continue
+
+            # Resolve / auto-create athletes referenced by name.
+            athlete_ids: List[str] = []
+            for nm in (row.get("athlete_names") or []):
+                key = str(nm).strip().lower()
+                if not key:
+                    continue
+                aid = name_to_id.get(key)
+                if not aid:
+                    new_a = Athlete(user_id=user_id, name=str(nm).strip())
+                    await db.athletes.insert_one(new_a.model_dump())
+                    aid = new_a.id
+                    name_to_id[key] = aid
+                    warnings.append(f"Created athlete '{nm}' for schedule event.")
+                athlete_ids.append(aid)
+
+            base = {
+                "user_id": user_id,
+                "athlete_ids": athlete_ids,
+                "event_type": row.get("event_type") or "practice",
+                "title": title,
+                "location": row.get("location"),
+                "date": event_date,
+                "start_time": row.get("start_time"),
+                "end_time": row.get("end_time"),
+                "notes": row.get("notes"),
+            }
+
+            rule = row.get("recurrence_rule")
+            if rule:
+                try:
+                    rule_obj = RecurrenceRule(**rule)
+                    dates = _expand_recurrence(event_date, rule_obj)
+                    series_id = str(uuid.uuid4())
+                    docs = []
+                    for d in dates:
+                        ev = ScheduleEvent(
+                            **{**base, "date": d},
+                            series_id=series_id,
+                            recurrence_rule=rule_obj,
+                        )
+                        docs.append(ev.model_dump())
+                    if docs:
+                        await db.schedule_events.insert_many(docs)
+                        created += len(docs)
+                except Exception as ex:
+                    warnings.append(f"Recurrence ignored for '{title}': {ex}")
+                    ev = ScheduleEvent(**base)
+                    await db.schedule_events.insert_one(ev.model_dump())
+                    created += 1
+            else:
+                ev = ScheduleEvent(**base)
+                await db.schedule_events.insert_one(ev.model_dump())
+                created += 1
+
         return {"created": created, "skipped": skipped, "warnings": warnings}
 
 

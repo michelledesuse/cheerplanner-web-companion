@@ -29,6 +29,13 @@ const TYPES = [
     icon: "wallet" as const,
     color: "#10B981",
   },
+  {
+    kind: "schedule",
+    title: "Schedule",
+    desc: "Practices, lessons, classes. Supports recurring events (e.g. every Tuesday).",
+    icon: "calendar" as const,
+    color: "#EA580C",
+  },
 ];
 
 export default function ImportHub() {
@@ -96,7 +103,7 @@ export default function ImportHub() {
           <Text style={styles.introTitle}>Upload from a spreadsheet</Text>
           <Text style={styles.introText}>
             Use your existing Cheer / Travel / Competitions spreadsheet, or download a clean template, fill it in, and upload.
-            You'll preview every row before anything is saved.
+            You&apos;ll preview every row before anything is saved.
           </Text>
         </View>
 

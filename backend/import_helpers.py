@@ -77,6 +77,23 @@ EXPENSE_HEADERS = {
     "note": "note", "notes": "note", "memo": "note", "description": "note",
 }
 
+SCHEDULE_HEADERS = {
+    "title": "title", "event": "title", "event name": "title", "name": "title",
+    "type": "event_type", "event type": "event_type", "kind": "event_type", "category": "event_type",
+    "date": "date", "event date": "date", "start date": "date", "starts": "date",
+    "start time": "start_time", "start": "start_time", "time": "start_time", "begin": "start_time",
+    "end time": "end_time", "end": "end_time", "finish": "end_time",
+    "location": "location", "where": "location", "gym": "location", "venue": "location",
+    "athletes": "athletes", "athlete": "athletes", "kids": "athletes", "kid": "athletes",
+    "children": "athletes", "child": "athletes", "for": "athletes",
+    "repeats": "repeats", "repeat": "repeats", "frequency": "repeats", "recurrence": "repeats",
+    "repeat days": "repeat_days", "days of week": "repeat_days", "days": "repeat_days",
+    "on days": "repeat_days", "weekdays": "repeat_days",
+    "repeat until": "repeat_until", "until": "repeat_until", "ends": "repeat_until",
+    "repeats until": "repeat_until", "end date": "repeat_until",
+    "notes": "notes", "note": "notes", "memo": "notes", "description": "notes",
+}
+
 KNOWN_CATEGORIES = [
     "Tuition", "Practice", "Gear", "Comp/Choreo", "Camp", "Uniform",
     "Classes & Privates", "Bow", "Warm-Up & Bag", "End of Season Comp Fees",
@@ -301,6 +318,137 @@ def parse_travel(filename: str, content: bytes) -> List[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Schedule (practices, lessons, classes, etc.)
+# ---------------------------------------------------------------------------
+EVENT_TYPE_MAP = {
+    "practice": "practice", "team practice": "practice",
+    "team bonding": "team_bonding", "bonding": "team_bonding", "team building": "team_bonding",
+    "private lesson": "private_lesson", "private": "private_lesson", "lesson": "private_lesson",
+    "choreography": "choreography", "choreo": "choreography",
+    "class": "class", "tumbling": "class", "stretching": "class",
+}
+
+DOW_MAP = {
+    "sun": 0, "sunday": 0,
+    "mon": 1, "monday": 1,
+    "tue": 2, "tues": 2, "tuesday": 2,
+    "wed": 3, "weds": 3, "wednesday": 3,
+    "thu": 4, "thur": 4, "thurs": 4, "thursday": 4,
+    "fri": 5, "friday": 5,
+    "sat": 6, "saturday": 6,
+}
+
+FREQ_MAP = {
+    "": None, "none": None, "no": None, "never": None,
+    "daily": "daily", "every day": "daily",
+    "weekly": "weekly", "every week": "weekly",
+    "biweekly": "biweekly", "bi-weekly": "biweekly", "bi weekly": "biweekly",
+    "every other week": "biweekly", "fortnightly": "biweekly",
+    "monthly": "monthly", "every month": "monthly",
+}
+
+
+def _time24(v: Any) -> Optional[str]:
+    """Return 'HH:MM' (24h) if parseable, else None.
+
+    Accepts '7:30 PM', '19:30', '7:30pm', '07:30', etc.
+    """
+    if v is None or v == "":
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    # Try common formats
+    for fmt in ("%I:%M %p", "%I:%M%p", "%H:%M", "%I %p", "%I%p"):
+        try:
+            dt = datetime.strptime(s.upper().replace(" PM", " PM").replace(" AM", " AM"), fmt)
+            return dt.strftime("%H:%M")
+        except ValueError:
+            continue
+    # Loose match: digits + optional am/pm
+    m = re.match(r"^\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*$", s, re.IGNORECASE)
+    if m:
+        h = int(m.group(1))
+        mm = int(m.group(2) or "0")
+        ap = (m.group(3) or "").lower()
+        if ap == "pm" and h < 12:
+            h += 12
+        elif ap == "am" and h == 12:
+            h = 0
+        if 0 <= h <= 23 and 0 <= mm <= 59:
+            return f"{h:02d}:{mm:02d}"
+    return None
+
+
+def _parse_days_of_week(v: Any) -> List[int]:
+    if v is None or v == "":
+        return []
+    s = str(v).strip().lower()
+    if not s:
+        return []
+    out: List[int] = []
+    for part in re.split(r"[,;/\s]+", s):
+        if not part:
+            continue
+        if part in DOW_MAP:
+            out.append(DOW_MAP[part])
+    return sorted(set(out))
+
+
+def parse_schedule(filename: str, content: bytes) -> List[Dict[str, Any]]:
+    sheets = read_table(filename, content)
+    out: List[Dict[str, Any]] = []
+    for rows in sheets:
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, SCHEDULE_HEADERS)
+        headers = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        for r in rows[hdr_idx + 1:]:
+            rec = _row_to_dict(headers, r, SCHEDULE_HEADERS)
+            title = (str(rec["title"]).strip() if rec.get("title") else "")
+            event_date = _date(rec.get("date"))
+            if not title or not event_date:
+                continue
+
+            etype_raw = (str(rec.get("event_type") or "")).strip().lower()
+            event_type = EVENT_TYPE_MAP.get(etype_raw, etype_raw if etype_raw in (
+                "practice", "team_bonding", "private_lesson", "choreography", "class", "other"
+            ) else "practice")
+
+            athletes_raw = rec.get("athletes")
+            athlete_names: List[str] = []
+            if athletes_raw:
+                for n in re.split(r"[,;|]+", str(athletes_raw)):
+                    nn = n.strip()
+                    if nn:
+                        athlete_names.append(nn)
+
+            freq = FREQ_MAP.get((str(rec.get("repeats") or "").strip().lower()), None)
+            recurrence_rule: Optional[Dict[str, Any]] = None
+            if freq:
+                until = _date(rec.get("repeat_until"))
+                if until:
+                    recurrence_rule = {
+                        "frequency": freq,
+                        "days_of_week": _parse_days_of_week(rec.get("repeat_days")),
+                        "until": until,
+                    }
+
+            out.append({
+                "title": title,
+                "event_type": event_type,
+                "date": event_date,
+                "start_time": _time24(rec.get("start_time")),
+                "end_time": _time24(rec.get("end_time")),
+                "location": (str(rec["location"]).strip() if rec.get("location") else None),
+                "athlete_names": athlete_names,
+                "notes": (str(rec["notes"]).strip() if rec.get("notes") else None),
+                "recurrence_rule": recurrence_rule,
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Expenses (supports long-form and wide-form)
 # ---------------------------------------------------------------------------
 def parse_expenses(filename: str, content: bytes) -> Dict[str, Any]:
@@ -518,6 +666,19 @@ TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
             ["2025-10-01", "Ava", "Tuition", "250.00", "2025-10-05", "No", "October tuition"],
             ["2025-10-01", "Ava", "Comp/Choreo", "75.00", "", "Yes", ""],
             ["2025-10-01", "Mia", "Tuition", "250.00", "2025-10-05", "No", ""],
+        ],
+    ),
+    "schedule": (
+        ["Title", "Type", "Date", "Start Time", "End Time", "Location",
+         "Athletes", "Repeats", "Repeat Days", "Repeat Until", "Notes"],
+        [
+            ["Senior 5 practice", "Practice", "2025-09-02", "6:30 PM", "8:30 PM",
+             "California Allstars", "Ava, Mia", "Weekly", "Tue,Thu", "2025-12-16",
+             "Wear comp shoes"],
+            ["Private tumbling", "Private Lesson", "2025-09-05", "4:00 PM", "5:00 PM",
+             "Gym B", "Ava", "Weekly", "Fri", "2025-11-28", ""],
+            ["Team bonding pizza", "Team Bonding", "2025-09-13", "7:00 PM", "9:00 PM",
+             "Coach's house", "Ava, Mia", "", "", "", "Bring drink"],
         ],
     ),
 }

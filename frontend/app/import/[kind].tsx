@@ -19,6 +19,7 @@ const TITLES: Record<string, string> = {
   competitions: "Competitions",
   travel: "Travel & accommodations",
   expenses: "Expenses",
+  schedule: "Schedule",
 };
 
 export default function ImportRunner() {
@@ -145,6 +146,18 @@ export default function ImportRunner() {
         title = `${row.athlete} — ${row.category}`;
         sub = `${formatCurrency(row.amount)} • ${formatDate(row.date) || "no date"}`;
       }
+    } else if (kind === "schedule") {
+      const fmt12 = (t?: string) => {
+        if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";
+        const [hS, m] = t.split(":");
+        let h = Number(hS); const p = h >= 12 ? "PM" : "AM"; h = h % 12; if (h === 0) h = 12;
+        return `${h}:${m} ${p}`;
+      };
+      const t = row.start_time ? (row.end_time ? `${fmt12(row.start_time)} – ${fmt12(row.end_time)}` : fmt12(row.start_time)) : "";
+      const rule = row.recurrence_rule;
+      const rep = rule ? ` • ${rule.frequency}${rule.until ? ` until ${formatDate(rule.until)}` : ""}` : "";
+      title = `${row.title || "(untitled)"}`;
+      sub = `${formatDate(row.date) || "no date"}${t ? ` • ${t}` : ""}${row.location ? ` • ${row.location}` : ""}${rep}`;
     }
     return (
       <TouchableOpacity
@@ -268,7 +281,7 @@ export default function ImportRunner() {
             <View style={[styles.check, createMissingComps && styles.checkOn]}>
               {createMissingComps && <Ionicons name="checkmark" size={14} color="white" />}
             </View>
-            <Text style={styles.toggleText}>Create competitions that aren't matched yet</Text>
+            <Text style={styles.toggleText}>Create competitions that aren&apos;t matched yet</Text>
           </TouchableOpacity>
         )}
 

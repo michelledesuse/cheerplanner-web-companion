@@ -337,7 +337,7 @@ class TestDashboardUnpaidBalanceAccountsPartial:
         a = _create_athlete(session, token, "TEST_dash")
         # Two unpaid expenses: 100 and 200
         e1 = _create_expense(session, token, a["id"], amount=100.0, category="Misc")
-        e2 = _create_expense(session, token, a["id"], amount=200.0, category="Gear")
+        _create_expense(session, token, a["id"], amount=200.0, category="Gear")
 
         # Baseline dashboard
         d0 = session.get(f"{API}/dashboard", headers=H(token)).json()
