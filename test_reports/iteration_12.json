@@ -1,0 +1,43 @@
+{
+  "summary": "Backend-only testing of CheerPlanner calendar time-granularity feature: competition.event_time + hotel check_in_time/check_out_time + 12-hour subtitles in /api/calendar + timed VEVENT emission in /api/export/calendar.ics. Created /app/backend/tests/test_calendar_time_granularity.py with 17 pytest cases covering all 11 acceptance criteria. First run: 17/17 PASS. No backend defects found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/competitions/{id}", "issue": "update_competition() strips all None values from the update payload (server.py:1168). This means callers cannot 'clear' event_time by sending JSON null — they must send an empty string \"\" instead (which the backend stores and which calendar_feed correctly treats as falsy). Behavior verified to work via empty-string; documenting because review-request wording 'set/clear event_time' could imply null-clear. Same applies to hotel check_in_time/check_out_time on PATCH /api/bookings (server.py:1227-1236 nullable set omits these two new fields)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_time_granularity.py",
+    "/app/test_reports/pytest/pytest_calendar_time_granularity.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: If product wants JSON-null to clear event_time / check_in_time / check_out_time on PATCH, add them to a nullable set in update_competition / update_bookings (similar to existing nullable set in update_booking at server.py:1227). Current behavior (empty-string-to-clear) works and is exercised by the test suite."
+  ],
+  "critical_code_review_comments": [
+    "_extract_hhmm() (server.py:2628) correctly extracts HH:MM from free-form datetime strings like '2025-11-13 08:30' via regex; rejects hours >23. Verified end-to-end via flight depart/arrive_time → calendar feed item.time/end_time → ICS DTSTART/DTEND.",
+    "_fmt_time_12h() (server.py:2199) correctly formats: 14:30 → '2:30 PM', 11:00 → '11:00 AM', 17:15 → '5:15 PM', 08:30 → '8:30 AM'. All assertions in subtitle strings passed.",
+    "calendar_feed() (server.py:1393-1488): competition item only carries 'time' on event_date (day==ev guard) — correct; multi-day comp 'starts'/'ends'/'day N of M' middle items remain all-day. Hotel checkin/checkout 'time' set per kind. Flight legs expose both 'time' and 'end_time' (depart/arrive).",
+    "export_calendar_ics() (server.py:2645): When item.time is present, emits 'DTSTART:YYYYMMDDTHHMMSS' (floating local — no TZID). When item.end_time also present uses it as DTEND, otherwise defaults to +1 hour. When item.time absent emits 'DTSTART;VALUE=DATE:YYYYMMDD' for all-day. All four cases verified.",
+    "Hotel ICS: when only one of check_in_time/check_out_time is set, only that leg emits a timed VEVENT — the other emits an all-day VEVENT. Not explicitly asserted but exercised structurally by the per-day items in calendar_feed.",
+    "Reminders endpoint /api/reminders untouched by new fields; parse_date() not affected because event_time / check_in_time / check_out_time live in separate fields, not concatenated into event_date. Verified by reminders regression test returning 200 with comp + hotel containing all new time fields.",
+    "File size: /app/backend/server.py is 2910 lines (was 2841 last iteration). Continues to grow — recommend a future modularization pass (calendar.py, bookings.py, packing.py) but not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_calendar_time_granularity.py (new — 17 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (17/17)",
+    "frontend": "not tested (backend-only scope)"
+  },
+  "seed_data_creation": "Each module run signs up a single disposable user TEST_caltime_<uuid>@mailinator.com; all comps/bookings created under that throwaway account. No shared/seed data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Calendar time-granularity backend is fully green: (1) Competition.event_time persists on POST and PATCH; clearing must use empty-string (None is filtered server-side). (2) Booking hotel check_in_time/check_out_time persist on POST and PATCH. (3) GET /api/calendar emits item.time + 12-hour subtitle strings ('2:30 PM', 'Check-in 3:00 PM', 'Check-out 11:00 AM', 'Depart 8:30 AM', 'Depart 5:15 PM') for comps/hotels/flights when times are known; falls back to time=null + non-time subtitle when not. (4) Flight legs additionally expose item.end_time pulled from arrive_time via _extract_hhmm regex. (5) GET /api/export/calendar.ics emits 'DTSTART:YYYYMMDDTHHMMSS' + 'DTEND:YYYYMMDDTHHMMSS' (1h fallback or arrive_time when present) for timed items, and 'DTSTART;VALUE=DATE:YYYYMMDD' for all-day. (6) /api/reminders unaffected. Regression file: /app/backend/tests/test_calendar_time_granularity.py. No bugs found.",
+  "rca_of_issue": "N/A — all 17 tests passed on first run; no defects identified."
+}

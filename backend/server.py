@@ -273,6 +273,7 @@ class Competition(BaseModel):
     name: str
     location: Optional[str] = None
     event_date: str  # ISO date
+    event_time: Optional[str] = None  # "HH:MM" 24h (e.g. team performance time)
     end_date: Optional[str] = None
     housing_required: bool = False
     booking_link: Optional[str] = None
@@ -285,6 +286,7 @@ class CompetitionCreate(BaseModel):
     name: str
     location: Optional[str] = None
     event_date: str
+    event_time: Optional[str] = None
     end_date: Optional[str] = None
     housing_required: bool = False
     booking_link: Optional[str] = None
@@ -296,6 +298,7 @@ class CompetitionUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
     event_date: Optional[str] = None
+    event_time: Optional[str] = None
     end_date: Optional[str] = None
     housing_required: Optional[bool] = None
     booking_link: Optional[str] = None
@@ -320,7 +323,9 @@ class Booking(BaseModel):
     notes: Optional[str] = None
     # hotel
     check_in: Optional[str] = None
+    check_in_time: Optional[str] = None   # "HH:MM" 24h
     check_out: Optional[str] = None
+    check_out_time: Optional[str] = None  # "HH:MM" 24h
     cancel_by: Optional[str] = None
     # car
     pickup_at: Optional[str] = None        # "YYYY-MM-DD HH:mm"
@@ -357,7 +362,9 @@ class BookingCreate(BaseModel):
     balance_due_date: Optional[str] = None
     notes: Optional[str] = None
     check_in: Optional[str] = None
+    check_in_time: Optional[str] = None
     check_out: Optional[str] = None
+    check_out_time: Optional[str] = None
     cancel_by: Optional[str] = None
     pickup_at: Optional[str] = None
     pickup_location: Optional[str] = None
@@ -387,7 +394,9 @@ class BookingUpdate(BaseModel):
     balance_due_date: Optional[str] = None
     notes: Optional[str] = None
     check_in: Optional[str] = None
+    check_in_time: Optional[str] = None
     check_out: Optional[str] = None
+    check_out_time: Optional[str] = None
     cancel_by: Optional[str] = None
     pickup_at: Optional[str] = None
     pickup_location: Optional[str] = None
@@ -1386,7 +1395,12 @@ async def calendar_feed(
                 "kind": "competition",
                 "date": day,
                 "title": title,
-                "subtitle": c.get("location") or "",
+                "time": c.get("event_time") if day == ev else None,
+                "subtitle": (
+                    f"{_fmt_time_12h(c.get('event_time'))}" + (f" \u00b7 {c.get('location')}" if c.get("location") else "")
+                    if c.get("event_time") and day == ev
+                    else c.get("location") or ""
+                ),
                 "color": "#007CFF",
                 "link": f"/competitions/{c['id']}",
             })
@@ -1415,37 +1429,60 @@ async def calendar_feed(
                     else:
                         title = f"Stay: {vendor} (night {offset + 1} of {delta + 1})"
                         kind = "hotel_stay"
+                    # Add 12-hour times to check-in/out subtitles when set.
+                    sub_parts = []
+                    item_time: Optional[str] = None
+                    if kind == "hotel_checkin" and b.get("check_in_time"):
+                        sub_parts.append(f"Check-in {_fmt_time_12h(b.get('check_in_time'))}")
+                        item_time = b.get("check_in_time")
+                    elif kind == "hotel_checkout" and b.get("check_out_time"):
+                        sub_parts.append(f"Check-out {_fmt_time_12h(b.get('check_out_time'))}")
+                        item_time = b.get("check_out_time")
+                    if conf:
+                        sub_parts.append(conf)
                     items.append({
                         "id": f"hotel-{b['id']}-{day}",
                         "kind": kind,
                         "date": day,
                         "title": title,
-                        "subtitle": conf,
+                        "time": item_time,
+                        "subtitle": " \u00b7 ".join(sub_parts) if sub_parts else conf,
                         "color": "#7C3AED",
                         "link": comp_link,
                     })
         elif btype == "flight":
             dep = _normalize_date(b.get("depart_time"))
             ret = _normalize_date(b.get("return_depart_time"))
+            # Surface the time component (when stored) for flight legs.
+            dep_t = _fmt_time_12h(b.get("depart_time"))
+            ret_t = _fmt_time_12h(b.get("return_depart_time"))
             # Outbound day
             if dep and in_range(dep):
+                base_sub = f"{vendor} {b.get('flight_number') or ''}".strip()
+                sub = f"Depart {dep_t} \u00b7 {base_sub}".strip(" \u00b7 ") if dep_t else base_sub
                 items.append({
                     "id": f"flight-dep-{b['id']}",
                     "kind": "flight_depart",
                     "date": dep,
                     "title": f"Flight {b.get('depart_airport') or ''} → {b.get('arrive_airport') or ''}".strip(),
-                    "subtitle": f"{vendor} {b.get('flight_number') or ''}".strip(),
+                    "time": _extract_hhmm(b.get("depart_time")),
+                    "end_time": _extract_hhmm(b.get("arrive_time")),
+                    "subtitle": sub,
                     "color": "#7C3AED",
                     "link": comp_link,
                 })
             # Return day
             if ret and in_range(ret):
+                base_sub = f"{b.get('return_airline') or vendor} {b.get('return_flight_number') or ''}".strip()
+                sub = f"Depart {ret_t} \u00b7 {base_sub}".strip(" \u00b7 ") if ret_t else base_sub
                 items.append({
                     "id": f"flight-ret-{b['id']}",
                     "kind": "flight_return",
                     "date": ret,
                     "title": f"Return {b.get('return_depart_airport') or ''} → {b.get('return_arrive_airport') or ''}".strip(),
-                    "subtitle": f"{vendor} {b.get('return_flight_number') or ''}".strip(),
+                    "time": _extract_hhmm(b.get("return_depart_time")),
+                    "end_time": _extract_hhmm(b.get("return_arrive_time")),
+                    "subtitle": sub,
                     "color": "#7C3AED",
                     "link": comp_link,
                 })
@@ -2588,6 +2625,23 @@ async def export_payments_csv(current_user=Depends(get_current_user)):
     return PlainTextResponse(content=buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=payments.csv"})
 
 
+def _extract_hhmm(value: Optional[str]) -> Optional[str]:
+    """Pull 'HH:MM' (24h) from any string that contains it (e.g. '2025-11-13 08:30')."""
+    if not value:
+        return None
+    import re as _re
+    m = _re.search(r"(\d{1,2}):(\d{2})", str(value))
+    if not m:
+        return None
+    try:
+        h = int(m.group(1))
+        if not (0 <= h <= 23):
+            return None
+    except ValueError:
+        return None
+    return f"{int(m.group(1)):02d}:{m.group(2)}"
+
+
 @api_router.get("/export/calendar.ics", response_class=PlainTextResponse)
 async def export_calendar_ics(current_user=Depends(get_current_user)):
     # Reuse the calendar feed for a wide range (1 year back to 2 years forward)
@@ -2603,13 +2657,29 @@ async def export_calendar_ics(current_user=Depends(get_current_user)):
         uid = f"{item['id']}@cheerplanner"
         summary = (item.get("title") or "Event").replace(",", "\\,").replace(";", "\\;")
         desc = (item.get("subtitle") or "").replace(",", "\\,").replace(";", "\\;")
+        # If the item carries a HH:MM time, emit a timed VEVENT in floating local
+        # time (no TZID) so Apple/Google calendars treat it as the user's local zone.
+        t = item.get("time")
+        end_t = item.get("end_time")
         lines += [
             "BEGIN:VEVENT",
             f"UID:{uid}",
             f"DTSTAMP:{now}",
-            f"DTSTART;VALUE=DATE:{d}",
-            f"SUMMARY:{summary}",
         ]
+        if t:
+            hh, mm = t.split(":")
+            lines.append(f"DTSTART:{d}T{hh}{mm}00")
+            # Default 1-hour duration when no explicit end is known.
+            if end_t:
+                eh, em = end_t.split(":")
+                lines.append(f"DTEND:{d}T{eh}{em}00")
+            else:
+                # +1h fallback
+                end_h = (int(hh) + 1) % 24
+                lines.append(f"DTEND:{d}T{end_h:02d}{mm}00")
+        else:
+            lines.append(f"DTSTART;VALUE=DATE:{d}")
+        lines.append(f"SUMMARY:{summary}")
         if desc:
             lines.append(f"DESCRIPTION:{desc}")
         lines.append("END:VEVENT")

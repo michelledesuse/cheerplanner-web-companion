@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
+import TimeField from "@/src/components/TimeField";
 
 export default function BookingForm() {
   const router = useRouter();
@@ -29,7 +30,9 @@ export default function BookingForm() {
   const [notes, setNotes] = useState("");
   // hotel
   const [checkIn, setCheckIn] = useState("");
+  const [checkInTime, setCheckInTime] = useState("");
   const [checkOut, setCheckOut] = useState("");
+  const [checkOutTime, setCheckOutTime] = useState("");
   const [cancelBy, setCancelBy] = useState("");
   // car
   const [pickupAt, setPickupAt] = useState("");
@@ -80,7 +83,9 @@ export default function BookingForm() {
         setBalanceDueDate(b.balance_due_date || "");
         setNotes(b.notes || "");
         setCheckIn(b.check_in || "");
+        setCheckInTime(b.check_in_time || "");
         setCheckOut(b.check_out || "");
+        setCheckOutTime(b.check_out_time || "");
         setCancelBy(b.cancel_by || "");
         setPickupAt(b.pickup_at || "");
         setPickupLocation(b.pickup_location || "");
@@ -126,7 +131,9 @@ export default function BookingForm() {
         balance_due_date: balanceDueDate || null,
         notes: notes.trim() || null,
         check_in: type === "hotel" ? (checkIn || null) : null,
+        check_in_time: type === "hotel" ? (checkInTime || null) : null,
         check_out: type === "hotel" ? (checkOut || null) : null,
+        check_out_time: type === "hotel" ? (checkOutTime || null) : null,
         cancel_by: type === "hotel" ? (cancelBy || null) : null,
         pickup_at: type === "car" ? (pickupAt || null) : null,
         pickup_location: type === "car" ? (pickupLocation.trim() || null) : null,
@@ -191,8 +198,12 @@ export default function BookingForm() {
             <>
               <Text style={styles.label}>Check-in</Text>
               <DateField value={checkIn} onChange={setCheckIn} testID="booking-checkin-input" />
+              <Text style={styles.label}>Check-in time (optional)</Text>
+              <TimeField value={checkInTime} onChange={setCheckInTime} testID="booking-checkin-time-input" />
               <Text style={styles.label}>Check-out</Text>
               <DateField value={checkOut} onChange={setCheckOut} testID="booking-checkout-input" />
+              <Text style={styles.label}>Check-out time (optional)</Text>
+              <TimeField value={checkOutTime} onChange={setCheckOutTime} testID="booking-checkout-time-input" />
               <Text style={styles.label}>Free cancellation by (optional)</Text>
               <DateField value={cancelBy} onChange={setCancelBy} />
             </>

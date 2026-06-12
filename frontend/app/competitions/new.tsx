@@ -12,6 +12,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
+import TimeField from "@/src/components/TimeField";
 
 export default function CompetitionForm() {
   const router = useRouter();
@@ -22,6 +23,7 @@ export default function CompetitionForm() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [eventDate, setEventDate] = useState("");
+  const [eventTime, setEventTime] = useState("");
   const [endDate, setEndDate] = useState("");
   const [housingRequired, setHousingRequired] = useState(false);
   const [bookingLink, setBookingLink] = useState("");
@@ -39,6 +41,7 @@ export default function CompetitionForm() {
         setName(c.name || "");
         setLocation(c.location || "");
         setEventDate(c.event_date || "");
+        setEventTime(c.event_time || "");
         setEndDate(c.end_date || "");
         setHousingRequired(!!c.housing_required);
         setBookingLink(c.booking_link || "");
@@ -60,6 +63,7 @@ export default function CompetitionForm() {
         name: name.trim(),
         location: location.trim() || null,
         event_date: eventDate,
+        event_time: eventTime.trim() || null,
         end_date: endDate || null,
         housing_required: housingRequired,
         booking_link: bookingLink.trim() || null,
@@ -107,6 +111,9 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Event date</Text>
           <DateField value={eventDate} onChange={setEventDate} testID="comp-date-input" />
+
+          <Text style={styles.label}>Team performance time (optional)</Text>
+          <TimeField value={eventTime} onChange={setEventTime} testID="comp-time-input" />
 
           <Text style={styles.label}>End date (optional)</Text>
           <DateField value={endDate} onChange={setEndDate} />
