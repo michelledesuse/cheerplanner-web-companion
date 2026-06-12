@@ -10,6 +10,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
+import PackingListSection from "@/src/components/PackingListSection";
 
 type Competition = {
   id: string;
@@ -236,6 +237,9 @@ export default function CompetitionDetail() {
             <View style={styles.notesCard}><Text style={styles.notesText}>{comp.notes}</Text></View>
           </>
         )}
+
+        <Text style={styles.sectionHead}>Packing list</Text>
+        <PackingListSection competitionId={comp.id} athletes={athletes} />
       </ScrollView>
     </SafeAreaView>
   );

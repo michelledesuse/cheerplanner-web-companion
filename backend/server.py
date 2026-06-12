@@ -3,7 +3,7 @@ import uuid
 import logging
 from datetime import datetime, timezone, timedelta, date
 from pathlib import Path
-from typing import List, Optional, Literal, Dict
+from typing import List, Optional, Literal, Dict, Any
 
 from fastapi import FastAPI, APIRouter, HTTPException, status, Depends, Request, UploadFile, File, Form
 from fastapi.responses import JSONResponse, Response
@@ -407,6 +407,125 @@ class BookingUpdate(BaseModel):
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
+
+
+# ============================================================
+# Packing Lists (reusable templates + per-competition instances)
+# ============================================================
+class PackingItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    category: Optional[str] = "Other"
+    order: int = 0
+
+
+class PackingTemplate(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    items: List[PackingItem] = Field(default_factory=list)
+    tips: List[str] = Field(default_factory=list)
+    is_default: bool = False  # true for the canonical CheerPlanner Standard seed
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class PackingTemplateCreate(BaseModel):
+    name: str
+    items: List[PackingItem] = Field(default_factory=list)
+    tips: List[str] = Field(default_factory=list)
+
+
+class PackingTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    items: Optional[List[PackingItem]] = None
+    tips: Optional[List[str]] = None
+
+
+class PackingChecklistItem(BaseModel):
+    """A single line on a per-competition packing list.
+
+    `checked_by` maps athlete_id → bool so each athlete on a comp has their own
+    check state for the same item (per-athlete sub-lists). A `null`-id key
+    (`"shared"`) tracks the family-shared check when no athletes are scoped.
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    category: Optional[str] = "Other"
+    order: int = 0
+    checked_by: Dict[str, bool] = Field(default_factory=dict)
+
+
+class PackingList(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    competition_id: str
+    template_id: Optional[str] = None
+    name: Optional[str] = None
+    items: List[PackingChecklistItem] = Field(default_factory=list)
+    tips: List[str] = Field(default_factory=list)
+    athlete_ids: List[str] = Field(default_factory=list)  # who this list covers
+    created_at: str = Field(default_factory=utcnow_iso)
+    updated_at: str = Field(default_factory=utcnow_iso)
+
+
+class PackingListCreate(BaseModel):
+    competition_id: str
+    template_id: Optional[str] = None
+    name: Optional[str] = None
+    items: Optional[List[PackingChecklistItem]] = None  # if None, copy from template
+    tips: Optional[List[str]] = None
+    athlete_ids: Optional[List[str]] = None
+
+
+class PackingListUpdate(BaseModel):
+    name: Optional[str] = None
+    items: Optional[List[PackingChecklistItem]] = None
+    tips: Optional[List[str]] = None
+    athlete_ids: Optional[List[str]] = None
+    save_as_template_name: Optional[str] = None  # if set, also save current items as a new template
+
+
+# Canonical CheerPlanner Standard packing template (from user's spreadsheet).
+CHEERPLANNER_STANDARD_PACKING: List[Dict[str, str]] = [
+    # Uniform
+    *[{"label": x, "category": "Uniform"} for x in [
+        "Uniform Top", "Uniform Shorts", "Uniform Sports Bra", "Uniform Competition Bow",
+        "Uniform Competition Socks", "Uniform Competition Cheer Shoes", "Uniform Team Shirt",
+    ]],
+    # Practice Wear
+    *[{"label": x, "category": "Practice Wear"} for x in [
+        "Team Coverup", "Team Sports Bra or Practice Top", "Practice Shorts", "Practice Bow",
+    ]],
+    # Hair & Makeup
+    *[{"label": x, "category": "Hair & Makeup"} for x in [
+        "Hairpiece (If Applicable)",
+        "Hairpiece Sewing or Zip Tie Kit (Plastic Needle & Bright Colored Yarn, or Zip Ties)",
+        "Scissors", "Brush", "Comb", "Gel", "Hairspray", "Hair Ties", "Hair Pins",
+        "Barrel/Curling Iron (If Applicable)", "Flat Iron (If Applicable)",
+        "Eyeshadow Palette", "Contour Palette", "Lipstick", "Lashes", "Lash Glue",
+        "Foundation", "Primer", "Setting Spray", "Blush", "Mascara", "Team Glitter",
+    ]],
+    # Toiletries
+    *[{"label": x, "category": "Toiletries"} for x in [
+        "Toothbrush", "Toothpaste", "Toiletries (Soap, lotion, etc)",
+    ]],
+    # Essentials
+    *[{"label": x, "category": "Essentials"} for x in [
+        "Pajamas", "Undergarments", "Regular Clothes", "Regular Shoes",
+        "Jacket", "Cell Phone", "Cell Phone Charger",
+    ]],
+    # Medication
+    *[{"label": x, "category": "Medication"} for x in ["Medicines/Vitamins"]],
+]
+
+CHEERPLANNER_STANDARD_TIPS: List[str] = [
+    "If flying — no uniform, cheer shoes, or cheer gear is allowed in checked baggage.",
+    "Screenshot the itinerary and save to your phone — or upload it into CheerPlanner.",
+    "Physically triple-check all uniform items — uniform top, shorts, mesh liner, socks (two pairs), shoes, bow, makeup, & hair products. Pack everything together and put it in the car first.",
+    "Keep notifications turned on so you don't miss important team details or changes.",
+    "Pack some healthy snacks and water for the hotel room.",
+]
+
 
 
 class Fundraiser(BaseModel):
@@ -1574,6 +1693,51 @@ async def reminders(current_user=Depends(get_current_user)):
             "competition_id": d.get("competition_id"),
         })
 
+    # Pack-for-comp reminders — fires within the next 7 days when the comp's
+    # packing list has unchecked items (or doesn't exist yet).
+    member_ids_for_packing = await _household_user_ids(current_user["id"])
+    async for c in db.competitions.find(
+        {"user_id": {"$in": member_ids_for_packing}}, {"_id": 0},
+    ):
+        ev = parse_date(c.get("event_date"))
+        if not ev:
+            continue
+        delta = (ev - today).days
+        if delta < 0 or delta > 7:
+            continue
+        pl = await db.packing_lists.find_one(
+            {"competition_id": c["id"], "user_id": {"$in": member_ids_for_packing}}, {"_id": 0},
+        )
+        # Count any unchecked item across any tracked athlete (or the "shared" key).
+        unchecked = 0
+        total = 0
+        if pl:
+            for it in (pl.get("items") or []):
+                cb = it.get("checked_by") or {}
+                keys = list(cb.keys()) or ["shared"]
+                for k in keys:
+                    total += 1
+                    if not cb.get(k):
+                        unchecked += 1
+        else:
+            unchecked = 1  # nudge to create one
+            total = 0
+        if unchecked <= 0:
+            continue
+        items.append({
+            "id": f"packing:{c['id']}",
+            "kind": "packing",
+            "title": f"Pack for {c.get('name', 'competition')}",
+            "subtitle": (
+                f"{unchecked} items left" if total > 0 else "Tap to create a packing list"
+            ),
+            "amount": None,
+            "due_date": c.get("event_date"),
+            "days_until": delta,
+            "ref_id": c["id"],
+            "competition_id": c["id"],
+        })
+
     items.sort(key=lambda x: (x["days_until"] if x["days_until"] is not None else 9999))
     return {"items": items, "today": today.isoformat()}
 
@@ -2456,6 +2620,220 @@ async def export_calendar_ics(current_user=Depends(get_current_user)):
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+
+# ============================================================
+# Packing list endpoints
+# ============================================================
+def _hydrate_template_items(items: List[Dict[str, Any]]) -> List[PackingItem]:
+    """Coerce raw item dicts to PackingItem models, assigning order if missing."""
+    out: List[PackingItem] = []
+    for i, raw in enumerate(items or []):
+        it = raw if isinstance(raw, PackingItem) else PackingItem(**raw)
+        if it.order == 0:
+            it.order = i
+        out.append(it)
+    return out
+
+
+def _checklist_from_template_items(items: List[PackingItem]) -> List[PackingChecklistItem]:
+    return [
+        PackingChecklistItem(label=i.label, category=i.category, order=i.order)
+        for i in items
+    ]
+
+
+@api_router.get("/packing-templates", response_model=List[PackingTemplate])
+async def list_packing_templates(current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    docs = await db.packing_templates.find(
+        {"user_id": {"$in": member_ids}}, {"_id": 0},
+    ).sort([("is_default", -1), ("created_at", -1)]).to_list(500)
+    return [PackingTemplate(**d) for d in docs]
+
+
+@api_router.post("/packing-templates/seed-default", response_model=PackingTemplate)
+async def seed_default_packing_template(current_user=Depends(get_current_user)):
+    """Create the canonical CheerPlanner Standard template for this household.
+
+    Idempotent — returns the existing default if already seeded.
+    """
+    member_ids = await _household_user_ids(current_user["id"])
+    existing = await db.packing_templates.find_one(
+        {"user_id": {"$in": member_ids}, "is_default": True}, {"_id": 0},
+    )
+    if existing:
+        return PackingTemplate(**existing)
+    items = [
+        PackingItem(label=spec["label"], category=spec["category"], order=i)
+        for i, spec in enumerate(CHEERPLANNER_STANDARD_PACKING)
+    ]
+    tpl = PackingTemplate(
+        user_id=current_user["id"],
+        name="CheerPlanner Standard",
+        items=items,
+        tips=list(CHEERPLANNER_STANDARD_TIPS),
+        is_default=True,
+    )
+    await db.packing_templates.insert_one(tpl.model_dump())
+    return tpl
+
+
+@api_router.post("/packing-templates", response_model=PackingTemplate)
+async def create_packing_template(payload: PackingTemplateCreate, current_user=Depends(get_current_user)):
+    tpl = PackingTemplate(
+        user_id=current_user["id"],
+        name=payload.name.strip() or "Untitled list",
+        items=_hydrate_template_items([
+            i.model_dump() if isinstance(i, PackingItem) else i for i in payload.items
+        ]),
+        tips=payload.tips or [],
+    )
+    await db.packing_templates.insert_one(tpl.model_dump())
+    return tpl
+
+
+@api_router.patch("/packing-templates/{template_id}", response_model=PackingTemplate)
+async def update_packing_template(template_id: str, payload: PackingTemplateUpdate, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    updates: Dict[str, Any] = {}
+    if payload.name is not None:
+        updates["name"] = payload.name.strip() or "Untitled list"
+    if payload.items is not None:
+        updates["items"] = [i.model_dump() for i in _hydrate_template_items([
+            i.model_dump() if isinstance(i, PackingItem) else i for i in payload.items
+        ])]
+    if payload.tips is not None:
+        updates["tips"] = payload.tips
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.packing_templates.update_one(
+        {"id": template_id, "user_id": {"$in": member_ids}}, {"$set": updates},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    doc = await db.packing_templates.find_one({"id": template_id}, {"_id": 0})
+    return PackingTemplate(**doc)
+
+
+@api_router.delete("/packing-templates/{template_id}")
+async def delete_packing_template(template_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.packing_templates.delete_one({"id": template_id, "user_id": {"$in": member_ids}})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"deleted": True}
+
+
+@api_router.get("/competitions/{competition_id}/packing-list", response_model=Optional[PackingList])
+async def get_packing_list(competition_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.packing_lists.find_one(
+        {"competition_id": competition_id, "user_id": {"$in": member_ids}}, {"_id": 0},
+    )
+    return PackingList(**doc) if doc else None
+
+
+@api_router.post("/competitions/{competition_id}/packing-list", response_model=PackingList)
+async def create_or_replace_packing_list(
+    competition_id: str,
+    payload: PackingListCreate,
+    current_user=Depends(get_current_user),
+):
+    member_ids = await _household_user_ids(current_user["id"])
+    items: List[PackingChecklistItem]
+    tips: List[str] = list(payload.tips or [])
+    name: Optional[str] = payload.name
+    if payload.items is not None:
+        items = [
+            i if isinstance(i, PackingChecklistItem) else PackingChecklistItem(**i)
+            for i in payload.items
+        ]
+    elif payload.template_id:
+        tpl_doc = await db.packing_templates.find_one(
+            {"id": payload.template_id, "user_id": {"$in": member_ids}}, {"_id": 0},
+        )
+        if not tpl_doc:
+            raise HTTPException(status_code=404, detail="Template not found")
+        tpl = PackingTemplate(**tpl_doc)
+        items = _checklist_from_template_items(tpl.items)
+        if not tips:
+            tips = list(tpl.tips)
+        if not name:
+            name = tpl.name
+    else:
+        items = []
+
+    pl = PackingList(
+        user_id=current_user["id"],
+        competition_id=competition_id,
+        template_id=payload.template_id,
+        name=name,
+        items=items,
+        tips=tips,
+        athlete_ids=payload.athlete_ids or [],
+        updated_at=utcnow_iso(),
+    )
+    # Upsert — one packing list per (household, competition).
+    await db.packing_lists.delete_many(
+        {"competition_id": competition_id, "user_id": {"$in": member_ids}},
+    )
+    await db.packing_lists.insert_one(pl.model_dump())
+    return pl
+
+
+@api_router.patch("/packing-lists/{list_id}", response_model=PackingList)
+async def update_packing_list(list_id: str, payload: PackingListUpdate, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    existing = await db.packing_lists.find_one(
+        {"id": list_id, "user_id": {"$in": member_ids}}, {"_id": 0},
+    )
+    if not existing:
+        raise HTTPException(status_code=404, detail="Packing list not found")
+
+    updates: Dict[str, Any] = {"updated_at": utcnow_iso()}
+    if payload.name is not None:
+        updates["name"] = payload.name
+    if payload.items is not None:
+        updates["items"] = [
+            (i if isinstance(i, PackingChecklistItem) else PackingChecklistItem(**i)).model_dump()
+            for i in payload.items
+        ]
+    if payload.tips is not None:
+        updates["tips"] = payload.tips
+    if payload.athlete_ids is not None:
+        updates["athlete_ids"] = payload.athlete_ids
+
+    await db.packing_lists.update_one(
+        {"id": list_id, "user_id": {"$in": member_ids}}, {"$set": updates},
+    )
+
+    # Optionally snapshot current items into a fresh template.
+    if payload.save_as_template_name:
+        current_items = updates.get("items") or existing.get("items") or []
+        tpl = PackingTemplate(
+            user_id=current_user["id"],
+            name=payload.save_as_template_name.strip() or "Saved list",
+            items=[
+                PackingItem(label=i.get("label", ""), category=i.get("category"), order=i.get("order", 0))
+                for i in current_items if i.get("label")
+            ],
+            tips=(updates.get("tips") if "tips" in updates else existing.get("tips")) or [],
+        )
+        await db.packing_templates.insert_one(tpl.model_dump())
+
+    doc = await db.packing_lists.find_one({"id": list_id}, {"_id": 0})
+    return PackingList(**doc)
+
+
+@api_router.delete("/packing-lists/{list_id}")
+async def delete_packing_list(list_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.packing_lists.delete_one({"id": list_id, "user_id": {"$in": member_ids}})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Packing list not found")
+    return {"deleted": True}
+
 
 
 # Re-include router AFTER all routes are registered (export endpoints added after first include_router)
