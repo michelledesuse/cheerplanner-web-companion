@@ -1226,7 +1226,7 @@ async def update_booking(booking_id: str, payload: BookingUpdate, current_user=D
     sent = payload.model_dump(exclude_unset=True)
     nullable = {
         "provider", "confirmation", "balance_due_date", "notes",
-        "check_in", "check_out", "cancel_by",
+        "check_in", "check_in_time", "check_out", "check_out_time", "cancel_by",
         "pickup_at", "pickup_location", "dropoff_at", "dropoff_location",
         "flight_number", "depart_airport", "arrive_airport", "depart_time", "arrive_time",
         "return_airline", "return_confirmation", "return_flight_number",
