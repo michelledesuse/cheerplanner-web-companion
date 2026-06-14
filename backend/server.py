@@ -663,6 +663,65 @@ async def me(current_user=Depends(get_current_user)):
     )
 
 
+class DeleteAccountPayload(BaseModel):
+    password: str
+
+
+@api_router.delete("/auth/me")
+async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get_current_user)):
+    """Permanently delete the current user's account.
+
+    Apple App Store Guideline 5.1.1(v): apps that support account creation
+    must allow users to delete their account from within the app. We require
+    password re-confirmation so a stolen/forgotten unlocked phone can't nuke
+    the account, then cascade-delete every collection scoped to this user.
+
+    Household behavior:
+    • If the user is in a multi-member household, they're removed from the
+      member list but shared records (athletes / expenses / etc. owned by
+      OTHER household members) are preserved for the remaining members.
+    • Records this user personally owns are deleted regardless.
+    • If the user was the last member of a household, the household doc is
+      also removed.
+    """
+    user_id = current_user["id"]
+    user_doc = await db.users.find_one({"id": user_id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_password(payload.password, user_doc.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Password is incorrect")
+
+    # Remove from any households first so we don't orphan refs.
+    households = db.households.find({"member_user_ids": user_id})
+    async for h in households:
+        members = [m for m in (h.get("member_user_ids") or []) if m != user_id]
+        if members:
+            await db.households.update_one({"id": h["id"]}, {"$set": {"member_user_ids": members}})
+        else:
+            await db.households.delete_one({"id": h["id"]})
+
+    # Cascade-delete every record this user personally created. (Records owned
+    # by surviving household co-members are not touched.)
+    collections_to_purge = [
+        "athletes", "competitions", "bookings", "expenses", "payments",
+        "fundraisers", "schedule_events", "packing_templates", "packing_lists",
+        "household_invites",
+    ]
+    deleted_counts: Dict[str, int] = {}
+    for name in collections_to_purge:
+        res = await db[name].delete_many({"user_id": user_id})
+        deleted_counts[name] = res.deleted_count
+
+    # Finally, the user account itself.
+    await db.users.delete_one({"id": user_id})
+
+    return {
+        "deleted": True,
+        "user_id": user_id,
+        "purged": deleted_counts,
+    }
+
+
 # ============================================================
 # Athletes
 # ============================================================

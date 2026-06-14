@@ -1,0 +1,51 @@
+{
+  "summary": "Backend-only testing of Apple App Store 5.1.1(v) account deletion via DELETE /api/auth/me. Created /app/backend/tests/test_account_deletion.py with 7 pytest cases covering auth guards, wrong-password rejection, happy-path cascade, response shape, single-member household removal, multi-member household preservation, idempotency, and post-delete token invalidation. Result: 6/7 PASS. One real backend defect surfaced: household_invites are purged by user_id, but the HouseholdInvite schema has no user_id field (only invited_by) — so invites created by the deleting user are NOT cleaned up, leaving orphan invite codes that reference a deleted user.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "DELETE /api/auth/me",
+        "issue": "household_invites purge filter is `{user_id: <id>}` but the HouseholdInvite model (server.py:83-90) stores ownership in `invited_by`, not `user_id`. Result: deleted user's outstanding invite codes are left in the DB (purged['household_invites'] is always 0 even when the user created invites). Fix: change line 712 cascade for `household_invites` to use `{\"invited_by\": user_id}` (or `{\"$or\": [{\"user_id\": user_id}, {\"invited_by\": user_id}]}`). Reference: /app/backend/server.py:705-713.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "DELETE /api/auth/me",
+        "issue": "Endpoint has no rate limit decorator while /auth/signup and /auth/login are limited to 10/minute. Brute-forcing the password re-confirmation against a stolen token is unrate-limited. Consider @limiter.limit('5/minute') on delete_account. Reference: /app/backend/server.py:670-722."
+      },
+      {
+        "endpoint": "DELETE /api/auth/me",
+        "issue": "Cascade purge is not transactional — if the process dies mid-loop (e.g., between deleting expenses and deleting the user row), the user's email remains registered but their data is partially gone. For Apple 5.1.1(v) compliance this is acceptable, but consider using a Mongo session/transaction or deleting the user row LAST inside a try/except that re-raises (current code already deletes user last, good — but no rollback path). Reference: /app/backend/server.py:703-716."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_account_deletion.py",
+    "/app/test_reports/pytest/pytest_account_deletion.xml"
+  ],
+  "action_items": [
+    "Fix household_invites cascade in DELETE /api/auth/me: filter by `invited_by` instead of `user_id` (server.py:705-713). After fix, re-run test_account_deletion.py — TestDeleteHappyPath::test_delete_returns_expected_shape_and_purges_owned_records should go green (it currently fails the `purged['household_invites'] >= 1` assertion).",
+    "Optional: add rate limiting (@limiter.limit('5/minute')) to DELETE /api/auth/me to mirror /auth/login.",
+    "Optional: expose a frontend confirmation modal that surfaces the `purged` map for transparency (Apple-friendly UX)."
+  ],
+  "critical_code_review_comments": [
+    "HouseholdInvite ownership uses `invited_by`, but every other resource uses `user_id` — this inconsistency caused the bug above. Consider also adding a denormalized `user_id` to HouseholdInvite (= invited_by) at insert time so the same cascade-filter pattern works uniformly across all collections.",
+    "delete_account correctly orders household removal BEFORE the user row delete, but the function does NOT verify cascade success — it accepts whatever delete_many returns. Acceptable, but the `purged` counts are the only client-visible signal.",
+    "get_current_user returns 401 ('User not found') when the JWT references a deleted user — confirmed correct path for idempotency (no 500)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_account_deletion.py (new)"
+  ],
+  "success_rate": {"backend": "86% (6/7 pytest cases)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Tests register ephemeral TEST_*@mailinator.com users with uuid suffixes and either self-delete at the end or are deleted as the subject of the test. No test touches the smoke@test.com fixture. Multi-member test creates 2 users + invite + join; keeper account self-deletes at end.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Re-run `pytest /app/backend/tests/test_account_deletion.py -v` after the main agent fixes the household_invites purge filter. All 7 cases should pass. If main agent also adds rate limiting to DELETE /api/auth/me, note that the test suite registers fresh users for each test so the existing 10/minute pattern would still allow these tests to pass; a stricter limit might require pytest fixtures with delays.",
+  "rca_of_issue": "DELETE /api/auth/me at server.py:710-713 iterates a hardcoded list of collection names and runs `db[name].delete_many({'user_id': user_id})`. Nine of the ten collections in that list (athletes, competitions, bookings, expenses, payments, fundraisers, schedule_events, packing_templates, packing_lists) DO store `user_id`, so the cascade works. The tenth — `household_invites` — uses the field `invited_by` instead (defined in HouseholdInvite at server.py:83-90). Therefore the filter `{'user_id': <deleted_user_id>}` matches zero docs and the deleted user's invites linger in the DB. Reproduction: signup a user → POST /api/household/invite → DELETE /api/auth/me (correct password) → response.purged.household_invites is 0 even though an invite was just created. Mitigation: change line 712 cascade loop to special-case `household_invites` using `{'invited_by': user_id}`, or add a denormalized `user_id` field on HouseholdInvite at insert time."
+}

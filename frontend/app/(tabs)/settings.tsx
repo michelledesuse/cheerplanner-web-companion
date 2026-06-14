@@ -1,15 +1,19 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { useAuth } from "@/src/context/AuthContext";
+import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   const openExport = async (path: string, suggestedName: string, mimeType: string = "text/csv") => {
     try {
@@ -66,6 +70,44 @@ export default function SettingsScreen() {
     ]);
   };
 
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete account?",
+      "This permanently deletes your CheerPlanner account and ALL your data (athletes, expenses, payments, competitions, schedules, packing lists). This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => { setDeletePassword(""); setDeleteOpen(true); },
+        },
+      ],
+    );
+  };
+
+  const performDelete = async () => {
+    if (!deletePassword) {
+      Alert.alert("Password required", "Enter your password to confirm.");
+      return;
+    }
+    setDeletingAccount(true);
+    try {
+      await api.delete("/auth/me", { data: { password: deletePassword } });
+      setDeleteOpen(false);
+      await signOut();
+      router.replace("/login");
+      // Give the modal a tick to unmount before the toast.
+      setTimeout(() => {
+        Alert.alert("Account deleted", "Your account and all related data have been removed.");
+      }, 250);
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail || e?.message || "Could not delete account.";
+      Alert.alert("Error", msg);
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 120 }} testID="settings-screen">
@@ -105,8 +147,65 @@ export default function SettingsScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.footer}>CheerPlanner • v1.0</Text>
+        <Text style={styles.sectionHead}>Danger zone</Text>
+        <View style={styles.group}>
+          <TouchableOpacity style={styles.deleteRow} onPress={confirmDelete} activeOpacity={0.7} testID="settings-delete-account">
+            <View style={[styles.rowIcon, { backgroundColor: "#FEE2E2" }]}>
+              <Ionicons name="trash" size={18} color="#DC2626" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.deleteRowLabel}>Delete account</Text>
+              <Text style={styles.deleteRowSubtitle}>Permanently remove your account &amp; data</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.footer}>CheerPlanner • v1.0.5</Text>
       </ScrollView>
+
+      {/* Password-confirm modal for account deletion (Apple 5.1.1(v) compliance) */}
+      <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => setDeleteOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="warning" size={22} color="#DC2626" />
+              <Text style={styles.modalTitle}>Delete account</Text>
+            </View>
+            <Text style={styles.modalBody}>
+              This is permanent. Your account, athletes, expenses, payments, competitions, schedules, and packing lists will be deleted forever. Enter your password to confirm.
+            </Text>
+            <TextInput
+              style={styles.modalInput}
+              value={deletePassword}
+              onChangeText={setDeletePassword}
+              placeholder="Password"
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete="current-password"
+              testID="settings-delete-password-input"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => { setDeleteOpen(false); setDeletePassword(""); }}
+                disabled={deletingAccount}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalDeleteBtn, deletingAccount && { opacity: 0.7 }]}
+                onPress={performDelete}
+                disabled={deletingAccount}
+                testID="settings-delete-confirm-btn"
+              >
+                {deletingAccount ? <ActivityIndicator color="white" /> : <Text style={styles.modalDeleteText}>Delete forever</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -141,4 +240,30 @@ const styles = StyleSheet.create({
   signOutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.xl, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.dangerBg },
   signOutText: { color: colors.dangerText, fontWeight: "700" },
   footer: { textAlign: "center", marginTop: spacing.lg, color: colors.textTertiary, ...typography.caption },
+
+  deleteRow: {
+    flexDirection: "row", alignItems: "center", padding: spacing.md, gap: spacing.md,
+    backgroundColor: colors.card,
+  },
+  deleteRowLabel: { ...typography.bodyMedium, color: "#DC2626" },
+  deleteRowSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  modalSheet: {
+    width: "100%", maxWidth: 420, backgroundColor: colors.bg,
+    borderRadius: 16, padding: spacing.lg, gap: spacing.md,
+  },
+  modalHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
+  modalTitle: { ...typography.h3, color: colors.textPrimary },
+  modalBody: { ...typography.body, color: colors.textSecondary, lineHeight: 20 },
+  modalInput: {
+    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+    borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12,
+    fontSize: 15, color: colors.textPrimary,
+  },
+  modalActions: { flexDirection: "row", gap: spacing.md, marginTop: 4 },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+  modalCancelText: { ...typography.bodyMedium, color: colors.textPrimary },
+  modalDeleteBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: "#DC2626", alignItems: "center" },
+  modalDeleteText: { color: "white", fontWeight: "700" },
 });
