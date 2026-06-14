@@ -705,12 +705,15 @@ async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get
     collections_to_purge = [
         "athletes", "competitions", "bookings", "expenses", "payments",
         "fundraisers", "schedule_events", "packing_templates", "packing_lists",
-        "household_invites",
     ]
     deleted_counts: Dict[str, int] = {}
     for name in collections_to_purge:
         res = await db[name].delete_many({"user_id": user_id})
         deleted_counts[name] = res.deleted_count
+
+    # household_invites uses `invited_by` (not `user_id`) for ownership.
+    invite_res = await db.household_invites.delete_many({"invited_by": user_id})
+    deleted_counts["household_invites"] = invite_res.deleted_count
 
     # Finally, the user account itself.
     await db.users.delete_one({"id": user_id})
