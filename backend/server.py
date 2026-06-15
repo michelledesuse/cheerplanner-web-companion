@@ -1172,6 +1172,11 @@ async def apply_available_payments(expense_id: str, current_user=Depends(get_cur
         raise HTTPException(status_code=404, detail="Expense not found")
 
     amt = float(exp.get("amount") or 0)
+    # Short-circuit: if the user has already manually flipped the expense to paid
+    # (PATCH paid=true without recording a payment) there's nothing to allocate.
+    if exp.get("paid"):
+        return {"applied": 0.0, "balance_due": 0.0, "payments_touched": 0}
+
     paid_map = await _build_paid_map(current_user["id"])
     balance_due = round(max(0.0, amt - float(paid_map.get(expense_id, 0.0))), 2)
     if balance_due <= 0:
@@ -1193,7 +1198,15 @@ async def apply_available_payments(expense_id: str, current_user=Depends(get_cur
             break
         p_amt = float(p.get("amount") or 0)
         allocations = list(p.get("allocations") or [])
-        used = sum(float(a.get("amount") or 0) for a in allocations)
+        if allocations:
+            used = sum(float(a.get("amount") or 0) for a in allocations)
+        elif p.get("applied_expense_ids"):
+            # Legacy / single-POST payment: the whole amount was implicitly
+            # consumed by the explicitly-listed expense(s). Treat it as fully
+            # allocated so we don't double-spend.
+            used = p_amt
+        else:
+            used = 0.0
         free = round(p_amt - used, 2)
         if free <= 0:
             continue
