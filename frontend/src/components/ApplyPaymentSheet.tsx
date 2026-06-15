@@ -133,6 +133,43 @@ export default function ApplyPaymentSheet({ visible, onClose, expense, onApplied
               </View>
             </View>
 
+            {/* Apply already-recorded payment funds (no new payment created) */}
+            <TouchableOpacity
+              style={[styles.pullBtn, (submitting || balance <= 0) && { opacity: 0.6 }]}
+              onPress={async () => {
+                if (!expense) return;
+                setSubmitting(true);
+                try {
+                  const r = await api.post<{ applied: number; balance_due: number; payments_touched: number }>(
+                    `/expenses/${expense.id}/apply-available-payments`,
+                  );
+                  if ((r.data.applied || 0) <= 0) {
+                    Alert.alert(
+                      "Nothing to apply",
+                      "No existing payments for this athlete have leftover funds.",
+                    );
+                  } else {
+                    Alert.alert(
+                      "Funds applied",
+                      `Applied ${formatCurrency(r.data.applied)} from ${r.data.payments_touched} existing payment(s). Remaining balance: ${formatCurrency(r.data.balance_due)}.`,
+                    );
+                    onApplied();
+                    onClose();
+                  }
+                } catch (e: any) {
+                  Alert.alert("Error", e?.response?.data?.detail || "Could not apply payments.");
+                } finally { setSubmitting(false); }
+              }}
+              disabled={submitting || balance <= 0}
+              testID="apply-existing-payments-btn"
+            >
+              <Ionicons name="flash" size={16} color={colors.accent} />
+              <Text style={styles.pullBtnText}>Apply available payment funds</Text>
+            </TouchableOpacity>
+            <Text style={styles.pullHelper}>
+              Pulls from existing payments for this athlete that still have unused balance.
+            </Text>
+
             <Text style={styles.label}>Apply amount (USD)</Text>
             <TextInput
               value={amount}
@@ -316,4 +353,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   submitText: { color: "white", fontWeight: "800", fontSize: 16 },
+  pullBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    borderWidth: 1, borderColor: colors.accent, borderRadius: radius.md,
+    paddingVertical: 12, backgroundColor: colors.accentSubtle,
+  },
+  pullBtnText: { color: colors.accent, fontWeight: "800" },
+  pullHelper: { ...typography.caption, color: colors.textTertiary, marginTop: 6, fontStyle: "italic" },
 });

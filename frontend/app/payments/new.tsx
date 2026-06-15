@@ -89,6 +89,15 @@ export default function PaymentForm() {
     setAppliedIds((s) => {
       const next = new Set(s);
       if (next.has(id)) next.delete(id); else next.add(id);
+      // Auto-populate the amount from the sum of remaining-balances on the
+      // selected expenses (use full amount when balance isn't known yet).
+      const total = unpaidExpenses
+        .filter((e) => next.has(e.id))
+        .reduce((sum, e) => sum + Number(
+          // PaidMapAware: prefer `balance_due` if expense list endpoint surfaced it
+          (e as any).balance_due ?? e.amount ?? 0,
+        ), 0);
+      if (total > 0) setAmount(total.toFixed(2));
       return next;
     });
   };

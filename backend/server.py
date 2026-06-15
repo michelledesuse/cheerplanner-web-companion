@@ -1124,36 +1124,14 @@ async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(
     if per_amt <= 0:
         raise HTTPException(status_code=400, detail="Per-athlete amount must be greater than zero")
 
-    # Auto-allocate per-athlete amount across that athlete's oldest unpaid expenses (by due_date)
-    paid_map = await _build_paid_map(user_id)
+    # Per the latest UX: bulk payments are NOT auto-allocated to expenses.
+    # Users must explicitly pick which expenses each payment covers (either by
+    # checking expense boxes in the New Payment form, or by tapping "Apply" on
+    # an expense later). This avoids surprising the user when an old expense
+    # gets silently marked as paid.
     created: List[PaymentEntry] = []
     docs: List[dict] = []
-    expense_paid_flips: List[str] = []
     for aid in payload.athlete_ids:
-        # Find athlete's open expenses sorted by due_date asc (oldest first)
-        open_exps: List[dict] = []
-        async for e in db.expenses.find(
-            {"user_id": user_id, "athlete_id": aid, "paid": False}, {"_id": 0}
-        ).sort([("due_date", 1), ("incurred_on", 1)]):
-            bal = max(0.0, float(e.get("amount") or 0) - float(paid_map.get(e["id"], 0.0)))
-            if bal > 0:
-                open_exps.append({"id": e["id"], "balance": bal, "amount": float(e.get("amount") or 0)})
-        # Allocate per_amt across them (oldest first, fill each fully)
-        remaining = per_amt
-        applied: List[str] = []
-        allocations: List[PaymentAllocation] = []
-        for oe in open_exps:
-            if remaining <= 0:
-                break
-            take = round(min(remaining, oe["balance"]), 2)
-            if take > 0:
-                applied.append(oe["id"])
-                allocations.append(PaymentAllocation(expense_id=oe["id"], amount=take))
-                # update paid_map in-memory for subsequent dashboard math (best-effort)
-                paid_map[oe["id"]] = round(paid_map.get(oe["id"], 0.0) + take, 2)
-                if paid_map[oe["id"]] + 1e-6 >= oe["amount"]:
-                    expense_paid_flips.append(oe["id"])
-                remaining = round(remaining - take, 2)
         entry = PaymentEntry(
             user_id=user_id,
             athlete_id=aid,
@@ -1161,20 +1139,96 @@ async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(
             paid_on=payload.paid_on,
             method=payload.method,
             note=payload.note,
-            applied_expense_ids=applied,
-            allocations=allocations if allocations else None,
+            applied_expense_ids=[],
+            allocations=None,
         )
         docs.append(entry.model_dump())
         created.append(entry)
     if docs:
         await db.payments.insert_many(docs)
-    # Flip fully-covered expenses as paid
-    if expense_paid_flips:
-        await db.expenses.update_many(
-            {"id": {"$in": list(set(expense_paid_flips))}, "user_id": user_id},
-            {"$set": {"paid": True}},
-        )
     return created
+
+
+# ============================================================
+# Apply available payment funds to a single expense
+# ============================================================
+@api_router.post("/expenses/{expense_id}/apply-available-payments")
+async def apply_available_payments(expense_id: str, current_user=Depends(get_current_user)):
+    """Pull leftover funds from this athlete's existing payments and apply
+    them to the given expense.
+
+    Walks payments oldest-first; for each payment, computes the un-allocated
+    balance (= payment.amount minus the sum of its existing allocations) and
+    consumes as much as needed to cover the expense's remaining balance.
+
+    Updates each payment's `applied_expense_ids` + `allocations` in-place,
+    so the funds are reserved (the same dollar can't be applied twice).
+    """
+    member_ids = await _household_user_ids(current_user["id"])
+    exp = await db.expenses.find_one(
+        {"id": expense_id, "user_id": {"$in": member_ids}}, {"_id": 0},
+    )
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expense not found")
+
+    amt = float(exp.get("amount") or 0)
+    paid_map = await _build_paid_map(current_user["id"])
+    balance_due = round(max(0.0, amt - float(paid_map.get(expense_id, 0.0))), 2)
+    if balance_due <= 0:
+        return {"applied": 0.0, "balance_due": 0.0, "payments_touched": 0}
+
+    athlete_id = exp.get("athlete_id")
+    if not athlete_id:
+        raise HTTPException(status_code=400, detail="Expense has no athlete")
+
+    # Find athlete's payments oldest first; calculate each one's remaining funds.
+    remaining = balance_due
+    applied_total = 0.0
+    touched = 0
+    async for p in db.payments.find(
+        {"user_id": {"$in": member_ids}, "athlete_id": athlete_id},
+        {"_id": 0},
+    ).sort([("paid_on", 1), ("created_at", 1)]):
+        if remaining <= 0:
+            break
+        p_amt = float(p.get("amount") or 0)
+        allocations = list(p.get("allocations") or [])
+        used = sum(float(a.get("amount") or 0) for a in allocations)
+        free = round(p_amt - used, 2)
+        if free <= 0:
+            continue
+        # Avoid double-applying to the same expense.
+        already_for_this_exp = sum(
+            float(a.get("amount") or 0) for a in allocations
+            if a.get("expense_id") == expense_id
+        )
+        if already_for_this_exp >= amt - 1e-6:
+            continue
+        take = round(min(free, remaining), 2)
+        if take <= 0:
+            continue
+        allocations.append({"expense_id": expense_id, "amount": take})
+        applied_ids = list(set((p.get("applied_expense_ids") or []) + [expense_id]))
+        await db.payments.update_one(
+            {"id": p["id"]},
+            {"$set": {"allocations": allocations, "applied_expense_ids": applied_ids}},
+        )
+        applied_total = round(applied_total + take, 2)
+        remaining = round(remaining - take, 2)
+        touched += 1
+
+    # If fully covered, flip the expense as paid.
+    new_paid_total = round(float(paid_map.get(expense_id, 0.0)) + applied_total, 2)
+    if new_paid_total + 1e-6 >= amt and not exp.get("paid"):
+        await db.expenses.update_one(
+            {"id": expense_id, "user_id": {"$in": member_ids}}, {"$set": {"paid": True}},
+        )
+
+    return {
+        "applied": applied_total,
+        "balance_due": max(0.0, round(amt - new_paid_total, 2)),
+        "payments_touched": touched,
+    }
 
 
 @api_router.patch("/payments/{payment_id}", response_model=PaymentEntry)

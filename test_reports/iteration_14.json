@@ -1,0 +1,47 @@
+{
+  "summary": "Backend-only tests for the new payment allocation UX in CheerPlanner. Created /app/backend/tests/test_apply_available_payments.py with 13 tests across 5 classes covering: (1) /api/payments/bulk no-auto-allocate behavior, (2) /api/expenses/{id}/apply-available-payments oldest-first leftover allocation, partial coverage, no-payments, no-leftover-funds, balance-zero, and idempotency cases, (3) single POST /api/payments regression, (4) /api/dashboard /api/expenses /api/payments regression, (5) household-scoped path smoke. 11/13 PASSED. 2 FAILED reveal real backend logic gaps in /api/expenses/{id}/apply-available-payments: (a) it does not subtract funds already claimed via applied_expense_ids when allocations is null, so a single-payment that fully paid an old expense via applied_expense_ids is wrongly treated as 'free funds' and double-allocated to a new expense, and (b) it does not short-circuit when the expense is manually flagged paid=true (only checks numeric balance_due from the local paid_map), so funds get applied to an already-paid expense. The user-facing requirements explicitly call out these two cases. Bulk no-auto-allocate, oldest-first allocation, partial coverage, no-payments, idempotency, single-payment behavior, and dashboard regression all work correctly.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/expenses/{expense_id}/apply-available-payments",
+        "issue": "Does not treat funds claimed via applied_expense_ids (without per-allocation breakdown) as 'used'. A payment created via POST /api/payments with applied_expense_ids=[exp1] and amount=50 (allocations=None) is treated as having 50 of free funds by apply-available-payments — those funds get re-allocated to another expense, double-spending the dollars. server.py line ~1196-1197: 'used = sum(allocations) — should be max(used, sum(applied_share) when allocations is empty)'. Fix: when allocations is empty/None but applied_expense_ids is non-empty, treat the entire payment.amount (or amount/len(applied_expense_ids) share) as already used. Reference: /app/backend/server.py:1188-1218.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/expenses/{expense_id}/apply-available-payments",
+        "issue": "Endpoint does not short-circuit when the expense itself is flagged paid=true. When an expense is manually marked paid via PATCH /api/expenses/{id} {paid:true} (no payment records), _build_paid_map returns 0 for it, so the local balance_due check (max(0, amount - paid_map[id])) is non-zero and the endpoint happily consumes leftover athlete funds. Add `if exp.get('paid'): return {applied: 0, balance_due: 0, payments_touched: 0}` alongside the existing balance_due check. Reference: /app/backend/server.py:1174-1178.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_apply_available_payments.py",
+    "/app/test_reports/pytest/pytest_apply_available_payments.xml"
+  ],
+  "action_items": [
+    "Fix double-spend in /api/expenses/{id}/apply-available-payments: when computing each payment's `used` amount, account for legacy payments that have applied_expense_ids set but allocations=None — those payments are already implicitly allocating their full amount and must report `free=0` (or `free = amount - sum(per_expense_share)`).",
+    "Fix already-paid short-circuit in /api/expenses/{id}/apply-available-payments: also early-return `{applied:0, balance_due:0, payments_touched:0}` when exp.get('paid') is True, mirroring /api/expenses/{id}/apply-payment.",
+    "Optional: consider household scope in _build_paid_map (currently only sums payments where user_id == caller, but list/dashboard queries use household scope) — out of scope for this iteration but a latent inconsistency."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~3027 lines — should be split into modular routers (athletes, expenses, payments, competitions, calendar, household).",
+    "_build_paid_map uses only `user_id` of current_user, but expense/payment list endpoints use household scope — paid_amount/balance_due computations will be wrong for co-owned households.",
+    "apply-available-payments returns a plain dict instead of a Pydantic response_model — would be safer with a typed schema."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_apply_available_payments.py (new)"
+  ],
+  "success_rate": {"backend": "84.6% (11/13)", "frontend": "n/a"},
+  "seed_data_creation": "Each test creates its own athletes/expenses/payments scoped under TEST_<uuid> prefixes and the athlete fixture cascade-deletes them on teardown via DELETE /api/athletes/{id} (which removes expenses+payments).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "After main agent fixes the two HIGH issues, re-run: pytest /app/backend/tests/test_apply_available_payments.py -v. The failing tests are test_no_leftover_funds_returns_zero (covers applied_expense_ids-without-allocations double-spend) and test_balance_zero_returns_zero (covers manually paid=true expense). All other behaviors are passing and should remain green.",
+  "rca_of_issue": "Bug #1 — apply-available-payments computes per-payment free funds as `payment.amount - sum(allocations.amount)`. Legacy payments (and any single POST /api/payments call) have allocations=None even when applied_expense_ids is non-empty, so `used = 0` and the full amount is treated as free. Reproduction: POST /api/payments {athlete_id, amount:50, applied_expense_ids:[exp1]} → exp1 is paid. Create exp2 (25). POST /api/expenses/{exp2}/apply-available-payments → returns applied=25, but the 50 was already spent on exp1. Mitigation: in the loop at server.py:1194-1198, when allocations is empty, treat `used = sum(applied_share)` where applied_share = amount / max(1, len(applied_expense_ids)) per applied id, OR simply treat the whole payment as allocated when applied_expense_ids is non-empty and allocations is empty. Bug #2 — endpoint only checks numeric balance_due (built from paid_map). For a manually-paid expense with paid=true and no payment records, paid_map yields 0 → balance_due == amount, so the endpoint proceeds to allocate. Mitigation: add `if exp.get('paid'): return {applied:0, balance_due:0, payments_touched:0}` immediately after fetching the expense."
+}
