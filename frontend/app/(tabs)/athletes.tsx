@@ -20,6 +20,7 @@ import { formatCurrency } from "@/src/utils/format";
 type Athlete = {
   id: string;
   name: string;
+  role?: "athlete" | "coach";
   team?: string | null;
   gym?: string | null;
   avatar_color?: string | null;
@@ -117,8 +118,16 @@ export default function AthletesScreen() {
                   )}
                 </View>
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
-                  <Text style={styles.name}>{a.name}</Text>
-                  <Text style={styles.meta}>{a.team || a.gym || "Cheer athlete"}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={styles.name}>{a.name}</Text>
+                    {a.role === "coach" && (
+                      <View style={styles.coachBadge}>
+                        <Ionicons name="megaphone-outline" size={10} color={colors.accent} />
+                        <Text style={styles.coachBadgeText}>COACH</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.meta}>{a.team || a.gym || (a.role === "coach" ? "Coach" : "Cheer athlete")}</Text>
                   <View style={styles.statsRow}>
                     <Text style={styles.stat}>Spent <Text style={styles.statValue}>{formatCurrency(t.spent)}</Text></Text>
                     <Text style={styles.stat}>Paid <Text style={[styles.statValue, { color: colors.successText }]}>{formatCurrency(t.paid)}</Text></Text>
@@ -166,4 +175,6 @@ const styles = StyleSheet.create({
   statValue: { color: colors.textPrimary, fontWeight: "700" },
   balanceLabel: { ...typography.micro, color: colors.textTertiary },
   balanceValue: { fontSize: 18, fontWeight: "800", marginTop: 2 },
+  coachBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.accentSubtle, borderRadius: 6 },
+  coachBadgeText: { color: colors.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 });

@@ -101,3 +101,27 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Iteration 16 — Phase B "Teams" backend validation (2026-01)
+
+**Tester:** T1 (sub-agent) · **Scope:** backend only · **Result:** 14/14 pytest pass after a 1-line bug fix.
+
+### Tests executed
+File: `/app/backend/tests/test_teams_phase_b.py` (JUnit: `/app/test_reports/pytest/pytest_teams_phase_b.xml`)
+1. ✅ POST /api/teams returns id/name/color/season
+2. ✅ GET /api/teams scoped to household
+3. ✅ PATCH /api/teams/{id} updates fields
+4. ✅ POST /api/athletes role=athlete + 4 team_ids → 400 "An athlete can belong to at most 3 teams."
+5. ✅ POST /api/athletes role=coach + 5 team_ids → 200
+6. ✅ PATCH /api/athletes/{id} adding 4th team to a 3-team athlete → 400 (state unchanged on GET)
+7. ✅ PATCH /api/competitions/{id} round-trips team_ids + team_meet_times + teams_to_watch
+8. ✅ DELETE /api/teams/{id} cascades: stripped from athletes.team_ids, competitions.team_ids, and competitions.team_meet_times
+9. ✅ POST /api/bulk-delete resource=teams returns {deleted:2}; teams no longer listed
+10. ✅ Regression: athletes GET, competitions GET, expenses POST + bulk-delete, payments POST/DELETE all work
+
+### Bug found & fixed (this run)
+- **POST /api/competitions → 500** when payload omitted `team_ids` / `team_meet_times` / `teams_to_watch`. Phase B made these `Optional[List[...]] = None` on `CompetitionCreate` but the strict `Competition` response model rejects `None` for its typed-list fields. Fix applied at `/app/backend/server.py:1402`: `payload.model_dump(exclude_none=True)` (mirrors `create_team`). Re-tested green.
+
+### Notes for main agent
+- `server.py` is now 3206 lines (way over the 700-line guideline). Consider splitting into routers per resource.
+- Inconsistent `model_dump()` patterns across handlers (exclude_none vs exclude_unset vs neither). The competitions bug came from this inconsistency.
+- Frontend testing for Teams UI is the explicit follow-up — not touched this iteration.

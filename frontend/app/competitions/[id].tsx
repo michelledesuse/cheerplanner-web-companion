@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
 import PackingListSection from "@/src/components/PackingListSection";
+import CompetitionTeamsSection, { TeamMeetTime, TeamToWatch } from "@/src/components/CompetitionTeamsSection";
 
 type Competition = {
   id: string;
@@ -22,6 +23,9 @@ type Competition = {
   booking_link?: string;
   booking_release_at?: string;
   notes?: string;
+  team_ids?: string[];
+  team_meet_times?: TeamMeetTime[];
+  teams_to_watch?: TeamToWatch[];
 };
 
 type Athlete = { id: string; name: string; avatar_color?: string; competition_ids?: string[] };
@@ -211,6 +215,14 @@ export default function CompetitionDetail() {
             })}
           </View>
         )}
+
+        <CompetitionTeamsSection
+          competitionId={id!}
+          teamIds={comp.team_ids || []}
+          teamMeetTimes={comp.team_meet_times || []}
+          teamsToWatch={comp.teams_to_watch || []}
+          onChanged={load}
+        />
 
         <Text style={styles.sectionHead}>Travel & accommodations</Text>
 

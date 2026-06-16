@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Alert,
@@ -35,6 +35,14 @@ export default function ScheduleTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const enterSelectMode = () => { setSelectMode(true); setSelectedIds(new Set()); };
+  const toggleSelected = (id: string) => {
+    setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
 
   const load = useCallback(async () => {
     try {
@@ -43,7 +51,10 @@ export default function ScheduleTab() {
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    load();
+    return () => { setSelectMode(false); setSelectedIds(new Set()); };
+  }, [load]));
 
   const remove = async (e: Evt) => {
     const cleanup = async (scope: "single" | "series") => {
@@ -67,12 +78,48 @@ export default function ScheduleTab() {
     }
   };
 
-  const grouped = (typeFilter ? events.filter(e => e.event_type === typeFilter) : events);
+  const filtered = useMemo(() => (typeFilter ? events.filter((e) => e.event_type === typeFilter) : events), [events, typeFilter]);
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = grouped.filter(e => e.date >= today);
-  const past = grouped.filter(e => e.date < today);
+  const upcoming = useMemo(() => filtered.filter((e) => e.date >= today), [filtered, today]);
+  const past = useMemo(() => filtered.filter((e) => e.date < today), [filtered, today]);
 
-  const athleteName = (id: string) => athletes.find(a => a.id === id)?.name || "";
+  const visibleIds = useMemo(() => filtered.map((e) => e.id), [filtered]);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const toggleSelectAll = () => {
+    setSelectedIds((s) => {
+      const n = new Set(s);
+      if (allSelected) visibleIds.forEach((id) => n.delete(id));
+      else visibleIds.forEach((id) => n.add(id));
+      return n;
+    });
+  };
+
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    // Note: bulk-delete deletes the individual event IDs only; recurring series
+    // members must be selected individually (matches the "this event only" scope).
+    Alert.alert(
+      `Delete ${ids.length} event${ids.length === 1 ? "" : "s"}?`,
+      "Only the selected events are removed. Recurring series stay otherwise intact.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.post("/bulk-delete", { resource: "schedule_events", ids });
+              exitSelectMode();
+              await load();
+            } catch (e: any) {
+              Alert.alert("Error", e?.response?.data?.detail || "Could not delete.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   if (loading) {
     return <SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator color={colors.accent} /></View></SafeAreaView>;
@@ -81,24 +128,57 @@ export default function ScheduleTab() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
-        <Text style={styles.headerTitle}>Schedule</Text>
-        <TouchableOpacity onPress={() => router.push("/schedule/new")} style={styles.addBtn} testID="add-schedule">
-          <Ionicons name="add" size={20} color="white" />
-          <Text style={styles.addBtnText}>Event</Text>
-        </TouchableOpacity>
+        {selectMode ? (
+          <View style={styles.selectBar}>
+            <TouchableOpacity onPress={exitSelectMode} hitSlop={10} testID="sched-select-cancel">
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.selectBarText}>{selectedIds.size} selected</Text>
+            <TouchableOpacity onPress={toggleSelectAll} hitSlop={6} testID="sched-select-all">
+              <Text style={{ color: colors.accent, fontWeight: "700" }}>{allSelected ? "Clear" : "Select all"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={bulkDelete}
+              disabled={selectedIds.size === 0}
+              style={[styles.deleteBtn, { opacity: selectedIds.size === 0 ? 0.4 : 1 }]}
+              testID="sched-bulk-delete"
+            >
+              <Ionicons name="trash" size={18} color="#DC2626" />
+              <Text style={styles.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.headerTitle}>Schedule</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {events.length > 0 && (
+                <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="sched-enter-select">
+                  <Ionicons name="checkmark-done" size={16} color={colors.accent} />
+                  <Text style={styles.selectBtnText}>Select</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => router.push("/schedule/new")} style={styles.addBtn} testID="add-schedule">
+                <Ionicons name="add" size={20} color="white" />
+                <Text style={styles.addBtnText}>Event</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
 
-      <View style={styles.filterWrap}>
-        <TouchableOpacity onPress={() => setTypeFilter(null)} style={[styles.chip, typeFilter === null && styles.chipOn]}>
-          <Text style={[styles.chipText, typeFilter === null && styles.chipTextOn]}>All</Text>
-        </TouchableOpacity>
-        {Object.entries(TYPE_LABEL).map(([k, label]) => (
-          <TouchableOpacity key={k} onPress={() => setTypeFilter(k)} style={[styles.chip, typeFilter === k && styles.chipOn, { borderColor: TYPE_COLOR[k] }]}>
-            <View style={[styles.chipDot, { backgroundColor: TYPE_COLOR[k] }]} />
-            <Text style={[styles.chipText, typeFilter === k && styles.chipTextOn]}>{label}</Text>
+      {!selectMode && (
+        <View style={styles.filterWrap}>
+          <TouchableOpacity onPress={() => setTypeFilter(null)} style={[styles.chip, typeFilter === null && styles.chipOn]}>
+            <Text style={[styles.chipText, typeFilter === null && styles.chipTextOn]}>All</Text>
           </TouchableOpacity>
-        ))}
-      </View>
+          {Object.entries(TYPE_LABEL).map(([k, label]) => (
+            <TouchableOpacity key={k} onPress={() => setTypeFilter(k)} style={[styles.chip, typeFilter === k && styles.chipOn, { borderColor: TYPE_COLOR[k] }]}>
+              <View style={[styles.chipDot, { backgroundColor: TYPE_COLOR[k] }]} />
+              <Text style={[styles.chipText, typeFilter === k && styles.chipTextOn]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
@@ -121,9 +201,37 @@ export default function ScheduleTab() {
         ) : (
           <>
             {upcoming.length > 0 && <Text style={styles.sectionHead}>Upcoming</Text>}
-            {upcoming.map(e => <Row key={e.id} e={e} athletes={athletes} onPress={() => router.push({ pathname: "/schedule/new", params: { id: e.id } })} onDelete={() => remove(e)} />)}
+            {upcoming.map((e) => (
+              <Row
+                key={e.id}
+                e={e}
+                athletes={athletes}
+                selectMode={selectMode}
+                selected={selectedIds.has(e.id)}
+                onPress={() => {
+                  if (selectMode) { toggleSelected(e.id); return; }
+                  router.push({ pathname: "/schedule/new", params: { id: e.id } });
+                }}
+                onLongPress={() => { setSelectMode(true); toggleSelected(e.id); }}
+                onDelete={() => remove(e)}
+              />
+            ))}
             {past.length > 0 && <Text style={styles.sectionHead}>Past</Text>}
-            {past.map(e => <Row key={e.id} e={e} athletes={athletes} onPress={() => router.push({ pathname: "/schedule/new", params: { id: e.id } })} onDelete={() => remove(e)} />)}
+            {past.map((e) => (
+              <Row
+                key={e.id}
+                e={e}
+                athletes={athletes}
+                selectMode={selectMode}
+                selected={selectedIds.has(e.id)}
+                onPress={() => {
+                  if (selectMode) { toggleSelected(e.id); return; }
+                  router.push({ pathname: "/schedule/new", params: { id: e.id } });
+                }}
+                onLongPress={() => { setSelectMode(true); toggleSelected(e.id); }}
+                onDelete={() => remove(e)}
+              />
+            ))}
           </>
         )}
       </ScrollView>
@@ -131,7 +239,9 @@ export default function ScheduleTab() {
   );
 }
 
-function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; onPress: () => void; onDelete: () => void }) {
+function Row({ e, athletes, onPress, onLongPress, onDelete, selectMode, selected }: {
+  e: Evt; athletes: Athlete[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
+}) {
   const color = TYPE_COLOR[e.event_type] || "#64748B";
   const fmt12 = (t?: string) => {
     if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";
@@ -140,10 +250,22 @@ function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; 
     return `${h}:${m} ${p}`;
   };
   const time = e.start_time ? (e.end_time ? `${fmt12(e.start_time)} – ${fmt12(e.end_time)}` : fmt12(e.start_time)) : "";
-  const names = (e.athlete_ids || []).map(id => athletes.find(a => a.id === id)?.name).filter(Boolean).join(", ");
+  const names = (e.athlete_ids || []).map((id) => athletes.find((a) => a.id === id)?.name).filter(Boolean).join(", ");
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={styles.row} testID={`schedule-row-${e.id}`}>
-      <View style={[styles.typeStripe, { backgroundColor: color }]} />
+    <TouchableOpacity
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.8}
+      style={[styles.row, selected && { borderColor: colors.accent, backgroundColor: colors.accentSubtle }]}
+      testID={`schedule-row-${e.id}`}
+    >
+      {selectMode ? (
+        <View style={[styles.checkBox, selected && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+          {selected && <Ionicons name="checkmark" size={14} color="white" />}
+        </View>
+      ) : (
+        <View style={[styles.typeStripe, { backgroundColor: color }]} />
+      )}
       <View style={{ flex: 1, marginLeft: spacing.md }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
           <Text style={styles.rowTitle} numberOfLines={1}>{e.title}</Text>
@@ -154,9 +276,11 @@ function Row({ e, athletes, onPress, onDelete }: { e: Evt; athletes: Athlete[]; 
         </Text>
         {names ? <Text style={styles.rowAthletes}>{names}</Text> : null}
       </View>
-      <TouchableOpacity onPress={(ev) => { ev.stopPropagation?.(); onDelete(); }} hitSlop={10}>
-        <Ionicons name="trash-outline" size={16} color={colors.textTertiary} />
-      </TouchableOpacity>
+      {!selectMode && (
+        <TouchableOpacity onPress={(ev) => { ev.stopPropagation?.(); onDelete(); }} hitSlop={10}>
+          <Ionicons name="trash-outline" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+      )}
     </TouchableOpacity>
   );
 }
@@ -168,6 +292,13 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h1, color: colors.textPrimary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.accent, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
+  selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  selectBar: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  selectBarText: { ...typography.bodyMedium, color: colors.textPrimary, flex: 1 },
+  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  deleteBtnText: { color: "#DC2626", fontWeight: "700" },
+  checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipDot: { width: 7, height: 7, borderRadius: 3.5 },

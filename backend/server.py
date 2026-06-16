@@ -149,30 +149,36 @@ class Athlete(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
-    team: Optional[str] = None
+    role: Literal["athlete", "coach"] = "athlete"
+    team: Optional[str] = None  # legacy single-team text field (kept for backwards-compat)
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
     avatar_image: Optional[str] = None  # base64 data URL (e.g. data:image/jpeg;base64,...)
     competition_ids: List[str] = Field(default_factory=list)
+    team_ids: List[str] = Field(default_factory=list)  # NEW: structured team memberships
     created_at: str = Field(default_factory=utcnow_iso)
 
 
 class AthleteCreate(BaseModel):
     name: str
+    role: Optional[Literal["athlete", "coach"]] = "athlete"
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
     avatar_image: Optional[str] = None
     competition_ids: Optional[List[str]] = None
+    team_ids: Optional[List[str]] = None
 
 
 class AthleteUpdate(BaseModel):
     name: Optional[str] = None
+    role: Optional[Literal["athlete", "coach"]] = None
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = None
     avatar_image: Optional[str] = None
     competition_ids: Optional[List[str]] = None
+    team_ids: Optional[List[str]] = None
 
 
 ExpenseCategory = Literal[
@@ -267,6 +273,40 @@ class PaymentUpdate(BaseModel):
     applied_expense_ids: Optional[List[str]] = None
 
 
+class Team(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # creator (the household owner who created it)
+    name: str
+    color: Optional[str] = "#0EA5E9"  # default team color
+    season: Optional[str] = None  # e.g. "2025-2026"
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class TeamCreate(BaseModel):
+    name: str
+    color: Optional[str] = "#0EA5E9"
+    season: Optional[str] = None
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    season: Optional[str] = None
+
+
+class TeamMeetTime(BaseModel):
+    team_id: str
+    performance_time: Optional[str] = None  # "HH:MM" 24h
+    performance_location: Optional[str] = None  # e.g. "Arena A"
+
+
+class TeamToWatch(BaseModel):
+    name: str
+    date: Optional[str] = None  # ISO date
+    location: Optional[str] = None
+    performance_time: Optional[str] = None  # "HH:MM" 24h
+
+
 class Competition(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
@@ -279,6 +319,9 @@ class Competition(BaseModel):
     booking_link: Optional[str] = None
     booking_release_at: Optional[str] = None  # ISO datetime
     notes: Optional[str] = None
+    team_ids: List[str] = Field(default_factory=list)  # NEW: household teams attending
+    team_meet_times: List[TeamMeetTime] = Field(default_factory=list)  # NEW
+    teams_to_watch: List[TeamToWatch] = Field(default_factory=list)  # NEW: external teams to spectate
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -292,6 +335,9 @@ class CompetitionCreate(BaseModel):
     booking_link: Optional[str] = None
     booking_release_at: Optional[str] = None
     notes: Optional[str] = None
+    team_ids: Optional[List[str]] = None
+    team_meet_times: Optional[List[TeamMeetTime]] = None
+    teams_to_watch: Optional[List[TeamToWatch]] = None
 
 
 class CompetitionUpdate(BaseModel):
@@ -304,6 +350,9 @@ class CompetitionUpdate(BaseModel):
     booking_link: Optional[str] = None
     booking_release_at: Optional[str] = None
     notes: Optional[str] = None
+    team_ids: Optional[List[str]] = None
+    team_meet_times: Optional[List[TeamMeetTime]] = None
+    teams_to_watch: Optional[List[TeamToWatch]] = None
 
 
 BookingType = Literal["hotel", "car", "flight"]
@@ -705,6 +754,7 @@ async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get
     collections_to_purge = [
         "athletes", "competitions", "bookings", "expenses", "payments",
         "fundraisers", "schedule_events", "packing_templates", "packing_lists",
+        "teams",
     ]
     deleted_counts: Dict[str, int] = {}
     for name in collections_to_purge:
@@ -726,6 +776,63 @@ async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get
 
 
 # ============================================================
+# Teams (NEW - Phase B)
+# ============================================================
+@api_router.get("/teams", response_model=List[Team])
+async def list_teams(current_user=Depends(get_current_user)):
+    docs = await db.teams.find(
+        {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+        {"_id": 0},
+    ).sort("created_at", 1).to_list(500)
+    return [Team(**d) for d in docs]
+
+
+@api_router.post("/teams", response_model=Team)
+async def create_team(payload: TeamCreate, current_user=Depends(get_current_user)):
+    team = Team(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
+    await db.teams.insert_one(team.model_dump())
+    return team
+
+
+@api_router.patch("/teams/{team_id}", response_model=Team)
+async def update_team(team_id: str, payload: TeamUpdate, current_user=Depends(get_current_user)):
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    res = await db.teams.update_one(
+        {"id": team_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+        {"$set": updates},
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Team not found")
+    doc = await db.teams.find_one({"id": team_id}, {"_id": 0})
+    return Team(**doc)
+
+
+@api_router.delete("/teams/{team_id}")
+async def delete_team(team_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.teams.delete_one({"id": team_id, "user_id": {"$in": member_ids}})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Team not found")
+    # Detach team from athletes & competitions in this household
+    await db.athletes.update_many(
+        {"user_id": {"$in": member_ids}, "team_ids": team_id},
+        {"$pull": {"team_ids": team_id}},
+    )
+    await db.competitions.update_many(
+        {"user_id": {"$in": member_ids}, "team_ids": team_id},
+        {"$pull": {"team_ids": team_id}},
+    )
+    # Also strip per-team meet-time entries
+    await db.competitions.update_many(
+        {"user_id": {"$in": member_ids}},
+        {"$pull": {"team_meet_times": {"team_id": team_id}}},
+    )
+    return {"deleted": True}
+
+
+# ============================================================
 # Athletes
 # ============================================================
 @api_router.get("/athletes", response_model=List[Athlete])
@@ -738,6 +845,11 @@ async def list_athletes(current_user=Depends(get_current_user)):
 async def create_athlete(payload: AthleteCreate, current_user=Depends(get_current_user)):
     # exclude None so Pydantic can apply default_factory (e.g. competition_ids=[])
     data = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # Enforce team cap: athletes can be on at most 3 teams; coaches unlimited.
+    role = data.get("role", "athlete")
+    team_ids = data.get("team_ids") or []
+    if role == "athlete" and len(team_ids) > 3:
+        raise HTTPException(status_code=400, detail="An athlete can belong to at most 3 teams.")
     athlete = Athlete(user_id=current_user["id"], **data)
     await db.athletes.insert_one(athlete.model_dump())
     return athlete
@@ -755,6 +867,16 @@ async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=D
         updates[k] = v
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    # Validate team cap: need final role + team_ids to decide.
+    if "team_ids" in updates or "role" in updates:
+        existing = await db.athletes.find_one(
+            {"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+            {"_id": 0, "role": 1, "team_ids": 1},
+        )
+        final_role = updates.get("role", (existing or {}).get("role", "athlete"))
+        final_team_ids = updates.get("team_ids", (existing or {}).get("team_ids", []))
+        if final_role == "athlete" and len(final_team_ids or []) > 3:
+            raise HTTPException(status_code=400, detail="An athlete can belong to at most 3 teams.")
     res = await db.athletes.update_one(
         {"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
@@ -1277,7 +1399,8 @@ async def list_competitions(current_user=Depends(get_current_user)):
 
 @api_router.post("/competitions", response_model=Competition)
 async def create_competition(payload: CompetitionCreate, current_user=Depends(get_current_user)):
-    comp = Competition(user_id=current_user["id"], **payload.model_dump())
+    # exclude_none so unset Optional[List[...]] fields fall back to default_factory=list
+    comp = Competition(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
     await db.competitions.insert_one(comp.model_dump())
     return comp
 
@@ -3049,6 +3172,7 @@ BULK_DELETE_COLLECTIONS = {
     "bookings": "bookings",
     "packing_templates": "packing_templates",
     "packing_lists": "packing_lists",
+    "teams": "teams",
 }
 
 

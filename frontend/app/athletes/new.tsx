@@ -17,11 +17,15 @@ const DEFAULT_COLOR = "#0EA5E9";
 type Athlete = {
   id: string;
   name: string;
+  role?: "athlete" | "coach";
   team?: string;
   gym?: string;
   avatar_color?: string;
   avatar_image?: string | null;
+  team_ids?: string[];
 };
+
+type Team = { id: string; name: string; color?: string; season?: string };
 
 export default function AthleteForm() {
   const router = useRouter();
@@ -30,13 +34,25 @@ export default function AthleteForm() {
   const isEdit = !!editingId;
 
   const [name, setName] = useState("");
+  const [role, setRole] = useState<"athlete" | "coach">("athlete");
   const [team, setTeam] = useState("");
   const [gym, setGym] = useState("");
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
+  const [teamIds, setTeamIds] = useState<string[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   const [pickingImage, setPickingImage] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const tRes = await api.get<Team[]>("/teams");
+        setTeams(tRes.data);
+      } catch (_) { /* ignore */ }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!isEdit) return;
@@ -46,14 +62,28 @@ export default function AthleteForm() {
         const a = r.data.find((x) => x.id === editingId);
         if (a) {
           setName(a.name);
+          setRole((a.role as any) || "athlete");
           setTeam(a.team || "");
           setGym(a.gym || "");
           setColor(a.avatar_color || DEFAULT_COLOR);
           setAvatarImage(a.avatar_image || null);
+          setTeamIds(a.team_ids || []);
         }
       } finally { setLoading(false); }
     })();
   }, [editingId, isEdit]);
+
+  const toggleTeam = (teamId: string) => {
+    setTeamIds((prev) => {
+      if (prev.includes(teamId)) return prev.filter((id) => id !== teamId);
+      // Cap at 3 for athletes; coaches unlimited
+      if (role === "athlete" && prev.length >= 3) {
+        Alert.alert("Limit reached", "Athletes can be on up to 3 teams. Switch to Coach for unlimited.");
+        return prev;
+      }
+      return [...prev, teamId];
+    });
+  };
 
   const pickAvatar = async () => {
     try {
@@ -86,15 +116,17 @@ export default function AthleteForm() {
   const clearAvatar = () => setAvatarImage(null);
 
   const save = async () => {
-    if (!name.trim()) { Alert.alert("Missing", "Please enter athlete name."); return; }
+    if (!name.trim()) { Alert.alert("Missing", "Please enter name."); return; }
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         name: name.trim(),
+        role,
         team: team.trim() || null,
         gym: gym.trim() || null,
         avatar_color: color,
         avatar_image: avatarImage,
+        team_ids: teamIds,
       };
       if (isEdit) {
         await api.patch(`/athletes/${editingId}`, payload);
@@ -168,7 +200,67 @@ export default function AthleteForm() {
           <Text style={styles.label}>Name</Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Ava" placeholderTextColor={colors.textTertiary} testID="athlete-name-input" />
 
-          <Text style={styles.label}>Team (optional)</Text>
+          <Text style={styles.label}>Role</Text>
+          <View style={styles.roleRow}>
+            {(["athlete", "coach"] as const).map((r) => (
+              <TouchableOpacity
+                key={r}
+                onPress={() => {
+                  setRole(r);
+                  // If switching to athlete with >3 teams, trim
+                  if (r === "athlete" && teamIds.length > 3) {
+                    setTeamIds(teamIds.slice(0, 3));
+                    Alert.alert("Trimmed", "Athletes can be on up to 3 teams; extras were removed.");
+                  }
+                }}
+                style={[styles.roleChip, role === r && styles.roleChipOn]}
+                testID={`role-${r}`}
+              >
+                <Ionicons
+                  name={r === "athlete" ? "barbell-outline" : "megaphone-outline"}
+                  size={14}
+                  color={role === r ? "white" : colors.textSecondary}
+                />
+                <Text style={[styles.roleChipText, role === r && styles.roleChipTextOn]}>
+                  {r === "athlete" ? "Athlete" : "Coach"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: spacing.lg }}>
+            <Text style={[styles.label, { marginTop: 0, marginBottom: 0 }]}>
+              Teams {role === "athlete" ? `(${teamIds.length}/3)` : `(${teamIds.length})`}
+            </Text>
+            <TouchableOpacity onPress={() => router.push("/teams" as any)} testID="manage-teams-btn">
+              <Text style={{ ...typography.caption, color: colors.accent, fontWeight: "700" }}>Manage</Text>
+            </TouchableOpacity>
+          </View>
+          {teams.length === 0 ? (
+            <TouchableOpacity onPress={() => router.push("/teams" as any)} style={styles.noTeams} testID="add-team-empty">
+              <Ionicons name="add-circle-outline" size={16} color={colors.accent} />
+              <Text style={{ ...typography.caption, color: colors.accent, fontWeight: "600" }}>Create your first team</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.teamChipWrap}>
+              {teams.map((t) => {
+                const on = teamIds.includes(t.id);
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => toggleTeam(t.id)}
+                    style={[styles.teamChip, on && { backgroundColor: t.color || colors.accent, borderColor: t.color || colors.accent }]}
+                    testID={`team-chip-${t.id}`}
+                  >
+                    <View style={[styles.teamDot, { backgroundColor: on ? "white" : (t.color || colors.accent) }]} />
+                    <Text style={[styles.teamChipText, on && { color: "white" }]} numberOfLines={1}>{t.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <Text style={styles.label}>Legacy team label (optional)</Text>
           <TextInput style={styles.input} value={team} onChangeText={setTeam} placeholder="e.g. Senior Coed 5" placeholderTextColor={colors.textTertiary} testID="athlete-team-input" />
 
           <Text style={styles.label}>Gym (optional)</Text>
@@ -212,4 +304,14 @@ const styles = StyleSheet.create({
   colorDotActive: { borderColor: colors.textPrimary },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+  roleRow: { flexDirection: "row", gap: 8 },
+  roleChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  roleChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  roleChipText: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
+  roleChipTextOn: { color: "white" },
+  teamChipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 },
+  teamChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border, maxWidth: 200 },
+  teamDot: { width: 8, height: 8, borderRadius: 4 },
+  teamChipText: { ...typography.caption, fontWeight: "700", color: colors.textPrimary },
+  noTeams: { flexDirection: "row", alignItems: "center", gap: 6, padding: spacing.md, backgroundColor: colors.accentSubtle, borderRadius: radius.md, marginTop: 8, justifyContent: "center" },
 });

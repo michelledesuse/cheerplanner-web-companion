@@ -1,0 +1,222 @@
+import React, { useCallback, useState } from "react";
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
+  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, RefreshControl, Modal,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
+
+import { api } from "@/src/api/client";
+import { colors, radius, spacing, typography } from "@/src/theme";
+
+type Team = { id: string; name: string; color?: string; season?: string };
+
+const TEAM_COLORS = [
+  "#E11D48", "#F97316", "#EAB308", "#22C55E", "#0EA5E9",
+  "#6366F1", "#A855F7", "#EC4899", "#14B8A6", "#64748B",
+];
+
+export default function TeamsScreen() {
+  const router = useRouter();
+  const [items, setItems] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [editing, setEditing] = useState<Team | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  // Form state
+  const [name, setName] = useState("");
+  const [color, setColor] = useState(TEAM_COLORS[4]);
+  const [season, setSeason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.get<Team[]>("/teams");
+      setItems(r.data);
+    } finally { setLoading(false); setRefreshing(false); }
+  }, []);
+
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const openNew = () => {
+    setEditing(null);
+    setName(""); setColor(TEAM_COLORS[4]); setSeason("");
+    setShowForm(true);
+  };
+
+  const openEdit = (t: Team) => {
+    setEditing(t);
+    setName(t.name); setColor(t.color || TEAM_COLORS[4]); setSeason(t.season || "");
+    setShowForm(true);
+  };
+
+  const closeForm = () => { setShowForm(false); setEditing(null); };
+
+  const save = async () => {
+    if (!name.trim()) { Alert.alert("Missing", "Please enter a team name."); return; }
+    setSaving(true);
+    try {
+      const payload = { name: name.trim(), color, season: season.trim() || null };
+      if (editing) {
+        await api.patch(`/teams/${editing.id}`, payload);
+      } else {
+        await api.post("/teams", payload);
+      }
+      closeForm();
+      await load();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not save");
+    } finally { setSaving(false); }
+  };
+
+  const remove = (t: Team) => {
+    Alert.alert(
+      "Delete team?",
+      `"${t.name}" will be removed from all athletes and competitions. This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try { await api.delete(`/teams/${t.id}`); await load(); }
+            catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not delete"); }
+          },
+        },
+      ],
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} testID="teams-back">
+          <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Teams</Text>
+        <TouchableOpacity onPress={openNew} style={styles.addBtn} testID="teams-add">
+          <Ionicons name="add" size={20} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+      >
+        {items.length === 0 ? (
+          <View style={styles.emptyBlock}>
+            <Ionicons name="people-outline" size={48} color={colors.textTertiary} />
+            <Text style={styles.empty}>No teams yet.</Text>
+            <Text style={styles.emptySub}>Create your household's teams so you can track meet times, attendance, and assignments per team.</Text>
+            <TouchableOpacity onPress={openNew} style={styles.bigAdd}>
+              <Ionicons name="add" size={18} color="white" />
+              <Text style={styles.bigAddText}>Add first team</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          items.map((t) => (
+            <TouchableOpacity key={t.id} onPress={() => openEdit(t)} style={styles.row} testID={`team-row-${t.id}`}>
+              <View style={[styles.colorSwatch, { backgroundColor: t.color || colors.accent }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowName}>{t.name}</Text>
+                {!!t.season && <Text style={styles.rowMeta}>{t.season}</Text>}
+              </View>
+              <TouchableOpacity onPress={() => remove(t)} hitSlop={10} testID={`team-delete-${t.id}`}>
+                <Ionicons name="trash-outline" size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
+            </TouchableOpacity>
+          ))
+        )}
+      </ScrollView>
+
+      <Modal visible={showForm} animationType="slide" transparent onRequestClose={closeForm}>
+        <View style={styles.modalBackdrop}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>{editing ? "Edit team" : "New team"}</Text>
+                <TouchableOpacity onPress={closeForm} hitSlop={10}>
+                  <Ionicons name="close" size={22} color={colors.textPrimary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                style={styles.input}
+                value={name}
+                onChangeText={setName}
+                placeholder="e.g. Senior Elite Coed 5"
+                placeholderTextColor={colors.textTertiary}
+                testID="team-name-input"
+              />
+
+              <Text style={styles.label}>Season (optional)</Text>
+              <TextInput
+                style={styles.input}
+                value={season}
+                onChangeText={setSeason}
+                placeholder="e.g. 2025-2026"
+                placeholderTextColor={colors.textTertiary}
+                testID="team-season-input"
+              />
+
+              <Text style={styles.label}>Color</Text>
+              <View style={styles.colorRow}>
+                {TEAM_COLORS.map((c) => (
+                  <TouchableOpacity
+                    key={c}
+                    onPress={() => setColor(c)}
+                    style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotActive]}
+                  />
+                ))}
+              </View>
+
+              <TouchableOpacity onPress={save} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.7 }]} testID="team-save-btn">
+                {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{editing ? "Save changes" : "Add team"}</Text>}
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: colors.bg },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
+  iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  headerTitle: { ...typography.h3, color: colors.textPrimary },
+  addBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
+  empty: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.sm },
+  emptySub: { ...typography.body, color: colors.textTertiary, textAlign: "center", paddingHorizontal: spacing.lg },
+  bigAdd: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.accent, borderRadius: 999, marginTop: spacing.md },
+  bigAddText: { color: "white", fontWeight: "700", fontSize: 14 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
+  colorSwatch: { width: 36, height: 36, borderRadius: 18 },
+  rowName: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
+  rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
+  modalCard: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, paddingBottom: spacing.xxl },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  modalTitle: { ...typography.h2, color: colors.textPrimary },
+  label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md, marginBottom: 6 },
+  input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
+  colorRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 },
+  colorDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: "transparent" },
+  colorDotActive: { borderColor: colors.textPrimary },
+  saveBtn: { marginTop: spacing.xl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
+  saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+});

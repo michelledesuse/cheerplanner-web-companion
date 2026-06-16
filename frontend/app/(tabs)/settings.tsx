@@ -138,6 +138,7 @@ export default function SettingsScreen() {
           <SettingRow icon="download-outline" label="Export expenses &amp; payments (CSV)" onPress={() => openExport("/export/expenses-payments.csv", "cheerplanner-expenses-payments.csv")} chevron testID="export-expenses-payments" />
           <SettingRow icon="calendar-outline" label="Export calendar (.ics)" onPress={() => openExport("/export/calendar.ics", "cheerplanner.ics", "text/calendar")} chevron testID="export-calendar" />
           <SettingRow icon="people-outline" label="Athletes" onPress={() => router.push("/(tabs)/athletes")} chevron />
+          <SettingRow icon="ribbon-outline" label="Teams" onPress={() => router.push("/teams" as any)} chevron testID="settings-teams" />
           <SettingRow icon="trophy-outline" label="Competitions" onPress={() => router.push("/(tabs)/competitions")} chevron />
           <SettingRow icon="gift-outline" label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />
         </View>

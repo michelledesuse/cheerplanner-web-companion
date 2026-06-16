@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,6 +33,15 @@ export default function CompetitionsScreen() {
   const [items, setItems] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Multi-select
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const enterSelectMode = () => { setSelectMode(true); setSelectedIds(new Set()); };
+  const toggleSelected = (id: string) => {
+    setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
 
   const load = useCallback(async () => {
     try {
@@ -43,28 +53,98 @@ export default function CompetitionsScreen() {
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    load();
+    return () => { setSelectMode(false); setSelectedIds(new Set()); };
+  }, [load]));
 
-  const upcoming = items.filter((c) => {
+  const upcoming = useMemo(() => items.filter((c) => {
     const d = daysBetween(c.event_date);
     return d === null || d >= 0;
-  });
-  const past = items.filter((c) => {
+  }), [items]);
+  const past = useMemo(() => items.filter((c) => {
     const d = daysBetween(c.event_date);
     return d !== null && d < 0;
-  });
+  }), [items]);
+
+  const visibleIds = useMemo(() => items.map((c) => c.id), [items]);
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const toggleSelectAll = () => {
+    setSelectedIds((s) => {
+      const n = new Set(s);
+      if (allSelected) visibleIds.forEach((id) => n.delete(id));
+      else visibleIds.forEach((id) => n.add(id));
+      return n;
+    });
+  };
+
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    Alert.alert(
+      `Delete ${ids.length} competition${ids.length === 1 ? "" : "s"}?`,
+      "Bookings and travel attached to these will also be removed. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.post("/bulk-delete", { resource: "competitions", ids });
+              exitSelectMode();
+              await load();
+            } catch (e: any) {
+              Alert.alert("Error", e?.response?.data?.detail || "Could not delete.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Competitions</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => router.push("/competitions/new")}
-          testID="add-competition-btn"
-        >
-          <Ionicons name="add" size={20} color="white" />
-        </TouchableOpacity>
+        {selectMode ? (
+          <View style={styles.selectBar}>
+            <TouchableOpacity onPress={exitSelectMode} testID="comp-select-cancel" hitSlop={10}>
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={styles.selectBarText}>{selectedIds.size} selected</Text>
+            <TouchableOpacity onPress={toggleSelectAll} hitSlop={6} testID="comp-select-all">
+              <Text style={{ color: colors.accent, fontWeight: "700" }}>{allSelected ? "Clear" : "Select all"}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={bulkDelete}
+              disabled={selectedIds.size === 0}
+              style={[styles.deleteBtn, { opacity: selectedIds.size === 0 ? 0.4 : 1 }]}
+              testID="comp-bulk-delete"
+            >
+              <Ionicons name="trash" size={18} color="#DC2626" />
+              <Text style={styles.deleteBtnText}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.title}>Competitions</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              {items.length > 0 && (
+                <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="comp-enter-select">
+                  <Ionicons name="checkmark-done" size={16} color={colors.accent} />
+                  <Text style={styles.selectBtnText}>Select</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={() => router.push("/competitions/new")}
+                testID="add-competition-btn"
+              >
+                <Ionicons name="add" size={20} color="white" />
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
 
       {loading ? (
@@ -90,27 +170,60 @@ export default function CompetitionsScreen() {
           testID="competitions-list"
         >
           {upcoming.length > 0 && <Text style={styles.sectionHead}>Upcoming</Text>}
-          {upcoming.map((c) => <CompCard key={c.id} comp={c} onPress={() => router.push(`/competitions/${c.id}`)} />)}
+          {upcoming.map((c) => (
+            <CompCard
+              key={c.id}
+              comp={c}
+              selectMode={selectMode}
+              selected={selectedIds.has(c.id)}
+              onPress={() => {
+                if (selectMode) { toggleSelected(c.id); return; }
+                router.push(`/competitions/${c.id}`);
+              }}
+              onLongPress={() => { setSelectMode(true); toggleSelected(c.id); }}
+            />
+          ))}
 
           {past.length > 0 && <Text style={[styles.sectionHead, { marginTop: spacing.xl }]}>Past</Text>}
-          {past.map((c) => <CompCard key={c.id} comp={c} faded onPress={() => router.push(`/competitions/${c.id}`)} />)}
+          {past.map((c) => (
+            <CompCard
+              key={c.id}
+              comp={c}
+              faded
+              selectMode={selectMode}
+              selected={selectedIds.has(c.id)}
+              onPress={() => {
+                if (selectMode) { toggleSelected(c.id); return; }
+                router.push(`/competitions/${c.id}`);
+              }}
+              onLongPress={() => { setSelectMode(true); toggleSelected(c.id); }}
+            />
+          ))}
         </ScrollView>
       )}
     </SafeAreaView>
   );
 }
 
-function CompCard({ comp, onPress, faded }: { comp: Competition; onPress: () => void; faded?: boolean }) {
+function CompCard({ comp, onPress, onLongPress, faded, selectMode, selected }: {
+  comp: Competition; onPress: () => void; onLongPress?: () => void; faded?: boolean; selectMode?: boolean; selected?: boolean;
+}) {
   const days = daysBetween(comp.event_date);
   const releaseDays = daysBetween(comp.booking_release_at);
   const isReleased = releaseDays === null || releaseDays <= 0;
   return (
     <TouchableOpacity
-      style={[styles.card, faded && { opacity: 0.6 }]}
+      style={[styles.card, faded && { opacity: 0.6 }, selected && { borderColor: colors.accent, backgroundColor: colors.accentSubtle }]}
       onPress={onPress}
+      onLongPress={onLongPress}
       activeOpacity={0.85}
       testID={`competition-card-${comp.id}`}
     >
+      {selectMode && (
+        <View style={[styles.checkBox, selected && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+          {selected && <Ionicons name="checkmark" size={14} color="white" />}
+        </View>
+      )}
       <View style={styles.cardLeft}>
         <Text style={styles.cardName} numberOfLines={1}>{comp.name}</Text>
         <View style={styles.cardMetaRow}>
@@ -148,6 +261,13 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.lg },
   title: { ...typography.display, color: colors.textPrimary },
   addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
+  selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  selectBar: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  selectBarText: { ...typography.bodyMedium, color: colors.textPrimary, flex: 1 },
+  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  deleteBtnText: { color: "#DC2626", fontWeight: "700" },
+  checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
   emptyCard: { backgroundColor: colors.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: colors.border },
   emptyImage: { width: "100%", height: 160, borderRadius: radius.lg, marginBottom: spacing.lg },
   emptyTitle: { ...typography.h2, color: colors.textPrimary, marginBottom: 6 },
