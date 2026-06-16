@@ -76,11 +76,6 @@ export default function AthleteForm() {
   const toggleTeam = (teamId: string) => {
     setTeamIds((prev) => {
       if (prev.includes(teamId)) return prev.filter((id) => id !== teamId);
-      // Cap at 3 for athletes; coaches unlimited
-      if (role === "athlete" && prev.length >= 3) {
-        Alert.alert("Limit reached", "Athletes can be on up to 3 teams. Switch to Coach for unlimited.");
-        return prev;
-      }
       return [...prev, teamId];
     });
   };
@@ -205,14 +200,7 @@ export default function AthleteForm() {
             {(["athlete", "coach"] as const).map((r) => (
               <TouchableOpacity
                 key={r}
-                onPress={() => {
-                  setRole(r);
-                  // If switching to athlete with >3 teams, trim
-                  if (r === "athlete" && teamIds.length > 3) {
-                    setTeamIds(teamIds.slice(0, 3));
-                    Alert.alert("Trimmed", "Athletes can be on up to 3 teams; extras were removed.");
-                  }
-                }}
+                onPress={() => setRole(r)}
                 style={[styles.roleChip, role === r && styles.roleChipOn]}
                 testID={`role-${r}`}
               >
@@ -230,7 +218,7 @@ export default function AthleteForm() {
 
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginTop: spacing.lg }}>
             <Text style={[styles.label, { marginTop: 0, marginBottom: 0 }]}>
-              Teams {role === "athlete" ? `(${teamIds.length}/3)` : `(${teamIds.length})`}
+              Teams ({teamIds.length})
             </Text>
             <TouchableOpacity onPress={() => router.push("/teams" as any)} testID="manage-teams-btn">
               <Text style={{ ...typography.caption, color: colors.accent, fontWeight: "700" }}>Manage</Text>

@@ -845,11 +845,6 @@ async def list_athletes(current_user=Depends(get_current_user)):
 async def create_athlete(payload: AthleteCreate, current_user=Depends(get_current_user)):
     # exclude None so Pydantic can apply default_factory (e.g. competition_ids=[])
     data = {k: v for k, v in payload.model_dump().items() if v is not None}
-    # Enforce team cap: athletes can be on at most 3 teams; coaches unlimited.
-    role = data.get("role", "athlete")
-    team_ids = data.get("team_ids") or []
-    if role == "athlete" and len(team_ids) > 3:
-        raise HTTPException(status_code=400, detail="An athlete can belong to at most 3 teams.")
     athlete = Athlete(user_id=current_user["id"], **data)
     await db.athletes.insert_one(athlete.model_dump())
     return athlete
@@ -867,16 +862,6 @@ async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=D
         updates[k] = v
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    # Validate team cap: need final role + team_ids to decide.
-    if "team_ids" in updates or "role" in updates:
-        existing = await db.athletes.find_one(
-            {"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
-            {"_id": 0, "role": 1, "team_ids": 1},
-        )
-        final_role = updates.get("role", (existing or {}).get("role", "athlete"))
-        final_team_ids = updates.get("team_ids", (existing or {}).get("team_ids", []))
-        if final_role == "athlete" and len(final_team_ids or []) > 3:
-            raise HTTPException(status_code=400, detail="An athlete can belong to at most 3 teams.")
     res = await db.athletes.update_one(
         {"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )

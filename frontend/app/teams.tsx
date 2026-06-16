@@ -9,13 +9,11 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import ColorField from "@/src/components/ColorField";
 
 type Team = { id: string; name: string; color?: string; season?: string };
 
-const TEAM_COLORS = [
-  "#E11D48", "#F97316", "#EAB308", "#22C55E", "#0EA5E9",
-  "#6366F1", "#A855F7", "#EC4899", "#14B8A6", "#64748B",
-];
+const DEFAULT_TEAM_COLOR = "#0EA5E9";
 
 export default function TeamsScreen() {
   const router = useRouter();
@@ -27,7 +25,7 @@ export default function TeamsScreen() {
 
   // Form state
   const [name, setName] = useState("");
-  const [color, setColor] = useState(TEAM_COLORS[4]);
+  const [color, setColor] = useState(DEFAULT_TEAM_COLOR);
   const [season, setSeason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -42,13 +40,13 @@ export default function TeamsScreen() {
 
   const openNew = () => {
     setEditing(null);
-    setName(""); setColor(TEAM_COLORS[4]); setSeason("");
+    setName(""); setColor(DEFAULT_TEAM_COLOR); setSeason("");
     setShowForm(true);
   };
 
   const openEdit = (t: Team) => {
     setEditing(t);
-    setName(t.name); setColor(t.color || TEAM_COLORS[4]); setSeason(t.season || "");
+    setName(t.name); setColor(t.color || DEFAULT_TEAM_COLOR); setSeason(t.season || "");
     setShowForm(true);
   };
 
@@ -171,15 +169,7 @@ export default function TeamsScreen() {
               />
 
               <Text style={styles.label}>Color</Text>
-              <View style={styles.colorRow}>
-                {TEAM_COLORS.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    onPress={() => setColor(c)}
-                    style={[styles.colorDot, { backgroundColor: c }, color === c && styles.colorDotActive]}
-                  />
-                ))}
-              </View>
+              <ColorField value={color} onChange={setColor} testID="team-color" />
 
               <TouchableOpacity onPress={save} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.7 }]} testID="team-save-btn">
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{editing ? "Save changes" : "Add team"}</Text>}
@@ -214,9 +204,6 @@ const styles = StyleSheet.create({
   modalTitle: { ...typography.h2, color: colors.textPrimary },
   label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md, marginBottom: 6 },
   input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
-  colorRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, marginTop: 4 },
-  colorDot: { width: 36, height: 36, borderRadius: 18, borderWidth: 3, borderColor: "transparent" },
-  colorDotActive: { borderColor: colors.textPrimary },
   saveBtn: { marginTop: spacing.xl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
 });
