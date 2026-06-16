@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
-  ActivityIndicator,
+  ActivityIndicator, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +31,73 @@ export default function ExpensesTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [applySheet, setApplySheet] = useState<Expense | null>(null);
   const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
+  // Multi-select mode (tap to toggle, long-press a row to enter)
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const toggleSelected = (id: string) => {
+    setSelectedIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const enterSelectMode = () => { setSelectMode(true); setSelectedIds(new Set()); };
+
+  // Items currently visible in the active tab — used for "Select all"
+  const visibleIds = useMemo(() => {
+    if (tab === "expenses") return filteredExpenses.map((e) => e.id);
+    if (tab === "payments") return filteredPayments.map((p) => p.id);
+    return fundraisers.map((f) => f.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, filteredExpenses, filteredPayments, fundraisers]);
+
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const toggleSelectAll = () => {
+    setSelectedIds((s) => {
+      if (allSelected) {
+        const n = new Set(s);
+        visibleIds.forEach((id) => n.delete(id));
+        return n;
+      }
+      const n = new Set(s);
+      visibleIds.forEach((id) => n.add(id));
+      return n;
+    });
+  };
+
+  // Maps the current tab to the resource string the bulk-delete endpoint expects.
+  const resourceForTab = (t: typeof tab) =>
+    t === "expenses" ? "expenses" : t === "payments" ? "payments" : "fundraisers";
+
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    const noun = tab === "expenses" ? "expense" : tab === "payments" ? "payment" : "fundraiser";
+    Alert.alert(
+      `Delete ${ids.length} ${noun}${ids.length === 1 ? "" : "s"}?`,
+      "This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const r = await api.post<{ deleted: number }>("/bulk-delete", {
+                resource: resourceForTab(tab),
+                ids,
+              });
+              exitSelectMode();
+              await load();
+              if ((r.data?.deleted || 0) === 0) {
+                Alert.alert("Nothing deleted", "Those items may have already been removed.");
+              }
+            } catch (e: any) {
+              Alert.alert("Error", e?.response?.data?.detail || "Could not delete.");
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const load = useCallback(async () => {
     try {
@@ -44,7 +111,10 @@ export default function ExpensesTab() {
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(useCallback(() => {
+    load();
+    return () => { setSelectMode(false); setSelectedIds(new Set()); };
+  }, [load]));
 
   const athleteName = (id: string) => athletes.find((a) => a.id === id)?.name || "";
   const athleteColor = (id: string) => athletes.find((a) => a.id === id)?.avatar_color || colors.accent;
@@ -86,32 +156,72 @@ export default function ExpensesTab() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Money</Text>
-        <TouchableOpacity
-          onPress={() =>
-            router.push(
-              tab === "expenses" ? "/expenses/new"
-              : tab === "payments" ? "/payments/new"
-              : "/fundraisers"
-            )
-          }
-          style={styles.addBtn}
-          testID="add-money-entry"
-        >
-          <Ionicons name="add" size={20} color="white" />
-          <Text style={styles.addBtnText}>{tab === "expenses" ? "Expense" : tab === "payments" ? "Payment" : "Fundraiser"}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {!selectMode && visibleIds.length > 0 && (
+            <TouchableOpacity
+              onPress={enterSelectMode}
+              style={styles.selectBtn}
+              testID="enter-select-mode"
+              accessibilityLabel="Select multiple"
+            >
+              <Ionicons name="checkmark-done" size={16} color={colors.accent} />
+              <Text style={styles.selectBtnText}>Select</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() =>
+              router.push(
+                tab === "expenses" ? "/expenses/new"
+                : tab === "payments" ? "/payments/new"
+                : "/fundraisers"
+              )
+            }
+            style={styles.addBtn}
+            testID="add-money-entry"
+          >
+            <Ionicons name="add" size={20} color="white" />
+            <Text style={styles.addBtnText}>{tab === "expenses" ? "Expense" : tab === "payments" ? "Payment" : "Fundraiser"}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.tabs}>
-        <TouchableOpacity onPress={() => setTab("expenses")} style={[styles.tab, tab === "expenses" && styles.tabActive]} testID="tab-expenses">
-          <Text style={[styles.tabText, tab === "expenses" && styles.tabTextActive]}>Expenses</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab("payments")} style={[styles.tab, tab === "payments" && styles.tabActive]} testID="tab-payments">
-          <Text style={[styles.tabText, tab === "payments" && styles.tabTextActive]}>Payments</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setTab("fundraisers")} style={[styles.tab, tab === "fundraisers" && styles.tabActive]} testID="tab-fundraisers">
-          <Text style={[styles.tabText, tab === "fundraisers" && styles.tabTextActive]}>Fundraisers</Text>
-        </TouchableOpacity>
+        {selectMode ? (
+          <View style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: spacing.md, paddingHorizontal: 4 }}>
+            <TouchableOpacity onPress={exitSelectMode} testID="select-cancel" hitSlop={8}>
+              <Ionicons name="close" size={22} color={colors.textPrimary} />
+            </TouchableOpacity>
+            <Text style={{ ...typography.bodyMedium, color: colors.textPrimary, flex: 1 }}>
+              {selectedIds.size} selected
+            </Text>
+            <TouchableOpacity onPress={toggleSelectAll} testID="select-all-btn" hitSlop={6}>
+              <Text style={{ color: colors.accent, fontWeight: "700" }}>
+                {allSelected ? "Clear" : "Select all"}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={bulkDelete}
+              disabled={selectedIds.size === 0}
+              style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: selectedIds.size === 0 ? 0.4 : 1 }}
+              testID="bulk-delete-btn"
+            >
+              <Ionicons name="trash" size={18} color="#DC2626" />
+              <Text style={{ color: "#DC2626", fontWeight: "700" }}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <TouchableOpacity onPress={() => { setTab("expenses"); exitSelectMode(); }} style={[styles.tab, tab === "expenses" && styles.tabActive]} testID="tab-expenses">
+              <Text style={[styles.tabText, tab === "expenses" && styles.tabTextActive]}>Expenses</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setTab("payments"); exitSelectMode(); }} style={[styles.tab, tab === "payments" && styles.tabActive]} testID="tab-payments">
+              <Text style={[styles.tabText, tab === "payments" && styles.tabTextActive]}>Payments</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setTab("fundraisers"); exitSelectMode(); }} style={[styles.tab, tab === "fundraisers" && styles.tabActive]} testID="tab-fundraisers">
+              <Text style={[styles.tabText, tab === "fundraisers" && styles.tabTextActive]}>Fundraisers</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </View>
 
       <View style={styles.summary}>
@@ -179,14 +289,24 @@ export default function ExpensesTab() {
               return (
                 <TouchableOpacity
                   key={e.id}
-                  onPress={() => router.push({ pathname: "/expenses/new", params: { id: e.id } })}
+                  onPress={() => {
+                    if (selectMode) { toggleSelected(e.id); return; }
+                    router.push({ pathname: "/expenses/new", params: { id: e.id } });
+                  }}
+                  onLongPress={() => { setSelectMode(true); toggleSelected(e.id); }}
                   activeOpacity={0.8}
-                  style={styles.row}
+                  style={[styles.row, selectedIds.has(e.id) && { backgroundColor: colors.accentSubtle }]}
                   testID={`expense-row-${e.id}`}
                 >
-                  <TouchableOpacity onPress={(ev) => { ev.stopPropagation?.(); togglePaid(e); }} style={[styles.dot, isPaid && { backgroundColor: colors.successText, borderColor: colors.successText }]}>
-                    {isPaid && <Ionicons name="checkmark" size={14} color="white" />}
-                  </TouchableOpacity>
+                  {selectMode ? (
+                    <View style={[styles.dot, selectedIds.has(e.id) && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+                      {selectedIds.has(e.id) && <Ionicons name="checkmark" size={14} color="white" />}
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={(ev) => { ev.stopPropagation?.(); togglePaid(e); }} style={[styles.dot, isPaid && { backgroundColor: colors.successText, borderColor: colors.successText }]}>
+                      {isPaid && <Ionicons name="checkmark" size={14} color="white" />}
+                    </TouchableOpacity>
+                  )}
                   <View style={{ flex: 1, marginLeft: spacing.md }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                       <Text style={styles.rowTitle}>{e.category}</Text>
@@ -232,14 +352,24 @@ export default function ExpensesTab() {
             return (
               <TouchableOpacity
                 key={p.id}
-                onPress={() => router.push({ pathname: "/payments/new", params: { id: p.id } })}
+                onPress={() => {
+                  if (selectMode) { toggleSelected(p.id); return; }
+                  router.push({ pathname: "/payments/new", params: { id: p.id } });
+                }}
+                onLongPress={() => { setSelectMode(true); toggleSelected(p.id); }}
                 activeOpacity={0.8}
-                style={styles.row}
+                style={[styles.row, selectedIds.has(p.id) && { backgroundColor: colors.accentSubtle }]}
                 testID={`payment-row-${p.id}`}
               >
-                <View style={[styles.iconCircle, { backgroundColor: colors.successBg }]}>
-                  <Ionicons name="cash" size={16} color={colors.successText} />
-                </View>
+                {selectMode ? (
+                  <View style={[styles.dot, selectedIds.has(p.id) && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+                    {selectedIds.has(p.id) && <Ionicons name="checkmark" size={14} color="white" />}
+                  </View>
+                ) : (
+                  <View style={[styles.iconCircle, { backgroundColor: colors.successBg }]}>
+                    <Ionicons name="cash" size={16} color={colors.successText} />
+                  </View>
+                )}
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.rowTitle}>{p.method || "Payment"}</Text>
                   <View style={styles.athChip}>
@@ -272,14 +402,24 @@ export default function ExpensesTab() {
             return (
               <TouchableOpacity
                 key={f.id}
-                onPress={() => router.push("/fundraisers")}
+                onPress={() => {
+                  if (selectMode) { toggleSelected(f.id); return; }
+                  router.push("/fundraisers");
+                }}
+                onLongPress={() => { setSelectMode(true); toggleSelected(f.id); }}
                 activeOpacity={0.8}
-                style={styles.row}
+                style={[styles.row, selectedIds.has(f.id) && { backgroundColor: colors.accentSubtle }]}
                 testID={`fundraiser-row-${f.id}`}
               >
-                <View style={[styles.iconCircle, { backgroundColor: colors.warningBg }]}>
-                  <Ionicons name="gift" size={16} color={colors.warningText} />
-                </View>
+                {selectMode ? (
+                  <View style={[styles.dot, selectedIds.has(f.id) && { backgroundColor: colors.accent, borderColor: colors.accent }]}>
+                    {selectedIds.has(f.id) && <Ionicons name="checkmark" size={14} color="white" />}
+                  </View>
+                ) : (
+                  <View style={[styles.iconCircle, { backgroundColor: colors.warningBg }]}>
+                    <Ionicons name="gift" size={16} color={colors.warningText} />
+                  </View>
+                )}
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.rowTitle}>{f.name}</Text>
                   <Text style={styles.rowMeta}>
@@ -331,6 +471,8 @@ const styles = StyleSheet.create({
   headerTitle: { ...typography.h1, color: colors.textPrimary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.accent, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
+  selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   tabs: { flexDirection: "row", marginHorizontal: spacing.lg, backgroundColor: colors.card, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   tab: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: "center" },
   tabActive: { backgroundColor: colors.primary },
