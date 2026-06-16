@@ -41,28 +41,6 @@ export default function ExpensesTab() {
   };
   const enterSelectMode = () => { setSelectMode(true); setSelectedIds(new Set()); };
 
-  // Items currently visible in the active tab — used for "Select all"
-  const visibleIds = useMemo(() => {
-    if (tab === "expenses") return filteredExpenses.map((e) => e.id);
-    if (tab === "payments") return filteredPayments.map((p) => p.id);
-    return fundraisers.map((f) => f.id);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, filteredExpenses, filteredPayments, fundraisers]);
-
-  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
-  const toggleSelectAll = () => {
-    setSelectedIds((s) => {
-      if (allSelected) {
-        const n = new Set(s);
-        visibleIds.forEach((id) => n.delete(id));
-        return n;
-      }
-      const n = new Set(s);
-      visibleIds.forEach((id) => n.add(id));
-      return n;
-    });
-  };
-
   // Maps the current tab to the resource string the bulk-delete endpoint expects.
   const resourceForTab = (t: typeof tab) =>
     t === "expenses" ? "expenses" : t === "payments" ? "payments" : "fundraisers";
@@ -138,6 +116,26 @@ export default function ExpensesTab() {
     const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
     return { totalDue, totalPaid };
   }, [expenses, payments]);
+
+  // Items currently visible in the active tab — used for "Select all"
+  const visibleIds = useMemo(() => {
+    if (tab === "expenses") return filteredExpenses.map((e) => e.id);
+    if (tab === "payments") return filteredPayments.map((p) => p.id);
+    return fundraisers.map((f) => f.id);
+  }, [tab, filteredExpenses, filteredPayments, fundraisers]);
+
+  const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
+  const toggleSelectAll = () => {
+    setSelectedIds((s) => {
+      const n = new Set(s);
+      if (allSelected) {
+        visibleIds.forEach((id) => n.delete(id));
+      } else {
+        visibleIds.forEach((id) => n.add(id));
+      }
+      return n;
+    });
+  };
 
   const togglePaid = async (e: Expense) => {
     await api.patch(`/expenses/${e.id}`, { paid: !e.paid });
