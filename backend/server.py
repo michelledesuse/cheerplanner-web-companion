@@ -3035,5 +3035,48 @@ async def delete_packing_list(list_id: str, current_user=Depends(get_current_use
 
 
 
+
+# ============================================================
+# Generic bulk-delete endpoint
+# ============================================================
+BULK_DELETE_COLLECTIONS = {
+    "expenses": "expenses",
+    "payments": "payments",
+    "fundraisers": "fundraisers",
+    "competitions": "competitions",
+    "schedules": "schedule_events",
+    "schedule_events": "schedule_events",
+    "bookings": "bookings",
+    "packing_templates": "packing_templates",
+    "packing_lists": "packing_lists",
+}
+
+
+class BulkDeletePayload(BaseModel):
+    resource: str
+    ids: List[str]
+
+
+@api_router.post("/bulk-delete")
+async def bulk_delete(payload: BulkDeletePayload, current_user=Depends(get_current_user)):
+    """Delete many records of a single resource type in one call.
+
+    Scoped to household — a co-parent can purge records the other parent
+    created. Returns the count of records actually deleted (matches Mongo's
+    `deleted_count`) so the client can show "Deleted N items".
+    """
+    coll_name = BULK_DELETE_COLLECTIONS.get(payload.resource)
+    if not coll_name:
+        raise HTTPException(status_code=400, detail=f"Unsupported resource '{payload.resource}'")
+    if not payload.ids:
+        return {"deleted": 0}
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db[coll_name].delete_many({
+        "id": {"$in": payload.ids},
+        "user_id": {"$in": member_ids},
+    })
+    return {"deleted": res.deleted_count, "resource": payload.resource}
+
+
 # Re-include router AFTER all routes are registered (export endpoints added after first include_router)
 app.include_router(api_router)

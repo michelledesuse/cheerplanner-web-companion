@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only review of new POST /api/bulk-delete endpoint. Wrote 14 pytest cases covering auth, validation, household scoping, cross-household isolation, the 'schedules' alias, and happy-path deletion for every supported resource (expenses, payments, fundraisers, competitions, schedules, schedule_events, bookings, packing_templates, packing_lists). All 14 tests PASS against the public EXPO_BACKEND_URL. Endpoint correctly returns {deleted:N, resource:<r>}, returns 400 for unsupported resources, {deleted:0} for empty ids, 401 without bearer token, and is correctly scoped to the requester's household so co-parents can delete each other's records while outsiders cannot.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_bulk_delete.py",
+    "/app/test_reports/pytest/pytest_bulk_delete.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "bulk-delete returns 200 with {deleted:0} when ids list is empty — matches spec. Consider also returning the 'resource' key in that branch for response-shape consistency (current empty-ids branch omits 'resource'). Minor cosmetic; clients can ignore.",
+    "Endpoint name uses kebab-case '/bulk-delete' while most other endpoints use underscore-free paths; consistent with existing '/expenses/bulk' style is fine, but worth noting.",
+    "BULK_DELETE_COLLECTIONS exposes 'schedule_events' as a duplicate alias of 'schedules' — both work, which is correct. No security issue since both map to the same collection."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_bulk_delete.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "not-tested"
+  },
+  "seed_data_creation": "Tests create their own TEST_-prefixed athletes/expenses/payments/competitions/bookings/fundraisers/schedule events/packing templates/packing lists per test class; bulk-delete is then used to remove them. Two new household test accounts are created on-the-fly (TEST_bulkA_*, TEST_bulkB_*, TEST_bulkOut_*) for the household-scope tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_bulk_delete.py as a regression suite for the bulk-delete endpoint. The tests use EXPO_PUBLIC_BACKEND_URL via the EXPO_BACKEND_URL env var (export EXPO_BACKEND_URL=$(grep EXPO_PUBLIC_BACKEND_URL /app/frontend/.env | cut -d= -f2)). Household-scope test signs up two fresh users and uses /household/invite + /household/join to put them in the same household before testing co-parent deletion. Test file run-time ~80s due to bcrypt signups + tunnel latency.",
+  "rca_of_issue": "N/A — feature passes all acceptance criteria."
+}

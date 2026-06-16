@@ -117,38 +117,38 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Stat tiles */}
+        {/* Stat tiles — tappable, each routes to its primary tab */}
         <View style={styles.tileRow}>
-          <View style={styles.tile}>
+          <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/expenses")} testID="tile-this-month">
             <View style={[styles.tileIcon, { backgroundColor: colors.accentSubtle }]}>
               <Ionicons name="trending-up" size={18} color={colors.accent} />
             </View>
             <Text style={styles.tileValue}>{formatCurrency(data?.month_spend || 0)}</Text>
             <Text style={styles.tileLabel}>This month</Text>
-          </View>
-          <View style={styles.tile}>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/expenses?tab=payments")} testID="tile-paid-ytd">
             <View style={[styles.tileIcon, { backgroundColor: colors.successBg }]}>
               <Ionicons name="cash" size={18} color={colors.successText} />
             </View>
             <Text style={styles.tileValue}>{formatCurrency(data?.total_payments_ytd || 0)}</Text>
             <Text style={styles.tileLabel}>Paid YTD</Text>
-          </View>
+          </TouchableOpacity>
         </View>
         <View style={styles.tileRow}>
-          <View style={styles.tile}>
+          <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/athletes")} testID="tile-athletes">
             <View style={[styles.tileIcon, { backgroundColor: "#F1F5F9" }]}>
               <Ionicons name="people" size={18} color={colors.primary} />
             </View>
             <Text style={styles.tileValue}>{data?.athletes_count || 0}</Text>
             <Text style={styles.tileLabel}>Athletes</Text>
-          </View>
-          <View style={styles.tile}>
+          </TouchableOpacity>
+          <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/expenses?tab=fundraisers")} testID="tile-raised">
             <View style={[styles.tileIcon, { backgroundColor: "#FEF3C7" }]}>
               <Ionicons name="gift" size={18} color={colors.warningText} />
             </View>
             <Text style={styles.tileValue}>{formatCurrency(data?.total_raised || 0)}</Text>
             <Text style={styles.tileLabel}>Raised</Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {/* Next competition */}
@@ -199,7 +199,7 @@ export default function DashboardScreen() {
         {/* Reminders */}
         <View style={styles.sectionHead}>
           <Text style={styles.sectionTitle}>Upcoming reminders</Text>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/reminders")} testID="see-all-reminders">
+          <TouchableOpacity onPress={() => router.push("/(tabs)/calendar")} testID="see-all-reminders">
             <Text style={styles.linkText}>See all</Text>
           </TouchableOpacity>
         </View>
@@ -207,12 +207,26 @@ export default function DashboardScreen() {
         {reminders.length === 0 ? (
           <View style={styles.emptyCard}>
             <Ionicons name="checkmark-circle-outline" size={28} color={colors.successText} />
-            <Text style={styles.emptyText}>You're all caught up</Text>
+            <Text style={styles.emptyText}>You&apos;re all caught up</Text>
           </View>
         ) : (
           <View style={{ gap: spacing.sm }}>
             {reminders.map((r) => (
-              <ReminderRow key={r.id} item={r} />
+              <TouchableOpacity
+                key={r.id}
+                activeOpacity={0.7}
+                onPress={() => {
+                  // Route the user to where they'd manage this kind of item.
+                  if (r.kind === "expense" || r.kind === "payment") router.push("/(tabs)/expenses");
+                  else if (r.kind === "booking_due" || r.kind === "cancel_by") router.push(`/competitions/${r.competition_id || r.ref_id}`);
+                  else if (r.kind === "competition" || r.kind === "booking_release") router.push("/(tabs)/competitions");
+                  else if (r.kind === "packing") router.push(`/competitions/${r.competition_id || r.ref_id}`);
+                  else router.push("/(tabs)/calendar");
+                }}
+                testID={`reminder-${r.id}`}
+              >
+                <ReminderRow item={r} />
+              </TouchableOpacity>
             ))}
           </View>
         )}
