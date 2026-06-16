@@ -125,3 +125,18 @@ File: `/app/backend/tests/test_teams_phase_b.py` (JUnit: `/app/test_reports/pyte
 - `server.py` is now 3206 lines (way over the 700-line guideline). Consider splitting into routers per resource.
 - Inconsistent `model_dump()` patterns across handlers (exclude_none vs exclude_unset vs neither). The competitions bug came from this inconsistency.
 - Frontend testing for Teams UI is the explicit follow-up — not touched this iteration.
+
+## Iteration 17 — Cap removal regression (backend only)
+
+- Suite: `/app/backend/tests/test_teams_phase_b.py` (23 tests, all passing).
+- JUnit: `/app/test_reports/pytest/pytest_iter17.xml`.
+- Report: `/app/test_reports/iteration_17.json`.
+- Verified the 3-team cap is GONE:
+  - `POST /api/athletes` role=athlete, team_ids of length 4 → **200** ✅
+  - `POST /api/athletes` role=athlete, team_ids of length 10 → **200** ✅
+  - `PATCH /api/athletes/{id}` 3-team athlete → 4 teams → **200**, `team_ids` length 4 ✅
+  - `PATCH /api/athletes/{id}` → 8 teams → **200**, `team_ids` length 8 ✅
+- Regression: Teams CRUD, team-delete cascade, `team_ids`/`team_meet_times`/`teams_to_watch` round-trip, `POST /api/competitions` without list fields (iter-16 fix holds), bulk-delete for teams / expenses / payments / fundraisers / schedule_events / competitions, role persistence on POST + PATCH, `/api/auth/me` all green.
+- Updated: inverted `test_04` + `test_06` cap-assertions to expect 200; added `test_04b` (10 teams), `test_06b` (8 teams), `test_11` (competition without lists), `test_12` (role persistence), `test_13a-d` (bulk-delete on payments/fundraisers/schedule_events/competitions), `test_14` (auth/me).
+- No backend issues found. Frontend changes (ColorField on `/app/teams.tsx`, athlete-form cap-warning removal) not tested per request.
+

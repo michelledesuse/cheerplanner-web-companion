@@ -95,16 +95,34 @@ def test_03_update_team(client, created):
     assert data["season"] == "2025-2026"  # unchanged
 
 
-# ---------- 4. POST /api/athletes - athlete with 4 teams -> 400 ----------
-def test_04_create_athlete_cap_400(client):
+# ---------- 4. POST /api/athletes - athlete with 4 teams -> 200 (cap removed) ----------
+def test_04_create_athlete_no_cap_4_teams(client, created):
     fake_team_ids = [str(uuid.uuid4()) for _ in range(4)]
     r = client.post(f"{BASE_URL}/api/athletes", json={
-        "name": "TEST_OverCap",
+        "name": "TEST_FourTeamer",
         "role": "athlete",
         "team_ids": fake_team_ids,
     })
-    assert r.status_code == 400, r.text
-    assert "at most 3 teams" in r.json().get("detail", "")
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["role"] == "athlete"
+    assert len(data["team_ids"]) == 4
+    created["athletes"].append(data["id"])
+
+
+# ---------- 4b. POST /api/athletes - athlete with 10 teams -> 200 (cap removed) ----------
+def test_04b_create_athlete_no_cap_10_teams(client, created):
+    fake_team_ids = [str(uuid.uuid4()) for _ in range(10)]
+    r = client.post(f"{BASE_URL}/api/athletes", json={
+        "name": "TEST_TenTeamer",
+        "role": "athlete",
+        "team_ids": fake_team_ids,
+    })
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["role"] == "athlete"
+    assert len(data["team_ids"]) == 10
+    created["athletes"].append(data["id"])
 
 
 # ---------- 5. POST /api/athletes - coach with 5 teams -> 200 ----------
@@ -122,8 +140,8 @@ def test_05_create_coach_unlimited(client, created):
     created["athletes"].append(data["id"])
 
 
-# ---------- 6. PATCH athlete with 3 teams -> add 4th -> 400 ----------
-def test_06_patch_athlete_cap(client, created):
+# ---------- 6. PATCH athlete with 3 teams -> add 4th -> 200 (cap removed) ----------
+def test_06_patch_athlete_no_cap(client, created):
     # Create an athlete with 3 teams first
     three = [str(uuid.uuid4()) for _ in range(3)]
     r = client.post(f"{BASE_URL}/api/athletes", json={
@@ -134,15 +152,27 @@ def test_06_patch_athlete_cap(client, created):
     assert r.status_code == 200, r.text
     aid = r.json()["id"]
     created["athletes"].append(aid)
-    # Now try to add a 4th
+    # Now add a 4th -> should succeed
     four = three + [str(uuid.uuid4())]
     r = client.patch(f"{BASE_URL}/api/athletes/{aid}", json={"team_ids": four})
-    assert r.status_code == 400, r.text
-    assert "at most 3 teams" in r.json().get("detail", "")
-    # Confirm DB still has the old 3
+    assert r.status_code == 200, r.text
+    assert len(r.json()["team_ids"]) == 4
+    # Confirm DB has 4 now
     r = client.get(f"{BASE_URL}/api/athletes")
     me = next(a for a in r.json() if a["id"] == aid)
-    assert len(me["team_ids"]) == 3
+    assert len(me["team_ids"]) == 4
+
+
+# ---------- 6b. PATCH athlete to 8 teams -> 200 ----------
+def test_06b_patch_athlete_eight_teams(client, created):
+    eight = [str(uuid.uuid4()) for _ in range(8)]
+    aid = created["athletes"][-1]
+    r = client.patch(f"{BASE_URL}/api/athletes/{aid}", json={"team_ids": eight})
+    assert r.status_code == 200, r.text
+    assert len(r.json()["team_ids"]) == 8
+    r = client.get(f"{BASE_URL}/api/athletes")
+    me = next(a for a in r.json() if a["id"] == aid)
+    assert len(me["team_ids"]) == 8
 
 
 # ---------- 7. PATCH competition - team_ids + team_meet_times + teams_to_watch round-trip ----------
@@ -291,6 +321,100 @@ def test_10d_regression_payment_create(client):
     pid = r.json()["id"]
     # cleanup
     client.delete(f"{BASE_URL}/api/payments/{pid}")
+
+
+# ---------- 11. POST /api/competitions omitting new Phase B list fields -> 200 ----------
+def test_11_create_competition_without_list_fields(client, created):
+    r = client.post(f"{BASE_URL}/api/competitions", json={
+        "name": "TEST_NoLists Comp", "event_date": "2026-04-01",
+    })
+    assert r.status_code == 200, r.text
+    c = r.json()
+    assert c["team_ids"] == []
+    assert c["team_meet_times"] == []
+    assert c["teams_to_watch"] == []
+    created["competitions"].append(c["id"])
+
+
+# ---------- 12. Role field persists on POST + PATCH ----------
+def test_12_role_persists(client, created):
+    r = client.post(f"{BASE_URL}/api/athletes", json={
+        "name": "TEST_RoleAthlete", "role": "athlete",
+    })
+    assert r.status_code == 200, r.text
+    aid = r.json()["id"]
+    assert r.json()["role"] == "athlete"
+    created["athletes"].append(aid)
+    # Switch to coach via PATCH
+    r = client.patch(f"{BASE_URL}/api/athletes/{aid}", json={"role": "coach"})
+    assert r.status_code == 200, r.text
+    assert r.json()["role"] == "coach"
+    # Verify GET
+    r = client.get(f"{BASE_URL}/api/athletes")
+    me = next(a for a in r.json() if a["id"] == aid)
+    assert me["role"] == "coach"
+
+
+# ---------- 13. Bulk-delete works for payments, fundraisers, schedule_events, competitions ----------
+def test_13a_bulk_delete_payments(client):
+    r = client.get(f"{BASE_URL}/api/athletes")
+    athletes = r.json()
+    if not athletes:
+        pytest.skip("no athletes available")
+    aid = athletes[0]["id"]
+    r = client.post(f"{BASE_URL}/api/payments", json={
+        "athlete_id": aid, "amount": 9.99, "paid_on": "2026-01-11", "note": "TEST_bulk",
+    })
+    assert r.status_code == 200, r.text
+    pid = r.json()["id"]
+    r = client.post(f"{BASE_URL}/api/bulk-delete", json={"resource": "payments", "ids": [pid]})
+    assert r.status_code == 200, r.text
+    assert r.json().get("deleted") == 1
+
+
+def test_13b_bulk_delete_fundraisers(client):
+    r = client.post(f"{BASE_URL}/api/fundraisers", json={
+        "name": "TEST_BulkFR", "amount_raised": 50.0, "raised_on": "2026-01-12",
+    })
+    if r.status_code != 200:
+        pytest.skip(f"fundraiser create failed: {r.status_code} {r.text}")
+    fid = r.json()["id"]
+    r = client.post(f"{BASE_URL}/api/bulk-delete", json={"resource": "fundraisers", "ids": [fid]})
+    assert r.status_code == 200, r.text
+    assert r.json().get("deleted") == 1
+
+
+def test_13c_bulk_delete_schedule_events(client):
+    r = client.post(f"{BASE_URL}/api/schedule", json={
+        "title": "TEST_BulkSched", "date": "2026-04-10", "event_type": "practice",
+    })
+    if r.status_code != 200:
+        pytest.skip(f"schedule create failed: {r.status_code} {r.text}")
+    body = r.json()
+    sid = body[0]["id"] if isinstance(body, list) else body.get("id")
+    if not sid:
+        pytest.skip(f"unexpected schedule response: {body}")
+    r = client.post(f"{BASE_URL}/api/bulk-delete", json={"resource": "schedule_events", "ids": [sid]})
+    assert r.status_code == 200, r.text
+    assert r.json().get("deleted") == 1
+
+
+def test_13d_bulk_delete_competitions(client):
+    r = client.post(f"{BASE_URL}/api/competitions", json={
+        "name": "TEST_BulkComp", "event_date": "2026-04-15",
+    })
+    assert r.status_code == 200, r.text
+    cid = r.json()["id"]
+    r = client.post(f"{BASE_URL}/api/bulk-delete", json={"resource": "competitions", "ids": [cid]})
+    assert r.status_code == 200, r.text
+    assert r.json().get("deleted") == 1
+
+
+# ---------- 14. Auth smoke ----------
+def test_14_auth_me(client):
+    r = client.get(f"{BASE_URL}/api/auth/me")
+    assert r.status_code == 200, r.text
+    assert r.json().get("email") == EMAIL
 
 
 # ---------- Final cleanup ----------
