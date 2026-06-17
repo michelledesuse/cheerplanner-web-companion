@@ -1,0 +1,56 @@
+{
+  "summary": "Iteration 18 backend regression — 14/16 PASS. Verified payment waterfall allocation (POST + most PATCH cases), TeamMeetTime four-field multi-day round-trip, calendar feed team_meet / team_performance / team_to_watch (with cyan color & bare-date marker), ICS export of timed VEVENTs, and broad regression (auth, athletes no-cap with 5 teams, team cascade delete, competition POST without list fields, bulk-delete, athlete CRUD). TWO BACKEND BUGS FOUND: (1) PATCH /api/payments amount-decrease leaves stale `paid=True` on expenses that drop out of new allocation, and (2) POST /api/payments silently DROPS client-supplied `allocations` (PaymentCreate schema has no `allocations` field), so callers cannot override the waterfall on create.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "PATCH /api/payments/{id}",
+        "issue": "When payment amount is DECREASED so a previously-covered expense is no longer in the new waterfall allocation, the expense's `paid` flag stays True. Repro: POST 60 over [Tuition($100 due 3/1), Gear($200 due 2/1)] -> Gear gets $60. PATCH amount 60->300 -> Gear paid+Tuition paid. PATCH amount 300->60 -> Gear correctly becomes unpaid (in new allocations), but Tuition.paid stays True. Root cause: server.py:1509-1512 builds `affected_ids` only from `updates.get('applied_expense_ids')` + new allocations, missing the previous-but-now-dropped expense IDs. Fix: include `existing['applied_expense_ids']` (and ideally previous allocations) in `affected_ids` before the paid-flag refresh loop.",
+        "priority": "HIGH"
+      },
+      {
+        "endpoint": "POST /api/payments",
+        "issue": "Client-supplied `allocations` field is silently dropped because PaymentCreate (server.py:259-265) does not declare `allocations`. Combined with the waterfall guard `if entry.applied_expense_ids and not entry.allocations` (line 1306), the server ALWAYS overrides explicit client allocations with its own waterfall. Repro: POST {amount:100, applied_expense_ids:[Tuition $100, Gear $100], allocations:[{Tuition:80},{Gear:20}]} -> server returns allocations [{Tuition:100}] (waterfall) instead of 80/20. Fix: add `allocations: Optional[List[PaymentAllocation]] = None` to PaymentCreate so explicit splits are honored on create.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "DELETE /api/payments/{id}",
+        "issue": "Deleting a payment does NOT refresh `expense.paid` flags. If a payment fully covered an expense and is then deleted, the expense remains `paid=True` even though balance_due is back to full. Surfaced incidentally during waterfall regression cleanup. Suggest reusing the same affected_ids paid-flag refresh helper used in update_payment."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter18_waterfall_and_team_calendar.py",
+    "/app/test_reports/pytest/pytest_iter18.xml"
+  ],
+  "action_items": [
+    "FIX update_payment paid-flag refresh: include previous applied_expense_ids (and prior allocations) in `affected_ids` before paid-flag refresh loop (server.py:1509).",
+    "FIX PaymentCreate schema: add `allocations: Optional[List[PaymentAllocation]] = None` so POST /api/payments respects explicit client allocations and skips the waterfall when provided.",
+    "Consider: refresh expense.paid flags on DELETE /api/payments/{id} as well (minor).",
+    "Refactor: server.py is now 3447 lines — still well above the 700-line guideline. Consider splitting into routers per resource (payments, competitions, calendar, packing, etc.)."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 3447 lines and growing each iteration; split into focused routers per resource.",
+    "Inconsistent paid-flag refresh logic: create_payment refreshes via paid_map after insert, update_payment uses a manually-built affected_ids that misses dropped expenses, delete_payment doesn't refresh at all.",
+    "PaymentCreate and PaymentEntry diverge: PaymentEntry has `allocations` but PaymentCreate does not, so clients cannot post explicit allocations even though the rest of the code supports them.",
+    "Inside `_waterfall_allocations` (server.py:909-940), the pass-2 fallback for legacy `applied_expense_ids`-only payments is documented as 'approximate, skip' — that means a new waterfall allocation could over-commit if old legacy payments still consume funds. Worth tightening if any legacy data exists."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter18_waterfall_and_team_calendar.py (NEW)",
+    "/app/test_reports/iteration_18.json (NEW)",
+    "/app/test_result.md (appended iteration-18 section)"
+  ],
+  "success_rate": {"backend": "87.5% (14/16 pytest)", "frontend": "not tested per request"},
+  "seed_data_creation": "Each test class auto-creates and cleans up its own sandbox (athletes, teams, competitions, expenses, payments) prefixed TEST_. No persistent seed left behind on the smoke@test.com account.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Re-run /app/backend/tests/test_iter18_waterfall_and_team_calendar.py after main agent fixes the two HIGH bugs. Expected: 16/16 PASS. test_02_partial_60_across_two specifically asserts paid-flag reset on PATCH amount drop. test_16_standard_payment_with_explicit_allocations specifically asserts client-supplied allocations are honored on POST. All other test classes (team meet times, calendar feed, ICS, regression) are stable and green.",
+  "rca_of_issue": "Bug 1 RCA — update_payment (server.py:1480-1530): when PATCH supplies only `amount`, `updates` dict gets `allocations` rebuilt (line 1499) but `applied_expense_ids` is absent. The paid-flag refresh loop at lines 1509-1512 computes affected_ids from `updates.get('applied_expense_ids')` (None) + new allocations only. Therefore an expense that WAS previously covered (still in payment's stored applied_expense_ids) but is NO LONGER in the new waterfall (e.g. because amount dropped) is never re-evaluated, so its stale paid=True persists. Mitigation: union `existing.get('applied_expense_ids')` and previous allocations' expense_ids into affected_ids before the loop. Bug 2 RCA — PaymentCreate Pydantic model is missing the `allocations` field that PaymentEntry has. FastAPI strips unknown fields before reaching the handler, so even if a client posts `allocations`, `entry.allocations` is None inside create_payment, and the `if entry.applied_expense_ids and not entry.allocations` branch always fires and overwrites with waterfall. Mitigation: add `allocations: Optional[List[PaymentAllocation]] = None` to PaymentCreate."
+}

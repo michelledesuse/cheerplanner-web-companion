@@ -140,3 +140,30 @@ File: `/app/backend/tests/test_teams_phase_b.py` (JUnit: `/app/test_reports/pyte
 - Updated: inverted `test_04` + `test_06` cap-assertions to expect 200; added `test_04b` (10 teams), `test_06b` (8 teams), `test_11` (competition without lists), `test_12` (role persistence), `test_13a-d` (bulk-delete on payments/fundraisers/schedule_events/competitions), `test_14` (auth/me).
 - No backend issues found. Frontend changes (ColorField on `/app/teams.tsx`, athlete-form cap-warning removal) not tested per request.
 
+## Iteration 18 — Waterfall payments + team multi-day meet times + calendar/ICS (backend only)
+
+- Suite: `/app/backend/tests/test_iter18_waterfall_and_team_calendar.py` (16 tests).
+- JUnit: `/app/test_reports/pytest/pytest_iter18.xml`.
+- Report: `/app/test_reports/iteration_18.json`.
+- **Result: 14 PASS / 2 FAIL** — two real backend bugs surfaced.
+
+### PASS (14)
+- Waterfall POST: $250 across 3 staggered-due expenses → Camp $50 + Gear $200 paid in full, Tuition still owed; paid flags auto-set; balance_due correct.
+- Waterfall is order-agnostic: even when client sends `applied_expense_ids` in reverse order, server re-sorts by due_date.
+- Waterfall POST $60/$300: earliest-due gets all $60; PATCH amount 60→300 covers both expenses and auto-flips both `paid=True`.
+- TeamMeetTime: 2-entry multi-day round-trip with date / meet_time / performance_time / performance_location; partial-edit (Hall A → "Hall A (updated)", 16:00 → 15:30) round-trips; removing one entry leaves the other intact.
+- Calendar feed: team_meet + team_performance items emitted with team color; subtitle includes 12-hour time + location; teams_to_watch emits cyan (#0EA5E9); bare-date entries emit a single performance-day marker.
+- ICS export: timed VEVENTs present (DTSTART:20260612T140000, DTSTART:20260612T160000) for team_meet/team_performance.
+- Regression: auth/me, athlete with 5 team_ids (cap-removal holds), team-delete cascade strips IDs from athletes.team_ids + competitions.team_ids + competitions.team_meet_times, POST /api/competitions without list fields, bulk-delete expenses.
+
+### FAIL (2) — backend bugs for main agent
+1. **PATCH /api/payments amount-decrease leaves stale `paid=True`.** After PATCH 60→300→60, Gear correctly reverts to unpaid but Tuition stays `paid=True` because `update_payment` (server.py:1509-1512) builds `affected_ids` only from the NEW updates, missing previously-covered expenses that drop out of the new allocation. Fix: union `existing['applied_expense_ids']` (and prior allocations) into `affected_ids` before the refresh loop.
+2. **POST /api/payments silently drops client-supplied `allocations`.** `PaymentCreate` (server.py:259-265) has no `allocations` field, so FastAPI strips it; the waterfall branch then always overrides. Test posted 80/20 explicit split → server stored 100/0 waterfall. Fix: add `allocations: Optional[List[PaymentAllocation]] = None` to `PaymentCreate`.
+
+### Minor (observed during cleanup)
+- DELETE /api/payments does NOT refresh expense `paid` flags. Deleting a payment that fully covered an expense leaves the expense `paid=True` indefinitely.
+
+### Notes
+- server.py is now 3447 lines — still well above the 700-line guideline; consider router splits.
+- Paid-flag refresh logic differs across create / update / delete payment handlers — central helper recommended.
+
