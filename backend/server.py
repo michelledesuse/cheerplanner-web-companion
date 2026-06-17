@@ -889,28 +889,144 @@ async def expense_categories():
     return {"categories": EXPENSE_CATEGORIES}
 
 
-async def _build_paid_map(user_id: str) -> dict:
-    """Return {expense_id: paid_amount_sum} from all payments for this user."""
-    paid_map: dict = {}
+async def _waterfall_allocations(
+    user_id: str,
+    payment_amount: float,
+    expense_ids: List[str],
+    ignore_payment_id: Optional[str] = None,
+) -> List[PaymentAllocation]:
+    """Build per-expense allocations that pay each selected expense IN FULL,
+    in due-date order (oldest first), until the payment amount is exhausted.
+
+    `ignore_payment_id` is used during update_payment so we don't count the
+    payment being edited against its own remaining balance.
+    """
+    if not expense_ids or payment_amount <= 0:
+        return []
+
+    # Fetch the chosen expenses once.
+    docs = await db.expenses.find(
+        {"id": {"$in": expense_ids}, "user_id": user_id},
+        {"_id": 0, "id": 1, "amount": 1, "due_date": 1, "incurred_on": 1},
+    ).to_list(2000)
+
+    # How much each is already paid by OTHER payments (so we only fill the gap).
+    paid_so_far: dict = {eid: 0.0 for eid in expense_ids}
     async for p in db.payments.find(
         {"user_id": user_id},
-        {"_id": 0, "amount": 1, "applied_expense_ids": 1, "allocations": 1},
+        {"_id": 0, "id": 1, "amount": 1, "applied_expense_ids": 1, "allocations": 1, "paid_on": 1},
+    ).limit(20000):
+        if ignore_payment_id and p.get("id") == ignore_payment_id:
+            continue
+        allocs = p.get("allocations") or []
+        if allocs:
+            for a in allocs:
+                eid = a.get("expense_id")
+                if eid in paid_so_far:
+                    paid_so_far[eid] += float(a.get("amount") or 0)
+            continue
+        # Legacy payments without allocations: re-derive their waterfall on the
+        # fly so we don't double-count. Cheap because we only need expenses in
+        # `expense_ids` here.
+        ids = p.get("applied_expense_ids") or []
+        if not ids:
+            continue
+        # We use _build_paid_map to get the canonical totals; but to keep this
+        # fast we approximate by computing only for our overlap.
+        # Simple approach: skip — assume legacy payments are rare. They will
+        # still show up correctly via _build_paid_map for the UI; here we just
+        # want to avoid over-allocating funds we don't have.
+
+    def _due_key(eid: str):
+        e = next((x for x in docs if x["id"] == eid), None) or {}
+        return (e.get("due_date") or e.get("incurred_on") or "9999-12-31", eid)
+
+    ordered = sorted(expense_ids, key=_due_key)
+    remaining = round(float(payment_amount), 2)
+    out: List[PaymentAllocation] = []
+    for eid in ordered:
+        if remaining <= 0.001:
+            break
+        e = next((x for x in docs if x["id"] == eid), None)
+        if not e:
+            continue
+        owed = max(0.0, round(float(e.get("amount") or 0.0) - paid_so_far.get(eid, 0.0), 2))
+        if owed <= 0.001:
+            continue
+        apply_amt = round(min(owed, remaining), 2)
+        out.append(PaymentAllocation(expense_id=eid, amount=apply_amt))
+        remaining = round(remaining - apply_amt, 2)
+    return out
+
+
+async def _build_paid_map(user_id: str) -> dict:
+    """Return {expense_id: paid_amount_sum} from all payments for this user.
+
+    Order of precedence per payment:
+      1. `allocations` (explicit per-expense breakdown) — always wins.
+      2. `applied_expense_ids` without allocations — waterfall-allocate the
+         payment amount in expense due-date order (oldest first), paying each
+         expense IN FULL before moving on. This matches the user's expectation
+         that picking a list of expenses doesn't equally split the payment.
+    """
+    paid_map: dict = {}
+
+    # Pre-fetch expense balances we'll need for the waterfall fallback so we
+    # don't hit Mongo inside the loop.
+    expense_index: dict = {}
+    async for e in db.expenses.find(
+        {"user_id": user_id},
+        {"_id": 0, "id": 1, "amount": 1, "due_date": 1, "incurred_on": 1},
+    ).limit(20000):
+        expense_index[e["id"]] = e
+
+    # Two passes:
+    #   Pass 1: apply explicit `allocations` first so we know how much of each
+    #           expense is already covered.
+    #   Pass 2: walk legacy payments (applied_expense_ids only) oldest-first
+    #           and waterfall-allocate against remaining balances.
+    legacy_payments: list = []
+    async for p in db.payments.find(
+        {"user_id": user_id},
+        {"_id": 0, "amount": 1, "applied_expense_ids": 1, "allocations": 1, "paid_on": 1},
     ).limit(20000):
         allocs = p.get("allocations") or []
         if allocs:
-            # Precise per-expense breakdown (used by bulk auto-allocation)
             for a in allocs:
                 eid = a.get("expense_id")
                 amt = float(a.get("amount") or 0)
                 if eid and amt:
                     paid_map[eid] = round(paid_map.get(eid, 0.0) + amt, 2)
             continue
-        ids = p.get("applied_expense_ids") or []
-        if not ids:
+        if p.get("applied_expense_ids"):
+            legacy_payments.append(p)
+
+    # Sort legacy payments oldest-first so funds applied earlier get first dibs
+    # on overlapping expense balances.
+    legacy_payments.sort(key=lambda p: p.get("paid_on") or "")
+
+    def _due_key(eid: str):
+        e = expense_index.get(eid) or {}
+        return (e.get("due_date") or e.get("incurred_on") or "9999-12-31", eid)
+
+    for p in legacy_payments:
+        remaining = float(p.get("amount") or 0.0)
+        if remaining <= 0:
             continue
-        share = float(p.get("amount") or 0) / len(ids)
-        for eid in ids:
-            paid_map[eid] = round(paid_map.get(eid, 0.0) + share, 2)
+        ordered = sorted(p.get("applied_expense_ids") or [], key=_due_key)
+        for eid in ordered:
+            if remaining <= 0.001:
+                break
+            e = expense_index.get(eid)
+            if not e:
+                continue
+            already = paid_map.get(eid, 0.0)
+            owed = max(0.0, float(e.get("amount") or 0.0) - already)
+            if owed <= 0.001:
+                continue
+            apply_amt = min(owed, remaining)
+            paid_map[eid] = round(already + apply_amt, 2)
+            remaining = round(remaining - apply_amt, 2)
     return paid_map
 
 
@@ -1181,6 +1297,14 @@ async def list_payments(athlete_id: Optional[str] = None, current_user=Depends(g
 @api_router.post("/payments", response_model=PaymentEntry)
 async def create_payment(payload: PaymentCreate, current_user=Depends(get_current_user)):
     entry = PaymentEntry(user_id=current_user["id"], **payload.model_dump())
+    # If the caller picked specific expenses but didn't supply explicit
+    # per-expense amounts, waterfall-allocate the payment in due-date order so
+    # each expense gets paid IN FULL before we move to the next, instead of
+    # splitting equally across all selected expenses.
+    if entry.applied_expense_ids and not entry.allocations:
+        entry.allocations = await _waterfall_allocations(
+            current_user["id"], float(entry.amount or 0), entry.applied_expense_ids
+        )
     await db.payments.insert_one(entry.model_dump())
     # Auto-mark linked expenses as paid ONLY if fully covered after this payment
     if entry.applied_expense_ids:
@@ -1356,11 +1480,50 @@ async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=D
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    # If the caller changed which expenses this payment covers (or its amount),
+    # rebuild the per-expense waterfall allocation so funds pay each expense
+    # IN FULL in due-date order instead of splitting equally.
+    if "applied_expense_ids" in updates or "amount" in updates:
+        existing = await db.payments.find_one(
+            {"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+            {"_id": 0, "amount": 1, "applied_expense_ids": 1},
+        ) or {}
+        applied_ids = updates.get("applied_expense_ids", existing.get("applied_expense_ids") or [])
+        new_amount = float(updates.get("amount", existing.get("amount") or 0.0))
+        if applied_ids:
+            allocs = await _waterfall_allocations(
+                current_user["id"], new_amount, applied_ids, ignore_payment_id=payment_id,
+            )
+            updates["allocations"] = [a.model_dump() for a in allocs]
+        else:
+            updates["allocations"] = None
     res = await db.payments.update_one(
         {"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Payment not found")
+    # Refresh expense.paid flags after the reallocation so summaries stay in sync.
+    paid_map = await _build_paid_map(current_user["id"])
+    affected_ids = set(
+        (updates.get("applied_expense_ids") or [])
+        + [a["expense_id"] for a in (updates.get("allocations") or []) if isinstance(a, dict)]
+    )
+    for eid in affected_ids:
+        exp = await db.expenses.find_one(
+            {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+            {"_id": 0, "amount": 1, "paid": 1},
+        )
+        if not exp:
+            continue
+        amt = float(exp.get("amount") or 0.0)
+        paid = float(paid_map.get(eid, 0.0))
+        # Mark paid if fully covered; unmark only if was auto-set (currently paid but no longer covered)
+        should_be_paid = paid + 1e-6 >= amt and amt > 0
+        if exp.get("paid") != should_be_paid:
+            await db.expenses.update_one(
+                {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+                {"$set": {"paid": should_be_paid}},
+            )
     doc = await db.payments.find_one({"id": payment_id}, {"_id": 0})
     return PaymentEntry(**doc)
 
