@@ -35,6 +35,9 @@ const KIND_ICONS: Record<string, any> = {
   travel_day: "navigate",
   transport: "car",
   fundraiser: "gift",
+  team_meet: "people",
+  team_performance: "ribbon",
+  team_to_watch: "eye",
 };
 
 export default function CalendarTab() {

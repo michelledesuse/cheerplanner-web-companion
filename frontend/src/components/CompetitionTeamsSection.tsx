@@ -179,7 +179,13 @@ export default function CompetitionTeamsSection({
 
       {teamIds.length > 0 && (
         <>
-          <Text style={[styles.sectionHead, { marginTop: spacing.lg }]}>Performance Schedule</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg }}>
+            <Text style={[styles.sectionHead, { marginTop: 0 }]}>Performance Schedule</Text>
+            <View style={styles.autoSaveHint}>
+              <Ionicons name="create-outline" size={11} color={colors.textTertiary} />
+              <Text style={styles.autoSaveText}>Tap any field to edit · auto-saves</Text>
+            </View>
+          </View>
           {teamIds.map((tid) => {
             const t = teams.find((x) => x.id === tid);
             if (!t) return null;
@@ -354,6 +360,8 @@ const styles = StyleSheet.create({
   entryBadgeDate: { ...typography.caption, color: colors.textSecondary, fontWeight: "600" },
   emptyEntryRow: { flexDirection: "row", alignItems: "center", gap: 6, padding: spacing.md, backgroundColor: colors.accentSubtle, borderRadius: radius.md, justifyContent: "center", marginBottom: 8 },
   emptyEntryText: { ...typography.caption, color: colors.accent, fontWeight: "600" },
+  autoSaveHint: { flexDirection: "row", alignItems: "center", gap: 4 },
+  autoSaveText: { ...typography.micro, color: colors.textTertiary, fontStyle: "italic" },
   meetGrid: { flexDirection: "row", gap: 8 },
   input: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: colors.textPrimary, marginTop: 4 },
   timePreview: { ...typography.micro, color: colors.accent, marginTop: 2, fontWeight: "600" },

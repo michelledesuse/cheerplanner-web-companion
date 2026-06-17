@@ -1962,6 +1962,96 @@ async def calendar_feed(
             "link": f"/schedule/new?id={s['id']}",
         })
 
+    # Team meet/performance times (per-team multi-day schedule per competition)
+    # Each entry can have: date, meet_time, performance_time, performance_location
+    # Falls back to the competition's event_date if no per-entry date is set.
+    teams_by_id = {
+        t["id"]: t async for t in db.teams.find(
+            {"user_id": {"$in": member_ids}},
+            {"_id": 0, "id": 1, "name": 1, "color": 1},
+        )
+    }
+    async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
+        comp_id = c.get("id")
+        comp_link = f"/competitions/{comp_id}"
+        comp_event_date = c.get("event_date")
+        comp_location = c.get("location") or ""
+        meet_times = c.get("team_meet_times") or []
+        for idx, mt in enumerate(meet_times):
+            t = teams_by_id.get(mt.get("team_id"))
+            team_name = (t or {}).get("name") or "Team"
+            team_color = (t or {}).get("color") or "#0EA5E9"
+            day = _normalize_date(mt.get("date")) or _normalize_date(comp_event_date)
+            if not day or not in_range(day):
+                continue
+            perf_loc = mt.get("performance_location") or comp_location
+            # Emit a meet-time event if present
+            mt_time = mt.get("meet_time")
+            if mt_time:
+                subtitle_bits = [f"Team meet · {_fmt_time_12h(mt_time)}"]
+                if perf_loc:
+                    subtitle_bits.append(perf_loc)
+                items.append({
+                    "id": f"team-meet-{comp_id}-{idx}",
+                    "kind": "team_meet",
+                    "date": day,
+                    "title": f"{team_name} — meet",
+                    "time": mt_time,
+                    "subtitle": " · ".join(subtitle_bits),
+                    "color": team_color,
+                    "link": comp_link,
+                })
+            # Emit a performance-time event if present
+            perf_time = mt.get("performance_time")
+            if perf_time:
+                subtitle_bits = [f"Performance · {_fmt_time_12h(perf_time)}"]
+                if perf_loc:
+                    subtitle_bits.append(perf_loc)
+                items.append({
+                    "id": f"team-perf-{comp_id}-{idx}",
+                    "kind": "team_performance",
+                    "date": day,
+                    "title": f"{team_name} — performance",
+                    "time": perf_time,
+                    "subtitle": " · ".join(subtitle_bits),
+                    "color": team_color,
+                    "link": comp_link,
+                })
+            # If a date is set but no times, still surface a marker so the user sees the day on the calendar.
+            if not mt_time and not perf_time and mt.get("date"):
+                items.append({
+                    "id": f"team-day-{comp_id}-{idx}",
+                    "kind": "team_performance",
+                    "date": day,
+                    "title": f"{team_name} performance day",
+                    "subtitle": perf_loc,
+                    "color": team_color,
+                    "link": comp_link,
+                })
+
+        # Teams to Watch (external teams the user is spectating)
+        for widx, w in enumerate(c.get("teams_to_watch") or []):
+            day = _normalize_date(w.get("date")) or _normalize_date(comp_event_date)
+            if not day or not in_range(day):
+                continue
+            wt_time = w.get("performance_time")
+            subtitle_bits = []
+            if wt_time:
+                subtitle_bits.append(_fmt_time_12h(wt_time))
+            if w.get("location"):
+                subtitle_bits.append(w["location"])
+            subtitle_bits.append("Team to watch")
+            items.append({
+                "id": f"watch-{comp_id}-{widx}",
+                "kind": "team_to_watch",
+                "date": day,
+                "title": w.get("name") or "Team to watch",
+                "time": wt_time,
+                "subtitle": " · ".join(subtitle_bits),
+                "color": "#0EA5E9",  # cyan/info
+                "link": comp_link,
+            })
+
     # Sort by date asc
     items.sort(key=lambda x: x["date"])
     return {"items": items}
