@@ -127,9 +127,9 @@ export default function CompetitionsScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <>
+          <View style={styles.headerStack}>
             <Text style={styles.title}>Competitions</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View style={styles.headerActions}>
               {items.length > 0 && (
                 <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="comp-enter-select">
                   <Ionicons name="checkmark-done" size={16} color={colors.accent} />
@@ -145,7 +145,7 @@ export default function CompetitionsScreen() {
                 <Text style={styles.addBtnText}>Competition</Text>
               </TouchableOpacity>
             </View>
-          </>
+          </View>
         )}
       </View>
 
@@ -265,7 +265,9 @@ function CompCard({ comp, onPress, onLongPress, faded, selectMode, selected }: {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.lg },
+  header: { padding: spacing.lg },
+  headerStack: { gap: spacing.md },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   title: { ...typography.display, color: colors.textPrimary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.primary, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
