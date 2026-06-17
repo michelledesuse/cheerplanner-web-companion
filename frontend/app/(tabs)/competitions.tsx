@@ -142,6 +142,7 @@ export default function CompetitionsScreen() {
                 testID="add-competition-btn"
               >
                 <Ionicons name="add" size={20} color="white" />
+                <Text style={styles.addBtnText}>Competition</Text>
               </TouchableOpacity>
             </View>
           </>
@@ -266,7 +267,8 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.lg },
   title: { ...typography.display, color: colors.textPrimary },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.primary, borderRadius: 999 },
+  addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
   selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
   selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
   selectBar: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
