@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import DateField from "@/src/components/DateField";
+import TimeField from "@/src/components/TimeField";
 import { formatDate } from "@/src/utils/format";
 
 export type Team = { id: string; name: string; color?: string; season?: string };
@@ -242,32 +243,20 @@ export default function CompetitionTeamsSection({
 
                       <View style={[styles.meetGrid, { marginTop: spacing.sm }]}>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.smallLabel}>MEET TIME (24h)</Text>
-                          <TextInput
-                            placeholder="e.g. 12:30"
-                            placeholderTextColor={colors.textTertiary}
+                          <Text style={styles.smallLabel}>MEET TIME</Text>
+                          <TimeField
                             value={entry.meet_time || ""}
-                            onChangeText={(v) => updateMeetTimeAt(originalIndex, "meet_time", v)}
-                            style={styles.input}
+                            onChange={(v) => updateMeetTimeAt(originalIndex, "meet_time", v)}
                             testID={`meet-time-meet-${tid}-${displayIdx}`}
                           />
-                          {entry.meet_time ? (
-                            <Text style={styles.timePreview}>= {fmt12(entry.meet_time)}</Text>
-                          ) : null}
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.smallLabel}>PERFORMANCE TIME (24h)</Text>
-                          <TextInput
-                            placeholder="e.g. 14:30"
-                            placeholderTextColor={colors.textTertiary}
+                          <Text style={styles.smallLabel}>PERFORMANCE TIME</Text>
+                          <TimeField
                             value={entry.performance_time || ""}
-                            onChangeText={(v) => updateMeetTimeAt(originalIndex, "performance_time", v)}
-                            style={styles.input}
+                            onChange={(v) => updateMeetTimeAt(originalIndex, "performance_time", v)}
                             testID={`meet-time-perf-${tid}-${displayIdx}`}
                           />
-                          {entry.performance_time ? (
-                            <Text style={styles.timePreview}>= {fmt12(entry.performance_time)}</Text>
-                          ) : null}
                         </View>
                       </View>
 
@@ -327,10 +316,10 @@ export default function CompetitionTeamsSection({
               <ScrollView keyboardShouldPersistTaps="handled">
                 <Text style={styles.smallLabel}>TEAM / ROUTINE NAME *</Text>
                 <TextInput style={styles.input} value={w_name} onChangeText={setWName} placeholder="e.g. Cheer Athletics Cheetahs" placeholderTextColor={colors.textTertiary} testID="watch-name" />
-                <Text style={styles.smallLabel}>DATE (YYYY-MM-DD)</Text>
-                <TextInput style={styles.input} value={w_date} onChangeText={setWDate} placeholder="2026-03-15" placeholderTextColor={colors.textTertiary} testID="watch-date" />
-                <Text style={styles.smallLabel}>PERFORMANCE TIME (24h)</Text>
-                <TextInput style={styles.input} value={w_time} onChangeText={setWTime} placeholder="e.g. 16:00" placeholderTextColor={colors.textTertiary} testID="watch-time" />
+                <Text style={styles.smallLabel}>DATE</Text>
+                <DateField value={w_date} onChange={setWDate} testID="watch-date" />
+                <Text style={styles.smallLabel}>PERFORMANCE TIME</Text>
+                <TimeField value={w_time} onChange={setWTime} testID="watch-time" />
                 <Text style={styles.smallLabel}>LOCATION / ARENA</Text>
                 <TextInput style={styles.input} value={w_loc} onChangeText={setWLoc} placeholder="e.g. Arena A" placeholderTextColor={colors.textTertiary} testID="watch-loc" />
                 <TouchableOpacity onPress={saveWatch} style={styles.saveBtn} testID="watch-save-btn">
