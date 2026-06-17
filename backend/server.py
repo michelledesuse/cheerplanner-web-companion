@@ -296,7 +296,8 @@ class TeamUpdate(BaseModel):
 
 class TeamMeetTime(BaseModel):
     team_id: str
-    meet_time: Optional[str] = None  # "HH:MM" 24h — when the team gathers/checks in
+    date: Optional[str] = None              # ISO YYYY-MM-DD — performance day for this entry
+    meet_time: Optional[str] = None         # "HH:MM" 24h — team gathering/check-in
     performance_time: Optional[str] = None  # "HH:MM" 24h
     performance_location: Optional[str] = None  # e.g. "Arena A"
 

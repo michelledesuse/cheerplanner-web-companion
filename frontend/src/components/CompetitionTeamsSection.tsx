@@ -7,10 +7,13 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import DateField from "@/src/components/DateField";
+import { formatDate } from "@/src/utils/format";
 
 export type Team = { id: string; name: string; color?: string; season?: string };
 export type TeamMeetTime = {
   team_id: string;
+  date?: string | null;                  // ISO YYYY-MM-DD — performance day
   meet_time?: string | null;             // "HH:MM" 24h — team gathering/check-in
   performance_time?: string | null;      // "HH:MM" 24h
   performance_location?: string | null;
@@ -73,18 +76,47 @@ export default function CompetitionTeamsSection({
     const next = teamIds.includes(teamId)
       ? teamIds.filter((id) => id !== teamId)
       : [...teamIds, teamId];
-    // Also drop any meet time for removed teams.
+    // When removing a team, drop ALL entries for it; otherwise keep them.
     const nextMeet = teamMeetTimes.filter((m) => next.includes(m.team_id));
     await patch({ team_ids: next, team_meet_times: nextMeet });
   };
 
-  const updateMeetTime = async (teamId: string, field: "meet_time" | "performance_time" | "performance_location", value: string) => {
-    const existing = teamMeetTimes.find((m) => m.team_id === teamId);
-    const newEntry: TeamMeetTime = { ...(existing || { team_id: teamId }), [field]: value || null };
-    const next = teamMeetTimes.some((m) => m.team_id === teamId)
-      ? teamMeetTimes.map((m) => m.team_id === teamId ? newEntry : m)
-      : [...teamMeetTimes, newEntry];
+  /** Update a single field on the entry at the given index in team_meet_times. */
+  const updateMeetTimeAt = async (
+    index: number,
+    field: "date" | "meet_time" | "performance_time" | "performance_location",
+    value: string,
+  ) => {
+    if (index < 0 || index >= teamMeetTimes.length) return;
+    const current = teamMeetTimes[index];
+    const updated: TeamMeetTime = { ...current, [field]: value || null };
+    const next = teamMeetTimes.map((m, i) => (i === index ? updated : m));
     await patch({ team_meet_times: next });
+  };
+
+  /** Append a fresh empty entry for the given team_id. */
+  const addMeetTimeEntry = async (teamId: string) => {
+    const next: TeamMeetTime[] = [
+      ...teamMeetTimes,
+      { team_id: teamId, date: null, meet_time: null, performance_time: null, performance_location: null },
+    ];
+    await patch({ team_meet_times: next });
+  };
+
+  /** Remove a specific entry by its array index (with confirmation). */
+  const removeMeetTimeAt = (index: number) => {
+    if (index < 0 || index >= teamMeetTimes.length) return;
+    Alert.alert("Remove this day?", "This performance entry will be deleted.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          const next = teamMeetTimes.filter((_, i) => i !== index);
+          await patch({ team_meet_times: next });
+        },
+      },
+    ]);
   };
 
   const openNewWatch = () => {
@@ -146,58 +178,111 @@ export default function CompetitionTeamsSection({
 
       {teamIds.length > 0 && (
         <>
-          <Text style={[styles.sectionHead, { marginTop: spacing.lg }]}>Performance Times</Text>
+          <Text style={[styles.sectionHead, { marginTop: spacing.lg }]}>Performance Schedule</Text>
           {teamIds.map((tid) => {
             const t = teams.find((x) => x.id === tid);
             if (!t) return null;
-            const meet = teamMeetTimes.find((m) => m.team_id === tid);
+
+            // Build a list of {entry, originalIndex} so we can update by index.
+            const teamEntries: { entry: TeamMeetTime; originalIndex: number }[] = [];
+            teamMeetTimes.forEach((m, i) => {
+              if (m.team_id === tid) teamEntries.push({ entry: m, originalIndex: i });
+            });
+
             return (
-              <View key={tid} style={styles.meetCard}>
-                <View style={styles.meetHead}>
+              <View key={tid} style={styles.meetTeamWrap}>
+                <View style={styles.meetTeamHeader}>
                   <View style={[styles.teamDot, { backgroundColor: t.color || colors.accent }]} />
                   <Text style={styles.meetTeam}>{t.name}</Text>
+                  <View style={{ flex: 1 }} />
+                  <TouchableOpacity
+                    onPress={() => addMeetTimeEntry(tid)}
+                    style={styles.addDayBtn}
+                    testID={`add-meet-day-${tid}`}
+                  >
+                    <Ionicons name="add" size={14} color="white" />
+                    <Text style={styles.addDayBtnText}>Add day</Text>
+                  </TouchableOpacity>
                 </View>
 
-                <Text style={styles.smallLabel}>MEET TIME (24h)</Text>
-                <TextInput
-                  placeholder="e.g. 12:30  (when the team gathers / checks in)"
-                  placeholderTextColor={colors.textTertiary}
-                  value={meet?.meet_time || ""}
-                  onChangeText={(v) => updateMeetTime(tid, "meet_time", v)}
-                  style={styles.input}
-                  testID={`meet-time-meet-${tid}`}
-                />
-                {meet?.meet_time && (
-                  <Text style={styles.timePreview}>= {fmt12(meet.meet_time)}</Text>
+                {teamEntries.length === 0 ? (
+                  <TouchableOpacity
+                    onPress={() => addMeetTimeEntry(tid)}
+                    style={styles.emptyEntryRow}
+                    testID={`empty-meet-day-${tid}`}
+                  >
+                    <Ionicons name="calendar-outline" size={14} color={colors.accent} />
+                    <Text style={styles.emptyEntryText}>Tap to add a performance day for this team</Text>
+                  </TouchableOpacity>
+                ) : (
+                  teamEntries.map(({ entry, originalIndex }, displayIdx) => (
+                    <View key={`${tid}-${originalIndex}`} style={styles.meetCard}>
+                      <View style={styles.meetEntryHeader}>
+                        <View style={styles.entryBadge}>
+                          <Text style={styles.entryBadgeText}>Day {displayIdx + 1}</Text>
+                          {entry.date ? (
+                            <Text style={styles.entryBadgeDate}>{formatDate(entry.date, { withYear: false })}</Text>
+                          ) : null}
+                        </View>
+                        <TouchableOpacity
+                          onPress={() => removeMeetTimeAt(originalIndex)}
+                          hitSlop={10}
+                          testID={`remove-meet-${tid}-${displayIdx}`}
+                        >
+                          <Ionicons name="trash-outline" size={16} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                      </View>
+
+                      <Text style={styles.smallLabel}>PERFORMANCE DATE</Text>
+                      <DateField
+                        value={entry.date || ""}
+                        onChange={(iso) => updateMeetTimeAt(originalIndex, "date", iso)}
+                        testID={`meet-date-${tid}-${displayIdx}`}
+                      />
+
+                      <View style={[styles.meetGrid, { marginTop: spacing.sm }]}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.smallLabel}>MEET TIME (24h)</Text>
+                          <TextInput
+                            placeholder="e.g. 12:30"
+                            placeholderTextColor={colors.textTertiary}
+                            value={entry.meet_time || ""}
+                            onChangeText={(v) => updateMeetTimeAt(originalIndex, "meet_time", v)}
+                            style={styles.input}
+                            testID={`meet-time-meet-${tid}-${displayIdx}`}
+                          />
+                          {entry.meet_time ? (
+                            <Text style={styles.timePreview}>= {fmt12(entry.meet_time)}</Text>
+                          ) : null}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.smallLabel}>PERFORMANCE TIME (24h)</Text>
+                          <TextInput
+                            placeholder="e.g. 14:30"
+                            placeholderTextColor={colors.textTertiary}
+                            value={entry.performance_time || ""}
+                            onChangeText={(v) => updateMeetTimeAt(originalIndex, "performance_time", v)}
+                            style={styles.input}
+                            testID={`meet-time-perf-${tid}-${displayIdx}`}
+                          />
+                          {entry.performance_time ? (
+                            <Text style={styles.timePreview}>= {fmt12(entry.performance_time)}</Text>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      <Text style={[styles.smallLabel, { marginTop: spacing.sm }]}>LOCATION</Text>
+                      <TextInput
+                        placeholder="e.g. Hall A"
+                        placeholderTextColor={colors.textTertiary}
+                        value={entry.performance_location || ""}
+                        onChangeText={(v) => updateMeetTimeAt(originalIndex, "performance_location", v)}
+                        style={styles.input}
+                        testID={`meet-loc-${tid}-${displayIdx}`}
+                      />
+                    </View>
+                  ))
                 )}
-
-                <View style={[styles.meetGrid, { marginTop: spacing.sm }]}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.smallLabel}>PERFORMANCE TIME (24h)</Text>
-                    <TextInput
-                      placeholder="e.g. 14:30"
-                      placeholderTextColor={colors.textTertiary}
-                      value={meet?.performance_time || ""}
-                      onChangeText={(v) => updateMeetTime(tid, "performance_time", v)}
-                      style={styles.input}
-                      testID={`meet-time-perf-${tid}`}
-                    />
-                    {meet?.performance_time && (
-                      <Text style={styles.timePreview}>= {fmt12(meet.performance_time)}</Text>
-                    )}
-                  </View>
-                  <View style={{ flex: 1.4 }}>
-                    <Text style={styles.smallLabel}>LOCATION</Text>
-                    <TextInput
-                      placeholder="e.g. Arena A"
-                      placeholderTextColor={colors.textTertiary}
-                      value={meet?.performance_location || ""}
-                      onChangeText={(v) => updateMeetTime(tid, "performance_location", v)}
-                      style={styles.input}
-                      testID={`meet-loc-${tid}`}
-                    />
-                  </View>
-                </View>
               </View>
             );
           })}
@@ -270,6 +355,16 @@ const styles = StyleSheet.create({
   meetCard: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: 8 },
   meetHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: spacing.sm },
   meetTeam: { ...typography.bodyMedium, fontWeight: "700", color: colors.textPrimary },
+  meetTeamWrap: { marginBottom: spacing.lg },
+  meetTeamHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: spacing.sm },
+  addDayBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colors.accent, borderRadius: 999 },
+  addDayBtnText: { color: "white", fontWeight: "700", fontSize: 12 },
+  meetEntryHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  entryBadge: { flexDirection: "row", alignItems: "center", gap: 6 },
+  entryBadgeText: { ...typography.micro, color: colors.accent, fontWeight: "800", letterSpacing: 0.5, paddingHorizontal: 8, paddingVertical: 3, backgroundColor: colors.accentSubtle, borderRadius: 999 },
+  entryBadgeDate: { ...typography.caption, color: colors.textSecondary, fontWeight: "600" },
+  emptyEntryRow: { flexDirection: "row", alignItems: "center", gap: 6, padding: spacing.md, backgroundColor: colors.accentSubtle, borderRadius: radius.md, justifyContent: "center", marginBottom: 8 },
+  emptyEntryText: { ...typography.caption, color: colors.accent, fontWeight: "600" },
   meetGrid: { flexDirection: "row", gap: 8 },
   input: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14, color: colors.textPrimary, marginTop: 4 },
   timePreview: { ...typography.micro, color: colors.accent, marginTop: 2, fontWeight: "600" },
