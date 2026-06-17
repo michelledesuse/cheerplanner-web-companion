@@ -11,7 +11,8 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 export type Team = { id: string; name: string; color?: string; season?: string };
 export type TeamMeetTime = {
   team_id: string;
-  performance_time?: string | null;  // "HH:MM" 24h
+  meet_time?: string | null;             // "HH:MM" 24h — team gathering/check-in
+  performance_time?: string | null;      // "HH:MM" 24h
   performance_location?: string | null;
 };
 export type TeamToWatch = {
@@ -77,7 +78,7 @@ export default function CompetitionTeamsSection({
     await patch({ team_ids: next, team_meet_times: nextMeet });
   };
 
-  const updateMeetTime = async (teamId: string, field: "performance_time" | "performance_location", value: string) => {
+  const updateMeetTime = async (teamId: string, field: "meet_time" | "performance_time" | "performance_location", value: string) => {
     const existing = teamMeetTimes.find((m) => m.team_id === teamId);
     const newEntry: TeamMeetTime = { ...(existing || { team_id: teamId }), [field]: value || null };
     const next = teamMeetTimes.some((m) => m.team_id === teamId)
@@ -156,7 +157,21 @@ export default function CompetitionTeamsSection({
                   <View style={[styles.teamDot, { backgroundColor: t.color || colors.accent }]} />
                   <Text style={styles.meetTeam}>{t.name}</Text>
                 </View>
-                <View style={styles.meetGrid}>
+
+                <Text style={styles.smallLabel}>MEET TIME (24h)</Text>
+                <TextInput
+                  placeholder="e.g. 12:30  (when the team gathers / checks in)"
+                  placeholderTextColor={colors.textTertiary}
+                  value={meet?.meet_time || ""}
+                  onChangeText={(v) => updateMeetTime(tid, "meet_time", v)}
+                  style={styles.input}
+                  testID={`meet-time-meet-${tid}`}
+                />
+                {meet?.meet_time && (
+                  <Text style={styles.timePreview}>= {fmt12(meet.meet_time)}</Text>
+                )}
+
+                <View style={[styles.meetGrid, { marginTop: spacing.sm }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.smallLabel}>PERFORMANCE TIME (24h)</Text>
                     <TextInput
@@ -165,7 +180,7 @@ export default function CompetitionTeamsSection({
                       value={meet?.performance_time || ""}
                       onChangeText={(v) => updateMeetTime(tid, "performance_time", v)}
                       style={styles.input}
-                      testID={`meet-time-${tid}`}
+                      testID={`meet-time-perf-${tid}`}
                     />
                     {meet?.performance_time && (
                       <Text style={styles.timePreview}>= {fmt12(meet.performance_time)}</Text>
