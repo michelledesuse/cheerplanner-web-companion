@@ -263,6 +263,9 @@ class PaymentCreate(BaseModel):
     method: Optional[str] = None
     note: Optional[str] = None
     applied_expense_ids: List[str] = Field(default_factory=list)
+    # Optional explicit per-expense breakdown. If provided, it OVERRIDES the
+    # automatic due-date waterfall allocation.
+    allocations: Optional[List[PaymentAllocation]] = None
 
 
 class PaymentUpdate(BaseModel):
@@ -271,6 +274,8 @@ class PaymentUpdate(BaseModel):
     method: Optional[str] = None
     note: Optional[str] = None
     applied_expense_ids: Optional[List[str]] = None
+    # Optional explicit per-expense breakdown override.
+    allocations: Optional[List[PaymentAllocation]] = None
 
 
 class Team(BaseModel):
@@ -1308,21 +1313,15 @@ async def create_payment(payload: PaymentCreate, current_user=Depends(get_curren
             current_user["id"], float(entry.amount or 0), entry.applied_expense_ids
         )
     await db.payments.insert_one(entry.model_dump())
-    # Auto-mark linked expenses as paid ONLY if fully covered after this payment
-    if entry.applied_expense_ids:
-        paid_map = await _build_paid_map(current_user["id"])
-        for eid in entry.applied_expense_ids:
-            exp = await db.expenses.find_one(
-                {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0, "amount": 1, "paid": 1}
-            )
-            if not exp or exp.get("paid"):
-                continue
-            amt = float(exp.get("amount") or 0.0)
-            paid = float(paid_map.get(eid, 0.0))
-            if paid + 1e-6 >= amt:
-                await db.expenses.update_one(
-                    {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": {"paid": True}}
-                )
+    # Reconcile the paid flag for every expense this payment touched —
+    # either via applied_expense_ids or via explicit per-expense allocations.
+    affected_ids = set(entry.applied_expense_ids or [])
+    for a in (entry.allocations or []):
+        if isinstance(a, PaymentAllocation):
+            affected_ids.add(a.expense_id)
+        elif isinstance(a, dict) and a.get("expense_id"):
+            affected_ids.add(a["expense_id"])
+    await _refresh_expense_paid_flags(current_user["id"], affected_ids)
     return entry
 
 
@@ -1477,19 +1476,56 @@ async def apply_available_payments(expense_id: str, current_user=Depends(get_cur
     }
 
 
+async def _refresh_expense_paid_flags(user_id: str, expense_ids):
+    """Recompute and write the `paid` boolean for the given expense ids.
+
+    Reads the canonical paid totals from `_build_paid_map` and toggles each
+    expense's `paid` field to match (paid when fully covered, unpaid when not).
+    Used by payment create/update/delete so paid flags never drift.
+    """
+    if not expense_ids:
+        return
+    member_ids = await _household_user_ids(user_id)
+    paid_map = await _build_paid_map(user_id)
+    for eid in expense_ids:
+        exp = await db.expenses.find_one(
+            {"id": eid, "user_id": {"$in": member_ids}},
+            {"_id": 0, "amount": 1, "paid": 1},
+        )
+        if not exp:
+            continue
+        amt = float(exp.get("amount") or 0.0)
+        paid = float(paid_map.get(eid, 0.0))
+        should_be_paid = paid + 1e-6 >= amt and amt > 0
+        if exp.get("paid") != should_be_paid:
+            await db.expenses.update_one(
+                {"id": eid, "user_id": {"$in": member_ids}},
+                {"$set": {"paid": should_be_paid}},
+            )
+
+
 @api_router.patch("/payments/{payment_id}", response_model=PaymentEntry)
 async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=Depends(get_current_user)):
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    # Snapshot the EXISTING expense ids/allocations BEFORE we touch the row.
+    # We need them later to also reconcile expenses whose coverage drops to 0
+    # after the edit (otherwise their `paid` flag goes stale).
+    existing = await db.payments.find_one(
+        {"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
+        {"_id": 0, "amount": 1, "applied_expense_ids": 1, "allocations": 1},
+    ) or {}
+    prev_expense_ids = set(existing.get("applied_expense_ids") or [])
+    prev_expense_ids.update(
+        a.get("expense_id") for a in (existing.get("allocations") or []) if isinstance(a, dict) and a.get("expense_id")
+    )
+
     # If the caller changed which expenses this payment covers (or its amount),
     # rebuild the per-expense waterfall allocation so funds pay each expense
-    # IN FULL in due-date order instead of splitting equally.
-    if "applied_expense_ids" in updates or "amount" in updates:
-        existing = await db.payments.find_one(
-            {"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
-            {"_id": 0, "amount": 1, "applied_expense_ids": 1},
-        ) or {}
+    # IN FULL in due-date order instead of splitting equally — UNLESS the
+    # caller passed an explicit `allocations` override.
+    if ("applied_expense_ids" in updates or "amount" in updates) and "allocations" not in updates:
         applied_ids = updates.get("applied_expense_ids", existing.get("applied_expense_ids") or [])
         new_amount = float(updates.get("amount", existing.get("amount") or 0.0))
         if applied_ids:
@@ -1499,42 +1535,49 @@ async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=D
             updates["allocations"] = [a.model_dump() for a in allocs]
         else:
             updates["allocations"] = None
+    elif "allocations" in updates and isinstance(updates["allocations"], list):
+        updates["allocations"] = [
+            (a if isinstance(a, dict) else a.model_dump()) for a in updates["allocations"]
+        ]
+
     res = await db.payments.update_one(
         {"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
     )
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Payment not found")
-    # Refresh expense.paid flags after the reallocation so summaries stay in sync.
-    paid_map = await _build_paid_map(current_user["id"])
-    affected_ids = set(
-        (updates.get("applied_expense_ids") or [])
-        + [a["expense_id"] for a in (updates.get("allocations") or []) if isinstance(a, dict)]
+    # Refresh expense.paid flags for the UNION of (previously covered) and
+    # (now covered) expense ids — so expenses that dropped out of the
+    # allocation also revert from paid → unpaid.
+    affected_ids = set(prev_expense_ids)
+    affected_ids.update(updates.get("applied_expense_ids") or [])
+    affected_ids.update(
+        a["expense_id"] for a in (updates.get("allocations") or []) if isinstance(a, dict)
     )
-    for eid in affected_ids:
-        exp = await db.expenses.find_one(
-            {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
-            {"_id": 0, "amount": 1, "paid": 1},
-        )
-        if not exp:
-            continue
-        amt = float(exp.get("amount") or 0.0)
-        paid = float(paid_map.get(eid, 0.0))
-        # Mark paid if fully covered; unmark only if was auto-set (currently paid but no longer covered)
-        should_be_paid = paid + 1e-6 >= amt and amt > 0
-        if exp.get("paid") != should_be_paid:
-            await db.expenses.update_one(
-                {"id": eid, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
-                {"$set": {"paid": should_be_paid}},
-            )
+    await _refresh_expense_paid_flags(current_user["id"], affected_ids)
+
     doc = await db.payments.find_one({"id": payment_id}, {"_id": 0})
     return PaymentEntry(**doc)
 
 
 @api_router.delete("/payments/{payment_id}")
 async def delete_payment(payment_id: str, current_user=Depends(get_current_user)):
-    res = await db.payments.delete_one({"id": payment_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}})
+    member_ids = await _household_user_ids(current_user["id"])
+    # Snapshot which expenses this payment touched BEFORE deleting it, so we
+    # can reconcile their `paid` flags after the row is gone.
+    doc = await db.payments.find_one(
+        {"id": payment_id, "user_id": {"$in": member_ids}},
+        {"_id": 0, "applied_expense_ids": 1, "allocations": 1},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    affected_ids = set(doc.get("applied_expense_ids") or [])
+    for a in (doc.get("allocations") or []):
+        if isinstance(a, dict) and a.get("expense_id"):
+            affected_ids.add(a["expense_id"])
+    res = await db.payments.delete_one({"id": payment_id, "user_id": {"$in": member_ids}})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Payment not found")
+    await _refresh_expense_paid_flags(current_user["id"], affected_ids)
     return {"deleted": True}
 
 

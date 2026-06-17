@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 19 — verified all three iter-18 payment bug fixes in server.py. 4/4 NEW verification tests PASS (A: POST honors explicit allocations; B: PATCH amount-decrease clears stale paid flags on previously-covered expenses; C: PATCH with explicit allocations skips waterfall; D: DELETE refreshes expense.paid flags). Iter-18 regression suite re-run = 16/16 PASS. Net result: 20/20 GREEN, both HIGH bugs and the minor DELETE bug are RESOLVED.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter19_payment_fixes.py",
+    "/app/backend/tests/test_iter18_waterfall_and_team_calendar.py",
+    "/app/test_reports/pytest/pytest_iter19.xml"
+  ],
+  "verification_results": {
+    "A_post_explicit_allocations": "PASS — PaymentCreate now has `allocations` field; server preserved 80/20 split; E1 balance=$20, E2 balance=$80, neither paid (server.py:268).",
+    "B_patch_amount_decrease_clears_stale_flags": "PASS — PATCH $300→$60 correctly reset BOTH Gear and Tuition paid flags to False; update_payment snapshots existing applied_expense_ids + allocations before update and unions into affected_ids (server.py:1512-1556).",
+    "C_patch_explicit_allocations_override": "PASS — explicit {Tuition:50, Gear:50} override beat the waterfall; balances reflect override; no waterfall ran (server.py:1528-1540).",
+    "D_delete_refreshes_paid_flags": "PASS — DELETE now snapshots applied/allocations before removal and calls _refresh_expense_paid_flags helper (server.py:1563-1580); Camp paid_flag flipped True→False, balance restored to $50.",
+    "E_iter18_regression": "PASS — 16/16 test_iter18_waterfall_and_team_calendar.py tests still GREEN."
+  },
+  "action_items": [
+    "No bugs to fix. Iteration-18 HIGH-1, HIGH-2, and the minor DELETE issue are all resolved and covered by regression tests.",
+    "Optional follow-up (unchanged from iter-18): server.py is 3447+ lines; consider splitting into per-resource routers (payments, competitions, calendar, packing).",
+    "Optional: add a couple of edge-case tests — (1) PATCH allocations=[] (empty list) behaviour; (2) DELETE one of two payments that together covered an expense to confirm partial recompute. Not blocking."
+  ],
+  "critical_code_review_comments": [
+    "Good: _refresh_expense_paid_flags helper centralizes the paid-flag refresh logic across create/update/delete handlers — eliminates the inconsistency flagged in iter-18.",
+    "Good: update_payment snapshots existing.applied_expense_ids + existing.allocations BEFORE the update and unions both into affected_ids, so dropped expenses are re-evaluated (server.py:1518-1556).",
+    "Good: PaymentCreate AND PaymentUpdate both now declare `allocations: Optional[List[PaymentAllocation]] = None`, so clients can post or patch explicit splits.",
+    "Good: delete_payment fetches the snapshot of applied_expense_ids + allocations BEFORE the row removal, so refresh works correctly.",
+    "Still standing: server.py is 3447+ lines — split into routers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter19_payment_fixes.py (NEW)",
+    "/app/test_reports/iteration_19.json (NEW)",
+    "/app/test_reports/pytest/pytest_iter19.xml (NEW)",
+    "/app/test_result.md (appended iter-19 section)"
+  ],
+  "success_rate": {"backend": "100% (20/20 — 4 new iter19 + 16 iter18 regression)", "frontend": "not tested per request"},
+  "seed_data_creation": "Each test class auto-creates and cleans up its own sandbox (athletes, expenses, payments) prefixed TEST_iter19_. No persistent seed left on smoke@test.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter-18 + iter-19 payment regression suite is at /app/backend/tests/test_iter18_waterfall_and_team_calendar.py and /app/backend/tests/test_iter19_payment_fixes.py. Re-run both for any future change to payments / waterfall / expense.paid logic. All payment fixes verified — no open backend issues from iter-18 or iter-19.",
+  "rca_of_issue": "N/A — verification iteration only; both HIGH bugs and the minor DELETE issue from iter-18 are RESOLVED. Fix locations confirmed: PaymentCreate.allocations field added (server.py:268), PaymentUpdate.allocations field added (server.py:278), update_payment pre-update snapshot + affected_ids union (server.py:1512-1556), _refresh_expense_paid_flags helper centralizes the paid-flag toggle (server.py:1479), delete_payment uses the helper after snapshotting (server.py:1563-1580)."
+}

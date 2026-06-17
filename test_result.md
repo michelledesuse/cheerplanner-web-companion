@@ -167,3 +167,30 @@ File: `/app/backend/tests/test_teams_phase_b.py` (JUnit: `/app/test_reports/pyte
 - server.py is now 3447 lines — still well above the 700-line guideline; consider router splits.
 - Paid-flag refresh logic differs across create / update / delete payment handlers — central helper recommended.
 
+
+---
+
+## Iteration 19 — Payment Fix Verification (Jan 2026)
+
+**All 4 verification scenarios + 16 regression tests PASS (20/20).**
+
+### Fixes verified
+- **A. POST /api/payments with explicit allocations** ✅
+  Posted {amount:100, allocations:[{E1:80},{E2:20}]} — server preserves 80/20 split (no waterfall override). E1 balance=$20, E2 balance=$80, both paid=False. PaymentCreate now declares `allocations` field.
+- **B. PATCH amount-decrease clears stale paid flags** ✅
+  Started with $300 covering Tuition+Gear (both paid=True). PATCH amount=60 → Gear waterfalled to $60 (balance $140), Tuition dropped out (balance $100). BOTH paid_flag=False. Previously-covered expense_id is now unioned into `affected_ids` via the pre-update snapshot.
+- **C. PATCH with explicit allocations override** ✅
+  PATCH {amount:100, allocations:[50/50]} on a 300-waterfall payment → explicit override wins, balances reflect 50/50 (Tuition $50, Gear $150), no waterfall ran.
+- **D. DELETE refreshes paid flags** ✅
+  $50 payment fully covered Camp (paid=True). DELETE → Camp paid=False, balance restored to $50. `delete_payment` now snapshots applied/allocations BEFORE removal and refreshes flags.
+
+### Regression
+- `pytest backend/tests/test_iter18_waterfall_and_team_calendar.py` → **16/16 PASS** (re-run after fixes).
+- `pytest backend/tests/test_iter19_payment_fixes.py` → **4/4 PASS**.
+
+### Files added
+- `/app/backend/tests/test_iter19_payment_fixes.py` (new)
+- `/app/test_reports/iteration_19.json`
+- `/app/test_reports/pytest/pytest_iter19.xml`
+
+No production code modified by testing agent.
