@@ -22,6 +22,7 @@ export default function CompetitionForm() {
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
   const [eventDate, setEventDate] = useState("");
   const [eventTime, setEventTime] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -40,6 +41,7 @@ export default function CompetitionForm() {
         const c = res.data;
         setName(c.name || "");
         setLocation(c.location || "");
+        setAddress(c.address || "");
         setEventDate(c.event_date || "");
         setEventTime(c.event_time || "");
         setEndDate(c.end_date || "");
@@ -62,6 +64,7 @@ export default function CompetitionForm() {
       const payload = {
         name: name.trim(),
         location: location.trim() || null,
+        address: address.trim() || null,
         event_date: eventDate,
         event_time: eventTime.trim() || null,
         end_date: endDate || null,
@@ -107,7 +110,19 @@ export default function CompetitionForm() {
           <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. NCA Senior Nationals" placeholderTextColor={colors.textTertiary} testID="comp-name-input" />
 
           <Text style={styles.label}>Location</Text>
-          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Houston, TX" placeholderTextColor={colors.textTertiary} testID="comp-location-input" />
+          <Text style={styles.label}>Location / venue name</Text>
+          <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Houston Convention Center" placeholderTextColor={colors.textTertiary} testID="comp-location-input" />
+
+          <Text style={styles.label}>Address (street, city, state)</Text>
+          <TextInput
+            style={styles.input}
+            value={address}
+            onChangeText={setAddress}
+            placeholder="e.g. 1001 Avenida de las Americas, Houston, TX 77010"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="words"
+            testID="comp-address-input"
+          />
 
           <Text style={styles.label}>Event date</Text>
           <DateField value={eventDate} onChange={setEventDate} testID="comp-date-input" />

@@ -17,6 +17,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatDateLong, daysBetween } from "@/src/utils/format";
+import MapLink from "@/src/components/MapLink";
 
 type Competition = {
   id: string;
@@ -227,8 +228,13 @@ function CompCard({ comp, onPress, onLongPress, faded, selectMode, selected }: {
       <View style={styles.cardLeft}>
         <Text style={styles.cardName} numberOfLines={1}>{comp.name}</Text>
         <View style={styles.cardMetaRow}>
-          <Ionicons name="location-outline" size={13} color={colors.textSecondary} />
-          <Text style={styles.cardMeta} numberOfLines={1}>{comp.location || "Location TBD"}</Text>
+          <MapLink
+            address={comp.location}
+            placeholder="Location TBD"
+            color={colors.textSecondary}
+            numberOfLines={1}
+            testID={`comp-card-map-${comp.id}`}
+          />
         </View>
         <View style={styles.cardMetaRow}>
           <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />

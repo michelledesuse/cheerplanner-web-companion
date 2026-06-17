@@ -23,6 +23,7 @@ export default function BookingForm() {
   const [competitionId, setCompetitionId] = useState(params.competition_id || "");
 
   const [provider, setProvider] = useState("");
+  const [address, setAddress] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [cost, setCost] = useState("");
   const [amountPaid, setAmountPaid] = useState("");
@@ -77,6 +78,7 @@ export default function BookingForm() {
         setType(b.type);
         setCompetitionId(b.competition_id);
         setProvider(b.provider || "");
+        setAddress(b.address || "");
         setConfirmation(b.confirmation || "");
         setCost(b.cost != null ? String(b.cost) : "");
         setAmountPaid(b.amount_paid != null ? String(b.amount_paid) : "");
@@ -125,6 +127,7 @@ export default function BookingForm() {
 
       const payload: any = {
         provider: provider.trim() || null,
+        address: address.trim() || null,
         confirmation: confirmation.trim() || null,
         cost: type === "flight" ? (flightTotal || parseFloat(cost) || 0) : (parseFloat(cost) || 0),
         amount_paid: parseFloat(amountPaid) || 0,
@@ -190,6 +193,21 @@ export default function BookingForm() {
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
           <Text style={styles.label}>{PROVIDER_LABEL[type]}</Text>
           <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder={type === "hotel" ? "e.g. Hyatt Regency" : type === "car" ? "e.g. Enterprise" : "e.g. Southwest"} placeholderTextColor={colors.textTertiary} testID="booking-provider-input" />
+
+          {type !== "car" && (
+            <>
+              <Text style={styles.label}>{type === "hotel" ? "Hotel address (optional, for maps)" : "Airport address (optional, for maps)"}</Text>
+              <TextInput
+                style={styles.input}
+                value={address}
+                onChangeText={setAddress}
+                placeholder={type === "hotel" ? "e.g. 1209 Texas Ave, Houston, TX 77002" : "e.g. 2800 N Terminal Rd, Houston, TX 77032"}
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="words"
+                testID="booking-address-input"
+              />
+            </>
+          )}
 
           <Text style={styles.label}>{type === "flight" ? "Outbound confirmation #" : "Confirmation #"}</Text>
           <TextInput style={styles.input} value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" placeholderTextColor={colors.textTertiary} testID="booking-conf-input" />

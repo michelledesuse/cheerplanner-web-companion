@@ -10,6 +10,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatDate } from "@/src/utils/format";
+import MapLink from "@/src/components/MapLink";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 type Evt = {
@@ -272,8 +273,18 @@ function Row({ e, athletes, onPress, onLongPress, onDelete, selectMode, selected
           {e.series_id ? <Ionicons name="repeat" size={14} color={colors.accent} /> : null}
         </View>
         <Text style={styles.rowMeta}>
-          {formatDate(e.date, { withYear: true })}{time ? ` • ${time}` : ""}{e.location ? ` • ${e.location}` : ""}
+          {formatDate(e.date, { withYear: true })}{time ? ` • ${time}` : ""}
         </Text>
+        {e.location ? (
+          <View style={{ marginTop: 2 }}>
+            <MapLink
+              address={e.location}
+              color={colors.textSecondary}
+              numberOfLines={1}
+              testID={`sched-map-${e.id}`}
+            />
+          </View>
+        ) : null}
         {names ? <Text style={styles.rowAthletes}>{names}</Text> : null}
       </View>
       {!selectMode && (

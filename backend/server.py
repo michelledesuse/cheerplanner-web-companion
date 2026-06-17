@@ -107,6 +107,7 @@ class ScheduleEvent(BaseModel):
     event_type: str = "practice"  # practice|team_bonding|private_lesson|choreography|class|other
     title: str
     location: Optional[str] = None
+    address: Optional[str] = None  # NEW: full street address used by maps
     date: str  # ISO YYYY-MM-DD
     start_time: Optional[str] = None  # "18:00"
     end_time: Optional[str] = None
@@ -121,6 +122,7 @@ class ScheduleEventCreate(BaseModel):
     event_type: str = "practice"
     title: str
     location: Optional[str] = None
+    address: Optional[str] = None
     date: str
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -133,6 +135,7 @@ class ScheduleEventUpdate(BaseModel):
     event_type: Optional[str] = None
     title: Optional[str] = None
     location: Optional[str] = None
+    address: Optional[str] = None
     date: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -319,6 +322,7 @@ class Competition(BaseModel):
     user_id: str
     name: str
     location: Optional[str] = None
+    address: Optional[str] = None  # NEW: full street address for map lookup
     event_date: str  # ISO date
     event_time: Optional[str] = None  # "HH:MM" 24h (e.g. team performance time)
     end_date: Optional[str] = None
@@ -335,6 +339,7 @@ class Competition(BaseModel):
 class CompetitionCreate(BaseModel):
     name: str
     location: Optional[str] = None
+    address: Optional[str] = None
     event_date: str
     event_time: Optional[str] = None
     end_date: Optional[str] = None
@@ -350,6 +355,7 @@ class CompetitionCreate(BaseModel):
 class CompetitionUpdate(BaseModel):
     name: Optional[str] = None
     location: Optional[str] = None
+    address: Optional[str] = None
     event_date: Optional[str] = None
     event_time: Optional[str] = None
     end_date: Optional[str] = None
@@ -372,6 +378,7 @@ class Booking(BaseModel):
     type: str  # hotel | car | flight
     # common
     provider: Optional[str] = None  # hotel name / rental car company / outbound airline
+    address: Optional[str] = None   # NEW: hotel/airport street address — used by Map links
     confirmation: Optional[str] = None
     cost: Optional[float] = 0.0
     amount_paid: Optional[float] = 0.0
@@ -412,6 +419,7 @@ class BookingCreate(BaseModel):
     competition_id: str
     type: str
     provider: Optional[str] = None
+    address: Optional[str] = None
     confirmation: Optional[str] = None
     cost: Optional[float] = 0.0
     amount_paid: Optional[float] = 0.0
@@ -444,6 +452,7 @@ class BookingCreate(BaseModel):
 
 class BookingUpdate(BaseModel):
     provider: Optional[str] = None
+    address: Optional[str] = None
     confirmation: Optional[str] = None
     cost: Optional[float] = None
     amount_paid: Optional[float] = None

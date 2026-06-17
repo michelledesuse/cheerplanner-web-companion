@@ -57,6 +57,7 @@ export default function ScheduleForm() {
   const [eventType, setEventType] = useState<string>("practice");
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
   const [date, setDate] = useState(todayISO());
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
@@ -90,6 +91,7 @@ export default function ScheduleForm() {
             setEventType(e.event_type || "practice");
             setTitle(e.title || "");
             setLocation(e.location || "");
+            setAddress(e.address || "");
             setDate(e.date || todayISO());
             setStartTime(e.start_time || "");
             setEndTime(e.end_time || "");
@@ -127,6 +129,7 @@ export default function ScheduleForm() {
     event_type: eventType,
     title: title.trim(),
     location: location.trim() || null,
+    address: address.trim() || null,
     date,
     start_time: startTime.trim() || null,
     end_time: endTime.trim() || null,
@@ -256,7 +259,19 @@ export default function ScheduleForm() {
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Senior 5 practice" placeholderTextColor={colors.textTertiary} testID="schedule-title" />
 
           <Text style={styles.label}>Location (optional)</Text>
+          <Text style={styles.label}>Location / venue name</Text>
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. California Allstars gym" placeholderTextColor={colors.textTertiary} />
+
+          <Text style={styles.label}>Address (optional, for maps)</Text>
+          <TextInput
+            style={styles.input}
+            value={address}
+            onChangeText={setAddress}
+            placeholder="e.g. 123 Main St, San Marcos, CA 92069"
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="words"
+            testID="schedule-address-input"
+          />
 
           <Text style={styles.label}>{repeat ? "Starts" : "Date"}</Text>
           <DateField value={date} onChange={setDate} testID="schedule-date" />

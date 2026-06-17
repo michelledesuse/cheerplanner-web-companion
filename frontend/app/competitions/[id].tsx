@@ -10,6 +10,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
+import MapLink from "@/src/components/MapLink";
 import PackingListSection from "@/src/components/PackingListSection";
 import CompetitionTeamsSection, { TeamMeetTime, TeamToWatch } from "@/src/components/CompetitionTeamsSection";
 
@@ -17,6 +18,7 @@ type Competition = {
   id: string;
   name: string;
   location?: string;
+  address?: string;
   event_date: string;
   end_date?: string;
   housing_required: boolean;
@@ -34,6 +36,7 @@ type Booking = {
   id: string;
   type: string;
   provider?: string;
+  address?: string;
   confirmation?: string;
   cost?: number;
   amount_paid?: number;
@@ -154,8 +157,19 @@ export default function CompetitionDetail() {
           <Text style={styles.heroDaysLabel}>{days !== null && days >= 0 ? "days to go" : "Past event"}</Text>
           <Text style={styles.heroDate}>{formatDateLong(comp.event_date)}</Text>
           {!!comp.location && (
-            <View style={styles.row}><Ionicons name="location" size={14} color="rgba(255,255,255,0.7)" />
-              <Text style={styles.heroMeta}>{comp.location}</Text></View>
+            <View style={styles.row}>
+              <MapLink
+                address={comp.address || comp.location}
+                hint={comp.address && comp.location ? comp.location : undefined}
+                variant="hero"
+                testID="comp-hero-map"
+              />
+            </View>
+          )}
+          {!!(comp.address && comp.location) && (
+            <View style={[styles.row, { marginTop: -2 }]}>
+              <Text style={[styles.heroMeta, { fontSize: 12, opacity: 0.8 }]} numberOfLines={2}>{comp.address}</Text>
+            </View>
           )}
           <View style={styles.heroPills}>
             {comp.housing_required && (
@@ -276,6 +290,16 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
         <View style={{ flex: 1 }}>
           <Text style={styles.bookingTitle}>{booking.provider || booking.type.charAt(0).toUpperCase() + booking.type.slice(1)}</Text>
           {booking.confirmation && <Text style={styles.bookingMeta}>Conf #{booking.confirmation}</Text>}
+          {!!booking.address && (
+            <View style={{ marginTop: 4 }}>
+              <MapLink
+                address={booking.address}
+                hint={booking.provider || undefined}
+                numberOfLines={2}
+                testID={`booking-address-map-${booking.id}`}
+              />
+            </View>
+          )}
         </View>
         <TouchableOpacity onPress={onEdit} hitSlop={10} style={{ marginRight: 12 }} testID={`booking-edit-${booking.id}`}>
           <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
@@ -295,9 +319,23 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
       {booking.type === "car" && (booking.pickup_at || booking.pickup_location || booking.dropoff_at || booking.dropoff_location) && (
         <View style={styles.bookingGrid}>
           {booking.pickup_at && <Field label="Pick-up" value={formatDateTime12(booking.pickup_at)} />}
-          {booking.pickup_location && <Field label="Pick-up location" value={booking.pickup_location} />}
+          {booking.pickup_location && (
+            <View style={{ width: "100%", marginTop: 8 }}>
+              <Text style={{ ...typography.micro, color: colors.textTertiary, letterSpacing: 0.5 }}>PICK-UP LOCATION</Text>
+              <View style={{ marginTop: 2 }}>
+                <MapLink address={booking.pickup_location} testID={`car-pickup-map-${booking.id}`} />
+              </View>
+            </View>
+          )}
           {booking.dropoff_at && <Field label="Drop-off" value={formatDateTime12(booking.dropoff_at)} />}
-          {booking.dropoff_location && <Field label="Drop-off location" value={booking.dropoff_location} />}
+          {booking.dropoff_location && (
+            <View style={{ width: "100%", marginTop: 8 }}>
+              <Text style={{ ...typography.micro, color: colors.textTertiary, letterSpacing: 0.5 }}>DROP-OFF LOCATION</Text>
+              <View style={{ marginTop: 2 }}>
+                <MapLink address={booking.dropoff_location} testID={`car-dropoff-map-${booking.id}`} />
+              </View>
+            </View>
+          )}
         </View>
       )}
       {booking.type === "flight" && (
