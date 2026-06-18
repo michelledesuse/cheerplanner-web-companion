@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -143,6 +143,31 @@ export default function SettingsScreen() {
           <SettingRow icon="gift-outline" label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />
         </View>
 
+        <Text style={styles.sectionHead}>Help &amp; support</Text>
+        <View style={styles.group}>
+          <SettingRow
+            icon="rocket-outline"
+            label="Setup guide"
+            onPress={() => router.push("/help/setup" as any)}
+            chevron
+            testID="settings-setup-guide"
+          />
+          <SettingRow
+            icon="help-circle-outline"
+            label="FAQ"
+            onPress={() => router.push("/help/faq" as any)}
+            chevron
+            testID="settings-faq"
+          />
+          <SettingRow
+            icon="mail-outline"
+            label="Contact support"
+            onPress={() => Linking.openURL("mailto:support@cheerplanner.app?subject=CheerPlanner%20support")}
+            chevron
+            testID="settings-contact"
+          />
+        </View>
+
         <TouchableOpacity style={styles.signOutBtn} onPress={onSignOut} testID="sign-out-btn">
           <Ionicons name="log-out-outline" size={18} color={colors.dangerText} />
           <Text style={styles.signOutText}>Sign out</Text>
@@ -162,7 +187,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>CheerPlanner • v1.0.5</Text>
+        <Text style={styles.footer}>CheerPlanner • v1.0.6</Text>
       </ScrollView>
 
       {/* Password-confirm modal for account deletion (Apple 5.1.1(v) compliance) */}
