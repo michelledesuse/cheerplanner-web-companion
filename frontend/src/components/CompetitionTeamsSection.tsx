@@ -9,6 +9,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
+import DebouncedTextInput from "@/src/components/DebouncedTextInput";
 import { formatDate } from "@/src/utils/format";
 
 export type Team = { id: string; name: string; color?: string; season?: string };
@@ -267,11 +268,11 @@ export default function CompetitionTeamsSection({
                       </View>
 
                       <Text style={[styles.smallLabel, { marginTop: spacing.sm }]}>LOCATION</Text>
-                      <TextInput
+                      <DebouncedTextInput
                         placeholder="e.g. Hall A"
                         placeholderTextColor={colors.textTertiary}
                         value={entry.performance_location || ""}
-                        onChangeText={(v) => updateMeetTimeAt(originalIndex, "performance_location", v)}
+                        onCommit={(v) => updateMeetTimeAt(originalIndex, "performance_location", v)}
                         style={styles.input}
                         testID={`meet-loc-${tid}-${displayIdx}`}
                       />

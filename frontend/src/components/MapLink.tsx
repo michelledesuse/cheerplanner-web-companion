@@ -1,6 +1,7 @@
 import React from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as WebBrowser from "expo-web-browser";
 
 import { colors, typography } from "@/src/theme";
 
@@ -54,25 +55,34 @@ export default function MapLink({
   const handlePress = async () => {
     if (isPlaceholder) return;
     const query = encodeURIComponent(hint ? `${trimmed}, ${hint}` : trimmed);
-    // Prefer Apple Maps on iOS so users land in their default mapping app
-    // (most iPhones still default to Apple Maps); the URL also opens Google
-    // Maps app if installed and chosen as default.
-    const url =
-      Platform.OS === "ios"
-        ? `http://maps.apple.com/?q=${query}`
-        : Platform.OS === "android"
-          ? `geo:0,0?q=${query}`
-          : `https://www.google.com/maps/search/?api=1&query=${query}`;
+    // Always use a Google Maps web URL so it renders inside the in-app
+    // browser. This keeps the user in CheerPlanner with an obvious "Done"
+    // (iOS) or back button (Android) instead of being punted out to Apple
+    // Maps app with no way to return.
+    const url = `https://www.google.com/maps/search/?api=1&query=${query}`;
+
     try {
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
+      if (Platform.OS === "web") {
+        // On web, just open in a new tab — the browser tab itself acts as
+        // the "back" affordance.
         await Linking.openURL(url);
         return;
       }
-      // Fallback to web Google Maps if the OS rejects the deep-link.
-      await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+      await WebBrowser.openBrowserAsync(url, {
+        // iOS: SFSafariViewController-style sheet that animates back to the app.
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        // Tint the controls so they match CheerPlanner's accent.
+        controlsColor: colors.accent,
+        toolbarColor: colors.bg,
+        dismissButtonStyle: "done",
+        // Android Chrome Custom Tab options
+        showTitle: true,
+        enableBarCollapsing: true,
+      });
     } catch (_e) {
-      Alert.alert("Couldn't open maps", "We weren't able to open your maps app for that address.");
+      // Fallback: try a plain external open.
+      try { await Linking.openURL(url); }
+      catch { Alert.alert("Couldn't open maps", "We weren't able to open the map for that address."); }
     }
   };
 

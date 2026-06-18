@@ -201,14 +201,14 @@ export default function FaqScreen() {
         ))}
 
         <TouchableOpacity
-          onPress={() => Linking.openURL("mailto:support@cheerplanner.app?subject=CheerPlanner%20support")}
+          onPress={() => Linking.openURL("mailto:info@cheer-planner.com?subject=CheerPlanner%20support")}
           style={styles.contactBtn}
           testID="faq-contact-btn"
         >
           <Ionicons name="mail" size={16} color="white" />
           <Text style={styles.contactBtnText}>Contact us</Text>
         </TouchableOpacity>
-        <Text style={styles.footer}>support@cheerplanner.app</Text>
+        <Text style={styles.footer}>info@cheer-planner.com</Text>
       </ScrollView>
     </SafeAreaView>
   );

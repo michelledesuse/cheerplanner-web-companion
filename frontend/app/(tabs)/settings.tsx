@@ -162,7 +162,7 @@ export default function SettingsScreen() {
           <SettingRow
             icon="mail-outline"
             label="Contact support"
-            onPress={() => Linking.openURL("mailto:support@cheerplanner.app?subject=CheerPlanner%20support")}
+            onPress={() => Linking.openURL("mailto:info@cheer-planner.com?subject=CheerPlanner%20support")}
             chevron
             testID="settings-contact"
           />
