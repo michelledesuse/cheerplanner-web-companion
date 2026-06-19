@@ -2345,16 +2345,23 @@ async def dashboard(current_user=Depends(get_current_user)):
     async for d in db.bookings.find({"user_id": user_id}, {"_id": 0, "cost": 1, "amount_paid": 1}).limit(5000):
         booking_balance += float(d.get("cost") or 0) - float(d.get("amount_paid") or 0)
 
-    # Unpaid expense balance — accounts for partial payments
+    # Unpaid expense balance + total paid YTD — both derived from the canonical
+    # paid_map so partial payments are respected AND "already paid" expenses
+    # (paid=true with no logged payment) are folded in correctly.
     paid_map = await _build_paid_map(user_id)
     unpaid_expense_balance = 0.0
-    async for d in db.expenses.find({"user_id": user_id}, {"_id": 0, "id": 1, "amount": 1, "paid": 1}).limit(20000):
-        if d.get("paid"):
-            continue
+    paid_from_expenses = 0.0
+    async for d in db.expenses.find(
+        {"user_id": user_id}, {"_id": 0, "id": 1, "amount": 1, "paid": 1}
+    ).limit(20000):
         amt = float(d.get("amount") or 0)
         paid = float(paid_map.get(d.get("id"), 0.0))
-        remaining = max(0.0, amt - paid)
-        unpaid_expense_balance += remaining
+        # Backend invariant: paid_amount equals amount whenever paid=true,
+        # so the Paid YTD tile picks up manual paid-marks for free.
+        if d.get("paid") and paid < amt:
+            paid = amt
+        paid_from_expenses += min(paid, amt)
+        unpaid_expense_balance += max(0.0, amt - paid)
 
     # Next competition
     next_comp = None
@@ -2382,7 +2389,7 @@ async def dashboard(current_user=Depends(get_current_user)):
         "athletes_count": athletes_count,
         "competitions_count": comps_count,
         "total_expenses_ytd": round(total_expenses, 2),
-        "total_payments_ytd": round(total_payments, 2),
+        "total_payments_ytd": round(paid_from_expenses, 2),
         "outstanding_balance": round(unpaid_expense_balance + booking_balance, 2),
         "booking_balance": round(booking_balance, 2),
         "unpaid_expense_balance": round(unpaid_expense_balance, 2),

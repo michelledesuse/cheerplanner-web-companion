@@ -194,3 +194,44 @@ File: `/app/backend/tests/test_teams_phase_b.py` (JUnit: `/app/test_reports/pyte
 - `/app/test_reports/pytest/pytest_iter19.xml`
 
 No production code modified by testing agent.
+
+---
+
+## Iteration 20 — Dashboard Aggregate Unification + Unapply Regression (backend only)
+
+### Scope
+- Verify P2 cluster: `/api/dashboard` now derives `unpaid_expense_balance` and `total_payments_ytd` from the canonical `_build_paid_map` PLUS the `paid=True` override (server.py:2348-2364).
+- Confirm unapply round-trip (PATCH payment with `applied_expense_ids=[]` and `allocations=[]`) still flips the previously-covered expense's `paid` flag back to False (regression of iter-19 HIGH-1 fix).
+- Confirm iter-18 (16 tests) and iter-19 (4 tests) regression suites remain GREEN.
+
+### Test File
+- `/app/backend/tests/test_iter20_dashboard_aggregates.py` (NEW, 7 tests)
+
+### Results
+| Scenario | Test | Result |
+|---|---|---|
+| A1 | paid=True expense contributes to Paid YTD & not Open Balance | ✅ PASS |
+| A2 | Toggle e1 paid=True → ytd Δ=$300, open Δ=$0 | ✅ PASS |
+| A3 | Toggle e1 paid=False → reverts to A1 deltas | ✅ PASS |
+| B1 | $60 partial pay on e1 (waterfall) → ytd Δ=$60, open Δ=$240 | ✅ PASS |
+| B2 | PATCH e2 paid=True with partial e1 → ytd Δ=$260, open Δ=$40 | ✅ PASS |
+| C1 | $100 payment auto-marks e1 paid=True | ✅ PASS |
+| C2 | PATCH payment {applied_expense_ids:[], allocations:[]} → e1 paid=False, balance=$100 | ✅ PASS |
+
+### Regression
+- `test_iter18_waterfall_and_team_calendar.py` — **16/16 PASS** ✅
+- `test_iter19_payment_fixes.py` — **4/4 PASS** ✅
+- `test_iter20_dashboard_aggregates.py` — **7/7 PASS** ✅
+- **Total: 27/27 GREEN** (in 6.73s)
+
+### Findings
+- No regressions, no bugs, no fixes required.
+- Dashboard tile values now agree symmetrically with per-athlete and Money-tab views — both read from the same `_build_paid_map` plus `paid=True` override.
+- The `min(paid, amt)` clamp on server.py:2363 correctly defends against payment-overflow (so Paid YTD can never exceed total expense amount).
+- Minor nit (pre-existing, not a bug): `total_payments` local var on server.py:2339-2341 is now dead code — value not used in response since `total_payments_ytd` now equals `paid_from_expenses`. Safe to delete later; not blocking.
+
+### Artifacts
+- `/app/test_reports/iteration_20.json`
+- `/app/test_reports/pytest/pytest_iter20.xml`
+- `/app/test_reports/pytest/pytest_iter20_regression.xml` (combined iter-18 + iter-19 re-run)
+

@@ -1,0 +1,53 @@
+{
+  "summary": "Iteration 20 — verified P2 dashboard aggregate changes. The /api/dashboard endpoint now derives `unpaid_expense_balance` and `total_payments_ytd` from the canonical paid_map plus the paid=True override (server.py:2348-2364). 7 new tests covering scenarios A (paid=True contributes to Paid YTD + removes itself from Open Balance), B (mixed partial-payment + paid=True), and C (unapply round-trip via PATCH applied_expense_ids=[] & allocations=[]) all PASS. iter-18 (16) + iter-19 (4) regression suite remains 20/20 GREEN. Net: 27/27 PASS. No regressions, no fixes required.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter20_dashboard_aggregates.py",
+    "/app/backend/tests/test_iter19_payment_fixes.py",
+    "/app/backend/tests/test_iter18_waterfall_and_team_calendar.py",
+    "/app/test_reports/pytest/pytest_iter20.xml",
+    "/app/test_reports/pytest/pytest_iter20_regression.xml"
+  ],
+  "verification_results": {
+    "A1_paid_true_contributes_to_paid_ytd": "PASS — Two expenses created (e1 $100 paid=False, e2 $200 paid=True). Dashboard delta: total_payments_ytd += $200 (from e2), unpaid_expense_balance += $100 (only e1).",
+    "A2_toggle_e1_to_paid_true": "PASS — After PATCH /api/expenses/{e1} paid=True: ytd delta = $300, open delta = $0.",
+    "A3_toggle_e1_back_to_unpaid": "PASS — After PATCH paid=False: dashboard reverts to A1 deltas ($200 / $100).",
+    "B1_partial_payment_60_via_waterfall": "PASS — POST $60 covering e1 → ytd delta = $60, open delta = $40 (e1 remaining) + $200 (e2) = $240.",
+    "B2_toggle_e2_to_paid_true_with_partial_e1": "PASS — After PATCH e2 paid=True: ytd delta = $60 + $200 = $260, open delta = $40 (only the residual on e1).",
+    "C1_payment_marks_expense_paid": "PASS — POST $100 covering e1 $100 → e1.paid=True, balance_due=$0.",
+    "C2_unapply_via_empty_lists": "PASS — PATCH payment with applied_expense_ids=[] AND allocations=[] → e1.paid flipped back to False, balance_due restored to $100. _refresh_expense_paid_flags ran correctly (server.py:1512-1556).",
+    "D_iter18_iter19_regression": "PASS — 20/20 prior tests still GREEN."
+  },
+  "action_items": [
+    "No action items. P2 dashboard aggregate change is correct and the unapply path remains regression-free.",
+    "Optional follow-up (unchanged): server.py is now 3506 lines — consider splitting into per-resource routers (dashboard, payments, expenses, calendar)."
+  ],
+  "critical_code_review_comments": [
+    "Good: dashboard() at server.py:2326-2399 now reads from the same canonical paid_map used by /api/expenses, so the dashboard tile values are guaranteed to agree with the per-athlete views.",
+    "Good: the paid=True override logic at server.py:2359-2363 is symmetric — if paid=true but the row's effective_paid is below amount, it bumps effective_paid up to amount. min(paid, amt) on line 2363 also defends against payment-overflow (e.g. $120 paid on $100 expense) so Paid YTD never exceeds total expense amounts.",
+    "Good: unapply path at update_payment (server.py:1512-1556) snapshots existing.applied_expense_ids and existing.allocations BEFORE the update and unions them into affected_ids — so when client PATCHes empty arrays, every previously-covered expense is re-evaluated and paid flag flips back correctly.",
+    "Minor (not introduced this pass): total_expenses and total_payments local variables on lines 2335-2341 are computed but no longer used directly in the response (only total_payments_ytd / total_expenses_ytd are returned, and total_payments_ytd now uses paid_from_expenses). The leftover total_payments variable is dead code — safe to remove for clarity but not a bug."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter20_dashboard_aggregates.py (NEW)",
+    "/app/test_reports/iteration_20.json (NEW)",
+    "/app/test_reports/pytest/pytest_iter20.xml (NEW)",
+    "/app/test_reports/pytest/pytest_iter20_regression.xml (NEW)",
+    "/app/test_result.md (appended iter-20 section)"
+  ],
+  "success_rate": {"backend": "100% (27/27 — 7 new iter20 + 16 iter18 + 4 iter19)", "frontend": "not tested per request"},
+  "seed_data_creation": "Each test class auto-creates and cleans up its own sandbox (athletes, expenses, payments) prefixed TEST_iter20_. Baseline dashboard snapshot is used so tests assert on deltas, never absolute values — safe to run concurrently with other data on smoke@test.com.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter-18/19/20 regression suite locations: /app/backend/tests/test_iter18_waterfall_and_team_calendar.py, test_iter19_payment_fixes.py, test_iter20_dashboard_aggregates.py. Re-run all three for any future change to: dashboard() endpoint, _build_paid_map, _refresh_expense_paid_flags, expense.paid toggle handling, payment create/update/delete waterfall, or PaymentUpdate.allocations / applied_expense_ids.",
+  "rca_of_issue": "N/A — verification iteration only. P2 dashboard aggregate change is correct: dashboard uses paid_map + paid=True override to compute both tiles symmetrically. Unapply path (PATCH with empty lists) confirmed regression-free."
+}

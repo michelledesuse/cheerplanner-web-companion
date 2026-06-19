@@ -112,8 +112,14 @@ export default function ExpensesTab() {
   const isOverdue = (e: Expense) => !!e.due_date && e.due_date < todayStr && !e.paid && Number(e.balance_due ?? Number(e.amount) - Number(e.paid_amount || 0)) > 0;
 
   const totals = useMemo(() => {
+    // Aggregates use the backend's canonical fields so that:
+    //   1. Marking an expense paid by tapping its bubble (which sets paid=true)
+    //      immediately moves the value from Open Balance into Paid YTD.
+    //   2. Expenses created with the "Already paid" flag count toward Paid YTD
+    //      the same as a logged payment would (the backend forces
+    //      paid_amount=amount whenever paid=true).
     const totalDue = expenses.reduce((s, e) => s + Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0))), 0);
-    const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+    const totalPaid = expenses.reduce((s, e) => s + Number(e.paid_amount || 0), 0);
     return { totalDue, totalPaid };
   }, [expenses, payments]);
 
