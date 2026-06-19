@@ -2336,10 +2336,6 @@ async def dashboard(current_user=Depends(get_current_user)):
     async for d in db.expenses.find({"user_id": user_id}, {"_id": 0, "amount": 1}).limit(20000):
         total_expenses += float(d.get("amount") or 0)
 
-    total_payments = 0.0
-    async for d in db.payments.find({"user_id": user_id}, {"_id": 0, "amount": 1}).limit(20000):
-        total_payments += float(d.get("amount") or 0)
-
     # Booking balances
     booking_balance = 0.0
     async for d in db.bookings.find({"user_id": user_id}, {"_id": 0, "cost": 1, "amount_paid": 1}).limit(5000):
