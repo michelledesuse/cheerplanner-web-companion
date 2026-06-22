@@ -13,7 +13,8 @@
       "bundleIdentifier": "com.desuse.cheerplanner",
       "buildNumber": "6",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes"
+        "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
