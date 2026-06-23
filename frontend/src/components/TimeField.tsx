@@ -147,43 +147,48 @@ function TwelveHourWebPicker({
 
   return (
     <View style={styles.webRow} testID={testID}>
-      <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
-      <TextInput
-        value={hour}
-        onChangeText={(t) => setHour(t.replace(/\D/g, "").slice(0, 2))}
-        onBlur={onHourBlur}
-        keyboardType="number-pad"
-        maxLength={2}
-        placeholder="--"
-        placeholderTextColor={colors.textTertiary}
-        style={styles.webNum}
-        testID={testID ? `${testID}-hour` : undefined}
-      />
-      <Text style={styles.webColon}>:</Text>
-      <TextInput
-        value={minute}
-        onChangeText={(t) => setMinute(t.replace(/\D/g, "").slice(0, 2))}
-        onBlur={onMinuteBlur}
-        keyboardType="number-pad"
-        maxLength={2}
-        placeholder="--"
-        placeholderTextColor={colors.textTertiary}
-        style={styles.webNum}
-        testID={testID ? `${testID}-minute` : undefined}
-      />
-      <Pressable
-        onPress={togglePeriod}
-        style={styles.periodBtn}
-        testID={testID ? `${testID}-period` : undefined}
-      >
-        <Text style={styles.periodText}>{period}</Text>
-      </Pressable>
+      {/* Numbers + AM/PM are grouped so the period button never wraps away
+          from the time it belongs to. The clear icon sits outside this group
+          and is the only element allowed to drop to a 2nd row on very narrow
+          containers. */}
+      <View style={styles.timeGroup}>
+        <TextInput
+          value={hour}
+          onChangeText={(t) => setHour(t.replace(/\D/g, "").slice(0, 2))}
+          onBlur={onHourBlur}
+          keyboardType="number-pad"
+          maxLength={2}
+          placeholder="--"
+          placeholderTextColor={colors.textTertiary}
+          style={styles.webNum}
+          testID={testID ? `${testID}-hour` : undefined}
+        />
+        <Text style={styles.webColon}>:</Text>
+        <TextInput
+          value={minute}
+          onChangeText={(t) => setMinute(t.replace(/\D/g, "").slice(0, 2))}
+          onBlur={onMinuteBlur}
+          keyboardType="number-pad"
+          maxLength={2}
+          placeholder="--"
+          placeholderTextColor={colors.textTertiary}
+          style={styles.webNum}
+          testID={testID ? `${testID}-minute` : undefined}
+        />
+        <Pressable
+          onPress={togglePeriod}
+          style={styles.periodBtn}
+          testID={testID ? `${testID}-period` : undefined}
+        >
+          <Text style={styles.periodText}>{period}</Text>
+        </Pressable>
+      </View>
       {clearable && !!value && (
-        <Pressable onPress={clear} hitSlop={10}>
+        <Pressable onPress={clear} hitSlop={10} style={styles.clearBtn}>
           <Ionicons name="close-circle" size={18} color={colors.textTertiary} />
         </Pressable>
       )}
-      {!value && <Text style={styles.webPlaceholder}>{placeholder}</Text>}
+      {!value && <Text style={styles.webPlaceholder} numberOfLines={1}>{placeholder}</Text>}
     </View>
   );
 }
@@ -233,30 +238,45 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    flexWrap: "wrap",  // safety net: clear icon / placeholder drop to next line on tight containers
+    rowGap: 6,
+    columnGap: 8,
     minHeight: 46,
+  },
+  // The time controls (HH : MM AM/PM) MUST stay grouped — never split AM/PM
+  // away from its time. flexShrink:0 keeps the group from being clipped; if
+  // it doesn't fit on one row the entire group wraps as a unit.
+  timeGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
   },
   webNum: {
     fontSize: 15,
     color: colors.textPrimary,
-    minWidth: 28,
-    width: 32,
+    minWidth: 22,
+    width: 26,
     textAlign: "center",
     paddingVertical: 2,
   },
   webColon: { color: colors.textSecondary, fontSize: 16, fontWeight: "700" },
   periodBtn: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: colors.accentSubtle,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: colors.accent,
+    flexShrink: 0,
+    minWidth: 40,
+    alignItems: "center",
   },
   periodText: { color: colors.accent, fontWeight: "800", fontSize: 12, letterSpacing: 0.5 },
-  webPlaceholder: { color: colors.textTertiary, fontSize: 14, marginLeft: 6 },
+  clearBtn: { marginLeft: "auto" },
+  webPlaceholder: { color: colors.textTertiary, fontSize: 13, flexShrink: 1, flexBasis: "auto" },
 });

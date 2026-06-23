@@ -1,0 +1,28 @@
+{
+  "summary": "Frontend-only verification of the TimeField AM/PM clipping fix on 390x844 mobile viewport. The original bug (End time AM/PM clipped off the right edge of the screen on schedule/new and other side-by-side TimeField screens) is FIXED. All AM/PM toggles on all reported screens are fully inside the viewport, tappable, toggle correctly, and persist to the backend as 24-hour HH:MM. Regression checks on desktop (1024x768), single-column TimeField (hotel check-in/check-out), and the clear (X) icon also pass. A full-app overflow scan across 11 routes at 390px shows ZERO elements overflowing the viewport (document.scrollWidth == clientWidth == 390 on every page).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_21.json"],
+  "action_items": [
+    "Optional cleanup: remove the test-created schedule event titled 'TEST-LAYOUT-EVENT-AMPM' on 2026-06-23 (start 21:00, end 22:30) created during the save-persistence verification. Native Alert.alert delete confirm can't be driven from Playwright on web preview, and the auth token was not in localStorage under the expected keys, so the testing agent could not delete it via API.",
+    "Consider forwarding the parent testID from DateTimeField to its inner TimeField so testers can address those AM/PM buttons by stable selector (currently they have no -period testID in bookings flight rows).",
+    "Minor pre-existing cosmetic in /app/frontend/app/schedule/new.tsx lines 261-262: two consecutive labels ('Location (optional)' followed by 'Location / venue name') for a single TextInput. Likely a duplicate label left in during a previous edit. Not related to this fix but visible on the schedule/new screen."
+  ],
+  "critical_code_review_comments": [
+    "TimeField.tsx fix is well-scoped: timeGroup with flexShrink:0 keeps HH:MM and AM/PM together; periodBtn has minWidth:40 + flexShrink:0 so it can never be squeezed below tap-target size; outer webRow has flexWrap:'wrap' + rowGap:6 so only the clear icon / placeholder can wrap to a second row.",
+    "12-hour <-> 24-hour conversion logic (parse12 / commit) is correct and the storage contract (HH:MM 24h) is unchanged — confirmed by saving 10:30 PM and observing end_time='22:30' returned from POST /api/schedule.",
+    "DateTimeField does not forward the parent testID to its child DateField/TimeField (line 32, 36 of /app/frontend/src/components/DateTimeField.tsx). Not a bug, but adding `testID={testID ? \"${testID}-time\" : undefined}` would make this component easier to assert against."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not in scope)", "frontend": "100%"},
+  "seed_data_creation": "Created one schedule event 'TEST-LAYOUT-EVENT-AMPM' on 06-23-2026 (21:00–22:30) to verify the end-to-end PM persistence — see action_items for cleanup note.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "TimeField AM/PM clipping bug is verified fixed. Side-by-side TimeFields in /schedule/new, /bookings/new?type=flight, and /competitions/{id} (CompetitionTeamsSection) all keep AM/PM within the 390px viewport. Desktop layout, single-column TimeField, and the clear (X) icon all continue to work. No overflow detected on dashboard, schedule, calendar, expenses, athletes, competitions list, competition detail, or any bookings/new variant.",
+  "rca_of_issue": "Root cause (pre-fix): on web, the original TimeField rendered everything (clock icon + hour + colon + minute + AM/PM pill + clear icon) in a single non-wrapping flex row with no flexShrink protection on the AM/PM pill. When two TimeFields shared a row (each constrained to ~150–173px on a 390px viewport) the row's natural width (~210px) exceeded the column width, and the last-positioned child (AM/PM pill) overflowed past the column's right edge — and in the case of the End time field, past the viewport edge.\n\nFix verified: removed the leading clock icon, tightened paddings/gaps/number widths, grouped HH:MM + AM/PM into a non-shrinking timeGroup, gave the AM/PM pill its own flexShrink:0 + minWidth:40, and let the outer webRow flexWrap so only the clear icon / placeholder can drop to a 2nd row.\n\nMeasured evidence (viewport 390px):\n- /schedule/new: start period right edge=142, end period right edge=327 (both well inside 390)\n- /bookings/new?type=flight: all 4 AM buttons (depart/arrive/return-depart/return-arrive) right edge=331\n- /competitions/{id} teams section: all 4 meet/perf period buttons right edges 144 and 314\n- Saved end_time of 10:30 PM persisted as '22:30' in POST /api/schedule response\n- AM→PM toggle, PM→AM toggle, and clear (X) all interactive\n- documentElement.scrollWidth == clientWidth == 390 on all 11 routes scanned"
+}
