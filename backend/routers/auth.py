@@ -1,0 +1,115 @@
+import uuid
+from typing import Dict
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+
+from core.db import db
+from core.models import (
+    UserSignup, UserLogin, UserPublic, TokenResponse, DeleteAccountPayload,
+)
+from core.security import (
+    hash_password, verify_password, create_access_token, get_current_user, limiter,
+)
+from core.models import utcnow_iso
+
+router = APIRouter(prefix="/api")
+
+
+@router.get("/")
+async def root():
+    return {"message": "CheerPlanner API", "ok": True}
+
+
+@router.post("/auth/signup", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def signup(request: Request, payload: UserSignup):
+    email = payload.email.lower().strip()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user_id = str(uuid.uuid4())
+    user_doc = {
+        "id": user_id,
+        "email": email,
+        "name": payload.name,
+        "password_hash": hash_password(payload.password),
+        "created_at": utcnow_iso(),
+    }
+    await db.users.insert_one(user_doc)
+    token = create_access_token(user_id, email)
+    return TokenResponse(
+        access_token=token,
+        user=UserPublic(id=user_id, email=email, name=payload.name, created_at=user_doc["created_at"]),
+    )
+
+
+@router.post("/auth/login", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def login(request: Request, payload: UserLogin):
+    email = payload.email.lower().strip()
+    user_doc = await db.users.find_one({"email": email})
+    if not user_doc or not verify_password(payload.password, user_doc.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = create_access_token(user_doc["id"], email)
+    return TokenResponse(
+        access_token=token,
+        user=UserPublic(
+            id=user_doc["id"], email=email, name=user_doc.get("name"), created_at=user_doc["created_at"]
+        ),
+    )
+
+
+@router.get("/auth/me", response_model=UserPublic)
+async def me(current_user=Depends(get_current_user)):
+    return UserPublic(
+        id=current_user["id"],
+        email=current_user["email"],
+        name=current_user.get("name"),
+        created_at=current_user["created_at"],
+    )
+
+
+@router.delete("/auth/me")
+async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get_current_user)):
+    """Permanently delete the current user's account.
+
+    Apple App Store Guideline 5.1.1(v): apps that support account creation
+    must allow users to delete their account from within the app. We require
+    password re-confirmation, then cascade-delete every collection scoped to
+    this user. Records owned by surviving household co-members are preserved.
+    """
+    user_id = current_user["id"]
+    user_doc = await db.users.find_one({"id": user_id})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not verify_password(payload.password, user_doc.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Password is incorrect")
+
+    households = db.households.find({"member_user_ids": user_id})
+    async for h in households:
+        members = [m for m in (h.get("member_user_ids") or []) if m != user_id]
+        if members:
+            await db.households.update_one({"id": h["id"]}, {"$set": {"member_user_ids": members}})
+        else:
+            await db.households.delete_one({"id": h["id"]})
+
+    collections_to_purge = [
+        "athletes", "competitions", "bookings", "expenses", "payments",
+        "fundraisers", "schedule_events", "packing_templates", "packing_lists",
+        "teams",
+    ]
+    deleted_counts: Dict[str, int] = {}
+    for name in collections_to_purge:
+        res = await db[name].delete_many({"user_id": user_id})
+        deleted_counts[name] = res.deleted_count
+
+    invite_res = await db.household_invites.delete_many({"invited_by": user_id})
+    deleted_counts["household_invites"] = invite_res.deleted_count
+
+    await db.users.delete_one({"id": user_id})
+
+    return {
+        "deleted": True,
+        "user_id": user_id,
+        "purged": deleted_counts,
+    }

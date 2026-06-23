@@ -1,0 +1,680 @@
+import uuid
+from datetime import datetime, timezone
+from typing import List, Optional, Literal, Dict, Any
+
+from pydantic import BaseModel, Field, EmailStr
+
+
+def utcnow_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+# ============================================================
+# Auth / users
+# ============================================================
+class UserSignup(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=6)
+    name: Optional[str] = None
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserPublic(BaseModel):
+    id: str
+    email: EmailStr
+    name: Optional[str] = None
+    created_at: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserPublic
+
+
+class DeleteAccountPayload(BaseModel):
+    password: str
+
+
+# ============================================================
+# Households
+# ============================================================
+class Household(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    member_user_ids: List[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class HouseholdInvite(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    household_id: str
+    invited_by: str
+    code: str
+    expires_at: str
+    used_at: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class HouseholdJoinRequest(BaseModel):
+    code: str
+
+
+# ============================================================
+# Schedule
+# ============================================================
+class RecurrenceRule(BaseModel):
+    frequency: str  # "daily" | "weekly" | "biweekly" | "monthly"
+    days_of_week: List[int] = Field(default_factory=list)  # 0=Sun..6=Sat (weekly/biweekly)
+    until: str  # ISO YYYY-MM-DD (inclusive)
+
+
+class ScheduleEvent(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    athlete_ids: List[str] = Field(default_factory=list)  # empty = all/household
+    event_type: str = "practice"  # practice|team_bonding|private_lesson|choreography|class|other
+    title: str
+    location: Optional[str] = None
+    address: Optional[str] = None  # NEW: full street address used by maps
+    date: str  # ISO YYYY-MM-DD
+    start_time: Optional[str] = None  # "18:00"
+    end_time: Optional[str] = None
+    notes: Optional[str] = None
+    series_id: Optional[str] = None  # all events of a recurring series share this id
+    recurrence_rule: Optional[RecurrenceRule] = None  # stored on every instance for convenience
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class ScheduleEventCreate(BaseModel):
+    athlete_ids: List[str] = Field(default_factory=list)
+    event_type: str = "practice"
+    title: str
+    location: Optional[str] = None
+    address: Optional[str] = None
+    date: str
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    notes: Optional[str] = None
+    recurrence_rule: Optional[RecurrenceRule] = None
+
+
+class ScheduleEventUpdate(BaseModel):
+    athlete_ids: Optional[List[str]] = None
+    event_type: Optional[str] = None
+    title: Optional[str] = None
+    location: Optional[str] = None
+    address: Optional[str] = None
+    date: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    notes: Optional[str] = None
+
+
+# ============================================================
+# Athletes
+# ============================================================
+class Athlete(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    role: Literal["athlete", "coach"] = "athlete"
+    team: Optional[str] = None  # legacy single-team text field (kept for backwards-compat)
+    gym: Optional[str] = None
+    avatar_color: Optional[str] = "#E11D48"
+    avatar_image: Optional[str] = None  # base64 data URL (e.g. data:image/jpeg;base64,...)
+    competition_ids: List[str] = Field(default_factory=list)
+    team_ids: List[str] = Field(default_factory=list)  # NEW: structured team memberships
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class AthleteCreate(BaseModel):
+    name: str
+    role: Optional[Literal["athlete", "coach"]] = "athlete"
+    team: Optional[str] = None
+    gym: Optional[str] = None
+    avatar_color: Optional[str] = "#E11D48"
+    avatar_image: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    team_ids: Optional[List[str]] = None
+
+
+class AthleteUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[Literal["athlete", "coach"]] = None
+    team: Optional[str] = None
+    gym: Optional[str] = None
+    avatar_color: Optional[str] = None
+    avatar_image: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    team_ids: Optional[List[str]] = None
+
+
+# ============================================================
+# Expenses / Payments
+# ============================================================
+ExpenseCategory = Literal[
+    "Tuition", "Practice", "Gear", "Comp/Choreo", "Camp", "Uniform",
+    "Classes & Privates", "Bow", "Warm-Up & Bag", "End of Season Comp Fees",
+    "Registration", "Membership", "Late Fees", "Misc",
+]
+
+EXPENSE_CATEGORIES = [
+    "Tuition", "Practice", "Gear", "Comp/Choreo", "Camp", "Uniform",
+    "Classes & Privates", "Bow", "Warm-Up & Bag", "End of Season Comp Fees",
+    "Registration", "Membership", "Late Fees", "Misc",
+]
+
+
+class ExpenseEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    athlete_id: str
+    category: str
+    amount: float
+    note: Optional[str] = None
+    incurred_on: str  # ISO date
+    due_date: Optional[str] = None
+    paid: bool = False
+    receipt_image: Optional[str] = None  # base64 data URL
+    recurrence_group_id: Optional[str] = None  # links a series of recurring expenses
+    # Response-only computed fields (not stored)
+    paid_amount: float = 0.0
+    balance_due: float = 0.0
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class ExpenseCreate(BaseModel):
+    athlete_id: str
+    category: str
+    amount: float
+    note: Optional[str] = None
+    incurred_on: str
+    due_date: Optional[str] = None
+    paid: bool = False
+    receipt_image: Optional[str] = None
+    # Recurrence options (NEW): when set, server creates N additional occurrences
+    recurrence: Optional[Literal["monthly", "weekly", "biweekly"]] = None
+    recurrence_count: Optional[int] = None  # total entries to create (including this one); default 1
+
+
+class ExpenseUpdate(BaseModel):
+    athlete_id: Optional[str] = None
+    category: Optional[str] = None
+    amount: Optional[float] = None
+    note: Optional[str] = None
+    incurred_on: Optional[str] = None
+    due_date: Optional[str] = None
+    paid: Optional[bool] = None
+    receipt_image: Optional[str] = None
+
+
+class ExpenseBulkCreate(BaseModel):
+    athlete_ids: List[str]
+    category: str
+    amount: float  # total (if equal) or per-athlete (if same)
+    split_mode: Literal["equal", "same"] = "equal"
+    incurred_on: str
+    due_date: Optional[str] = None
+    note: Optional[str] = None
+    paid: bool = False
+
+
+class PaymentAllocation(BaseModel):
+    expense_id: str
+    amount: float
+
+
+class PaymentEntry(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    athlete_id: str
+    amount: float
+    paid_on: str
+    method: Optional[str] = None
+    note: Optional[str] = None
+    applied_expense_ids: List[str] = Field(default_factory=list)
+    # Optional per-expense breakdown (used by bulk auto-allocation)
+    allocations: Optional[List[PaymentAllocation]] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class PaymentCreate(BaseModel):
+    athlete_id: str
+    amount: float
+    paid_on: str
+    method: Optional[str] = None
+    note: Optional[str] = None
+    applied_expense_ids: List[str] = Field(default_factory=list)
+    allocations: Optional[List[PaymentAllocation]] = None
+
+
+class PaymentUpdate(BaseModel):
+    amount: Optional[float] = None
+    paid_on: Optional[str] = None
+    method: Optional[str] = None
+    note: Optional[str] = None
+    applied_expense_ids: Optional[List[str]] = None
+    allocations: Optional[List[PaymentAllocation]] = None
+
+
+class PaymentBulkCreate(BaseModel):
+    athlete_ids: List[str]
+    amount: float  # total (if equal) or per-athlete (if same)
+    split_mode: Literal["equal", "same"] = "equal"
+    paid_on: str
+    method: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ApplyPaymentRequest(BaseModel):
+    amount: float
+    source_type: Literal["manual", "fundraiser"] = "manual"
+    fundraiser_id: Optional[str] = None
+    paid_on: Optional[str] = None
+    note: Optional[str] = None
+    method: Optional[str] = None
+
+
+# ============================================================
+# Teams
+# ============================================================
+class Team(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # creator (the household owner who created it)
+    name: str
+    color: Optional[str] = "#0EA5E9"  # default team color
+    season: Optional[str] = None  # e.g. "2025-2026"
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class TeamCreate(BaseModel):
+    name: str
+    color: Optional[str] = "#0EA5E9"
+    season: Optional[str] = None
+
+
+class TeamUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+    season: Optional[str] = None
+
+
+class TeamMeetTime(BaseModel):
+    team_id: str
+    date: Optional[str] = None              # ISO YYYY-MM-DD
+    meet_time: Optional[str] = None         # "HH:MM" 24h
+    performance_time: Optional[str] = None  # "HH:MM" 24h
+    performance_location: Optional[str] = None
+
+
+class TeamToWatch(BaseModel):
+    name: str
+    date: Optional[str] = None  # ISO date
+    location: Optional[str] = None
+    performance_time: Optional[str] = None  # "HH:MM" 24h
+
+
+# ============================================================
+# Competitions
+# ============================================================
+class Competition(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    location: Optional[str] = None
+    address: Optional[str] = None  # NEW: full street address for map lookup
+    event_date: str  # ISO date
+    event_time: Optional[str] = None  # "HH:MM" 24h
+    end_date: Optional[str] = None
+    housing_required: bool = False
+    booking_link: Optional[str] = None
+    booking_release_at: Optional[str] = None  # ISO datetime
+    notes: Optional[str] = None
+    team_ids: List[str] = Field(default_factory=list)
+    team_meet_times: List[TeamMeetTime] = Field(default_factory=list)
+    teams_to_watch: List[TeamToWatch] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class CompetitionCreate(BaseModel):
+    name: str
+    location: Optional[str] = None
+    address: Optional[str] = None
+    event_date: str
+    event_time: Optional[str] = None
+    end_date: Optional[str] = None
+    housing_required: bool = False
+    booking_link: Optional[str] = None
+    booking_release_at: Optional[str] = None
+    notes: Optional[str] = None
+    team_ids: Optional[List[str]] = None
+    team_meet_times: Optional[List[TeamMeetTime]] = None
+    teams_to_watch: Optional[List[TeamToWatch]] = None
+
+
+class CompetitionUpdate(BaseModel):
+    name: Optional[str] = None
+    location: Optional[str] = None
+    address: Optional[str] = None
+    event_date: Optional[str] = None
+    event_time: Optional[str] = None
+    end_date: Optional[str] = None
+    housing_required: Optional[bool] = None
+    booking_link: Optional[str] = None
+    booking_release_at: Optional[str] = None
+    notes: Optional[str] = None
+    team_ids: Optional[List[str]] = None
+    team_meet_times: Optional[List[TeamMeetTime]] = None
+    teams_to_watch: Optional[List[TeamToWatch]] = None
+
+
+# ============================================================
+# Bookings (hotel / car / flight)
+# ============================================================
+BookingType = Literal["hotel", "car", "flight"]
+
+
+class Booking(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    competition_id: str
+    type: str  # hotel | car | flight
+    # common
+    provider: Optional[str] = None
+    address: Optional[str] = None
+    confirmation: Optional[str] = None
+    cost: Optional[float] = 0.0
+    amount_paid: Optional[float] = 0.0
+    balance_due_date: Optional[str] = None
+    notes: Optional[str] = None
+    # hotel
+    check_in: Optional[str] = None
+    check_in_time: Optional[str] = None
+    check_out: Optional[str] = None
+    check_out_time: Optional[str] = None
+    cancel_by: Optional[str] = None
+    # car
+    pickup_at: Optional[str] = None
+    pickup_location: Optional[str] = None
+    dropoff_at: Optional[str] = None
+    dropoff_location: Optional[str] = None
+    # flight outbound
+    flight_number: Optional[str] = None
+    depart_airport: Optional[str] = None
+    arrive_airport: Optional[str] = None
+    depart_time: Optional[str] = None
+    arrive_time: Optional[str] = None
+    outbound_cost: Optional[float] = None
+    # flight return
+    return_airline: Optional[str] = None
+    return_confirmation: Optional[str] = None
+    return_flight_number: Optional[str] = None
+    return_depart_airport: Optional[str] = None
+    return_arrive_airport: Optional[str] = None
+    return_depart_time: Optional[str] = None
+    return_arrive_time: Optional[str] = None
+    return_cost: Optional[float] = None
+
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class BookingCreate(BaseModel):
+    competition_id: str
+    type: str
+    provider: Optional[str] = None
+    address: Optional[str] = None
+    confirmation: Optional[str] = None
+    cost: Optional[float] = 0.0
+    amount_paid: Optional[float] = 0.0
+    balance_due_date: Optional[str] = None
+    notes: Optional[str] = None
+    check_in: Optional[str] = None
+    check_in_time: Optional[str] = None
+    check_out: Optional[str] = None
+    check_out_time: Optional[str] = None
+    cancel_by: Optional[str] = None
+    pickup_at: Optional[str] = None
+    pickup_location: Optional[str] = None
+    dropoff_at: Optional[str] = None
+    dropoff_location: Optional[str] = None
+    flight_number: Optional[str] = None
+    depart_airport: Optional[str] = None
+    arrive_airport: Optional[str] = None
+    depart_time: Optional[str] = None
+    arrive_time: Optional[str] = None
+    outbound_cost: Optional[float] = None
+    return_airline: Optional[str] = None
+    return_confirmation: Optional[str] = None
+    return_flight_number: Optional[str] = None
+    return_depart_airport: Optional[str] = None
+    return_arrive_airport: Optional[str] = None
+    return_depart_time: Optional[str] = None
+    return_arrive_time: Optional[str] = None
+    return_cost: Optional[float] = None
+
+
+class BookingUpdate(BaseModel):
+    provider: Optional[str] = None
+    address: Optional[str] = None
+    confirmation: Optional[str] = None
+    cost: Optional[float] = None
+    amount_paid: Optional[float] = None
+    balance_due_date: Optional[str] = None
+    notes: Optional[str] = None
+    check_in: Optional[str] = None
+    check_in_time: Optional[str] = None
+    check_out: Optional[str] = None
+    check_out_time: Optional[str] = None
+    cancel_by: Optional[str] = None
+    pickup_at: Optional[str] = None
+    pickup_location: Optional[str] = None
+    dropoff_at: Optional[str] = None
+    dropoff_location: Optional[str] = None
+    flight_number: Optional[str] = None
+    depart_airport: Optional[str] = None
+    arrive_airport: Optional[str] = None
+    depart_time: Optional[str] = None
+    arrive_time: Optional[str] = None
+    outbound_cost: Optional[float] = None
+    return_airline: Optional[str] = None
+    return_confirmation: Optional[str] = None
+    return_flight_number: Optional[str] = None
+    return_depart_airport: Optional[str] = None
+    return_arrive_airport: Optional[str] = None
+    return_depart_time: Optional[str] = None
+    return_arrive_time: Optional[str] = None
+    return_cost: Optional[float] = None
+
+
+# ============================================================
+# Packing Lists
+# ============================================================
+class PackingItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    category: Optional[str] = "Other"
+    order: int = 0
+
+
+class PackingTemplate(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    items: List[PackingItem] = Field(default_factory=list)
+    tips: List[str] = Field(default_factory=list)
+    is_default: bool = False
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class PackingTemplateCreate(BaseModel):
+    name: str
+    items: List[PackingItem] = Field(default_factory=list)
+    tips: List[str] = Field(default_factory=list)
+
+
+class PackingTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    items: Optional[List[PackingItem]] = None
+    tips: Optional[List[str]] = None
+
+
+class PackingChecklistItem(BaseModel):
+    """A single line on a per-competition packing list.
+
+    `checked_by` maps athlete_id → bool so each athlete on a comp has their own
+    check state for the same item (per-athlete sub-lists). A `null`-id key
+    (`"shared"`) tracks the family-shared check when no athletes are scoped.
+    """
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    category: Optional[str] = "Other"
+    order: int = 0
+    checked_by: Dict[str, bool] = Field(default_factory=dict)
+
+
+class PackingList(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    competition_id: str
+    template_id: Optional[str] = None
+    name: Optional[str] = None
+    items: List[PackingChecklistItem] = Field(default_factory=list)
+    tips: List[str] = Field(default_factory=list)
+    athlete_ids: List[str] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utcnow_iso)
+    updated_at: str = Field(default_factory=utcnow_iso)
+
+
+class PackingListCreate(BaseModel):
+    competition_id: str
+    template_id: Optional[str] = None
+    name: Optional[str] = None
+    items: Optional[List[PackingChecklistItem]] = None
+    tips: Optional[List[str]] = None
+    athlete_ids: Optional[List[str]] = None
+
+
+class PackingListUpdate(BaseModel):
+    name: Optional[str] = None
+    items: Optional[List[PackingChecklistItem]] = None
+    tips: Optional[List[str]] = None
+    athlete_ids: Optional[List[str]] = None
+    save_as_template_name: Optional[str] = None
+
+
+# Canonical CheerPlanner Standard packing template (from user's spreadsheet).
+CHEERPLANNER_STANDARD_PACKING: List[Dict[str, str]] = [
+    # Uniform
+    *[{"label": x, "category": "Uniform"} for x in [
+        "Uniform Top", "Uniform Shorts", "Uniform Sports Bra", "Uniform Competition Bow",
+        "Uniform Competition Socks", "Uniform Competition Cheer Shoes", "Uniform Team Shirt",
+    ]],
+    # Practice Wear
+    *[{"label": x, "category": "Practice Wear"} for x in [
+        "Team Coverup", "Team Sports Bra or Practice Top", "Practice Shorts", "Practice Bow",
+    ]],
+    # Hair & Makeup
+    *[{"label": x, "category": "Hair & Makeup"} for x in [
+        "Hairpiece (If Applicable)",
+        "Hairpiece Sewing or Zip Tie Kit (Plastic Needle & Bright Colored Yarn, or Zip Ties)",
+        "Scissors", "Brush", "Comb", "Gel", "Hairspray", "Hair Ties", "Hair Pins",
+        "Barrel/Curling Iron (If Applicable)", "Flat Iron (If Applicable)",
+        "Eyeshadow Palette", "Contour Palette", "Lipstick", "Lashes", "Lash Glue",
+        "Foundation", "Primer", "Setting Spray", "Blush", "Mascara", "Team Glitter",
+    ]],
+    # Toiletries
+    *[{"label": x, "category": "Toiletries"} for x in [
+        "Toothbrush", "Toothpaste", "Toiletries (Soap, lotion, etc)",
+    ]],
+    # Essentials
+    *[{"label": x, "category": "Essentials"} for x in [
+        "Pajamas", "Undergarments", "Regular Clothes", "Regular Shoes",
+        "Jacket", "Cell Phone", "Cell Phone Charger",
+    ]],
+    # Medication
+    *[{"label": x, "category": "Medication"} for x in ["Medicines/Vitamins"]],
+]
+
+CHEERPLANNER_STANDARD_TIPS: List[str] = [
+    "If flying — no uniform, cheer shoes, or cheer gear is allowed in checked baggage.",
+    "Screenshot the itinerary and save to your phone — or upload it into CheerPlanner.",
+    "Physically triple-check all uniform items — uniform top, shorts, mesh liner, socks (two pairs), shoes, bow, makeup, & hair products. Pack everything together and put it in the car first.",
+    "Keep notifications turned on so you don't miss important team details or changes.",
+    "Pack some healthy snacks and water for the hotel room.",
+]
+
+
+# ============================================================
+# Fundraisers
+# ============================================================
+class Fundraiser(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    athlete_id: Optional[str] = None  # null = household-level
+    name: str
+    amount_raised: float = 0.0
+    applied_amount: float = 0.0  # how much has been applied to expenses
+    raised_on: str
+    note: Optional[str] = None
+    # Response-only convenience field
+    available: float = 0.0
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class FundraiserCreate(BaseModel):
+    athlete_id: Optional[str] = None
+    name: str
+    amount_raised: float = 0.0
+    raised_on: str
+    note: Optional[str] = None
+
+
+class FundraiserUpdate(BaseModel):
+    athlete_id: Optional[str] = None
+    name: Optional[str] = None
+    amount_raised: Optional[float] = None
+    raised_on: Optional[str] = None
+    note: Optional[str] = None
+
+
+# ============================================================
+# Imports
+# ============================================================
+ALLOWED_IMPORT_KINDS = {"competitions", "travel", "expenses", "schedule"}
+
+
+class ImportCommitPayload(BaseModel):
+    kind: str
+    rows: List[dict] = Field(default_factory=list)
+    # for expenses wide-form: map of column-name -> athlete_id (existing) or "__new__:<NewName>"
+    athlete_map: Optional[Dict[str, str]] = None
+    # for travel: optional mapping competition-name -> competition_id
+    competition_map: Optional[Dict[str, str]] = None
+    # toggle: create competitions that are missing (travel)
+    create_missing_competitions: bool = True
+
+
+# ============================================================
+# Bulk delete
+# ============================================================
+BULK_DELETE_COLLECTIONS = {
+    "expenses": "expenses",
+    "payments": "payments",
+    "fundraisers": "fundraisers",
+    "competitions": "competitions",
+    "schedules": "schedule_events",
+    "schedule_events": "schedule_events",
+    "bookings": "bookings",
+    "packing_templates": "packing_templates",
+    "packing_lists": "packing_lists",
+    "teams": "teams",
+}
+
+
+class BulkDeletePayload(BaseModel):
+    resource: str
+    ids: List[str]
