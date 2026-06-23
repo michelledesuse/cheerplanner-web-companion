@@ -678,3 +678,46 @@ BULK_DELETE_COLLECTIONS = {
 class BulkDeletePayload(BaseModel):
     resource: str
     ids: List[str]
+
+
+# ============================================================
+# Notification preferences (v1.0.7)
+# ============================================================
+NotificationFrequency = Literal["daily", "weekly", "off"]
+
+
+class NotificationCategoryPrefs(BaseModel):
+    """Per-category opt-in switches for reminder emails."""
+    expense_due: bool = True
+    booking_balance: bool = True
+    booking_cancel_by: bool = True
+    booking_release: bool = True
+    competition_event: bool = True
+    packing: bool = True
+
+
+class NotificationPreferences(BaseModel):
+    enabled: bool = True
+    frequency: NotificationFrequency = "daily"
+    categories: NotificationCategoryPrefs = Field(default_factory=NotificationCategoryPrefs)
+    # IANA tz, e.g. "America/New_York". Used only by the digest scheduler.
+    timezone: str = "America/New_York"
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    frequency: Optional[NotificationFrequency] = None
+    categories: Optional[NotificationCategoryPrefs] = None
+    timezone: Optional[str] = None
+
+
+# ============================================================
+# Password reset (v1.0.7)
+# ============================================================
+class ForgotPasswordPayload(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordPayload(BaseModel):
+    token: str
+    new_password: str = Field(min_length=6)

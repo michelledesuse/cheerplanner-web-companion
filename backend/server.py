@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 
 from core.db import client, db
 from core.security import limiter
+from core.scheduler import start_scheduler, stop_scheduler
 from routers import (
     auth,
     teams,
@@ -32,6 +33,8 @@ from routers import (
     exports,
     packing,
     bulk,
+    notifications,
+    password_reset,
 )
 
 
@@ -72,6 +75,8 @@ for r in (
     exports.router,
     packing.router,
     bulk.router,
+    notifications.router,
+    password_reset.router,
 ):
     app.include_router(r)
 
@@ -107,7 +112,23 @@ async def startup_db_client():
     except Exception as exc:
         logger.warning(f"Startup backfill skipped: {exc}")
 
+    # Idempotency index for digest email dedupe.
+    try:
+        await db.sent_notifications.create_index("key", unique=True)
+    except Exception as exc:
+        logger.warning(f"Could not create sent_notifications index: {exc}")
+
+    # Start the digest scheduler.
+    try:
+        start_scheduler()
+    except Exception as exc:
+        logger.exception("Failed to start scheduler: %s", exc)
+
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
+    try:
+        stop_scheduler()
+    except Exception:
+        pass
     client.close()

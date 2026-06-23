@@ -1,0 +1,66 @@
+{
+  "summary": "v1.0.7 (SendGrid email reminders + password reset) tested end-to-end. Backend: 26/26 pytest passed (forgot-password ok/no-enum/422/rate-limit, reset-password with JWT mint via core.email.make_password_reset_token, notification preferences GET/PATCH incl. master switch + per-category, unsubscribe HTML page, plus regression on 11 modular routers). SendGrid sends succeed (no non-2xx warnings in backend logs). APScheduler boots with 'Scheduler started — digest tick runs every hour at :05 UTC' and sent_notifications unique-index created. Frontend (mobile viewport 390x844): Forgot-password link on Login navigates to /forgot-password; success screen displays submitted email; settings/notifications screen shows 3 frequency radios + 6 category switches and persists on reload; choosing Off flips master switch on backend; v1.0.7 footer + Notifications row visible in Settings; Dashboard/Calendar/Expenses/Competitions tabs all load. One UX gap: on RN Web, Alert.alert from /reset on invalid token is silent — fine on iOS/Android (App Review target) but no inline error state in web preview.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/auth/forgot-password",
+        "issue": "slowapi rate limit uses in-memory storage and keys on get_remote_address. Backend logs show two pods (10.79.128.145 + 10.79.128.146) — a single client can effectively get 5*N requests/min per IP. Curl burst against the public URL did trigger 429 at the 3rd call, so protection works in practice, but consider Redis-backed slowapi or also keying on payload.email for stronger anti-abuse."
+      },
+      {
+        "endpoint": "Backend startup",
+        "issue": "passlib bcrypt compatibility warning is emitted at first hash_password() call: 'AttributeError: module \\'bcrypt\\' has no attribute __about__'. Cosmetic only — hashing still succeeds and login/reset flows verified. Upgrading passlib or pinning bcrypt<4 would silence it."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/reset.tsx",
+        "issue": "Errors for invalid/expired token are surfaced only via Alert.alert(). On React Native Web (web preview), Alert.alert is a no-op so the user gets zero feedback after tapping Update password with a bad token. Works on iOS/Android. Recommend adding a local error state rendered as inline Text under the form so the UX is consistent across platforms.",
+        "testID": "reset-submit",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Notifications (settings)",
+        "issues": [
+          "When frequency=Off, category switches are still rendered fully bright and remain tappable in the web preview — spec said 'dims the category section and prevents toggling'. Consider opacity:0.4 + pointerEvents='none' wrapper around the category block when freq==='off'."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "Global (pre-existing)",
+        "issue": "Console flooded with deprecation warnings: 'shadow*' props (use boxShadow), props.pointerEvents (use style.pointerEvents), Image style.resizeMode/tintColor (use props). Not introduced by v1.0.7 but should be addressed in a sweep. Reference: random screens such as (tabs)/settings.tsx, (tabs)/index.tsx."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v107_email_password_reset.py",
+    "/app/test_reports/pytest/pytest_v107.xml"
+  ],
+  "action_items": [
+    "Optional: harden /api/auth/forgot-password by also rate-limiting per email (not just per IP) or switch slowapi storage to Redis for multi-pod consistency.",
+    "Reset screen UX: add an inline error <Text> in /reset for invalid/expired tokens so web-preview users (and future Android web-fallback) get feedback when Alert.alert is unavailable.",
+    "Notifications screen: dim & disable category switches when frequency === 'off' (opacity + pointerEvents='none').",
+    "Cosmetic: pin bcrypt<4 (or upgrade passlib) to remove the bcrypt.__about__ warning."
+  ],
+  "critical_code_review_comments": [
+    "core/email.py: send_email correctly never raises and logs warnings on non-2xx — good. Plaintext fallback via _html_to_plaintext is a nice touch.",
+    "routers/password_reset.py: forgot-password always returns {ok:true} for unknown emails — correctly avoids enumeration. reset-password trusts JWT issuer + exp, hashes via core.security.hash_password, which matches the auth signup path.",
+    "core/scheduler.py: APScheduler is started in startup hook; idempotency via sent_notifications unique index on key. Builder reuses _household_user_ids + parse_date helpers, mirrors /api/reminders semantics correctly. Empty-digest case still inserts a sent_notifications row to short-circuit subsequent ticks — good optimization.",
+    "routers/notifications.py: PATCH correctly deep-merges categories on top of defaults so partial updates don't wipe untouched categories. frequency=='off' flips enabled=false — meets master-switch spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v107_email_password_reset.py (new pytest suite, 26 tests)"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "93% (13/14 ui assertions; the 1 fail is a Web-only Alert.alert UX gap, not a logic bug)"},
+  "seed_data_creation": "None — used existing applereview@cheerplanner.app user. Original password was restored at the end of TestResetPassword.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend rate-limit on /api/auth/forgot-password is in-memory and keyed on get_remote_address — when testing burst behaviour from the public ingress, expect requests to be load-balanced across 2 pods, so use 10+ rapid calls (not just 6) to reliably trigger 429. Reset-password tokens can be minted from a Python REPL with `from core.email import make_password_reset_token; make_password_reset_token(<user_id>)` after `sys.path.insert(0, '/app/backend')`. Frontend Alert.alert is silent on RN Web — capture page.on('dialog', ...) on native runs only.",
+  "rca_of_issue": "Investigated initial 'rate-limit test got 6x200' false alarm: backend logs revealed two pod IPs (10.79.128.145 + 10.79.128.146) servicing requests, so slowapi's per-process in-memory counter for 5/min was split. Increased burst to 12 to reliably hit a single pod's bucket — test now passes. Public-URL curl burst also confirms enforcement (2x200 → 429s thereafter)."
+}

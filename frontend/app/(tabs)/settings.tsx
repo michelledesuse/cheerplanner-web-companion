@@ -146,6 +146,13 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHead}>Help &amp; support</Text>
         <View style={styles.group}>
           <SettingRow
+            icon="notifications-outline"
+            label="Notifications"
+            onPress={() => router.push("/settings/notifications" as any)}
+            chevron
+            testID="settings-notifications"
+          />
+          <SettingRow
             icon="rocket-outline"
             label="Setup guide"
             onPress={() => router.push("/help/setup" as any)}
@@ -187,7 +194,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>CheerPlanner • v1.0.6</Text>
+        <Text style={styles.footer}>CheerPlanner • v1.0.7</Text>
       </ScrollView>
 
       {/* Password-confirm modal for account deletion (Apple 5.1.1(v) compliance) */}

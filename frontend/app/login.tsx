@@ -115,6 +115,12 @@ export default function LoginScreen() {
               )}
             </TouchableOpacity>
 
+            <Link href="/forgot-password" asChild>
+              <TouchableOpacity style={styles.forgotBtn} testID="login-forgot-password">
+                <Text style={styles.forgotText}>Forgot password?</Text>
+              </TouchableOpacity>
+            </Link>
+
             <View style={styles.footerRow}>
               <Text style={styles.footerText}>New here? </Text>
               <Link href="/signup" asChild>
@@ -177,6 +183,8 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   primaryBtnText: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },
+  forgotBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
+  forgotText: { color: colors.accent, fontSize: 14, fontWeight: "600" },
   footerRow: {
     flexDirection: "row",
     justifyContent: "center",
