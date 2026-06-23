@@ -259,7 +259,6 @@ export default function ScheduleForm() {
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Senior 5 practice" placeholderTextColor={colors.textTertiary} testID="schedule-title" />
 
           <Text style={styles.label}>Location (optional)</Text>
-          <Text style={styles.label}>Location / venue name</Text>
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. California Allstars gym" placeholderTextColor={colors.textTertiary} />
 
           <Text style={styles.label}>Address (optional, for maps)</Text>

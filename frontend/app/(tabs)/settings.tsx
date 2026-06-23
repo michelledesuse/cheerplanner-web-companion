@@ -277,8 +277,8 @@ function SettingRow({ icon, label, subtitle, value, onPress, chevron, testID }: 
         <Text style={styles.rowLabel}>{label}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
       </View>
-      {value && <Text style={styles.rowValue}>{value}</Text>}
-      {chevron && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+      {value ? <Text style={styles.rowValue}>{value}</Text> : null}
+      {chevron ? <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} /> : null}
     </Comp>
   );
 }
