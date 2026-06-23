@@ -27,7 +27,7 @@ from core.config import (
     SENDGRID_API_KEY, SENDER_EMAIL, SENDER_NAME,
     JWT_SECRET, JWT_ALGORITHM,
     PASSWORD_RESET_EXPIRE_MINUTES, UNSUBSCRIBE_EXPIRE_DAYS,
-    APP_URL_SCHEME, WEB_FALLBACK_URL,
+    APP_URL_SCHEME, WEB_FALLBACK_URL, BACKEND_PUBLIC_URL,
 )
 
 logger = logging.getLogger(__name__)
@@ -135,12 +135,17 @@ def verify_unsubscribe_token(token: str) -> Optional[str]:
 # Deep-link helpers
 # ============================================================
 def password_reset_links(token: str) -> Tuple[str, str]:
-    """Return (deep_link, web_fallback) URLs for a password reset."""
+    """Return (deep_link, web_fallback) URLs for a password reset.
+
+    The web fallback now points to the backend-hosted reset page at
+    `/api/auth/reset` — desktop users can complete the reset there without
+    needing the mobile app installed.
+    """
     deep = f"{APP_URL_SCHEME}://reset?token={token}"
-    web = f"{WEB_FALLBACK_URL}/reset?token={token}"
+    web = f"{BACKEND_PUBLIC_URL}/api/auth/reset?token={token}"
     return deep, web
 
 
 def unsubscribe_link(token: str) -> str:
     """Backend-hosted unsubscribe URL (no app needed)."""
-    return f"{WEB_FALLBACK_URL}/api/notifications/unsubscribe?token={token}"
+    return f"{BACKEND_PUBLIC_URL}/api/notifications/unsubscribe?token={token}"

@@ -25,6 +25,9 @@ SENDER_NAME = os.environ.get("SENDER_NAME", "CheerPlanner Reminders")
 # ---------- Deep links / email URLs ----------
 APP_URL_SCHEME = os.environ.get("APP_URL_SCHEME", "cheerplanner")
 WEB_FALLBACK_URL = os.environ.get("WEB_FALLBACK_URL", "https://cheer-planner.com").rstrip("/")
+# Public URL of THIS backend (used for email fallback links and unsubscribe).
+# When unset we fall back to WEB_FALLBACK_URL so dev/local still works.
+BACKEND_PUBLIC_URL = (os.environ.get("BACKEND_PUBLIC_URL") or WEB_FALLBACK_URL).rstrip("/")
 
 # Daily digest is sent at 8 AM in this timezone (UTC by default).
 # When per-user timezones are added we can override at job-build time.
