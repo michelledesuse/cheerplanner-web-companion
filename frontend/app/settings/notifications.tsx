@@ -143,7 +143,7 @@ export default function NotificationsSettingsScreen() {
 
         {/* Categories */}
         <Text style={styles.sectionHead}>What to remind me about</Text>
-        <View style={[styles.group, off && { opacity: 0.5 }]} pointerEvents={off ? "none" : "auto"}>
+        <View style={[styles.group, off && { opacity: 0.5 }]}>
           {CATEGORY_LABELS.map((cat, idx) => {
             const on = !!prefs.categories[cat.id];
             return (
@@ -161,6 +161,7 @@ export default function NotificationsSettingsScreen() {
                 <Switch
                   testID={`notif-cat-${cat.id}`}
                   value={on}
+                  disabled={off}
                   onValueChange={(v) => patch({ categories: { ...prefs.categories, [cat.id]: v } as any })}
                   trackColor={{ false: "#CBD5E1", true: colors.accent }}
                   thumbColor={Platform.OS === "android" ? "#fff" : undefined}

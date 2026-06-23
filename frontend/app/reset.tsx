@@ -28,6 +28,7 @@ export default function ResetPasswordScreen() {
   const [show, setShow] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token) {
@@ -38,12 +39,15 @@ export default function ResetPasswordScreen() {
   }, [token, router]);
 
   const submit = async () => {
+    setError(null);
     if (!token) return;
     if (pw.length < 6) {
+      setError("Password too short — please use at least 6 characters.");
       Alert.alert("Password too short", "Please use at least 6 characters.");
       return;
     }
     if (pw !== confirm) {
+      setError("Passwords don't match — make sure both fields are identical.");
       Alert.alert("Passwords don't match", "Make sure both fields are identical.");
       return;
     }
@@ -53,6 +57,7 @@ export default function ResetPasswordScreen() {
       setDone(true);
     } catch (e: any) {
       const msg = e?.response?.data?.detail || "Reset failed. The link may have expired.";
+      setError(String(msg));
       Alert.alert("Reset failed", String(msg));
     } finally {
       setSubmitting(false);
@@ -120,6 +125,13 @@ export default function ResetPasswordScreen() {
                   autoCapitalize="none"
                 />
 
+                {error ? (
+                  <View style={styles.errorBox} testID="reset-error">
+                    <Ionicons name="alert-circle" size={16} color="#B91C1C" />
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                ) : null}
+
                 <TouchableOpacity
                   testID="reset-submit"
                   style={[styles.primaryBtn, submitting && { opacity: 0.7 }]}
@@ -170,6 +182,12 @@ const styles = StyleSheet.create({
     alignItems: "center", marginTop: spacing.md,
   },
   primaryBtnText: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },
+  errorBox: {
+    flexDirection: "row", alignItems: "flex-start", gap: 8,
+    backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA",
+    borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, marginTop: spacing.sm,
+  },
+  errorText: { color: "#B91C1C", fontSize: 13, flex: 1, lineHeight: 18 },
   footerRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: spacing.lg },
   linkText: { ...typography.bodyMedium, color: colors.accent, fontWeight: "700" },
 });
