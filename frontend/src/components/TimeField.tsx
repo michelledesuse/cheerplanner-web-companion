@@ -61,7 +61,10 @@ export default function TimeField({
   return (
     <View>
       <Pressable style={styles.field} onPress={() => setOpen(true)} testID={testID}>
-        <Text style={[styles.fieldText, !display && styles.fieldPlaceholder]}>
+        <Text
+          style={[styles.fieldText, !display && styles.fieldPlaceholder]}
+          numberOfLines={1}
+        >
           {display || placeholder}
         </Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>

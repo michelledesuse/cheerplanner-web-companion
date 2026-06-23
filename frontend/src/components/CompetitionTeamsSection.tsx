@@ -248,24 +248,22 @@ export default function CompetitionTeamsSection({
                         testID={`meet-date-${tid}-${displayIdx}`}
                       />
 
-                      <View style={[styles.meetGrid, { marginTop: spacing.sm }]}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.smallLabel}>MEET TIME</Text>
-                          <TimeField
-                            value={entry.meet_time || ""}
-                            onChange={(v) => updateMeetTimeAt(originalIndex, "meet_time", v)}
-                            testID={`meet-time-meet-${tid}-${displayIdx}`}
-                          />
-                        </View>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.smallLabel}>PERFORMANCE TIME</Text>
-                          <TimeField
-                            value={entry.performance_time || ""}
-                            onChange={(v) => updateMeetTimeAt(originalIndex, "performance_time", v)}
-                            testID={`meet-time-perf-${tid}-${displayIdx}`}
-                          />
-                        </View>
-                      </View>
+                      {/* Stacked vertically (not side-by-side) so each TimeField
+                          gets full container width — guarantees AM/PM is always
+                          reachable even when this section is nested inside the
+                          team card padding on narrow phones. */}
+                      <Text style={[styles.smallLabel, { marginTop: spacing.sm }]}>MEET TIME</Text>
+                      <TimeField
+                        value={entry.meet_time || ""}
+                        onChange={(v) => updateMeetTimeAt(originalIndex, "meet_time", v)}
+                        testID={`meet-time-meet-${tid}-${displayIdx}`}
+                      />
+                      <Text style={[styles.smallLabel, { marginTop: spacing.sm }]}>PERFORMANCE TIME</Text>
+                      <TimeField
+                        value={entry.performance_time || ""}
+                        onChange={(v) => updateMeetTimeAt(originalIndex, "performance_time", v)}
+                        testID={`meet-time-perf-${tid}-${displayIdx}`}
+                      />
 
                       <Text style={[styles.smallLabel, { marginTop: spacing.sm }]}>LOCATION</Text>
                       <DebouncedTextInput

@@ -1,12 +1,14 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+
+const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", off: "Off" };
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
@@ -14,6 +16,23 @@ export default function SettingsScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [notifFreq, setNotifFreq] = useState<string>("");
+
+  // Fetch current notification frequency so the Settings row can show a live
+  // "Daily" / "Weekly" / "Off" badge — makes it obvious where to manage email
+  // reminders from this screen.
+  const loadNotifFreq = React.useCallback(async () => {
+    try {
+      const r = await api.get<{ frequency?: string; enabled?: boolean }>("/notifications/preferences");
+      const freq = r.data?.enabled === false ? "off" : r.data?.frequency || "daily";
+      setNotifFreq(FREQ_LABEL[freq] || "");
+    } catch {
+      // Stay silent — don't block settings render on a notification fetch failure.
+    }
+  }, []);
+
+  useEffect(() => { loadNotifFreq(); }, [loadNotifFreq]);
+  useFocusEffect(React.useCallback(() => { loadNotifFreq(); }, [loadNotifFreq]));
 
   const openExport = async (path: string, suggestedName: string, mimeType: string = "text/csv") => {
     try {
@@ -121,10 +140,23 @@ export default function SettingsScreen() {
           <Text style={styles.profileEmail}>{user?.email}</Text>
         </View>
 
+        <Text style={styles.sectionHead}>Reminders &amp; notifications</Text>
+        <View style={styles.group}>
+          <SettingRow
+            icon="mail-unread-outline"
+            label="Email reminders"
+            subtitle="Daily or weekly digest of upcoming payments, comps &amp; travel"
+            value={notifFreq}
+            onPress={() => router.push("/settings/notifications" as any)}
+            chevron
+            testID="settings-notifications"
+          />
+          <SettingRow icon="notifications-outline" label="In-app reminders" value="7 / 3 / 1 days before" />
+        </View>
+
         <Text style={styles.sectionHead}>Preferences</Text>
         <View style={styles.group}>
           <SettingRow icon="cash-outline" label="Currency" value="USD ($)" />
-          <SettingRow icon="notifications-outline" label="In-app reminders" value="7 / 3 / 1 days before" />
         </View>
 
         <Text style={styles.sectionHead}>Sharing</Text>
@@ -145,13 +177,6 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHead}>Help &amp; support</Text>
         <View style={styles.group}>
-          <SettingRow
-            icon="notifications-outline"
-            label="Notifications"
-            onPress={() => router.push("/settings/notifications" as any)}
-            chevron
-            testID="settings-notifications"
-          />
           <SettingRow
             icon="rocket-outline"
             label="Setup guide"
@@ -243,13 +268,15 @@ export default function SettingsScreen() {
   );
 }
 
-function SettingRow({ icon, label, value, onPress, chevron, testID }: any) {
+function SettingRow({ icon, label, subtitle, value, onPress, chevron, testID }: any) {
   const Comp = onPress ? TouchableOpacity : View;
   return (
     <Comp style={styles.row} onPress={onPress} activeOpacity={0.7} testID={testID}>
       <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={colors.textPrimary} /></View>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <View style={{ flex: 1 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.rowLabel}>{label}</Text>
+        {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
+      </View>
       {value && <Text style={styles.rowValue}>{value}</Text>}
       {chevron && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
     </Comp>
@@ -269,6 +296,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", padding: spacing.md, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   rowIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
   rowLabel: { ...typography.bodyMedium, color: colors.textPrimary },
+  rowSubtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 16 },
   rowValue: { ...typography.caption, color: colors.textSecondary },
   signOutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.xl, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.dangerBg },
   signOutText: { color: colors.dangerText, fontWeight: "700" },

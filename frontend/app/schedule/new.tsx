@@ -276,16 +276,14 @@ export default function ScheduleForm() {
           <Text style={styles.label}>{repeat ? "Starts" : "Date"}</Text>
           <DateField value={date} onChange={setDate} testID="schedule-date" />
 
-          <View style={{ flexDirection: "row", gap: 12 }}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Start time</Text>
-              <TimeField value={startTime} onChange={setStartTime} testID="schedule-start-time" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>End time</Text>
-              <TimeField value={endTime} onChange={setEndTime} testID="schedule-end-time" />
-            </View>
-          </View>
+          {/* Stacked vertically so the AM/PM toggle on each TimeField always has
+              the full container width — guarantees the period button never gets
+              clipped on narrow phones (iPhone SE / Galaxy S series ≤ 360px). */}
+          <Text style={styles.label}>Start time</Text>
+          <TimeField value={startTime} onChange={setStartTime} testID="schedule-start-time" />
+
+          <Text style={styles.label}>End time</Text>
+          <TimeField value={endTime} onChange={setEndTime} testID="schedule-end-time" />
 
           {/* Repeat section — hidden for series edits so the rule can't be re-expanded */}
           {!isPartOfSeries && (

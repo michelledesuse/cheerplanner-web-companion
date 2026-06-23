@@ -1,0 +1,72 @@
+{
+  "summary": "Verified iteration 23 frontend fixes for CheerPlanner — (A) TimeField stacking on Schedule/DateTimeField/CompetitionTeamsSection so AM/PM toggle never clips, and (B) discoverable 'Email reminders' row at top of Settings with live frequency badge. All targeted flows PASS on 390x844, 360x800, and 320x568 viewports.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "settings SettingRow",
+        "issue": "Console warning: 'Unexpected text node: . A text node cannot be a child of a <View>.' is fired 3x on the Settings screen (and again on Notifications). Likely a stray whitespace text node inside a <View>. Not blocking, but should be hunted down — possibly inside the SettingRow `value && <Text>` JSX where the trailing curly braces leave a stray space. Reference: /app/frontend/app/(tabs)/settings.tsx around the SettingRow render / Help section."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Track down the 'Unexpected text node' RN warning emitted on the Settings & Notifications screens — likely a stray space/empty expression between JSX siblings inside a <View>. Non-blocking but noisy.",
+    "(Optional) The Notifications preferences screen labels options as 'Daily digest' / 'Weekly digest' / 'Off' while the Settings badge shows 'Daily' / 'Weekly' / 'Off'. Consider aligning copy (e.g. badge could say 'Daily digest') for absolute clarity — purely cosmetic.",
+    "(Minor regression spotted, unrelated to this iteration) /app/frontend/app/schedule/new.tsx line 261–262 renders TWO consecutive labels: 'Location (optional)' followed by 'Location / venue name'. Looks like an accidental duplicate. Reference: /app/frontend/app/schedule/new.tsx:261-263 — please remove the redundant label."
+  ],
+  "critical_code_review_comments": [
+    "schedule/new.tsx lines 261-263 have a duplicate label rendered above the location TextInput ('Location (optional)' then 'Location / venue name'). Remove one — likely leftover from a previous edit.",
+    "TimeField.tsx web styles use flexWrap:'wrap' + columnGap to allow ONLY the clear icon to drop to a 2nd row on tight containers — implementation matches the comment, verified empirically at 320px viewport.",
+    "DateTimeField & CompetitionTeamsSection stacking is implemented with separate label rows + per-field full-width components — verified via bounding boxes (perf.y > meet.y + label height, same x column).",
+    "Settings notifications row uses useFocusEffect + a /notifications/preferences GET to keep the badge live; verified the badge updates Daily → Weekly → Off → Daily on each round-trip."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (not tested per request)",
+    "frontend": "100% (all targeted assertions passed)"
+  },
+  "seed_data_creation": "None. Used seeded applereview@cheerplanner.app account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login via [data-testid=\"login-email-input\"] / [data-testid=\"login-password-input\"] / [data-testid=\"login-submit-button\"]. Schedule new form TimeFields expose hour/minute/period sub-testIDs (e.g. schedule-start-time-hour, -minute, -period). Notifications screen uses RADIO options labeled 'Daily digest' / 'Weekly digest' / 'Off' (NOT plain 'Daily'/'Weekly') — match via `text=/Weekly digest/`. Settings row testID is `settings-notifications`. Console emits a benign 'Unexpected text node' warning on Settings — non-blocking but worth tracking.",
+  "rca_of_issue": "Per the review request, root causes were already identified and fixed. Verification confirms: (A) Stacking TimeFields vertically gives each picker the full container width (358px on a 390px viewport), so the AM/PM period button now lands at x≈108–142, well within all three tested viewports (320/360/390). At 320px width the period button stays on the same row as the HH:MM inputs (period.y diff vs hour.y = 3px). (B) New 'Reminders & notifications' section header + 'Email reminders' label + live frequency badge make the entry point obvious; the duplicate 'Notifications' row in Help & support has been removed (substring count = 0 in body).",
+  "tested_flows": {
+    "A_ampm_full_visibility": {
+      "390x844": "PASS — start.y=597 h=46 end.y=680 (stacked); start.width=358 == title.width=358; start period right=142, end period right=142; period same-row as hour (Δy 3-4px)",
+      "360x800": "PASS — stacked + period in viewport (right=142)",
+      "320x568": "PASS — period on same row as hour (Δy=3), period right=142 (well within 320)"
+    },
+    "B_datetime_field_stacked": {
+      "flight_modal": "PASS visually — Depart shows DATE row then TIME row stacked, full width, AM/PM fully visible (see /tmp/flight_modal.png)"
+    },
+    "C_competition_meet_perf_stacked": {
+      "390x844": "PASS — MEET TIME at y=799, PERFORMANCE TIME at y=865, dx=0 (same column, stacked)"
+    },
+    "D_settings_email_reminders_discoverable": {
+      "header_present": "PASS — 'Reminders & notifications' header renders right after profile card",
+      "row_label": "PASS — 'Email reminders' with subtitle 'Daily or weekly digest of upcoming payments, comps & travel'",
+      "badge_default": "PASS — shows 'Daily'",
+      "tap_navigates": "PASS — /settings/notifications",
+      "badge_updates_weekly": "PASS — badge becomes 'Weekly' after selecting Weekly digest and returning",
+      "badge_updates_off": "PASS — badge becomes 'Off' after selecting Off and returning",
+      "badge_restores_daily": "PASS — badge becomes 'Daily' after restoring",
+      "no_duplicate_notifications_row": "PASS — 'Notifications' substring count in body = 0"
+    },
+    "E_regression": {
+      "login": "PASS",
+      "forgot_password_link": "PASS",
+      "dashboard": "PASS",
+      "calendar": "PASS",
+      "expenses": "PASS",
+      "competitions": "PASS",
+      "footer_v1.0.7": "PASS"
+    }
+  }
+}
