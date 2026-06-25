@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -37,14 +37,9 @@ export default function TimeField({
     return <TwelveHourWebPicker value={value} onChange={onChange} testID={testID} clearable={clearable} placeholder={placeholder} />;
   }
 
-  // ----- Native: existing native time picker -----
+  // ----- Native: open native time picker inside a Modal with explicit Done -----
   const display = formatDisplay(value);
-  const handle = (event: DateTimePickerEvent, d?: Date) => {
-    setOpen(false);
-    if (event.type === "set" && d) {
-      onChange(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
-    }
-  };
+  const [tempDate, setTempDate] = useState<Date | null>(null);
 
   const initial = (() => {
     if (value && /^\d{1,2}:\d{2}$/.test(value)) {
@@ -58,9 +53,33 @@ export default function TimeField({
     return d;
   })();
 
+  const onPickerChange = (event: DateTimePickerEvent, d?: Date) => {
+    if (Platform.OS === "android") {
+      // Android opens its own modal natively; commit on "set", dismiss on "dismissed".
+      setOpen(false);
+      if (event.type === "set" && d) {
+        onChange(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+      }
+      return;
+    }
+    // iOS: just stage the value; user confirms with Done button below.
+    if (d) setTempDate(d);
+  };
+
+  const confirmIOS = () => {
+    const d = tempDate || initial;
+    onChange(`${pad(d.getHours())}:${pad(d.getMinutes())}`);
+    setTempDate(null);
+    setOpen(false);
+  };
+
   return (
     <View>
-      <Pressable style={styles.field} onPress={() => setOpen(true)} testID={testID}>
+      <Pressable
+        style={styles.field}
+        onPress={() => { setTempDate(null); setOpen(true); }}
+        testID={testID}
+      >
         <Text
           style={[styles.fieldText, !display && styles.fieldPlaceholder]}
           numberOfLines={1}
@@ -76,13 +95,50 @@ export default function TimeField({
           <Ionicons name="time-outline" size={18} color={colors.textSecondary} />
         </View>
       </Pressable>
-      {open && (
+
+      {/* iOS: render the spinner inside a centered Modal so AM/PM is ALWAYS
+          visible, regardless of where the field sits in the scroll view. */}
+      {Platform.OS === "ios" && open && (
+        <Modal
+          transparent
+          animationType="fade"
+          visible={open}
+          onRequestClose={() => setOpen(false)}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setOpen(false)}>
+            <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation?.()}>
+              <View style={styles.modalHeader}>
+                <Pressable onPress={() => setOpen(false)} hitSlop={10}>
+                  <Text style={styles.modalCancel}>Cancel</Text>
+                </Pressable>
+                <Text style={styles.modalTitle}>Choose time</Text>
+                <Pressable onPress={confirmIOS} hitSlop={10} testID={testID ? `${testID}-done` : undefined}>
+                  <Text style={styles.modalDone}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={tempDate || initial}
+                mode="time"
+                is24Hour={false}
+                display="spinner"
+                onChange={onPickerChange}
+                themeVariant="light"
+                textColor={colors.textPrimary}
+                style={{ width: "100%" }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {/* Android: native modal opens directly */}
+      {Platform.OS === "android" && open && (
         <DateTimePicker
           value={initial}
           mode="time"
           is24Hour={false}
-          display={Platform.OS === "ios" ? "spinner" : "default"}
-          onChange={handle}
+          display="default"
+          onChange={onPickerChange}
         />
       )}
     </View>
@@ -282,4 +338,31 @@ const styles = StyleSheet.create({
   periodText: { color: colors.accent, fontWeight: "800", fontSize: 12, letterSpacing: 0.5 },
   clearBtn: { marginLeft: "auto" },
   webPlaceholder: { color: colors.textTertiary, fontSize: 13, flexShrink: 1, flexBasis: "auto" },
+
+  // ---- iOS Modal wrapper (guarantees AM/PM is always reachable) ----
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.55)",
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  modalCard: {
+    backgroundColor: colors.card,
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    overflow: "hidden",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderSoft,
+  },
+  modalTitle: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
+  modalCancel: { color: colors.textSecondary, fontSize: 15 },
+  modalDone: { color: colors.accent, fontSize: 15, fontWeight: "700" },
 });

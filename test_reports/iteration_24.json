@@ -1,0 +1,60 @@
+{
+  "summary": "Verified iteration_24 frontend fixes for CheerPlanner — TimeField.tsx and DateField.tsx iOS Modal wrappers. Code review + lint + web regression all PASS. NOTE: The Platform.OS === 'ios' Modal code path is not reachable in Playwright web preview (Platform.OS === 'web'), so the actual iOS Modal rendering (AM/PM visibility, dark backdrop, accent-highlighted calendar) cannot be exercised here — verified through code review only. All non-iOS regression paths (web inline 12-hour TimeField, HTML5 date picker, cross-screen rendering in Schedule/Bookings/Expenses/Competition detail/Settings) render without red screen and behave as in iteration_23.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "iOS Modal behavior (AM/PM reachability inside centered Modal, dark backdrop, accentColor-highlighted calendar day) MUST be smoke-tested on a native iOS build / TestFlight or Expo Go on a real device before App Store resubmission — Playwright web preview cannot reach the Platform.OS === 'ios' branch.",
+    "(Carry-over from iter_23, still present) Settings screen still emits the benign 'Unexpected text node' console warning — non-blocking but worth tracking down in /app/frontend/app/(tabs)/settings.tsx.",
+    "(Carry-over from iter_23, still present) /app/frontend/app/schedule/new.tsx has duplicate label rendering ('Location (optional)' followed by 'Location / venue name') around lines 261-263 — unrelated to this iteration but still not cleaned up."
+  ],
+  "critical_code_review_comments": [
+    "TimeField.tsx iOS branch (lines 101-132): Modal is `transparent` + `animationType='fade'`, `onRequestClose` wires Android back-button to close; backdrop Pressable closes on outside tap; inner card uses `e.stopPropagation?.()` to prevent close on card tap. Header has Cancel (left) / 'Choose time' (center) / Done (right). Spinner is `is24Hour={false}` + `themeVariant='light'` + `textColor={colors.textPrimary}`. Staging via tempDate + commit-on-Done is correctly implemented (lines 56-74). Good — addresses the AM/PM cutoff complaint.",
+    "DateField.tsx iOS branch (lines 124-155): same Modal pattern. Calendar is `display='inline'` + `accentColor={colors.accent}` (red highlight on selected day) + `themeVariant='light'` + `textColor={colors.textPrimary}` + style `{ backgroundColor: colors.card }`. Header reads 'Pick a date'. This directly addresses the 'washed-out grey calendar' complaint.",
+    "Both components correctly gate the Modal behind `Platform.OS === 'ios'` and keep the web HTML5 input + 12-hour web picker as the web fallback (unchanged from iter_23). Android still uses the native default modal — no regression introduced.",
+    "Lint passes cleanly on both files; no TS errors; no `View` text-node hazards introduced.",
+    "Minor: `spacing` is imported in DateField.tsx (line 6) but no longer used after the refactor — dead import (non-blocking).",
+    "Minor: TimeField.tsx has `tempDate` state declared at line 42, AFTER the early-return at line 36-38 for the web path. The web path doesn't hit this hook so the rules-of-hooks violation is avoided only because the web path early-returns BEFORE the second component renders — but technically calling useState conditionally based on Platform.OS would violate hook rules. In practice Platform.OS is stable per platform so this works, but for cleanliness consider hoisting all useState calls above the `if (Platform.OS === 'web')` branch, or splitting into separate components. Not a bug today but a fragile pattern."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (not tested per request)",
+    "frontend": "Web regression 100% (all targeted assertions passed). iOS Modal not exercisable in web preview — code review + lint PASS."
+  },
+  "seed_data_creation": "None. Used seeded applereview@cheerplanner.app account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Playwright runs against the EXPO WEB BUILD where Platform.OS === 'web', so the new Modal code paths in TimeField.tsx (lines 101-132) and DateField.tsx (lines 124-155) are NEVER hit during web testing. To verify the actual iOS fixes (AM/PM reachable, dark backdrop, accent-highlighted calendar) you need either: (a) Expo Go on a real iPhone, (b) iOS Simulator, or (c) TestFlight build. This testing iteration only verifies that (1) the components still compile, (2) lint is clean, (3) all five web/cross-screen regression flows still work as in iteration_23.",
+  "tested_flows": {
+    "code_review": {
+      "TimeField_iOS_Modal_structure": "PASS — Modal + backdrop + card + header (Cancel/Choose time/Done) + DateTimePicker(spinner, is24Hour=false, themeVariant=light) correctly implemented",
+      "DateField_iOS_Modal_structure": "PASS — Modal + backdrop + card + header (Cancel/Pick a date/Done) + DateTimePicker(inline, accentColor, themeVariant=light, textColor, backgroundColor) correctly implemented",
+      "iOS_tempDate_staging": "PASS — tempDate set on each picker change, committed only on Done; Cancel + backdrop tap dismiss without commit",
+      "Platform_gating": "PASS — iOS Modal hidden behind Platform.OS === 'ios'; web/Android paths unchanged",
+      "lint": "PASS — no ESLint issues on either file"
+    },
+    "web_regression_390x844": {
+      "login": "PASS",
+      "schedule_new_event_screen_renders": "PASS — no red screen",
+      "schedule_date_field_MM_DD_YYYY": "PASS — shows '06-25-2026'",
+      "schedule_TimeField_web_inline": "PASS — end-time hour=7, minute=00, period toggled AM→PM (verified via testIDs schedule-end-time-{hour,minute,period})",
+      "bookings_new_hotel": "PASS — check-in/check-out date + time fields render, AM/PM visible, no red screen (testIDs booking-checkin-time-input-{hour,minute,period} & booking-checkout-* present)",
+      "expenses_new": "PASS — Date + Due date both render in MM-DD-YYYY (testID expense-date-input present)",
+      "competition_detail_meet_perf_times": "PASS — meet-date / meet-time-meet / meet-time-perf testIDs all present, no red screen on Summit Championship comp detail",
+      "settings_email_reminders_row": "PASS — 'Email reminders / Daily or weekly digest of upcoming payments, comps & travel / Daily' badge intact (settings-notifications testID)",
+      "settings_notifications_screen": "PASS — taps navigate to /settings/notifications, Daily/Weekly/Off radio options visible"
+    },
+    "ios_native_modal": {
+      "not_testable_in_web_preview": "Platform.OS === 'ios' branch is unreachable. Code review confirms structure is correct. MUST verify on real iOS device before App Store resubmission."
+    }
+  },
+  "rca_of_issue": "Original Apple-review feedback was about (1) AM/PM toggle on iOS end-time TimeField being cut off / unreachable because the inline iOS spinner was rendering BELOW the field inside the scroll view, and (2) the iOS inline date calendar appearing washed-out light-grey, making users not recognize it as interactive. Both fixes apply iOS-only (Platform.OS === 'ios') and wrap the native DateTimePicker inside a centered Modal with explicit Cancel/Done header, dark rgba(15,23,42,0.55) backdrop and white card. DateField additionally adds accentColor={colors.accent} (CheerPlanner red highlight on selected date) + themeVariant='light' + textColor + backgroundColor=colors.card for visual framing. Implementation matches the bug report and code is correct; runtime verification still required on a native iOS build."
+}
