@@ -60,11 +60,13 @@ function PresetCard({ preset, selected, onPress }: { preset: ThemePreset; select
       style={[styles.card, selected && { borderColor: preset.accent, borderWidth: 2 }]}
       testID={`theme-preset-${preset.id}`}
     >
-      {/* Preview: 3-stripe color swatch */}
+      {/* Preview: 4-stripe color swatch so secondary brand colors (e.g. the
+          red in Red, White & Blue) are always visible alongside the accent. */}
       <View style={styles.swatch}>
         <View style={[styles.swatchBlock, { backgroundColor: preset.bg }]} />
         <View style={[styles.swatchBlock, { backgroundColor: preset.card }]} />
         <View style={[styles.swatchBlock, { backgroundColor: preset.accent }]} />
+        <View style={[styles.swatchBlock, { backgroundColor: preset.tabActive }]} />
       </View>
       <View style={styles.cardFooter}>
         <Text style={styles.cardName} numberOfLines={1}>{preset.name}</Text>
