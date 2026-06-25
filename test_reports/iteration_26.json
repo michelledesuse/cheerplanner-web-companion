@@ -1,0 +1,54 @@
+{
+  "summary": "Frontend-only verification of v1.0.8 ThemedStack live-repaint behavior. CRITICAL FAIL: tapping a new preset does NOT visibly repaint the Appearance screen, Dashboard, or any other screen — the screens remain in the original light/red palette despite the key={version} remount of <Stack>. Root cause: all screens use `StyleSheet.create({...})` with `colors.bg`, `colors.accent`, `colors.card`, `colors.textPrimary` evaluated at module-import time. Mutating the shared `colors` object after the fact does not change those cached style objects, and remounting a screen does NOT re-execute the module-level StyleSheet.create call. Persistence (AsyncStorage cache + PATCH /api/household/theme + selection across reload) and footer bump to v1.0.8 do work correctly.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/_layout.tsx ThemedStack + screens that use StyleSheet.create",
+        "issue": "Live repaint claim is broken. Tapping Black & Pink (id=`dark`) on /settings/appearance keeps the screen background `rgb(255,255,255)` and `rgb(250,250,249)` (was 25/17 elements before tap, still 25/17 after). Navigating to /(tabs)/dashboard the same: bg stays white, accent stays red — the entire UI does NOT pick up the new palette. Reproduced for Black & Pink, Royal Blue & White, and Red & White transitions. The `key={version}` remount fires (the back chevron disappears on Appearance, evidence of subtree remount) but module-level `StyleSheet.create({ container: { backgroundColor: colors.bg }, ... })` captured the original color values at import time, so remounted instances reuse the already-cached style object. Fix requires either (a) moving StyleSheets inside the component and reading `useTheme()` then constructing styles via `useMemo`, or (b) reading `colors.bg` inline in JSX style props instead of via StyleSheet.create.",
+        "testID": "theme-preset-dark / dashboard-screen / settings-screen",
+        "priority": "HIGH"
+      },
+      {
+        "component": "app/settings/appearance.tsx",
+        "issue": "On reopen of Appearance after a theme change, the back chevron is missing from the header (because the Stack subtree was remounted there is no navigation history). The user can still navigate via the bottom tab bar, but on routes accessed via a non-tab nested stack (e.g. /settings/appearance → child screen) the back button disappears after a theme tap. UX nit.",
+        "testID": "n/a",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Theme apply → repaint propagation",
+        "issue": "PATCH /api/household/theme is sent successfully and AsyncStorage is updated, but the visible app does not reflect the change until a full Metro reload happens AFTER the new theme has been mutated into `colors` early in boot. Even then, dashboards rendered with cached red accents (see screenshot F: Dashboard after reload with persisted royal_blue_white — accents still appear red because cached StyleSheet was built using default colors before AsyncStorage hydrated).",
+        "affected_testIDs": ["theme-preset-*", "dashboard-screen", "settings-screen"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "StyleSheet.create + mutable colors module",
+        "issue": "Anti-pattern: mutating an imported singleton (`themeColors.accent = ...`) to drive RN style updates does not work because `StyleSheet.create({})` snapshots primitive values at call time. A theme-version remount does not re-run module init. Reference: /app/frontend/src/context/ThemeContext.tsx:45-52 (mutateColors) combined with e.g. /app/frontend/app/settings/appearance.tsx:81-108 and every other screen that builds styles via `StyleSheet.create` referencing `colors.*`."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "PRIMARY: Refactor theming so consumers read live values. Easiest path: replace the mutable `colors` singleton with a `useThemeColors()` hook that returns the current preset palette from context, and convert each screen's `styles = StyleSheet.create({...})` into a `useMemo(() => StyleSheet.create({...}), [colors])` inside the component body. Doing this on Dashboard, Settings, Appearance, and the tab layout is the bare minimum to demo live repaint.",
+    "Alternative quick win: have ThemedStack pass `contentStyle={{ backgroundColor: colors.bg }}` AND re-render via `version` so the navigator-level chrome flips, and inline-style backgroundColor on the top-level <View> of each screen (e.g. `<View style={[styles.container, { backgroundColor: colors.bg }]}>`).",
+    "After the refactor, retest: pick Black & Pink, confirm Appearance + Dashboard + Calendar all darken; pick Red & White, confirm everything flips back. Currently NONE of these flip.",
+    "Optional: add tabBarTestID to /app/frontend/app/(tabs)/_layout.tsx so automation can directly target tab-home / tab-calendar / tab-settings etc. (Currently only the dashboard gear and screen-level testIDs are exposed.)",
+    "Confirmed working: AsyncStorage persistence (royal_blue_white survives full page reload — card border is 2px after reload, swatch checkmark renders on Royal Blue & White), PATCH /api/household/theme acceptance, footer label v1.0.8, no JS exceptions / red screens during the theme-change flow."
+  ],
+  "critical_code_review_comments": [
+    "ThemeContext.mutateColors() relies on object mutation of an imported module — this fundamentally cannot trigger React re-renders for any component whose styles were created via StyleSheet.create at module-import time. The note in iteration_25 already flagged this as 'tech-debt'; this iteration's ThemedStack key-bump does not actually solve it, because remounting a screen does not re-run module init.",
+    "app/_layout.tsx imports `colors` at the top and uses `colors.bg` in `contentStyle` — this is fine inside the ThemedStack component (it's read on every render and `version` triggers a render), but only the navigator's content background flips, not the screens themselves.",
+    "Recommend exposing `palette: ThemePreset` directly from ThemeContext (not just `version`) so consumers can read live values without going through the mutable singleton. The current API forces every consumer to either touch the singleton (stale) or call useTheme() and then still read from the singleton (still stale because StyleSheet.create captured)."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only iter)", "frontend": "40% (persistence + footer pass; live repaint fails)" },
+  "seed_data_creation": "None. Used applereview@cheerplanner.app account; theme reset to red_white at end of run.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "If main agent ships the StyleSheet → useMemo refactor, the smoke test is: login → gear → Appearance → tap 'Black & Pink' → expect screen background to immediately become near-black (rgb(11,18,32) or rgb(17,24,39) should dominate, NOT rgb(255,255,255)). Then navigate to Dashboard via the bottom tab — the dashboard background must also be dark and the accent (Tuition payment badge, see-all chevrons) must be pink (rgb(236,72,153)) not red (rgb(231,29,54)). Repeat for Royal Blue & White: accent rgb(37,99,235). Use /app/test_reports/iteration_26.json's `get_bgs()` helper pattern (page.evaluate counting backgroundColor frequencies) for an objective check.",
+  "rca_of_issue": "Symptom: tapping a new theme preset updates AsyncStorage and PATCHes /api/household/theme, but no visible color changes happen anywhere except inside the swatch previews on the Appearance grid (those swatches use inline `style={{ backgroundColor: preset.bg }}` which always reads the latest object). Root cause: every other screen builds its styles via `StyleSheet.create({ container: { backgroundColor: colors.bg }, ... })` at module-init time. `StyleSheet.create` is called ONCE per module import — the values are dereferenced and frozen into the returned style object. The ThemeContext.applyPreset() then mutates `themeColors.bg = newColor` and bumps `version`, which causes the ThemedStack to remount its subtree — but remounting a component does NOT re-execute module-level top-level code, so the styles object retains the original `bg` value. Verified by inspecting computed `background-color` of all <div>s before and after a tap: the distribution is byte-identical. Fix path described in action_items."
+}

@@ -5,13 +5,36 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
-import { ThemeProvider } from "@/src/context/ThemeContext";
+import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
+import { colors } from "@/src/theme";
 
 // Keep the native splash visible from cold start until icon fonts register.
 // Required because @expo/vector-icons' componentDidMount fallback fires
 // Font.loadAsync against a broken vendor path if any <Icon> mounts before
 // the family is registered — which throws on Android Expo Go.
 SplashScreen.preventAutoHideAsync();
+
+/**
+ * Theme-reactive Stack. Subscribes to `version` from ThemeContext so the
+ * navigation container re-paints (new content backgroundColor + child remount)
+ * whenever the user picks a new theme in Settings → Appearance.
+ *
+ * The `key={version}` triggers a full subtree remount on theme change, which
+ * is heavy-handed but guarantees every screen — even ones cached by
+ * expo-router — picks up the new palette immediately.
+ */
+function ThemedStack() {
+  const { version } = useTheme();
+  return (
+    <Stack
+      key={version}
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    />
+  );
+}
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
@@ -22,19 +45,13 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
-  // If the CDN is unreachable we fall through on error rather than wedging
-  // the app — icons will tofu, but the app still boots.
   if (!loaded && !error) return null;
 
-  // GestureHandlerRootView MUST wrap the app for gesture-handler-backed
-  // libraries (color picker, drag-to-dismiss sheets, etc.) to function on
-  // release iOS / Android builds. Without it, native gestures throw on
-  // first touch — which was the cause of the TestFlight color-picker crash.
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
         <ThemeProvider>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FAFAF9" } }} />
+          <ThemedStack />
         </ThemeProvider>
       </AuthProvider>
     </GestureHandlerRootView>
