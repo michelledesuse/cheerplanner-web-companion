@@ -1,17 +1,15 @@
 """v1.0.8 theme presets.
 
-Each preset is the full color palette the frontend ThemeProvider needs.
-Households pick a preset by `id` (or send a `custom` object); the backend
-just stores whatever the client sent — it doesn't validate hex colors so
-new presets can be added on the client without a backend deploy.
+Naming convention: each preset's `name` is just the color list it contains
+(e.g. "Red & White") — no fancy monikers, so users always know what they're
+picking. Add new presets here without a backend deploy on the client.
 """
 from typing import List, Dict, Any
 
 THEME_PRESETS: List[Dict[str, Any]] = [
     {
-        "id": "classic_red",
-        "name": "Classic Red",
-        "description": "The original CheerPlanner look",
+        "id": "red_white",
+        "name": "Red & White",
         "accent": "#E11D48",
         "accentSubtle": "#FEE2E2",
         "bg": "#F8FAFC",
@@ -20,9 +18,8 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#E11D48",
     },
     {
-        "id": "patriotic",
-        "name": "Patriotic",
-        "description": "Red, white & blue \u2014 perfect for Worlds week",
+        "id": "red_white_blue",
+        "name": "Red, White & Blue",
         "accent": "#1D4ED8",
         "accentSubtle": "#DBEAFE",
         "bg": "#FFFFFF",
@@ -33,7 +30,6 @@ THEME_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "gold_black",
         "name": "Gold & Black",
-        "description": "Premier-team energy",
         "accent": "#EAB308",
         "accentSubtle": "#FEF3C7",
         "bg": "#0F172A",
@@ -42,9 +38,28 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#FACC15",
     },
     {
-        "id": "pink_power",
-        "name": "Pink Power",
-        "description": "Bright & playful",
+        "id": "royal_blue_black",
+        "name": "Royal Blue & Black",
+        "accent": "#2563EB",
+        "accentSubtle": "#1E3A8A",
+        "bg": "#0B1220",
+        "card": "#111827",
+        "textPrimary": "#F8FAFC",
+        "tabActive": "#3B82F6",
+    },
+    {
+        "id": "royal_blue_white",
+        "name": "Royal Blue & White",
+        "accent": "#2563EB",
+        "accentSubtle": "#DBEAFE",
+        "bg": "#F8FAFC",
+        "card": "#FFFFFF",
+        "textPrimary": "#0F172A",
+        "tabActive": "#2563EB",
+    },
+    {
+        "id": "pink_white",
+        "name": "Pink & White",
         "accent": "#DB2777",
         "accentSubtle": "#FCE7F3",
         "bg": "#FDF2F8",
@@ -53,9 +68,8 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#DB2777",
     },
     {
-        "id": "purple_reign",
-        "name": "Purple Reign",
-        "description": "Bold violet & lavender",
+        "id": "purple_white",
+        "name": "Purple & White",
         "accent": "#7C3AED",
         "accentSubtle": "#EDE9FE",
         "bg": "#FAF5FF",
@@ -64,9 +78,8 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#7C3AED",
     },
     {
-        "id": "forest_green",
-        "name": "Forest Green",
-        "description": "Earthy & calm",
+        "id": "green_white",
+        "name": "Green & White",
         "accent": "#15803D",
         "accentSubtle": "#DCFCE7",
         "bg": "#F0FDF4",
@@ -75,9 +88,8 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#15803D",
     },
     {
-        "id": "ocean_teal",
-        "name": "Ocean Teal",
-        "description": "Cool & focused",
+        "id": "teal_white",
+        "name": "Teal & White",
         "accent": "#0D9488",
         "accentSubtle": "#CCFBF1",
         "bg": "#F0FDFA",
@@ -86,9 +98,8 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#0D9488",
     },
     {
-        "id": "dark_mode",
-        "name": "Dark Mode",
-        "description": "Easy on the eyes at midnight",
+        "id": "dark",
+        "name": "Black & Pink",
         "accent": "#F472B6",
         "accentSubtle": "#831843",
         "bg": "#0B1220",
@@ -100,6 +111,6 @@ THEME_PRESETS: List[Dict[str, Any]] = [
 
 
 DEFAULT_THEME = {
-    "preset_id": "classic_red",
+    "preset_id": "red_white",
     "custom": None,
 }
