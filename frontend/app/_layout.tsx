@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
+import { ThemeProvider } from "@/src/context/ThemeContext";
 
 // Keep the native splash visible from cold start until icon fonts register.
 // Required because @expo/vector-icons' componentDidMount fallback fires
@@ -32,7 +33,9 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FAFAF9" } }} />
+        <ThemeProvider>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FAFAF9" } }} />
+        </ThemeProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

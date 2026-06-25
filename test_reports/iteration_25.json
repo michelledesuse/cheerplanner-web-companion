@@ -1,0 +1,42 @@
+{
+  "summary": "Frontend-only verification of v1.0.8 Theme picker. Settings entry point, Appearance screen with all 10 preset cards, instant selection, navigation persistence, AsyncStorage persistence across full page reload, backend PATCH /api/household/theme integration, and regression of other Settings rows all PASS. No console / ThemeContext / AsyncStorage errors observed. Backend GET /api/themes/presets returned all 10 expected presets. Minor cosmetic note: settings footer still reads 'v1.0.7' though this iteration is labeled v1.0.8 partial.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "(tabs)/settings.tsx", "issues": ["Footer label is still 'CheerPlanner • v1.0.7' (line 230); consider bumping to v1.0.8 to match this iteration. Cosmetic only."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "(Optional) Bump version label in /app/frontend/app/(tabs)/settings.tsx line 230 from 'v1.0.7' to 'v1.0.8'.",
+    "(Optional, already acknowledged by spec) Future iteration should wire the existing screens to use the useTheme() hook so colors repaint live without a route remount."
+  ],
+  "critical_code_review_comments": [
+    "ThemeContext.applyPreset swallows server PATCH failure silently (no toast / no retry queue). On a transient backend outage, a co-parent on another device will never see the change. Consider surfacing the error.",
+    "ThemeContext.refreshPresets overwrites the locally cached palette with the server-side household theme on every mount of /settings/appearance. If two devices race (parent A picks teal, parent B picks pink at the same time), A's pick can be reverted to B's the next time A opens Appearance — by design, but worth documenting.",
+    "Mutating the imported `colors` object (mutateColors) works for static imports but defeats React's render model — any memoized component that captured a colors.* value will hold stale colors until it re-renders. The note in the screen ('if a screen still shows old colors, swipe back and reopen it') is honest but feels like tech-debt; planned for next iteration.",
+    "appearance.tsx: 'Black & Pink' preset id is 'dark' (asymmetric naming vs the other ids like 'pink_white'). Not a bug, but could be renamed to 'black_pink' for consistency."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "No new seed data. Used the seeded applereview@cheerplanner.app account; theme was reset to red_white at end of test for cleanliness.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Theme picker entry point + selection + AsyncStorage persistence + backend PATCH all verified against the public Expo web preview at 390x844. Live repaint of unrelated screens is explicitly out of scope per the request. Next iteration will likely add useTheme() consumers across other screens — verify that route transitions / refreshes still show the picked theme and that no infinite-render loops are introduced by version bumping in the context.",
+  "rca_of_issue": "N/A — no defects found in this iteration.",
+  "test_evidence": {
+    "tested_flows": [
+      "A) Settings → Appearance entry point: row is FIRST under Preferences, label 'Appearance', subtitle 'Color theme for your household', chevron present, tap navigates to /settings/appearance.",
+      "B) Appearance screen: header 'Appearance' + back chevron, intro text matches spec, 2-column grid of 10 preset cards (red_white, red_white_blue, gold_black, royal_blue_black, royal_blue_white, pink_white, purple_white, green_white, teal_white, dark) all rendered with 3-stripe swatches and correct names. Selected card border + colored checkmark badge visible (red_white initially, royal_blue_white after tap).",
+      "C) Persistence: after tapping royal_blue_white, navigated to /(tabs)/settings and back -> royal_blue_white still selected (verified by DOM innerHTML length 1113 vs ~745 for unselected). Full page reload -> royal_blue_white STILL selected (AsyncStorage cache hit). Reset to red_white cleanly applied checkmark back to red_white.",
+      "D) Regression: settings-notifications -> /settings/notifications OK; settings-faq -> /help/faq OK; settings-setup-guide -> /help/setup OK. No console errors related to ThemeContext / AsyncStorage / presets.",
+      "Backend: GET /api/themes/presets returns exactly the 10 presets listed in the spec, all with id/name/accent/accentSubtle/bg/card/textPrimary/tabActive. PATCH /api/household/theme accepts {preset_id} and GET /api/household reflects it."
+    ]
+  }
+}

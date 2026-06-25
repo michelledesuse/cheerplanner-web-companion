@@ -156,6 +156,14 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHead}>Preferences</Text>
         <View style={styles.group}>
+          <SettingRow
+            icon="color-palette-outline"
+            label="Appearance"
+            subtitle="Color theme for your household"
+            onPress={() => router.push("/settings/appearance" as any)}
+            chevron
+            testID="settings-appearance"
+          />
           <SettingRow icon="cash-outline" label="Currency" value="USD ($)" />
         </View>
 
