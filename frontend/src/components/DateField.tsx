@@ -3,7 +3,7 @@ import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
-import { colors, radius, spacing, typography } from "@/src/theme";
+import { colors, radius, typography } from "@/src/theme";
 import { isoToInput } from "@/src/utils/format";
 
 type Props = {

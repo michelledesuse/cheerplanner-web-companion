@@ -1,11 +1,13 @@
 from datetime import datetime as _dt, timedelta as _td
+from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.db import db
 from core.models import Household, HouseholdInvite, HouseholdJoinRequest, utcnow_iso
 from core.security import get_current_user
 from core.helpers import _get_or_create_household
+from core.theme_presets import THEME_PRESETS, DEFAULT_THEME
 
 router = APIRouter(prefix="/api")
 
@@ -16,7 +18,46 @@ async def get_household(current_user=Depends(get_current_user)):
     members = []
     async for u in db.users.find({"id": {"$in": h["member_user_ids"]}}, {"_id": 0, "id": 1, "email": 1, "name": 1}):
         members.append(u)
-    return {"id": h["id"], "members": members}
+    return {
+        "id": h["id"],
+        "members": members,
+        "theme": h.get("theme") or dict(DEFAULT_THEME),
+    }
+
+
+# ============================================================
+# v1.0.8 \u2014 Theme presets + per-household theme
+# ============================================================
+@router.get("/themes/presets")
+async def list_theme_presets(current_user=Depends(get_current_user)):
+    """Static list of preset themes the client renders in the picker grid."""
+    return {"presets": THEME_PRESETS}
+
+
+@router.patch("/household/theme")
+async def update_household_theme(
+    payload: Dict[str, Any] = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Save the household's theme choice.
+
+    Accepts either:
+      - `{ "preset_id": "patriotic" }`  (one of the ids in /themes/presets)
+      - `{ "preset_id": "custom", "custom": { accent, accentSubtle, bg, card, textPrimary, tabActive } }`
+    """
+    h = await _get_or_create_household(current_user["id"])
+    preset_id = payload.get("preset_id") or "classic_red"
+    custom = payload.get("custom") if preset_id == "custom" else None
+    if preset_id != "custom":
+        valid_ids = {p["id"] for p in THEME_PRESETS}
+        if preset_id not in valid_ids:
+            raise HTTPException(status_code=400, detail=f"Unknown preset_id '{preset_id}'")
+    elif not custom or not isinstance(custom, dict):
+        raise HTTPException(status_code=400, detail="`custom` palette required when preset_id='custom'")
+
+    theme = {"preset_id": preset_id, "custom": custom}
+    await db.households.update_one({"id": h["id"]}, {"$set": {"theme": theme}})
+    return {"theme": theme}
 
 
 @router.post("/household/invite")

@@ -46,6 +46,8 @@ class DeleteAccountPayload(BaseModel):
 class Household(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     member_user_ids: List[str] = Field(default_factory=list)
+    # v1.0.8 theming — household-scoped so co-parents see the same theme.
+    theme: Optional[Dict[str, Any]] = None
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -288,6 +290,8 @@ class Team(BaseModel):
     name: str
     color: Optional[str] = "#0EA5E9"  # default team color
     season: Optional[str] = None  # e.g. "2025-2026"
+    logo_image: Optional[str] = None  # base64 data URL (data:image/jpeg;base64,...) - v1.0.8
+    logo_shape: Optional[Literal["square", "circle"]] = "square"  # v1.0.8 crop preference
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -295,12 +299,16 @@ class TeamCreate(BaseModel):
     name: str
     color: Optional[str] = "#0EA5E9"
     season: Optional[str] = None
+    logo_image: Optional[str] = None
+    logo_shape: Optional[Literal["square", "circle"]] = "square"
 
 
 class TeamUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
     season: Optional[str] = None
+    logo_image: Optional[str] = None
+    logo_shape: Optional[Literal["square", "circle"]] = None
 
 
 class TeamMeetTime(BaseModel):
