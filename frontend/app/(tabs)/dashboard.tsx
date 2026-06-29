@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
+import { useTheme } from "@/src/context/ThemeContext";
 import { colors, radius, spacing, typography, shadow } from "@/src/theme";
 import { formatCurrency, formatDateLong, daysBetween } from "@/src/utils/format";
 
@@ -44,6 +45,7 @@ type ReminderItem = {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  useTheme(); // subscribe to theme version so this screen re-renders on theme change
   const [data, setData] = useState<Dashboard | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);
