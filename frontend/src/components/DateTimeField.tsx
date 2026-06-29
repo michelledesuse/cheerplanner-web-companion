@@ -1,7 +1,8 @@
 import React from "react";
-import { StyleSheet, View, Text } from "react-native";
+import { View, Text } from "react-native";
 
 import { spacing, typography, colors } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import { combineDateTime, splitDateTime } from "@/src/utils/format";
@@ -29,6 +30,7 @@ type Props = {
  * Galaxy S-series devices.
  */
 export default function DateTimeField({ value, onChange, testID, dateLabel = "Date", timeLabel = "Time" }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const { isoDate, hhmm } = splitDateTime(value);
 
   return (
@@ -41,7 +43,7 @@ export default function DateTimeField({ value, onChange, testID, dateLabel = "Da
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   sub: { ...typography.caption, color: colors.textTertiary, marginBottom: 4, fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
   timeLabel: { marginTop: spacing.sm },
 });

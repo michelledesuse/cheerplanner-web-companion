@@ -1,9 +1,10 @@
 import React from "react";
-import { Linking, Platform, Pressable, StyleSheet, Text, View, Alert } from "react-native";
+import { Linking, Platform, Pressable, Text, View, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as WebBrowser from "expo-web-browser";
 
 import { colors, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Props = {
   /** The address / venue name / location text to display and look up. */
@@ -46,6 +47,7 @@ export default function MapLink({
   style,
   testID,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const trimmed = (address || "").trim();
   if (!trimmed && !placeholder) return null;
 
@@ -124,7 +126,7 @@ export default function MapLink({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   inline: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 1 },
   inlineText: { ...typography.caption, fontSize: 13 },
   underline: { textDecorationLine: "underline" },

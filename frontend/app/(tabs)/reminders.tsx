@@ -1,12 +1,11 @@
 import React, { useCallback, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity,
-} from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 
 type Reminder = {
@@ -23,6 +22,7 @@ type Reminder = {
 };
 
 export default function RemindersScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [items, setItems] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +96,7 @@ function navigate(router: any, r: Reminder) {
 }
 
 function ReminderCard({ item, onPress }: { item: Reminder; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   const overdue = item.days_until < 0;
   const soon = item.days_until >= 0 && item.days_until <= 3;
   const label = overdue
@@ -132,7 +133,7 @@ function ReminderCard({ item, onPress }: { item: Reminder; onPress: () => void }
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   header: { padding: spacing.lg },

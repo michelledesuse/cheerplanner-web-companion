@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Modal,
-  KeyboardAvoidingView, Platform, ScrollView,
-} from "react-native";
+import { View, Text, TouchableOpacity, TextInput, Alert, Modal, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import DebouncedTextInput from "@/src/components/DebouncedTextInput";
@@ -55,6 +53,7 @@ export default function CompetitionTeamsSection({
   teamsToWatch: TeamToWatch[];
   onChanged: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const [teams, setTeams] = useState<Team[]>([]);
   const [showWatchForm, setShowWatchForm] = useState<{ index?: number } | null>(null);
   const [w_name, setWName] = useState("");
@@ -339,7 +338,7 @@ export default function CompetitionTeamsSection({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   sectionHead: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, textTransform: "uppercase" },
   emptyHint: { ...typography.caption, color: colors.textTertiary, fontStyle: "italic" },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },

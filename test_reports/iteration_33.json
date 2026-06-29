@@ -1,0 +1,29 @@
+{
+  "summary": "v1.0.8 NAMED-PRESET SAVE FEATURE + 100% live-theme migration — ALL 5 REVIEW-REQUEST FLOWS PASSED end-to-end on mobile viewport (390x844). BACKEND (10/10 pytest tests pass, /app/backend/tests/test_theme_saved_presets.py): POST /api/household/theme/saved returns 200 with {preset, theme} and auto-activates the new id; saved entry persists in household.theme.saved on GET /api/household; missing accent/bg returns 400; PATCH /api/household/theme accepts both built-in ids (green_black) and saved ids (saved_<slug>_<hex>); DELETE /api/household/theme/saved/{id} returns 200 and removes it from theme.saved; saving a second preset then deleting works too; final reset to red_white succeeds. FRONTEND (Playwright on mobile, logged in as applereview@cheerplanner.app): (1) /settings/appearance renders all 4 role chips (role-accent, role-bg, role-card, role-text), custom-apply, custom-save. (2) Tapping role-accent + custom-save opens the modal — save-name-input + save-confirm both present. Typed 'TEST_GymDay' + save-confirm → POST /household/theme/saved returned 200, 'MY SAVED THEMES' section appeared with row testID saved-saved_test-gymday_3596, theme applied live. (3) Tapped theme-preset-green_black → PATCH 200, page repainted to dark. (4) Tapped saved-saved_test-gymday_3596 → PATCH 200, custom palette restored live. (5) Page reload → 'MY SAVED THEMES' still rendered, 1 saved row restored from household.theme.saved via refreshPresets, active theme preserved. (6) Live-theme migration spot-check with green_black active: Add Athlete (/athletes/new), Schedule (/schedule/new), New Competition (/competitions/new), Reminders (/reminders) — all four screens render with dark bg (rgb(15,23,42)), dark cards, light text, dark form fields with light placeholders, themed date/time pickers, and themed action buttons. Screenshots confirm clean dark rendering across all four previously-unmigrated screens. (7) DELETE flow: tapped delete-saved-saved_test-gymday_3596 → DELETE 200, row count went 1 → 0. (8) CLEANUP DONE: tapped theme-preset-red_white → PATCH 200; final UI shows Red & White card with checkmark badge active. Production household theme is back to default. All POST/PATCH/DELETE observed for /api/household/theme*: 6 calls, all 200. No red-screen errors, no crashes, no untranslated/raw-text issues.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_theme_saved_presets.py",
+    "/app/test_reports/pytest/pytest_theme_saved.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "household.py L93 saved-cap (saved + [entry])[-20:] is correct, but combined with the slug+token_hex(2) id scheme there is a tiny chance of id collision on repeated names with same name (2^16 search space per slug). Low risk in practice (max 20 saved). Optional: switch to uuid4 hex (8 chars) for safer entropy.",
+    "ThemeContext.refreshPresets spread order at L100-105 (id/name/tabActive then ...theme.custom): since theme.custom contains its own tabActive, the spread will override the explicit fallback. Works today because backend always populates tabActive, but pre-existing comment from iter32 still applies — reorder to ...theme.custom first, then explicit fallbacks for clarity.",
+    "Pre-existing (NOT this change): reanimated-color-picker library still emits 'shadow* style props are deprecated. Use boxShadow' warnings; React 19 'element.ref is now a regular prop' warnings on every navigation. Library-internal — main agent should track upstream fix or pin reanimated-color-picker version when 5.2+ ships."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_theme_saved_presets.py (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10 pytest)", "frontend": "100% (5/5 review-request flows + 4/4 dark spot-checks)"},
+  "seed_data_creation": "Created 1 temporary saved preset 'TEST_GymDay' during testing — deleted at end. Final household.theme = {preset_id: 'red_white', custom: null, saved: []}.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Named-preset save/delete feature is fully working. testIDs verified: custom-save, save-name-input, save-confirm, saved-<id>, delete-saved-<id>, role-accent, role-bg, role-card, role-text, custom-apply, theme-preset-<id>. Backend contract: POST /api/household/theme/saved {name, accent, bg [required], accentSubtle, card, textPrimary, tabActive} → 200 {preset, theme}. DELETE /api/household/theme/saved/{id} → 200 {theme}. PATCH /api/household/theme accepts saved ids transparently (validated against built-in ids ∪ saved ids). The saved preset id format is `saved_<slug>_<4-hex>`. Production state was reset to red_white at end of session. All previously-unmigrated screens (Add Athlete, Schedule/new, Competition/new, Reminders) now correctly consume the live theme via useThemedStyles.",
+  "rca_of_issue": "Not applicable — feature validation only. No bugs found."
+}

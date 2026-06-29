@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,12 +22,14 @@ const ROLES: { key: RoleKey; label: string }[] = [
 export default function AppearanceScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
-  const { presets, presetId, palette, refreshPresets, applyPreset } = useTheme();
+  const { presets, presetId, palette, savedPresets, refreshPresets, applyPreset, saveCurrentTheme, deleteSavedTheme } = useTheme();
 
   const [roleColors, setRoleColors] = useState<Record<RoleKey, string>>({
     accent: palette.accent, bg: palette.bg, card: palette.card, text: palette.textPrimary,
   });
   const [activeRole, setActiveRole] = useState<RoleKey>("accent");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [saveName, setSaveName] = useState("");
 
   useEffect(() => { refreshPresets(); }, [refreshPresets]);
 
@@ -73,6 +75,31 @@ export default function AppearanceScreen() {
             ))}
           </View>
         )}
+
+        {savedPresets.length > 0 ? (
+          <>
+            <Text style={[styles.sectionLabel, { marginTop: spacing.xl, marginBottom: spacing.sm }]}>MY SAVED THEMES</Text>
+            {savedPresets.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                testID={`saved-${p.id}`}
+                onPress={() => applyPreset(p)}
+                style={[styles.savedRow, p.id === presetId && { borderColor: colors.accent, borderWidth: 2 }]}
+              >
+                <View style={styles.savedSwatch}>
+                  {[p.bg, p.card, p.accent, p.textPrimary].map((cc, i) => (
+                    <View key={i} style={[styles.savedSwatchBlock, { backgroundColor: cc }]} />
+                  ))}
+                </View>
+                <Text style={styles.savedName} numberOfLines={1}>{p.name}</Text>
+                {p.id === presetId ? <Ionicons name="checkmark-circle" size={18} color={colors.accent} /> : null}
+                <TouchableOpacity onPress={() => deleteSavedTheme(p.id)} hitSlop={8} testID={`delete-saved-${p.id}`}>
+                  <Ionicons name="trash-outline" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </>
+        ) : null}
 
         {/* ---- Custom theme builder ---- */}
         <View style={styles.customHeaderRow}>
@@ -134,12 +161,51 @@ export default function AppearanceScreen() {
               <Ionicons name="color-palette" size={16} color="#fff" />
               <Text style={styles.applyBtnText}>Apply custom theme</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={() => { setSaveName(""); setShowSaveModal(true); }}
+              testID="custom-save"
+            >
+              <Ionicons name="bookmark-outline" size={16} color={colors.accent} />
+              <Text style={styles.saveBtnText}>Save as preset</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
         <Text style={styles.note}>
           Theme changes apply to everyone in your household and take effect across the app right away.
         </Text>
+
+        <Modal visible={showSaveModal} transparent animationType="fade" onRequestClose={() => setShowSaveModal(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>Name this theme</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="e.g. Gym colors"
+                placeholderTextColor={colors.textTertiary}
+                value={saveName}
+                onChangeText={setSaveName}
+                autoFocus
+                maxLength={40}
+                testID="save-name-input"
+              />
+              <View style={styles.modalRow}>
+                <TouchableOpacity style={styles.modalCancel} onPress={() => setShowSaveModal(false)}>
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSave, { backgroundColor: roleColors.accent }]}
+                  testID="save-confirm"
+                  onPress={() => { saveCurrentTheme(saveName.trim() || "My theme", customPreset); setShowSaveModal(false); }}
+                >
+                  <Text style={styles.modalSaveText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </SafeAreaView>
   );
@@ -230,4 +296,30 @@ const makeStyles = (c: ThemePalette) => ({
     marginTop: spacing.lg, paddingVertical: 13, borderRadius: radius.md,
   },
   applyBtnText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  saveBtn: {
+    flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8,
+    marginTop: spacing.sm, paddingVertical: 11, borderRadius: radius.md,
+    borderWidth: 1, borderColor: c.accentBorder, backgroundColor: c.accentSubtle,
+  },
+  saveBtnText: { color: c.accent, fontWeight: "700", fontSize: 14 },
+  savedRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border,
+    padding: spacing.sm, marginBottom: spacing.sm,
+  },
+  savedSwatch: { flexDirection: "row", width: 56, height: 30, borderRadius: 6, overflow: "hidden" },
+  savedSwatchBlock: { flex: 1 },
+  savedName: { ...typography.bodyMedium, color: c.textPrimary, flex: 1 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  modalCard: { width: "100%", maxWidth: 360, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: c.border },
+  modalTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
+  modalInput: {
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md,
+    paddingHorizontal: 14, paddingVertical: 11, color: c.textPrimary, fontSize: 15,
+  },
+  modalRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.lg },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, alignItems: "center" },
+  modalCancelText: { ...typography.bodyMedium, color: c.textPrimary },
+  modalSave: { flex: 1, paddingVertical: 12, borderRadius: radius.md, alignItems: "center" },
+  modalSaveText: { color: "#fff", fontWeight: "800" },
 });

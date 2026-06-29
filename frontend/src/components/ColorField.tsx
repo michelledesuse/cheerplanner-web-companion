@@ -1,9 +1,10 @@
 import React, { useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { Modal, Pressable, Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import ColorPicker, { Panel1, HueSlider, Preview, Swatches } from "reanimated-color-picker";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Props = {
   value: string;
@@ -25,6 +26,7 @@ const DEFAULT_PRESETS = [
  * user can land on any color rather than choosing from a fixed palette.
  */
 export default function ColorField({ value, onChange, testID, presets = DEFAULT_PRESETS }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   // Holds the latest hex from the picker without triggering a re-render on
@@ -105,13 +107,13 @@ export default function ColorField({ value, onChange, testID, presets = DEFAULT_
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   swatch: {
     width: 48, height: 48, borderRadius: 24,
     borderWidth: 3, borderColor: "white",
     // Elevation/shadow ring
-    shadowColor: "#000", shadowOpacity: 0.15, shadowOffset: { width: 0, height: 2 }, shadowRadius: 6,
+    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.15)",
     elevation: 3,
   },
   hexBtn: {

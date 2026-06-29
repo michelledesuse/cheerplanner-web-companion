@@ -1,9 +1,10 @@
 import React, { useRef, useState } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, Text, View } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { isoToInput } from "@/src/utils/format";
 
 type Props = {
@@ -27,6 +28,7 @@ type Props = {
  * - Native: opens @react-native-community/datetimepicker (inline on iOS).
  */
 export default function DateField({ value, onChange, placeholder = "MM-DD-YYYY", testID, clearable = true }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const display = isoToInput(value); // MM-DD-YYYY
   const [open, setOpen] = useState(false);
   const webInputRef = useRef<any>(null);
@@ -170,7 +172,7 @@ function pad(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   field: {
     backgroundColor: colors.card,
     borderWidth: 1,

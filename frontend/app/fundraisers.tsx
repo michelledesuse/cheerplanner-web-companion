@@ -1,14 +1,12 @@
 import React, { useCallback, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
@@ -16,6 +14,7 @@ import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string };
 
 export default function FundraisersScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [items, setItems] = useState<Fundraiser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,7 +178,7 @@ export default function FundraisersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

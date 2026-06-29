@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
@@ -26,6 +27,7 @@ type Props = {
 };
 
 export default function ApplyPaymentSheet({ visible, onClose, expense, onApplied }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [amount, setAmount] = useState("");
   const [paidOn, setPaidOn] = useState(todayISO());
   const [note, setNote] = useState("");
@@ -268,7 +270,7 @@ export default function ApplyPaymentSheet({ visible, onClose, expense, onApplied
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   backdrop: { flex: 1, justifyContent: "flex-end" },
   dim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
   sheet: {

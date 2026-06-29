@@ -1,9 +1,10 @@
 import React, { useMemo, useState } from "react";
-import { Modal, Platform, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
+import { Modal, Platform, Pressable, Text, View, TextInput } from "react-native";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Props = {
   /** Stored value: 24-hour HH:MM string (e.g. "14:30"), or empty. */
@@ -30,6 +31,7 @@ export default function TimeField({
   testID,
   clearable = true,
 }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [open, setOpen] = useState(false);
 
   // ----- Web: custom 12-hour picker -----
@@ -153,6 +155,7 @@ function TwelveHourWebPicker({
 }: {
   value: string; onChange: (v: string) => void; testID?: string; clearable: boolean; placeholder: string;
 }) {
+  const styles = useThemedStyles(makeStyles);
   // Parse the stored 24-hour value into 12-hour components.
   const parsed = useMemo(() => parse12(value), [value]);
   const [hour, setHour] = useState<string>(parsed.hour);
@@ -278,7 +281,7 @@ function formatDisplay(v: string): string {
   return `${h}:${m} ${period}`;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   field: {
     backgroundColor: colors.card,
     borderWidth: 1,

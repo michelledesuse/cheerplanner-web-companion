@@ -1,12 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import {
-  View, Text, StyleSheet, TouchableOpacity, TextInput, Alert,
-  ActivityIndicator, Modal, ScrollView, Pressable,
-} from "react-native";
+import { View, Text, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, ScrollView, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Item = {
   id: string;
@@ -42,6 +40,7 @@ type Props = {
 };
 
 export default function PackingListSection({ competitionId, athletes }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [list, setList] = useState<PackingList | null>(null);
@@ -455,7 +454,7 @@ function TemplatePicker({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   card: {
     backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1,
     borderColor: colors.border, padding: spacing.lg, marginTop: spacing.md,

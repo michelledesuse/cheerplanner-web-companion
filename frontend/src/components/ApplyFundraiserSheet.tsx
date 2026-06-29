@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 
 type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number };
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export default function ApplyFundraiserSheet({ visible, onClose, fundraiser, onApplied }: Props) {
+  const styles = useThemedStyles(makeStyles);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(false);
@@ -169,7 +171,7 @@ export default function ApplyFundraiserSheet({ visible, onClose, fundraiser, onA
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   backdrop: { flex: 1, justifyContent: "flex-end" },
   dim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.45)" },
   sheet: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl, maxHeight: "92%" },

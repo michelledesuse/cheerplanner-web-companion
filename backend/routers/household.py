@@ -39,23 +39,74 @@ async def update_household_theme(
     payload: Dict[str, Any] = Body(...),
     current_user=Depends(get_current_user),
 ):
-    """Save the household's theme choice.
+    """Save the household's active theme choice.
 
     Accepts either:
-      - `{ "preset_id": "patriotic" }`  (one of the ids in /themes/presets)
+      - `{ "preset_id": "patriotic" }`  (a built-in preset id OR a saved custom preset id)
       - `{ "preset_id": "custom", "custom": { accent, accentSubtle, bg, card, textPrimary, tabActive } }`
+    The household's list of saved custom presets (`theme.saved`) is preserved.
     """
     h = await _get_or_create_household(current_user["id"])
+    existing = h.get("theme") or dict(DEFAULT_THEME)
+    saved = existing.get("saved") or []
     preset_id = payload.get("preset_id") or "classic_red"
     custom = payload.get("custom") if preset_id == "custom" else None
     if preset_id != "custom":
-        valid_ids = {p["id"] for p in THEME_PRESETS}
+        valid_ids = {p["id"] for p in THEME_PRESETS} | {s.get("id") for s in saved}
         if preset_id not in valid_ids:
             raise HTTPException(status_code=400, detail=f"Unknown preset_id '{preset_id}'")
     elif not custom or not isinstance(custom, dict):
         raise HTTPException(status_code=400, detail="`custom` palette required when preset_id='custom'")
 
-    theme = {"preset_id": preset_id, "custom": custom}
+    theme = {"preset_id": preset_id, "custom": custom, "saved": saved}
+    await db.households.update_one({"id": h["id"]}, {"$set": {"theme": theme}})
+    return {"theme": theme}
+
+
+_PALETTE_KEYS = ("accent", "accentSubtle", "bg", "card", "textPrimary", "tabActive")
+
+
+@router.post("/household/theme/saved")
+async def save_custom_theme(
+    payload: Dict[str, Any] = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Save the current custom palette as a named preset and make it active.
+
+    Body: `{ name, accent, accentSubtle, bg, card, textPrimary, tabActive }`
+    """
+    import re as _re, secrets as _secrets
+
+    name = (payload.get("name") or "").strip() or "My theme"
+    palette = {k: payload.get(k) for k in _PALETTE_KEYS if payload.get(k)}
+    if "accent" not in palette or "bg" not in palette:
+        raise HTTPException(status_code=400, detail="accent and bg are required")
+    palette.setdefault("tabActive", palette["accent"])
+    palette.setdefault("accentSubtle", palette["accent"] + "22")
+
+    h = await _get_or_create_household(current_user["id"])
+    existing = h.get("theme") or dict(DEFAULT_THEME)
+    saved = existing.get("saved") or []
+    slug = _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "theme"
+    new_id = f"saved_{slug}_{_secrets.token_hex(2)}"
+    entry = {"id": new_id, "name": name[:40], **palette}
+    saved = (saved + [entry])[-20:]  # cap at 20 saved presets
+
+    theme = {"preset_id": new_id, "custom": None, "saved": saved}
+    await db.households.update_one({"id": h["id"]}, {"$set": {"theme": theme}})
+    return {"theme": theme, "preset": entry}
+
+
+@router.delete("/household/theme/saved/{saved_id}")
+async def delete_custom_theme(saved_id: str, current_user=Depends(get_current_user)):
+    h = await _get_or_create_household(current_user["id"])
+    existing = h.get("theme") or dict(DEFAULT_THEME)
+    saved = [s for s in (existing.get("saved") or []) if s.get("id") != saved_id]
+    preset_id = existing.get("preset_id")
+    # If we deleted the active preset, fall back to the default.
+    if preset_id == saved_id:
+        preset_id = DEFAULT_THEME.get("preset_id", "red_white")
+    theme = {"preset_id": preset_id, "custom": existing.get("custom"), "saved": saved}
     await db.households.update_one({"id": h["id"]}, {"$set": {"theme": theme}})
     return {"theme": theme}
 

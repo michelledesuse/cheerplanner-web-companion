@@ -1,14 +1,12 @@
 import React, { useCallback, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Alert, Linking,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import PackingListSection from "@/src/components/PackingListSection";
@@ -66,6 +64,7 @@ type Booking = {
 };
 
 export default function CompetitionDetail() {
+  const styles = useThemedStyles(makeStyles);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [comp, setComp] = useState<Competition | null>(null);
@@ -272,6 +271,7 @@ export default function CompetitionDetail() {
 }
 
 function AddTypeBtn({ icon, label, onPress, testID }: any) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity style={styles.typeBtn} onPress={onPress} testID={testID} activeOpacity={0.85}>
       <View style={styles.typeIcon}><Ionicons name={icon} size={20} color={colors.accent} /></View>
@@ -281,6 +281,7 @@ function AddTypeBtn({ icon, label, onPress, testID }: any) {
 }
 
 function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete: () => void; onEdit: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   const balance = Number(booking.cost || 0) - Number(booking.amount_paid || 0);
   const icon = booking.type === "hotel" ? "bed" : booking.type === "car" ? "car" : "airplane";
   return (
@@ -388,6 +389,7 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
 }
 
 function Field({ label, value }: { label: string; value: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.field}>
       <Text style={styles.smallLabel}>{label.toUpperCase()}</Text>
@@ -396,7 +398,7 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },

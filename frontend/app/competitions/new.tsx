@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Switch,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
 import TimeField from "@/src/components/TimeField";
 
 export default function CompetitionForm() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const editingId = params.id;
@@ -159,7 +158,7 @@ export default function CompetitionForm() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

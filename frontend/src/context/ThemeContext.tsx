@@ -22,19 +22,25 @@ export type ThemePreset = {
 type ThemeContextValue = {
   presetId: string;
   presets: ThemePreset[];
+  savedPresets: ThemePreset[];
   version: number; // bumps on every theme change so consumers re-render
   palette: ThemePalette; // fresh object identity on every theme change
   refreshPresets: () => Promise<void>;
   applyPreset: (preset: ThemePreset) => Promise<void>;
+  saveCurrentTheme: (name: string, preset: ThemePreset) => Promise<void>;
+  deleteSavedTheme: (id: string) => Promise<void>;
 };
 
 const Ctx = createContext<ThemeContextValue>({
   presetId: "red_white",
   presets: [],
+  savedPresets: [],
   version: 0,
   palette: { ...themeColors },
   refreshPresets: async () => {},
   applyPreset: async () => {},
+  saveCurrentTheme: async () => {},
+  deleteSavedTheme: async () => {},
 });
 
 /**
@@ -57,6 +63,7 @@ function applyToPalette(p: ThemePreset): ThemePalette {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [presetId, setPresetId] = useState<string>("red_white");
   const [presets, setPresets] = useState<ThemePreset[]>([]);
+  const [savedPresets, setSavedPresets] = useState<ThemePreset[]>([]);
   const [version, setVersion] = useState(0);
   const [palette, setPalette] = useState<ThemePalette>({ ...themeColors });
 
@@ -80,11 +87,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       const [presetsRes, householdRes] = await Promise.all([
         api.get<{ presets: ThemePreset[] }>("/themes/presets"),
-        api.get<{ theme?: { preset_id?: string; custom?: Partial<ThemePreset> } }>("/household"),
+        api.get<{ theme?: { preset_id?: string; custom?: Partial<ThemePreset>; saved?: ThemePreset[] } }>("/household"),
       ]);
       const list = presetsRes.data?.presets || [];
       setPresets(list);
       const theme = householdRes.data?.theme;
+      const saved = theme?.saved || [];
+      setSavedPresets(saved);
       const wantedId = theme?.preset_id || "red_white";
       // Custom theme: the palette lives in household.theme.custom (not the preset list).
       if (wantedId === "custom" && theme?.custom) {
@@ -100,7 +109,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         setVersion((v) => v + 1);
         return;
       }
-      const wanted = list.find((p) => p.id === wantedId) || list[0];
+      const wanted = list.find((p) => p.id === wantedId) || saved.find((s) => s.id === wantedId) || list[0];
       if (wanted) {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(wanted));
         setPalette(applyToPalette(wanted));
@@ -141,8 +150,40 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const saveCurrentTheme = useCallback(async (name: string, preset: ThemePreset) => {
+    setPalette(applyToPalette(preset));
+    setVersion((v) => v + 1);
+    try {
+      const res = await api.post<{ preset: ThemePreset; theme: { saved?: ThemePreset[] } }>(
+        "/household/theme/saved",
+        {
+          name,
+          accent: preset.accent,
+          accentSubtle: preset.accentSubtle,
+          bg: preset.bg,
+          card: preset.card,
+          textPrimary: preset.textPrimary,
+          tabActive: preset.tabActive,
+        },
+      );
+      const entry = res.data?.preset;
+      if (entry) {
+        setSavedPresets(res.data?.theme?.saved || []);
+        setPresetId(entry.id);
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entry));
+      }
+    } catch {}
+  }, []);
+
+  const deleteSavedTheme = useCallback(async (id: string) => {
+    try {
+      const res = await api.delete<{ theme: { saved?: ThemePreset[] } }>(`/household/theme/saved/${id}`);
+      setSavedPresets(res.data?.theme?.saved || []);
+    } catch {}
+  }, []);
+
   return (
-    <Ctx.Provider value={{ presetId, presets, version, palette, refreshPresets, applyPreset }}>
+    <Ctx.Provider value={{ presetId, presets, savedPresets, version, palette, refreshPresets, applyPreset, saveCurrentTheme, deleteSavedTheme }}>
       {children}
     </Ctx.Provider>
   );

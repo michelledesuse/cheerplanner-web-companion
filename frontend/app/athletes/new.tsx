@@ -1,8 +1,5 @@
 import React, { useEffect, useState } from "react";
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Image,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -10,6 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
 
 const DEFAULT_COLOR = "#0EA5E9";
@@ -28,6 +26,7 @@ type Athlete = {
 type Team = { id: string; name: string; color?: string; season?: string };
 
 export default function AthleteForm() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const editingId = params.id;
@@ -266,7 +265,7 @@ export default function AthleteForm() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },

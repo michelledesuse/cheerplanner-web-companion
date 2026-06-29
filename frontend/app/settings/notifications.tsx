@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform,
-} from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Frequency = "daily" | "weekly" | "off";
 
@@ -42,6 +41,7 @@ const CATEGORY_LABELS: { id: CategoryKey; label: string; sub: string; icon: keyo
 ];
 
 export default function NotificationsSettingsScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
@@ -180,7 +180,7 @@ export default function NotificationsSettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
