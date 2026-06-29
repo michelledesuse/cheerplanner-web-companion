@@ -19,7 +19,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "EXPO_PUBLIC_BACKEND_URL",
-    "https://spirit-finance-2.preview.emergentagent.com",
+    "https://dynamic-repaint-v108.preview.emergentagent.com",
 ).rstrip("/")
 API = f"{BASE_URL}/api"
 

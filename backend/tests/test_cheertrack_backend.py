@@ -12,7 +12,7 @@ import pytest
 import requests
 
 BASE_URL = os.environ.get("EXPO_BACKEND_URL") or os.environ.get("EXPO_PUBLIC_BACKEND_URL") \
-    or "https://776ba8fc-fc69-4cf1-aa74-fa7efdaca6ab.preview.emergentagent.com"
+    or "https://dynamic-repaint-v108.preview.emergentagent.com"
 BASE_URL = BASE_URL.rstrip("/")
 API = f"{BASE_URL}/api"
 
