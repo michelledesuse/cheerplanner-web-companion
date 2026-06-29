@@ -652,7 +652,7 @@ class FundraiserUpdate(BaseModel):
 # ============================================================
 # Imports
 # ============================================================
-ALLOWED_IMPORT_KINDS = {"competitions", "travel", "expenses", "schedule"}
+ALLOWED_IMPORT_KINDS = {"competitions", "travel", "expenses", "schedule", "teams_to_watch"}
 
 
 class ImportCommitPayload(BaseModel):

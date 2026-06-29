@@ -11,7 +11,7 @@ import import_helpers
 from core.db import db
 from core.models import (
     Athlete, Competition, Booking, ExpenseEntry, ScheduleEvent, RecurrenceRule,
-    ImportCommitPayload, ALLOWED_IMPORT_KINDS,
+    TeamToWatch, ImportCommitPayload, ALLOWED_IMPORT_KINDS,
 )
 from core.security import get_current_user
 from core.helpers import _household_user_ids, _expand_recurrence
@@ -21,9 +21,16 @@ router = APIRouter(prefix="/api")
 
 
 @router.get("/import/template/{kind}")
-async def import_template(kind: str, current_user=Depends(get_current_user)):
+async def import_template(kind: str, fmt: str = "csv", current_user=Depends(get_current_user)):
     if kind not in ALLOWED_IMPORT_KINDS:
         raise HTTPException(status_code=400, detail="Unknown template")
+    if fmt == "xlsx":
+        data = import_helpers.render_template_xlsx(kind)
+        return Response(
+            content=data,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="cheerplanner-{kind}-template.xlsx"'},
+        )
     csv_text = import_helpers.render_template_csv(kind)
     return Response(
         content=csv_text,
@@ -75,6 +82,13 @@ async def import_preview(
                 {"_id": 0, "id": 1, "name": 1},
             ).to_list(500)
             return {"kind": kind, "rows": rows, "count": len(rows), "existing_athletes": existing_athletes}
+        if kind == "teams_to_watch":
+            rows = import_helpers.parse_teams_to_watch(file.filename or "upload", content)
+            existing = await db.competitions.find(
+                {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+                {"_id": 0, "id": 1, "name": 1},
+            ).to_list(500)
+            return {"kind": kind, "rows": rows, "count": len(rows), "existing_competitions": existing}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -239,6 +253,42 @@ async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_c
                 )
                 await db.expenses.insert_one(e.model_dump())
                 created += 1
+        return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    if payload.kind == "teams_to_watch":
+        existing = await db.competitions.find(
+            {"user_id": user_id}, {"_id": 0, "id": 1, "name": 1},
+        ).to_list(500)
+        name_to_id = {str(c["name"]).strip().lower(): c["id"] for c in existing}
+        explicit = payload.competition_map or {}
+        for row in payload.rows:
+            tname = (row.get("name") or "").strip()
+            cname = (row.get("competition") or "").strip()
+            if not tname or not cname:
+                skipped += 1
+                continue
+            comp_id = explicit.get(cname) or name_to_id.get(cname.lower())
+            if not comp_id:
+                comp = Competition(
+                    user_id=user_id,
+                    name=cname,
+                    event_date=row.get("date") or datetime.now(timezone.utc).date().isoformat(),
+                )
+                await db.competitions.insert_one(comp.model_dump())
+                comp_id = comp.id
+                name_to_id[cname.lower()] = comp_id
+                warnings.append(f"Created placeholder competition '{cname}' — please set the event date.")
+            tw = TeamToWatch(
+                name=tname,
+                date=row.get("date"),
+                location=row.get("location"),
+                performance_time=row.get("performance_time"),
+            )
+            await db.competitions.update_one(
+                {"id": comp_id, "user_id": user_id},
+                {"$push": {"teams_to_watch": tw.model_dump()}},
+            )
+            created += 1
         return {"created": created, "skipped": skipped, "warnings": warnings}
 
     if payload.kind == "schedule":

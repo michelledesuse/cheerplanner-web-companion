@@ -4,7 +4,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
-import { api } from "@/src/api/client";
+import { TOKEN_KEY } from "@/src/api/client";
+import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
@@ -37,49 +38,56 @@ const TYPES = [
     icon: "calendar" as const,
     color: "#EA580C",
   },
+  {
+    kind: "teams_to_watch",
+    title: "Teams to watch",
+    desc: "Teams you want to catch at a competition — matched to the competition by name.",
+    icon: "eye" as const,
+    color: "#8B5CF6",
+  },
 ];
+
+type Fmt = "csv" | "xlsx";
 
 export default function ImportHub() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [fmt, setFmt] = useState<Fmt>("csv");
 
   const downloadTemplate = async (kind: string) => {
     if (downloading) return;
     setDownloading(kind);
     try {
-      // Use the authenticated api client so the token header is added automatically.
-      const r = await api.get<string>(`/import/template/${kind}`, {
-        responseType: "text",
-        transformResponse: [(d) => d], // axios tries to JSON.parse by default — disable that
-      });
-      const csv = typeof r.data === "string" ? r.data : String(r.data ?? "");
-      if (!csv || csv.length < 5) {
-        throw new Error("Empty template returned by server");
-      }
-      const filename = `cheerplanner-${kind}-template.csv`;
+      const ext = fmt === "xlsx" ? "xlsx" : "csv";
+      const mime = fmt === "xlsx"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "text/csv";
+      const filename = `cheerplanner-${kind}-template.${ext}`;
+      const token = await storage.secureGet<string>(TOKEN_KEY, "");
+      const url = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/import/template/${kind}?fmt=${fmt}`;
 
       if (Platform.OS === "web") {
-        // Browser: trigger a real download via a temporary anchor.
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error(`Download failed (${res.status})`);
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url;
+        a.href = objUrl;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
         a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
       } else {
-        // Native: write to cache then share via the OS share sheet.
         const FS: any = await import("expo-file-system/legacy");
         const Sharing: any = await import("expo-sharing");
         const path = `${FS.cacheDirectory}${filename}`;
-        await FS.writeAsStringAsync(path, csv, { encoding: FS.EncodingType.UTF8 });
+        const dl = await FS.downloadAsync(url, path, { headers: { Authorization: `Bearer ${token}` } });
         if (await Sharing.isAvailableAsync()) {
-          await Sharing.shareAsync(path, { mimeType: "text/csv", dialogTitle: "Save template" });
+          await Sharing.shareAsync(dl.uri, { mimeType: mime, dialogTitle: "Save template" });
         } else {
-          Alert.alert("Saved", `Template saved to ${path}`);
+          Alert.alert("Saved", `Template saved to ${dl.uri}`);
         }
       }
     } catch (e: any) {
@@ -107,6 +115,24 @@ export default function ImportHub() {
             Use your existing Cheer / Travel / Competitions spreadsheet, or download a clean template, fill it in, and upload.
             You&apos;ll preview every row before anything is saved.
           </Text>
+        </View>
+
+        <View style={styles.fmtRow}>
+          <Text style={styles.fmtLabel}>Template format</Text>
+          <View style={styles.fmtToggle}>
+            {(["csv", "xlsx"] as const).map((f) => (
+              <TouchableOpacity
+                key={f}
+                style={[styles.fmtChip, fmt === f && styles.fmtChipOn]}
+                onPress={() => setFmt(f)}
+                testID={`fmt-${f}`}
+              >
+                <Text style={[styles.fmtChipText, fmt === f && styles.fmtChipTextOn]}>
+                  {f.toUpperCase()}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
 
         {TYPES.map((t) => (
@@ -137,7 +163,7 @@ export default function ImportHub() {
                   ) : (
                     <Ionicons name="download-outline" size={14} color={colors.textPrimary} />
                   )}
-                  <Text style={styles.ghostBtnText}>{downloading === t.kind ? "Downloading…" : "Template"}</Text>
+                  <Text style={styles.ghostBtnText}>{downloading === t.kind ? "Downloading…" : fmt.toUpperCase()}</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -165,6 +191,13 @@ const makeStyles = () => ({
   introTitle: { ...typography.h2, color: colors.textPrimary, marginTop: spacing.sm },
   introText: { ...typography.body, color: colors.textSecondary, marginTop: 6, lineHeight: 22 },
   card: { flexDirection: "row", backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, gap: spacing.md },
+  fmtRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  fmtLabel: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
+  fmtToggle: { flexDirection: "row", backgroundColor: colors.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
+  fmtChip: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 999 },
+  fmtChipOn: { backgroundColor: colors.primary },
+  fmtChipText: { ...typography.caption, fontWeight: "800", color: colors.textSecondary, letterSpacing: 0.5 },
+  fmtChipTextOn: { color: "white" },
   iconBox: { width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   cardTitle: { ...typography.h3, color: colors.textPrimary },
   cardDesc: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },

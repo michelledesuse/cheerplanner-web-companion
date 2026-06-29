@@ -112,6 +112,16 @@ KNOWN_CATEGORIES = [
     "Registration", "Membership", "Late Fees", "Misc",
 ]
 
+TEAMS_TO_WATCH_HEADERS = {
+    "competition": "competition", "competition name": "competition", "comp": "competition",
+    "event": "competition", "event name": "competition",
+    "team": "name", "team name": "name", "name": "name", "watch": "name", "team to watch": "name",
+    "date": "date", "performance date": "date", "watch date": "date",
+    "location": "location", "venue": "location", "floor": "location", "stage": "location",
+    "time": "performance_time", "performance time": "performance_time",
+    "perform time": "performance_time", "watch time": "performance_time",
+}
+
 
 def _bool_from(v: Any) -> Optional[bool]:
     if v is None:
@@ -670,6 +680,32 @@ def _parse_month_year(s: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# Teams to Watch (one row → one team to watch, matched to a competition)
+# ---------------------------------------------------------------------------
+def parse_teams_to_watch(filename: str, content: bytes) -> List[Dict[str, Any]]:
+    sheets = read_table(filename, content)
+    out: List[Dict[str, Any]] = []
+    for rows in sheets:
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, TEAMS_TO_WATCH_HEADERS)
+        headers = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        for r in rows[hdr_idx + 1:]:
+            rec = _row_to_dict(headers, r, TEAMS_TO_WATCH_HEADERS)
+            name = (str(rec["name"]).strip() if rec.get("name") else "")
+            if not name:
+                continue
+            out.append({
+                "competition": (str(rec["competition"]).strip() if rec.get("competition") else None),
+                "name": name,
+                "date": _date(rec.get("date")),
+                "location": (str(rec["location"]).strip() if rec.get("location") else None),
+                "performance_time": _time24(rec.get("performance_time")),
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # CSV Templates
 # ---------------------------------------------------------------------------
 TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
@@ -728,6 +764,44 @@ TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
              "Coach's house", "Ava, Mia", "", "", "", "Bring drink"],
         ],
     ),
+    "teams_to_watch": (
+        ["Competition", "Team Name", "Date", "Location", "Performance Time"],
+        [
+            ["NCA Senior Nationals", "Cheer Athletics Panthers", "2025-11-14", "Arena Floor A", "2:30 PM"],
+            ["NCA Senior Nationals", "Top Gun Large Coed", "2025-11-15", "Arena Floor B", "11:00 AM"],
+            ["Spirit Sports Palm Springs", "California Allstars Smoed", "2025-08-26", "Main Stage", "4:15 PM"],
+        ],
+    ),
+}
+
+
+# Valid option reference shown on the XLSX "Reference" sheet for each kind.
+TEMPLATE_NOTES: Dict[str, List[str]] = {
+    "expenses": [
+        "Valid Category values:",
+        *[f"  • {c}" for c in KNOWN_CATEGORIES],
+        "",
+        "Paid column accepts: Yes / No (also true/false, paid/unpaid, 1/0).",
+        "Date / Due Date format: YYYY-MM-DD (e.g. 2025-10-05).",
+    ],
+    "competitions": [
+        "Housing Required accepts: Yes / No.",
+        "Dates use YYYY-MM-DD. Booking Release accepts 'YYYY-MM-DD HH:MM'.",
+    ],
+    "schedule": [
+        "Type values: Practice, Team Bonding, Private Lesson, Choreography, Class, Other.",
+        "Repeats values: Weekly, Biweekly, Monthly, Daily (leave blank for one-off).",
+        "Repeat Days: comma-separated day names, e.g. 'Tue,Thu'.",
+        "Times accept 12h (6:30 PM) or 24h (18:30).",
+    ],
+    "travel": [
+        "One row per competition. Fill only the columns you have.",
+        "Dates use YYYY-MM-DD; times accept 12h or 24h.",
+    ],
+    "teams_to_watch": [
+        "Competition must match (or will create) a competition by name.",
+        "Date uses YYYY-MM-DD. Performance Time accepts 12h (2:30 PM) or 24h.",
+    ],
 }
 
 
@@ -740,4 +814,37 @@ def render_template_csv(kind: str) -> str:
     w.writerow(headers)
     for r in rows:
         w.writerow(r)
+    return buf.getvalue()
+
+
+def render_template_xlsx(kind: str) -> bytes:
+    if kind not in TEMPLATES:
+        raise ValueError(f"Unknown template: {kind}")
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+
+    headers, rows = TEMPLATES[kind]
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Template"
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+    for r in rows:
+        ws.append(list(r))
+    # Reasonable default column widths
+    for i, h in enumerate(headers, start=1):
+        ws.column_dimensions[ws.cell(row=1, column=i).column_letter].width = max(14, len(str(h)) + 2)
+
+    notes = TEMPLATE_NOTES.get(kind)
+    if notes:
+        ref = wb.create_sheet("Reference")
+        ref.append(["How to fill this template"])
+        ref["A1"].font = Font(bold=True)
+        for line in notes:
+            ref.append([line])
+        ref.column_dimensions["A"].width = 60
+
+    buf = io.BytesIO()
+    wb.save(buf)
     return buf.getvalue()

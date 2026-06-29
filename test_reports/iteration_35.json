@@ -1,0 +1,32 @@
+{
+  "summary": "CheerPlanner v2.2 testing: Teams-to-Watch imports (CSV/XLSX templates, preview, commit with auto-create placeholder), XLSX templates with Reference sheet (14 categories), and Expenses sort toggle. 16/16 backend tests passed (test_v22_imports_and_sort.py). Frontend verified on mobile viewport (390x844): import hub fmt-csv/fmt-xlsx toggle correctly relabels all 5 cards, teams_to_watch card routes to /import/teams_to_watch and shows pick-file UI, and Expenses sort-toggle switches between 'Recent' and 'Due date' and visibly reorders the list. All flows working as designed. No deprecated Expo packages or red screens detected on the tested screens.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_imports_and_sort.py",
+    "/app/test_reports/pytest/pytest_v22_imports.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "imports.py teams_to_watch commit auto-creates a placeholder Competition without giving callers any way to opt out (unlike travel's create_missing_competitions flag). If accidental imports happen, users will end up with stray competitions. Consider an opt-in/opt-out toggle in the frontend preview (mirroring travel's createMissingComps), or surface a clearer confirmation.",
+    "imports.py /api/import/commit returns 200 even when 0 rows were created and only skipped rows exist; consider returning a softer status or distinguishing complete failure from partial.",
+    "Expense sort: when sortMode='recent' the list is shown in whatever order the API returns; there is no explicit sort by incurred_on. Label 'Recent' may be misleading if backend list isn't already sorted DESC by date."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v22_imports_and_sort.py (new pytest file)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Tests create a competition 'TEST_v22 Existing Comp' + a placeholder 'TEST_v22 Placeholder Comp' and append TeamToWatch entries; both competitions are deleted in teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend login endpoint returns the JWT under the key 'access_token' (not 'token'); the test fixture handles both. EXPO_PUBLIC_BACKEND_URL is the source-of-truth for the public URL (used by both backend tests and the frontend). All 5 import kinds expose XLSX templates; only expenses/competitions/schedule/travel/teams_to_watch have Reference sheets — Reference sheet only present for kinds in TEMPLATE_NOTES (currently all 5). For teams_to_watch the commit ALWAYS auto-creates placeholder competitions for unmatched names (no opt-out flag), behavior matches the user-choice spec.",
+  "rca_of_issue": "N/A — no issues reproduced."
+}

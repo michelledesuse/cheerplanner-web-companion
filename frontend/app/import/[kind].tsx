@@ -21,6 +21,7 @@ const TITLES: Record<string, string> = {
   travel: "Travel & accommodations",
   expenses: "Expenses",
   schedule: "Schedule",
+  teams_to_watch: "Teams to watch",
 };
 
 export default function ImportRunner() {
@@ -160,6 +161,21 @@ export default function ImportRunner() {
       const rep = rule ? ` • ${rule.frequency}${rule.until ? ` until ${formatDate(rule.until)}` : ""}` : "";
       title = `${row.title || "(untitled)"}`;
       sub = `${formatDate(row.date) || "no date"}${t ? ` • ${t}` : ""}${row.location ? ` • ${row.location}` : ""}${rep}`;
+    } else if (kind === "teams_to_watch") {
+      const fmt12 = (tm?: string) => {
+        if (!tm || !/^\d{1,2}:\d{2}/.test(tm)) return tm || "";
+        const [hS, m] = tm.split(":");
+        let h = Number(hS); const p = h >= 12 ? "PM" : "AM"; h = h % 12; if (h === 0) h = 12;
+        return `${h}:${m} ${p}`;
+      };
+      title = row.name || "(unnamed team)";
+      const bits = [
+        row.competition || "(no competition)",
+        formatDate(row.date) || null,
+        row.location || null,
+        row.performance_time ? fmt12(row.performance_time) : null,
+      ].filter(Boolean);
+      sub = bits.join(" • ");
     }
     return (
       <TouchableOpacity

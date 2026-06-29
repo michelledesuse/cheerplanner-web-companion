@@ -24,6 +24,7 @@ export default function ExpensesTab() {
   const styles = useThemedStyles(makeStyles);
   const [tab, setTab] = useState<"expenses" | "payments" | "fundraisers">("expenses");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
+  const [sortMode, setSortMode] = useState<"recent" | "due">("recent");
   const [athleteFilter, setAthleteFilter] = useState<string | null>(null);  // null = all athletes
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -103,8 +104,18 @@ export default function ExpensesTab() {
     let list = athleteFilter ? expenses.filter((e) => e.athlete_id === athleteFilter) : expenses;
     if (filter === "open") list = list.filter((e) => !e.paid && Number(e.balance_due || 0) > 0);
     else if (filter === "paid") list = list.filter((e) => e.paid || Number(e.balance_due || 0) <= 0.001);
+    if (sortMode === "due") {
+      list = [...list].sort((a, b) => {
+        const da = a.due_date || "";
+        const dbb = b.due_date || "";
+        if (!da && !dbb) return 0;
+        if (!da) return 1;   // expenses without a due date sink to the bottom
+        if (!dbb) return -1;
+        return da < dbb ? -1 : da > dbb ? 1 : 0;
+      });
+    }
     return list;
-  }, [expenses, filter, athleteFilter]);
+  }, [expenses, filter, athleteFilter, sortMode]);
 
   const filteredPayments = useMemo(() => {
     return athleteFilter ? payments.filter((p) => p.athlete_id === athleteFilter) : payments;
@@ -283,6 +294,22 @@ export default function ExpensesTab() {
                   <Text style={[styles.filterText, filter === f && styles.filterTextOn]}>{f.toUpperCase()}</Text>
                 </TouchableOpacity>
               ))}
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity
+                onPress={() => setSortMode((s) => (s === "recent" ? "due" : "recent"))}
+                style={[styles.sortChip, sortMode === "due" && styles.sortChipOn]}
+                testID="sort-toggle"
+                accessibilityLabel="Toggle sort order"
+              >
+                <Ionicons
+                  name={sortMode === "due" ? "calendar-outline" : "time-outline"}
+                  size={13}
+                  color={sortMode === "due" ? colors.accent : colors.textSecondary}
+                />
+                <Text style={[styles.sortText, sortMode === "due" && styles.sortTextOn]}>
+                  {sortMode === "due" ? "Due date" : "Recent"}
+                </Text>
+              </TouchableOpacity>
             </View>
             {filteredExpenses.length === 0 ? (
               <Text style={styles.empty}>No expenses to show.</Text>
@@ -494,6 +521,10 @@ const makeStyles = (c: ThemePalette) => ({
   filterChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   filterText: { ...typography.micro, fontWeight: "700", color: c.textSecondary, letterSpacing: 0.5 },
   filterTextOn: { color: "white" },
+  sortChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  sortChipOn: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  sortText: { ...typography.micro, fontWeight: "700", color: c.textSecondary },
+  sortTextOn: { color: c.accent },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: c.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
   dot: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
   iconCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
