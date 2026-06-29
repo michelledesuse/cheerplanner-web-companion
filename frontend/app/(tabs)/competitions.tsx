@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   Image,
@@ -16,6 +15,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDateLong, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 
@@ -31,6 +31,7 @@ type Competition = {
 
 export default function CompetitionsScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [items, setItems] = useState<Competition[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -122,7 +123,7 @@ export default function CompetitionsScreen() {
               style={[styles.deleteBtn, { opacity: selectedIds.size === 0 ? 0.4 : 1 }]}
               testID="comp-bulk-delete"
             >
-              <Ionicons name="trash" size={18} color="#DC2626" />
+              <Ionicons name="trash" size={18} color={colors.danger} />
               <Text style={styles.deleteBtnText}>Delete</Text>
             </TouchableOpacity>
           </View>
@@ -210,6 +211,7 @@ export default function CompetitionsScreen() {
 function CompCard({ comp, onPress, onLongPress, faded, selectMode, selected }: {
   comp: Competition; onPress: () => void; onLongPress?: () => void; faded?: boolean; selectMode?: boolean; selected?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const days = daysBetween(comp.event_date);
   const releaseDays = daysBetween(comp.booking_release_at);
   const isReleased = releaseDays === null || releaseDays <= 0;
@@ -262,38 +264,38 @@ function CompCard({ comp, onPress, onLongPress, faded, selectMode, selected }: {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { padding: spacing.lg },
   headerStack: { gap: spacing.md },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
-  title: { ...typography.display, color: colors.textPrimary },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.primary, borderRadius: 999 },
+  title: { ...typography.display, color: c.textPrimary },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: c.primary, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
-  selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: c.accent },
+  selectBtnText: { color: c.accent, fontWeight: "700", fontSize: 13 },
   selectBar: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  selectBarText: { ...typography.bodyMedium, color: colors.textPrimary, flex: 1 },
+  selectBarText: { ...typography.bodyMedium, color: c.textPrimary, flex: 1 },
   deleteBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  deleteBtnText: { color: "#DC2626", fontWeight: "700" },
-  checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
-  emptyCard: { backgroundColor: colors.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: colors.border },
+  deleteBtnText: { color: c.danger, fontWeight: "700" },
+  checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center", marginRight: spacing.md },
+  emptyCard: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: c.border },
   emptyImage: { width: "100%", height: 160, borderRadius: radius.lg, marginBottom: spacing.lg },
-  emptyTitle: { ...typography.h2, color: colors.textPrimary, marginBottom: 6 },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: "center", marginBottom: spacing.lg },
-  primaryBtn: { backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  emptyTitle: { ...typography.h2, color: c.textPrimary, marginBottom: 6 },
+  emptyText: { ...typography.body, color: c.textSecondary, textAlign: "center", marginBottom: spacing.lg },
+  primaryBtn: { backgroundColor: c.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   primaryBtnText: { color: "white", fontWeight: "700" },
-  sectionHead: { ...typography.micro, color: colors.textTertiary, marginBottom: spacing.md, marginTop: spacing.xs },
-  card: { flexDirection: "row", backgroundColor: colors.card, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.md, alignItems: "center" },
+  sectionHead: { ...typography.micro, color: c.textTertiary, marginBottom: spacing.md, marginTop: spacing.xs },
+  card: { flexDirection: "row", backgroundColor: c.card, padding: spacing.lg, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: spacing.md, alignItems: "center" },
   cardLeft: { flex: 1, gap: 4 },
-  cardName: { ...typography.h3, color: colors.textPrimary },
+  cardName: { ...typography.h3, color: c.textPrimary },
   cardMetaRow: { flexDirection: "row", alignItems: "center", gap: 4 },
-  cardMeta: { ...typography.caption, color: colors.textSecondary, flex: 1 },
+  cardMeta: { ...typography.caption, color: c.textSecondary, flex: 1 },
   badgeRow: { flexDirection: "row", gap: 6, marginTop: 4, flexWrap: "wrap" },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999 },
   badgeText: { fontSize: 11, fontWeight: "700" },
-  dayPill: { alignItems: "center", justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, backgroundColor: colors.accentSubtle, marginLeft: spacing.md },
-  dayPillNum: { ...typography.h2, color: colors.accent },
-  dayPillLabel: { ...typography.micro, color: colors.accent, marginTop: -2 },
+  dayPill: { alignItems: "center", justifyContent: "center", paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.md, backgroundColor: c.accentSubtle, marginLeft: spacing.md },
+  dayPillNum: { ...typography.h2, color: c.textPrimary },
+  dayPillLabel: { ...typography.micro, color: c.textSecondary, marginTop: -2 },
 });

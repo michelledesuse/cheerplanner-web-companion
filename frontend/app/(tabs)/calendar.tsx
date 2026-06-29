@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDateLong, todayISO } from "@/src/utils/format";
 
 type CalEvent = {
@@ -42,6 +43,7 @@ const KIND_ICONS: Record<string, any> = {
 
 export default function CalendarTab() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [selected, setSelected] = useState<string>(todayISO());
   const [month, setMonth] = useState<string>(todayISO().slice(0, 7));
@@ -172,20 +174,20 @@ export default function CalendarTab() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   headerBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
-  headerTitle: { ...typography.h1, color: colors.textPrimary },
+  headerTitle: { ...typography.h1, color: c.textPrimary },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: spacing.lg, marginTop: spacing.sm },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { ...typography.caption, color: colors.textSecondary },
+  legendText: { ...typography.caption, color: c.textSecondary },
   daySection: { padding: spacing.lg },
-  dayTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
-  empty: { ...typography.body, color: colors.textTertiary, marginTop: spacing.lg, textAlign: "center" },
-  eventRow: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
+  dayTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
+  empty: { ...typography.body, color: c.textTertiary, marginTop: spacing.lg, textAlign: "center" },
+  eventRow: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
   eventIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  eventTitle: { ...typography.bodyMedium, color: colors.textPrimary },
-  eventMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  eventTitle: { ...typography.bodyMedium, color: c.textPrimary },
+  eventMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   eventAmount: { ...typography.h3, fontWeight: "800" },
 });

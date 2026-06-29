@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -7,12 +7,14 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", off: "Off" };
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
@@ -216,8 +218,8 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHead}>Danger zone</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.deleteRow} onPress={confirmDelete} activeOpacity={0.7} testID="settings-delete-account">
-            <View style={[styles.rowIcon, { backgroundColor: "#FEE2E2" }]}>
-              <Ionicons name="trash" size={18} color="#DC2626" />
+            <View style={[styles.rowIcon, { backgroundColor: colors.dangerBg }]}>
+              <Ionicons name="trash" size={18} color={colors.danger} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.deleteRowLabel}>Delete account</Text>
@@ -235,7 +237,7 @@ export default function SettingsScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Ionicons name="warning" size={22} color="#DC2626" />
+              <Ionicons name="warning" size={22} color={colors.danger} />
               <Text style={styles.modalTitle}>Delete account</Text>
             </View>
             <Text style={styles.modalBody}>
@@ -277,10 +279,11 @@ export default function SettingsScreen() {
 }
 
 function SettingRow({ icon, label, subtitle, value, onPress, chevron, testID }: any) {
+  const styles = useThemedStyles(makeStyles);
   const Comp = onPress ? TouchableOpacity : View;
   return (
     <Comp style={styles.row} onPress={onPress} activeOpacity={0.7} testID={testID}>
-      <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={colors.textPrimary} /></View>
+      <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={colors.textSecondary} /></View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
@@ -291,48 +294,48 @@ function SettingRow({ icon, label, subtitle, value, onPress, chevron, testID }: 
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  title: { ...typography.display, color: colors.textPrimary, marginBottom: spacing.lg },
-  profile: { backgroundColor: colors.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: colors.border, marginBottom: spacing.lg },
-  avatar: { width: 70, height: 70, borderRadius: 22, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
+  title: { ...typography.display, color: c.textPrimary, marginBottom: spacing.lg },
+  profile: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: c.border, marginBottom: spacing.lg },
+  avatar: { width: 70, height: 70, borderRadius: 22, backgroundColor: c.primary, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
   avatarText: { color: "white", fontSize: 28, fontWeight: "800" },
-  profileName: { ...typography.h2, color: colors.textPrimary },
-  profileEmail: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  sectionHead: { ...typography.micro, color: colors.textTertiary, marginTop: spacing.lg, marginBottom: spacing.sm },
-  group: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", padding: spacing.md, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
-  rowIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.bg, alignItems: "center", justifyContent: "center" },
-  rowLabel: { ...typography.bodyMedium, color: colors.textPrimary },
-  rowSubtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2, lineHeight: 16 },
-  rowValue: { ...typography.caption, color: colors.textSecondary },
-  signOutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.xl, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.dangerBg },
-  signOutText: { color: colors.dangerText, fontWeight: "700" },
-  footer: { textAlign: "center", marginTop: spacing.lg, color: colors.textTertiary, ...typography.caption },
+  profileName: { ...typography.h2, color: c.textPrimary },
+  profileEmail: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  sectionHead: { ...typography.micro, color: c.textTertiary, marginTop: spacing.lg, marginBottom: spacing.sm },
+  group: { backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, overflow: "hidden" },
+  row: { flexDirection: "row", alignItems: "center", padding: spacing.md, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
+  rowIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" },
+  rowLabel: { ...typography.bodyMedium, color: c.textPrimary },
+  rowSubtitle: { ...typography.caption, color: c.textSecondary, marginTop: 2, lineHeight: 16 },
+  rowValue: { ...typography.caption, color: c.textSecondary },
+  signOutBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.xl, padding: spacing.md, borderRadius: radius.md, backgroundColor: c.dangerBg },
+  signOutText: { color: c.dangerText, fontWeight: "700" },
+  footer: { textAlign: "center", marginTop: spacing.lg, color: c.textTertiary, ...typography.caption },
 
   deleteRow: {
     flexDirection: "row", alignItems: "center", padding: spacing.md, gap: spacing.md,
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
   },
-  deleteRowLabel: { ...typography.bodyMedium, color: "#DC2626" },
-  deleteRowSubtitle: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  deleteRowLabel: { ...typography.bodyMedium, color: c.danger },
+  deleteRowSubtitle: { ...typography.caption, color: c.textTertiary, marginTop: 2 },
 
   modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
   modalSheet: {
-    width: "100%", maxWidth: 420, backgroundColor: colors.bg,
+    width: "100%", maxWidth: 420, backgroundColor: c.bg,
     borderRadius: 16, padding: spacing.lg, gap: spacing.md,
   },
   modalHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
-  modalTitle: { ...typography.h3, color: colors.textPrimary },
-  modalBody: { ...typography.body, color: colors.textSecondary, lineHeight: 20 },
+  modalTitle: { ...typography.h3, color: c.textPrimary },
+  modalBody: { ...typography.body, color: c.textSecondary, lineHeight: 20 },
   modalInput: {
-    backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: c.card, borderWidth: 1, borderColor: c.border,
     borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12,
-    fontSize: 15, color: colors.textPrimary,
+    fontSize: 15, color: c.textPrimary,
   },
   modalActions: { flexDirection: "row", gap: spacing.md, marginTop: 4 },
-  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
-  modalCancelText: { ...typography.bodyMedium, color: colors.textPrimary },
-  modalDeleteBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: "#DC2626", alignItems: "center" },
+  modalCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, alignItems: "center" },
+  modalCancelText: { ...typography.bodyMedium, color: c.textPrimary },
+  modalDeleteBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: c.danger, alignItems: "center" },
   modalDeleteText: { color: "white", fontWeight: "700" },
 });

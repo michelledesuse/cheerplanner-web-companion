@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl,
+  View, Text, ScrollView, TouchableOpacity, RefreshControl,
   ActivityIndicator, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
@@ -20,6 +21,7 @@ type Fundraiser = { id: string; name: string; amount_raised: number; applied_amo
 
 export default function ExpensesTab() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [tab, setTab] = useState<"expenses" | "payments" | "fundraisers">("expenses");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
   const [athleteFilter, setAthleteFilter] = useState<string | null>(null);  // null = all athletes
@@ -209,8 +211,8 @@ export default function ExpensesTab() {
               style={{ flexDirection: "row", alignItems: "center", gap: 4, opacity: selectedIds.size === 0 ? 0.4 : 1 }}
               testID="bulk-delete-btn"
             >
-              <Ionicons name="trash" size={18} color="#DC2626" />
-              <Text style={{ color: "#DC2626", fontWeight: "700" }}>Delete</Text>
+              <Ionicons name="trash" size={18} color={colors.danger} />
+              <Text style={{ color: colors.danger, fontWeight: "700" }}>Delete</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -238,14 +240,14 @@ export default function ExpensesTab() {
             <View style={styles.divider} />
             <View style={styles.sumItem}>
               <Text style={styles.sumLabel}>Available</Text>
-              <Text style={[styles.sumValue, { color: colors.accent }]}>{formatCurrency(fundraisers.reduce((s, f) => s + Number(f.available ?? Math.max(0, Number(f.amount_raised) - Number(f.applied_amount || 0))), 0))}</Text>
+              <Text style={[styles.sumValue, { color: colors.textPrimary }]}>{formatCurrency(fundraisers.reduce((s, f) => s + Number(f.available ?? Math.max(0, Number(f.amount_raised) - Number(f.applied_amount || 0))), 0))}</Text>
             </View>
           </>
         ) : (
           <>
             <View style={styles.sumItem}>
               <Text style={styles.sumLabel}>Open balance</Text>
-              <Text style={[styles.sumValue, { color: colors.accent }]}>{formatCurrency(totals.totalDue)}</Text>
+              <Text style={[styles.sumValue, { color: colors.textPrimary }]}>{formatCurrency(totals.totalDue)}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.sumItem}>
@@ -468,52 +470,52 @@ export default function ExpensesTab() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   headerBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
-  headerTitle: { ...typography.h1, color: colors.textPrimary },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.accent, borderRadius: 999 },
+  headerTitle: { ...typography.h1, color: c.textPrimary },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: c.accent, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
-  selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
-  tabs: { flexDirection: "row", marginHorizontal: spacing.lg, backgroundColor: colors.card, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: c.accent },
+  selectBtnText: { color: c.accent, fontWeight: "700", fontSize: 13 },
+  tabs: { flexDirection: "row", marginHorizontal: spacing.lg, backgroundColor: c.card, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: c.border },
   tab: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: "center" },
-  tabActive: { backgroundColor: colors.primary },
-  tabText: { ...typography.caption, color: colors.textSecondary, fontWeight: "700" },
+  tabActive: { backgroundColor: c.primary },
+  tabText: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
   tabTextActive: { color: "white" },
-  summary: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginTop: spacing.md, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  summary: { flexDirection: "row", alignItems: "center", marginHorizontal: spacing.lg, marginTop: spacing.md, backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.md },
   sumItem: { flex: 1, alignItems: "center" },
-  sumLabel: { ...typography.micro, color: colors.textSecondary, marginBottom: 4 },
+  sumLabel: { ...typography.micro, color: c.textSecondary, marginBottom: 4 },
   sumValue: { ...typography.h3, fontWeight: "800" },
-  divider: { width: 1, height: 32, backgroundColor: colors.border },
+  divider: { width: 1, height: 32, backgroundColor: c.border },
   filterRow: { flexDirection: "row", gap: 8, marginBottom: spacing.md },
-  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  filterChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  filterText: { ...typography.micro, fontWeight: "700", color: colors.textSecondary, letterSpacing: 0.5 },
+  filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  filterChipOn: { backgroundColor: c.accent, borderColor: c.accent },
+  filterText: { ...typography.micro, fontWeight: "700", color: c.textSecondary, letterSpacing: 0.5 },
   filterTextOn: { color: "white" },
-  row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
-  dot: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
+  row: { flexDirection: "row", alignItems: "center", backgroundColor: c.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
+  dot: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
   iconCircle: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
-  rowMeta: { ...typography.caption, color: colors.textSecondary },
+  rowTitle: { ...typography.bodyMedium, color: c.textPrimary },
+  rowMeta: { ...typography.caption, color: c.textSecondary },
   athChip: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
   athDot: { width: 6, height: 6, borderRadius: 3 },
-  amount: { ...typography.h3, color: colors.textPrimary, marginBottom: 4 },
-  payBtn: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colors.accent, borderRadius: 999 },
+  amount: { ...typography.h3, color: c.textPrimary, marginBottom: 4 },
+  payBtn: { paddingHorizontal: 10, paddingVertical: 5, backgroundColor: c.accent, borderRadius: 999 },
   payBtnText: { color: "white", fontWeight: "700", fontSize: 11 },
-  progressWrap: { height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: 6, overflow: "hidden" },
-  progressFill: { height: 4, backgroundColor: colors.successText },
-  appliedText: { ...typography.caption, color: colors.accent, fontWeight: "600", marginTop: 2 },
-  empty: { ...typography.body, color: colors.textTertiary, textAlign: "center", marginTop: spacing.md },
+  progressWrap: { height: 4, borderRadius: 2, backgroundColor: c.border, marginTop: 6, overflow: "hidden" },
+  progressFill: { height: 4, backgroundColor: c.successText },
+  appliedText: { ...typography.caption, color: c.accent, fontWeight: "600", marginTop: 2 },
+  empty: { ...typography.body, color: c.textTertiary, textAlign: "center", marginTop: spacing.md },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
-  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.accent, borderRadius: 999, marginTop: spacing.md },
+  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: c.accent, borderRadius: 999, marginTop: spacing.md },
   bigAddBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
-  athChipFilter: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.card, borderRadius: 999, borderWidth: 1, borderColor: colors.border },
-  athChipFilterOn: { backgroundColor: colors.primary, borderColor: colors.primary },
-  athChipText: { ...typography.caption, fontWeight: "600", color: colors.textPrimary },
+  athChipFilter: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.card, borderRadius: 999, borderWidth: 1, borderColor: c.border },
+  athChipFilterOn: { backgroundColor: c.primary, borderColor: c.primary },
+  athChipText: { ...typography.caption, fontWeight: "600", color: c.textPrimary },
   athChipTextOn: { color: "white" },
   athDotSm: { width: 8, height: 8, borderRadius: 4 },
-  overdueBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.dangerText, borderRadius: 6 },
+  overdueBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: c.dangerText, borderRadius: 6 },
   overdueText: { color: "white", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 });

@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDate } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 
@@ -31,6 +32,7 @@ const TYPE_COLOR: Record<string, string> = {
 
 export default function ScheduleTab() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [events, setEvents] = useState<Evt[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -144,7 +146,7 @@ export default function ScheduleTab() {
               style={[styles.deleteBtn, { opacity: selectedIds.size === 0 ? 0.4 : 1 }]}
               testID="sched-bulk-delete"
             >
-              <Ionicons name="trash" size={18} color="#DC2626" />
+              <Ionicons name="trash" size={18} color={colors.danger} />
               <Text style={styles.deleteBtnText}>Delete</Text>
             </TouchableOpacity>
           </View>
@@ -243,6 +245,7 @@ export default function ScheduleTab() {
 function Row({ e, athletes, onPress, onLongPress, onDelete, selectMode, selected }: {
   e: Evt; athletes: Athlete[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
 }) {
+  const styles = useThemedStyles(makeStyles);
   const color = TYPE_COLOR[e.event_type] || "#64748B";
   const fmt12 = (t?: string) => {
     if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";
@@ -296,37 +299,37 @@ function Row({ e, athletes, onPress, onLongPress, onDelete, selectMode, selected
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   headerBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
-  headerTitle: { ...typography.h1, color: colors.textPrimary },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: colors.accent, borderRadius: 999 },
+  headerTitle: { ...typography.h1, color: c.textPrimary },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: c.accent, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: colors.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: colors.accent },
-  selectBtnText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: c.accent },
+  selectBtnText: { color: c.accent, fontWeight: "700", fontSize: 13 },
   selectBar: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  selectBarText: { ...typography.bodyMedium, color: colors.textPrimary, flex: 1 },
+  selectBarText: { ...typography.bodyMedium, color: c.textPrimary, flex: 1 },
   deleteBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  deleteBtnText: { color: "#DC2626", fontWeight: "700" },
-  checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
-  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
-  chipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  deleteBtnText: { color: c.danger, fontWeight: "700" },
+  checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  chipOn: { backgroundColor: c.primary, borderColor: c.primary },
   chipDot: { width: 7, height: 7, borderRadius: 3.5 },
-  chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600", fontSize: 12 },
+  chipText: { ...typography.caption, color: c.textPrimary, fontWeight: "600", fontSize: 12 },
   chipTextOn: { color: "white" },
   filterWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
-  sectionHead: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, textTransform: "uppercase" },
-  row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
+  sectionHead: { ...typography.caption, color: c.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, textTransform: "uppercase" },
+  row: { flexDirection: "row", alignItems: "center", backgroundColor: c.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
   typeStripe: { width: 4, alignSelf: "stretch", borderRadius: 2 },
-  rowTitle: { ...typography.bodyMedium, color: colors.textPrimary },
-  rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  rowAthletes: { ...typography.caption, color: colors.accent, marginTop: 2, fontWeight: "600" },
+  rowTitle: { ...typography.bodyMedium, color: c.textPrimary },
+  rowMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  rowAthletes: { ...typography.caption, color: c.accent, marginTop: 2, fontWeight: "600" },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
-  empty: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.sm },
-  emptySub: { ...typography.body, color: colors.textTertiary, textAlign: "center" },
-  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.accent, borderRadius: 999, marginTop: spacing.md },
+  empty: { ...typography.h3, color: c.textPrimary, marginTop: spacing.sm },
+  emptySub: { ...typography.body, color: c.textTertiary, textAlign: "center" },
+  bigAddBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: c.accent, borderRadius: 999, marginTop: spacing.md },
   bigAddBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
-  bigAddBtnAlt: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, backgroundColor: colors.accentSubtle, borderRadius: 999, marginTop: 4 },
-  bigAddBtnAltText: { color: colors.accent, fontWeight: "700", fontSize: 13 },
+  bigAddBtnAlt: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 10, backgroundColor: c.accentSubtle, borderRadius: 999, marginTop: 4 },
+  bigAddBtnAltText: { color: c.accent, fontWeight: "700", fontSize: 13 },
 });

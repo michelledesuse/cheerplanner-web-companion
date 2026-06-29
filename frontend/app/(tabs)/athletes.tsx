@@ -2,7 +2,6 @@ import React, { useCallback, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   Image,
@@ -15,6 +14,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency } from "@/src/utils/format";
 
 type Athlete = {
@@ -29,6 +29,7 @@ type Athlete = {
 
 export default function AthletesScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [totals, setTotals] = useState<Record<string, { spent: number; paid: number; open: number }>>({});
   const [loading, setLoading] = useState(true);
@@ -135,7 +136,7 @@ export default function AthletesScreen() {
                 </View>
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={styles.balanceLabel}>Open</Text>
-                  <Text style={[styles.balanceValue, { color: open > 0 ? colors.accent : colors.successText }]}>
+                  <Text style={[styles.balanceValue, { color: open > 0 ? colors.textPrimary : colors.successText }]}>
                     {formatCurrency(open)}
                   </Text>
                 </View>
@@ -148,33 +149,33 @@ export default function AthletesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.lg },
-  title: { ...typography.display, color: colors.textPrimary },
-  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
-  emptyCard: { backgroundColor: colors.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: colors.border },
+  title: { ...typography.display, color: c.textPrimary },
+  addBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" },
+  emptyCard: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: c.border },
   emptyImage: { width: "100%", height: 160, borderRadius: radius.lg, marginBottom: spacing.lg },
-  emptyTitle: { ...typography.h2, color: colors.textPrimary, marginBottom: 6 },
-  emptyText: { ...typography.body, color: colors.textSecondary, textAlign: "center", marginBottom: spacing.lg },
-  primaryBtn: { backgroundColor: colors.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+  emptyTitle: { ...typography.h2, color: c.textPrimary, marginBottom: 6 },
+  emptyText: { ...typography.body, color: c.textSecondary, textAlign: "center", marginBottom: spacing.lg },
+  primaryBtn: { backgroundColor: c.primary, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
   primaryBtnText: { color: "white", fontWeight: "700" },
   card: {
-    flexDirection: "row", alignItems: "center", backgroundColor: colors.card,
+    flexDirection: "row", alignItems: "center", backgroundColor: c.card,
     padding: spacing.lg, borderRadius: radius.lg, marginBottom: spacing.md,
-    borderWidth: 1, borderColor: colors.border,
+    borderWidth: 1, borderColor: c.border,
   },
   avatar: { width: 52, height: 52, borderRadius: 18, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   avatarText: { color: "white", fontSize: 20, fontWeight: "800" },
   avatarImage: { width: 52, height: 52, borderRadius: 18 },
-  name: { ...typography.h3, color: colors.textPrimary },
-  meta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  name: { ...typography.h3, color: c.textPrimary },
+  meta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   statsRow: { flexDirection: "row", gap: spacing.md, marginTop: 6 },
-  stat: { ...typography.caption, color: colors.textSecondary },
-  statValue: { color: colors.textPrimary, fontWeight: "700" },
-  balanceLabel: { ...typography.micro, color: colors.textTertiary },
+  stat: { ...typography.caption, color: c.textSecondary },
+  statValue: { color: c.textPrimary, fontWeight: "700" },
+  balanceLabel: { ...typography.micro, color: c.textTertiary },
   balanceValue: { fontSize: 18, fontWeight: "800", marginTop: 2 },
-  coachBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: colors.accentSubtle, borderRadius: 6 },
-  coachBadgeText: { color: colors.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
+  coachBadge: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, backgroundColor: c.accentSubtle, borderRadius: 6 },
+  coachBadgeText: { color: c.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
 });

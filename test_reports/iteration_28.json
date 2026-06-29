@@ -1,0 +1,67 @@
+{
+  "summary": "Tested Tier-1 theming live-repaint bug in CheerPlanner v1.0.8 (frontend only). Logged in as applereview@cheerplanner.app, navigated Settings > Appearance, and tapped 'Green & Black' (testID=theme-preset-green_black). REPAINT IS BROKEN: while accent-driven elements (avatar, button pills, tile icons) DO update to the new accent color, the screen background, card background, and primary text color DO NOT live-repaint on any migrated tab. The dashboard SafeAreaView still has class r-backgroundColor-f8whl (rgb(250,250,249) = #FAFAF9 from theme.ts default) after switching, even though the new bg class r-backgroundColor-1tl8prc (rgb(15,23,42)=#0F172A) was registered in CSS. Greeting text color stays rgb(15,23,42) (dark) which is invisible/wrong on the dark navy bg green_black expects. The Stack root in app/_layout.tsx also stays #FAFAF9 (the original flash-of-stone color) — i.e. the fix advertised in the review request is not effective. localStorage and PATCH /api/household/theme persisted correctly. Theme has been restored to red_white at the end of the test.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "useThemedStyles + makeStyles (all 8 migrated screens)",
+        "issue": "Live theme repaint only propagates accent/accentSubtle. bg, card, and textPrimary are NOT re-applied to mounted screens after applyPreset(). After picking Green & Black, dashboard SafeAreaView keeps class r-backgroundColor-f8whl (#FAFAF9), greeting/tile values stay #0F172A. New atomic class r-backgroundColor-1tl8prc (#0F172A) IS registered in the document stylesheet, but it is never assigned to <SafeAreaView style={styles.safe}>. This indicates useThemedStyles is returning a stale memoized StyleSheet for the bg/textPrimary slots while accent slots get the new class. Reference: src/hooks/useThemedStyles.ts:30 + ThemeContext.mutateColors src/context/ThemeContext.tsx:45.",
+        "testID": "dashboard-screen",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "app/_layout.tsx ThemedStack",
+        "issue": "Stack contentStyle backgroundColor remains stone-50 (#FAFAF9) after theme switch — the flash-of-old-bg issue the review request asks to verify is still present. Confirmed by reading the Stack content div: bg rgb(250,250,249). Reference: app/_layout.tsx:18 (screenOptions={{ contentStyle: { backgroundColor: colors.bg } }}). screenOptions captures colors.bg only on first ThemedStack render; subsequent useTheme() bumps don't propagate to native Stack content because RN-screens memoizes screenOptions internally.",
+        "testID": "n/a",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Greeting / monetary text color",
+        "issue": "Dashboard greeting ('Hi App Review') and tile $-values still render in rgb(15,23,42) after switching to Green & Black (whose textPrimary=#F8FAFC). Under green_black bg=#0F172A this would be unreadable — but since bg ALSO didn't repaint, the contrast is fine by accident. Once bg fix lands, text fix must also land or text becomes invisible.",
+        "testID": "tile-this-month, tile-paid-ytd, tile-athletes, tile-raised",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Settings > Appearance > select preset",
+        "issue": "PATCH /api/household/theme + AsyncStorage write succeed (verified via localStorage='cheerplanner:theme_palette_v1' contains the new preset payload), GET /api/themes/presets returns 12 presets correctly. Integration layer is fine — the failure is purely client-side style propagation.",
+        "affected_testIDs": ["theme-preset-green_black", "theme-preset-red_black", "theme-preset-red_white"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Appearance picker",
+        "issues": [
+          "Picker UI itself works well: 12 presets render, current selection shows red check mark, tap immediately checks the new tile. Back navigation works."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "Shadow style props",
+        "issue": "Console emits many 'shadow* style props are deprecated. Use boxShadow' warnings. Reference: src/theme.ts:57 shadow.card uses elevation+boxShadow but other call-sites still mix shadow* props."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "ROOT CAUSE TO INVESTIGATE: Avatar bg (c.accent) DOES live-repaint, but SafeAreaView bg (c.bg) and greeting color (c.textPrimary) do NOT — both come from the same makeStyles factory called by useThemedStyles. This rules out 'StyleSheet.create caches' as a blanket explanation. Likely culprits: (a) react-native-web StyleSheet.create returning the SAME class id for {backgroundColor: oldValue} → newValue when the factory output reference is structurally similar — try forcing a structural change (e.g. add a non-style sentinel keyed by version). (b) Check whether the SafeAreaView (from react-native-safe-area-context) is bailing out of re-render via React.memo and not picking up new style prop reference — wrap the style in an inline array `style={[styles.safe]}` to force new ref, or apply bg via a parent <View> instead of SafeAreaView style prop.",
+    "Fix app/_layout.tsx ThemedStack — Stack screenOptions is captured by react-native-screens once. Move backgroundColor to a wrapping <View style={{flex:1, backgroundColor: colors.bg}}> AROUND <Stack/>, or pass screenOptions as a function that reads the current theme on each render. Currently the root background stays #FAFAF9 after theme switch.",
+    "After bg fix lands, verify textPrimary repaint on dashboard greeting, tile values, athlete Open balance, money Open balance/Paid YTD, and reminder amounts.",
+    "Migrate app/settings/appearance.tsx itself — it still uses module-level StyleSheet.create. While the picker screen is short-lived, its title 'Appearance' and body text use the same stale colors after theme switch (visible in screenshot D — the title color does not update).",
+    "Address deprecated shadow* style prop warnings flooding the console."
+  ],
+  "critical_code_review_comments": [
+    "src/hooks/useThemedStyles.ts:30 — passing `defaultColors` (a stable object reference) into factory means the returned style objects may be detected as deeply equal by RN-Web internals; consider spreading into a new object: `factory({ ...defaultColors })` so each call produces a fresh input.",
+    "src/context/ThemeContext.tsx:45 mutateColors mutates the shared colors object in place. While `accent` propagates, `bg`/`textPrimary` apparently don't reach RN-Web's atomic class allocator for SafeAreaView consumers. Recommend exposing the palette via context VALUE (not via mutating a singleton) and making useThemedStyles read from context.",
+    "app/_layout.tsx:18 — screenOptions captured once. Use a callback-form screenOptions or wrap Stack in a themed View for the root bg."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (not tested per request)", "frontend": "20% (1 of 5 review request scenarios passes — accent on buttons/tab-bar does update; screen backgrounds, card colors, text colors do NOT live-repaint on any of dashboard/athletes/expenses/competitions/schedule/calendar; root Stack bg also stays #FAFAF9)"},
+  "seed_data_creation": "None; reused applereview@cheerplanner.app household.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Bug is reproducible 100% — log in, Settings > Appearance > Green & Black, navigate back to any tab. Look at any screen's outermost div: its className contains `r-backgroundColor-f8whl` (rgb(250,250,249)) which is the theme.ts default #FAFAF9. The expected dark navy bg #0F172A is registered (`r-backgroundColor-1tl8prc`) but never assigned to <SafeAreaView style={styles.safe}>. Curious anomaly: c.accent IS reflected (avatar/tile icons turn green), yet c.bg from the SAME factory is not. After main agent fixes useThemedStyles propagation + _layout root bg, please retest all 6 bottom tabs by reading getComputedStyle on their root containers, AND verify text colors on the dashboard greeting + money summary numbers.",
+  "rca_of_issue": "Reproduction: login → Settings (gear icon) → Appearance → tap testID=theme-preset-green_black → swipe/back to Home tab. Observe: avatar is green ✓, tile icon bg is green-tinted ✓ (these come from c.accent / c.accentSubtle in makeStyles via useThemedStyles), BUT page background is light stone (should be navy #0F172A), greeting text is dark (should be light #F8FAFC). DOM evidence: SafeAreaView class chain still contains `r-backgroundColor-f8whl` (= #FAFAF9 — the theme.ts initial default, NOT even the previous red_white preset bg of #F8FAFC), even though `.r-backgroundColor-1tl8prc { background-color: rgb(15, 23, 42); }` was registered in the document stylesheet during the theme switch. Therefore some palette tokens (accent, accentSubtle) propagate via the same factory while others (bg, card, textPrimary) do not. Suggested mitigation: (a) replace in-place mutation of the singleton `colors` object with a context-provided palette value, then have useThemedStyles take that palette directly as input; (b) wrap Stack in a themed parent View instead of relying on screenOptions.contentStyle which is captured-once by react-native-screens."
+}

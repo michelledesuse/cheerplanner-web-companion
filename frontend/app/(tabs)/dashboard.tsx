@@ -17,6 +17,7 @@ import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { colors, radius, spacing, typography, shadow } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDateLong, daysBetween } from "@/src/utils/format";
 
 type Dashboard = {
@@ -46,6 +47,7 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
   useTheme(); // subscribe to theme version so this screen re-renders on theme change
+  const styles = useThemedStyles(makeStyles);
   const [data, setData] = useState<Dashboard | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,14 +140,14 @@ export default function DashboardScreen() {
         </View>
         <View style={styles.tileRow}>
           <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/athletes")} testID="tile-athletes">
-            <View style={[styles.tileIcon, { backgroundColor: "#F1F5F9" }]}>
+            <View style={[styles.tileIcon, { backgroundColor: colors.divider }]}>
               <Ionicons name="people" size={18} color={colors.primary} />
             </View>
             <Text style={styles.tileValue}>{data?.athletes_count || 0}</Text>
             <Text style={styles.tileLabel}>Athletes</Text>
           </TouchableOpacity>
           <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/expenses?tab=fundraisers")} testID="tile-raised">
-            <View style={[styles.tileIcon, { backgroundColor: "#FEF3C7" }]}>
+            <View style={[styles.tileIcon, { backgroundColor: colors.warningBg }]}>
               <Ionicons name="gift" size={18} color={colors.warningText} />
             </View>
             <Text style={styles.tileValue}>{formatCurrency(data?.total_raised || 0)}</Text>
@@ -263,9 +265,10 @@ export default function DashboardScreen() {
 }
 
 function ReminderRow({ item }: { item: ReminderItem }) {
+  const styles = useThemedStyles(makeStyles);
   const overdue = item.days_until < 0;
   const soon = item.days_until <= 3 && item.days_until >= 0;
-  const bg = overdue ? colors.dangerBg : soon ? colors.warningBg : "#F1F5F9";
+  const bg = overdue ? colors.dangerBg : soon ? colors.warningBg : colors.divider;
   const fg = overdue ? colors.dangerText : soon ? colors.warningText : colors.textSecondary;
   const label = overdue ? `${Math.abs(item.days_until)}d overdue` : item.days_until === 0 ? "Due today" : `${item.days_until}d`;
   return (
@@ -285,43 +288,43 @@ function ReminderRow({ item }: { item: ReminderItem }) {
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   scroll: { padding: spacing.lg },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.lg },
-  greeting: { ...typography.h1, color: colors.textPrimary },
-  subGreeting: { ...typography.body, color: colors.textSecondary, marginTop: 2 },
+  greeting: { ...typography.h1, color: c.textPrimary },
+  subGreeting: { ...typography.body, color: c.textSecondary, marginTop: 2 },
   avatar: {
-    width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accent,
+    width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent,
     alignItems: "center", justifyContent: "center",
   },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
   gearBtn: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: colors.card,
-    borderWidth: 1, borderColor: colors.border,
+    backgroundColor: c.card,
+    borderWidth: 1, borderColor: c.border,
     alignItems: "center", justifyContent: "center",
   },
   miniBalanceCard: {
     marginTop: spacing.lg,
-    backgroundColor: colors.card,
+    backgroundColor: c.card,
     borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: c.border,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.md,
     flexDirection: "row",
     alignItems: "center",
   },
   miniBalanceItem: { flex: 1, alignItems: "center" },
-  miniBalanceLabel: { ...typography.micro, color: colors.textSecondary, marginBottom: 4 },
-  miniBalanceValue: { fontSize: 17, fontWeight: "800", color: colors.textPrimary, letterSpacing: -0.2 },
-  miniBalanceValueSm: { fontSize: 14, fontWeight: "700", color: colors.textPrimary },
-  miniDivider: { width: 1, height: 28, backgroundColor: colors.border },
+  miniBalanceLabel: { ...typography.micro, color: c.textSecondary, marginBottom: 4 },
+  miniBalanceValue: { fontSize: 17, fontWeight: "800", color: c.textPrimary, letterSpacing: -0.2 },
+  miniBalanceValueSm: { fontSize: 14, fontWeight: "700", color: c.textPrimary },
+  miniDivider: { width: 1, height: 28, backgroundColor: c.border },
   heroCard: {
-    backgroundColor: colors.primary, borderRadius: radius.xl, padding: spacing.xl,
+    backgroundColor: c.primary, borderRadius: radius.xl, padding: spacing.xl,
     ...shadow.card,
   },
   heroLabel: { color: "rgba(255,255,255,0.65)", ...typography.micro },
@@ -336,38 +339,38 @@ const styles = StyleSheet.create({
   divider: { width: 1, backgroundColor: "rgba(255,255,255,0.12)" },
   tileRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.md },
   tile: {
-    flex: 1, backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg,
-    borderWidth: 1, borderColor: colors.border,
+    flex: 1, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.lg,
+    borderWidth: 1, borderColor: c.border,
   },
   tileIcon: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
-  tileValue: { ...typography.h2, color: colors.textPrimary },
-  tileLabel: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  tileValue: { ...typography.h2, color: c.textPrimary },
+  tileLabel: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   sectionHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.xl, marginBottom: spacing.md },
-  sectionTitle: { ...typography.h3, color: colors.textPrimary },
-  linkText: { ...typography.bodyMedium, color: colors.accent, fontWeight: "600" },
+  sectionTitle: { ...typography.h3, color: c.textPrimary },
+  linkText: { ...typography.bodyMedium, color: c.accent, fontWeight: "600" },
   nextCompCard: { borderRadius: radius.xl, overflow: "hidden", height: 160, position: "relative" },
   nextCompImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
   nextCompOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(15,23,42,0.6)" },
   nextCompContent: { flex: 1, padding: spacing.lg, justifyContent: "flex-end" },
-  nextCompPill: { alignSelf: "flex-start", backgroundColor: colors.accent, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginBottom: spacing.sm },
+  nextCompPill: { alignSelf: "flex-start", backgroundColor: c.accent, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, marginBottom: spacing.sm },
   nextCompPillText: { color: "white", fontWeight: "700", fontSize: 11, letterSpacing: 0.5 },
   nextCompName: { color: "white", fontSize: 22, fontWeight: "800", letterSpacing: -0.3 },
   nextCompMeta: { color: "rgba(255,255,255,0.85)", marginTop: 2, fontSize: 14 },
   nextCompDate: { color: "rgba(255,255,255,0.7)", marginTop: 6, fontSize: 13, fontWeight: "500" },
   emptyCard: {
-    backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border,
     padding: spacing.xl, alignItems: "center",
   },
-  emptyText: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
-  emptyBtn: { marginTop: spacing.md, backgroundColor: colors.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  emptyText: { ...typography.body, color: c.textSecondary, marginTop: spacing.sm },
+  emptyBtn: { marginTop: spacing.md, backgroundColor: c.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   emptyBtnText: { color: "white", fontWeight: "700" },
   reminderRow: {
-    backgroundColor: colors.card, borderRadius: radius.md, padding: spacing.md,
-    borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center",
+    backgroundColor: c.card, borderRadius: radius.md, padding: spacing.md,
+    borderWidth: 1, borderColor: c.border, flexDirection: "row", alignItems: "center",
   },
-  reminderTitle: { ...typography.bodyMedium, color: colors.textPrimary },
-  reminderAmount: { ...typography.h3, color: colors.accent, marginTop: 2 },
-  reminderSub: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  reminderTitle: { ...typography.bodyMedium, color: c.textPrimary },
+  reminderAmount: { ...typography.h3, color: c.textPrimary, marginTop: 2 },
+  reminderSub: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   pillText: { fontSize: 11, fontWeight: "700", letterSpacing: 0.4 },
 });
