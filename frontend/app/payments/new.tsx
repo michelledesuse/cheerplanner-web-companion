@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
+  View, Text, TextInput, TouchableOpacity, ScrollView, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { todayISO, formatCurrency, formatDate } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
@@ -19,6 +20,7 @@ type ExpenseLite = { id: string; category: string; amount: number; incurred_on: 
 
 export default function PaymentForm() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ athlete_id?: string; id?: string; expense_id?: string; amount?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
@@ -272,7 +274,7 @@ export default function PaymentForm() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

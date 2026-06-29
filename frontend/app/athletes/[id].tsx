@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   RefreshControl, Alert, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,6 +9,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 
@@ -21,6 +22,7 @@ type ScheduleEvent = { id: string; title: string; event_type: string; date: stri
 export default function AthleteDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const [athlete, setAthlete] = useState<Athlete | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -468,6 +470,7 @@ export default function AthleteDetail() {
 }
 
 function Stat({ label, value, color }: { label: string; value: string; color?: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={{ flex: 1, alignItems: "center" }}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -476,7 +479,7 @@ function Stat({ label, value, color }: { label: string; value: string; color?: s
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },

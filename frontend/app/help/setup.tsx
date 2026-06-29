@@ -1,10 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Step = {
   num: number;
@@ -86,6 +87,7 @@ const STEPS: Step[] = [
 ];
 
 export default function SetupGuideScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -132,7 +134,7 @@ export default function SetupGuideScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

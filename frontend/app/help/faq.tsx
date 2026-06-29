@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type QA = { q: string; a: string };
 type Section = { title: string; items: QA[] };
@@ -153,6 +154,7 @@ const FAQ: Section[] = [
 ];
 
 export default function FaqScreen() {
+  const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   // Keys are "section-index/item-index" to allow multiple to be open at once.
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -214,7 +216,7 @@ export default function FaqScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

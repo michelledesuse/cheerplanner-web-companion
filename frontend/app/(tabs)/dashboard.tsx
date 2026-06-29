@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -46,8 +46,11 @@ type ReminderItem = {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
-  useTheme(); // subscribe to theme version so this screen re-renders on theme change
+  const { refreshPresets } = useTheme(); // subscribe + sync the household theme on first mount
   const styles = useThemedStyles(makeStyles);
+  // Bootstrap: pull the saved household preset once after login so a cold start
+  // with empty AsyncStorage paints the user's real theme (not the default).
+  useEffect(() => { refreshPresets(); }, [refreshPresets]);
   const [data, setData] = useState<Dashboard | null>(null);
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);

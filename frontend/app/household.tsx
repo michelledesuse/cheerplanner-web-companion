@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from "react";
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   TextInput, Alert, Share, KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,11 +10,13 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Member = { id: string; email: string; name?: string | null };
 
 export default function HouseholdScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +185,7 @@ export default function HouseholdScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

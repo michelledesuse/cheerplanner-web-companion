@@ -11,6 +11,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { api, TOKEN_KEY } from "@/src/api/client";
 import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 
 type Athlete = { id: string; name: string };
@@ -23,6 +24,7 @@ const TITLES: Record<string, string> = {
 };
 
 export default function ImportRunner() {
+  const styles = useThemedStyles(makeStyles);
   const { kind } = useLocalSearchParams<{ kind: string }>();
   const router = useRouter();
   const [stage, setStage] = useState<"pick" | "loading" | "preview" | "done">("pick");
@@ -306,6 +308,7 @@ export default function ImportRunner() {
 }
 
 function Header({ title, onBack }: { title: string; onBack: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <View style={styles.header}>
       <TouchableOpacity onPress={onBack} style={styles.iconBtn} testID="import-back">
@@ -318,6 +321,7 @@ function Header({ title, onBack }: { title: string; onBack: () => void }) {
 }
 
 function Chip({ label, active, onPress }: { label: string; active?: boolean; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity onPress={onPress} style={[styles.chip, active && styles.chipOn]}>
       <Text style={[styles.chipText, active && styles.chipTextOn]} numberOfLines={1}>{label}</Text>
@@ -325,7 +329,7 @@ function Chip({ label, active, onPress }: { label: string; active?: boolean; onP
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", padding: spacing.xl },
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },

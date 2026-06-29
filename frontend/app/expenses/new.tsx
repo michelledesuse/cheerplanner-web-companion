@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
+  View, Text, TextInput, TouchableOpacity, ScrollView, Alert,
   KeyboardAvoidingView, Platform, ActivityIndicator, Switch, Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -10,6 +10,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { todayISO, formatCurrency } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
@@ -17,6 +18,7 @@ type Athlete = { id: string; name: string; avatar_color?: string };
 
 export default function ExpenseForm() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const params = useLocalSearchParams<{ athlete_id?: string; id?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
@@ -321,7 +323,7 @@ export default function ExpenseForm() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = () => ({
   safe: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
