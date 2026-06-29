@@ -1,0 +1,23 @@
+{
+  "summary": "Verified the Expenses tab default-sort fix in /app/frontend/app/(tabs)/expenses.tsx. Logged in as applereview@cheerplanner.app, navigated to Money > Expenses. Confirmed sort-toggle label reads 'Date' on load. Created 3 test expenses with distinct incurred_on dates (2024-01-05, 2026-05-10, 2027-04-15) via POST /api/expenses, reloaded the screen, and read the visible row order. Result: earliest date (2024-01-05) at the TOP, latest (2027-04-15) at the BOTTOM with the seeded May 2026 rows in between — i.e. ascending order top-to-bottom. The user's specific example (May 2026 above April 2027) was directly confirmed. Tapping the toggle switches label to 'Due date'; tapping again returns to 'Date' with ascending incurred_on order preserved. ALL/OPEN/PAID filter chips and the athlete filter preserve ascending order within the filtered subset. Test data was cleaned up via DELETE /api/expenses/{id}.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_36.json"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "expenses.tsx sortMode state value is still 'recent' (internal), which is fine since only the UI label changed to 'Date'. Optional: rename to 'incurred' for clarity.",
+    "POST /api/expenses returns List[ExpenseEntry] (not a single object); confirmed working as designed and not a frontend concern for this bug."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "N/A (frontend-only request)", "frontend": "100%" },
+  "seed_data_creation": "Temporarily created 3 expenses (ZTEST_EARLY_2024, ZTEST_MID_2026, ZTEST_LATE_2027) via API to verify ordering across distinct dates; all three were deleted at end of test (status 200).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Seeded data for applereview account has all expenses dated 2026-05-18, so verifying ascending order requires creating test expenses with distinct incurred_on values via POST /api/expenses (returns a List). Auth token is stored in localStorage under key 'ct_auth_token' as a JSON-quoted string (call JSON.parse before using as Bearer). Bottom nav 'Expenses' link routes to /(tabs)/expenses.",
+  "rca_of_issue": "Original bug: default 'Recent' sort relied on backend GET /api/expenses ordering, which returns DESC by incurred_on. Fix in expenses.tsx (lines 116-126): default sortMode 'recent' now explicitly sorts client-side ascending by incurred_on (no-date items sink), and the chip label was updated from 'Recent' to 'Date'. Verified live: 2024-01-05 row appears above 2026-05-10 which appears above 2027-04-15."
+}

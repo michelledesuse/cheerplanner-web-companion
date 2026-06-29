@@ -113,6 +113,16 @@ export default function ExpensesTab() {
         if (!dbb) return -1;
         return da < dbb ? -1 : da > dbb ? 1 : 0;
       });
+    } else {
+      // Default "Date" view: ascending by date (earliest first, latest last)
+      list = [...list].sort((a, b) => {
+        const da = a.incurred_on || "";
+        const dbb = b.incurred_on || "";
+        if (!da && !dbb) return 0;
+        if (!da) return 1;
+        if (!dbb) return -1;
+        return da < dbb ? -1 : da > dbb ? 1 : 0;
+      });
     }
     return list;
   }, [expenses, filter, athleteFilter, sortMode]);
@@ -307,7 +317,7 @@ export default function ExpensesTab() {
                   color={sortMode === "due" ? colors.accent : colors.textSecondary}
                 />
                 <Text style={[styles.sortText, sortMode === "due" && styles.sortTextOn]}>
-                  {sortMode === "due" ? "Due date" : "Recent"}
+                  {sortMode === "due" ? "Due date" : "Date"}
                 </Text>
               </TouchableOpacity>
             </View>
