@@ -1,9 +1,17 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { colors } from "@/src/theme";
 import { Platform } from "react-native";
 
+import { colors } from "@/src/theme";
+import { useTheme } from "@/src/context/ThemeContext";
+
+/**
+ * Tab bar layout. Reads palette via `useTheme()` so the tabs re-render
+ * (and thus pick up new accent/card colors) every time the user changes
+ * the theme in Settings → Appearance.
+ */
 export default function TabsLayout() {
+  useTheme(); // subscribe to theme version so this layout re-renders on theme change
   return (
     <Tabs
       screenOptions={{
@@ -63,7 +71,6 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
-      {/* Hidden routes — accessible via navigation but not shown in the tab bar */}
       <Tabs.Screen name="reminders" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
