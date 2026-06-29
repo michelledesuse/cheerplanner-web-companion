@@ -80,11 +80,26 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     try {
       const [presetsRes, householdRes] = await Promise.all([
         api.get<{ presets: ThemePreset[] }>("/themes/presets"),
-        api.get<{ theme?: { preset_id?: string } }>("/household"),
+        api.get<{ theme?: { preset_id?: string; custom?: Partial<ThemePreset> } }>("/household"),
       ]);
       const list = presetsRes.data?.presets || [];
       setPresets(list);
-      const wantedId = householdRes.data?.theme?.preset_id || "red_white";
+      const theme = householdRes.data?.theme;
+      const wantedId = theme?.preset_id || "red_white";
+      // Custom theme: the palette lives in household.theme.custom (not the preset list).
+      if (wantedId === "custom" && theme?.custom) {
+        const custom = {
+          id: "custom",
+          name: "Custom",
+          tabActive: theme.custom.tabActive || theme.custom.accent,
+          ...theme.custom,
+        } as ThemePreset;
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(custom));
+        setPalette(applyToPalette(custom));
+        setPresetId("custom");
+        setVersion((v) => v + 1);
+        return;
+      }
       const wanted = list.find((p) => p.id === wantedId) || list[0];
       if (wanted) {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(wanted));
@@ -106,7 +121,21 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(preset));
     } catch {}
     try {
-      await api.patch("/household/theme", { preset_id: preset.id });
+      if (preset.id === "custom") {
+        await api.patch("/household/theme", {
+          preset_id: "custom",
+          custom: {
+            accent: preset.accent,
+            accentSubtle: preset.accentSubtle,
+            bg: preset.bg,
+            card: preset.card,
+            textPrimary: preset.textPrimary,
+            tabActive: preset.tabActive,
+          },
+        });
+      } else {
+        await api.patch("/household/theme", { preset_id: preset.id });
+      }
     } catch {
       // theme stays locally even if server save fails; will retry on next pick
     }
