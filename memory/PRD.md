@@ -58,3 +58,9 @@ A mobile app for cheer parents to keep every dollar, due date, hotel block, and 
 
 ## Smart growth hook
 Fundraisers tracker — quietly turns parents into evangelists by letting them celebrate raised totals, share with their team, and offset upcoming dues. Future hook: shareable fundraiser links.
+
+## v2.2 — Imports & sort (latest)
+- Expenses tab: sort toggle "Recent" ↔ "Due date" (ascending by `due_date`, no-due-date items last). Client-side, instant.
+- Import hub: global CSV/XLSX format toggle; all templates downloadable as `.csv` or `.xlsx` (openpyxl). XLSX includes a "Reference" sheet (valid Categories / accepted options).
+- New "Teams to Watch" import: template + parser + commit. Rows match a Competition by name and append a `TeamToWatch` ({name,date,location,performance_time}); unmatched competition names auto-create a placeholder competition (with a warning). Rows missing competition OR team name are skipped.
+- `ALLOWED_IMPORT_KINDS` now includes `teams_to_watch`.
