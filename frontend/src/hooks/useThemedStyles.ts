@@ -24,8 +24,9 @@ export type ThemePalette = typeof defaultColors;
 export function useThemedStyles<T extends Record<string, any>>(
   factory: (c: ThemePalette) => T,
 ): T {
-  const { version } = useTheme();
-  // We deliberately re-create on every version bump so primitive colors are fresh.
+  const { palette } = useTheme();
+  // `palette` is a fresh object on every theme change, so the memo rebuilds
+  // and primitive colors (bg / card / textPrimary / accent) stay live.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => StyleSheet.create(factory(defaultColors)) as unknown as T, [version, factory]);
+  return useMemo(() => StyleSheet.create(factory(palette)) as unknown as T, [palette, factory]);
 }

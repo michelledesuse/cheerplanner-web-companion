@@ -1,21 +1,26 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
-import { colors } from "@/src/theme";
 
 // Keep the native splash visible from cold start until icon fonts register.
 SplashScreen.preventAutoHideAsync();
 
 // Renders the navigator inside ThemeProvider so the screen background tracks
-// the active theme live (subscribes to the theme version bump via useTheme).
+// the active theme live. react-native-screens captures `contentStyle` once, so
+// we also wrap the Stack in a themed View that repaints on every palette change.
 function ThemedStack() {
-  useTheme();
-  return <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg } }} />;
+  const { palette } = useTheme();
+  return (
+    <View style={{ flex: 1, backgroundColor: palette.bg }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }} />
+    </View>
+  );
 }
 
 export default function RootLayout() {

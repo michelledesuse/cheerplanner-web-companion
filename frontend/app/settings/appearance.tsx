@@ -1,14 +1,16 @@
 import React, { useEffect } from "react";
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTheme, ThemePreset } from "@/src/context/ThemeContext";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { colors, radius, spacing, typography } from "@/src/theme";
 
 export default function AppearanceScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const { presets, presetId, refreshPresets, applyPreset } = useTheme();
 
   useEffect(() => { refreshPresets(); }, [refreshPresets]);
@@ -53,6 +55,7 @@ export default function AppearanceScreen() {
 }
 
 function PresetCard({ preset, selected, onPress }: { preset: ThemePreset; selected: boolean; onPress: () => void }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -80,20 +83,20 @@ function PresetCard({ preset, selected, onPress }: { preset: ThemePreset; select
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
   header: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
+    borderBottomWidth: 1, borderBottomColor: c.borderSoft,
   },
-  headerTitle: { ...typography.h3, color: colors.textPrimary },
+  headerTitle: { ...typography.h3, color: c.textPrimary },
   scroll: { padding: spacing.lg, paddingBottom: spacing.xxl },
-  intro: { ...typography.body, color: colors.textSecondary, lineHeight: 20, marginBottom: spacing.lg },
+  intro: { ...typography.body, color: c.textSecondary, lineHeight: 20, marginBottom: spacing.lg },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md, justifyContent: "flex-start" },
   card: {
-    width: "47%", backgroundColor: colors.card,
-    borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+    width: "47%", backgroundColor: c.card,
+    borderRadius: radius.lg, borderWidth: 1, borderColor: c.border,
     overflow: "hidden",
   },
   swatch: { height: 70, flexDirection: "row" },
@@ -102,9 +105,9 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",
     paddingHorizontal: spacing.md, paddingVertical: 10,
   },
-  cardName: { ...typography.bodyMedium, color: colors.textPrimary, fontSize: 13, flex: 1 },
+  cardName: { ...typography.bodyMedium, color: c.textPrimary, fontSize: 13, flex: 1 },
   checkBadge: {
     width: 22, height: 22, borderRadius: 11, alignItems: "center", justifyContent: "center",
   },
-  note: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.lg, lineHeight: 18 },
+  note: { ...typography.caption, color: c.textTertiary, marginTop: spacing.lg, lineHeight: 18 },
 });

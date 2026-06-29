@@ -1,0 +1,29 @@
+{
+  "summary": "BUG FIX VERIFIED — Live theme repaint is now working correctly across ALL 6 bottom tabs without any swipe-back. Logged in as applereview@cheerplanner.app, Settings > Appearance > tapped Green & Black (testID=theme-preset-green_black). Dashboard, Athletes, Expenses/Money, Comps, Schedule, Calendar all flipped LIVE: outer container bg = rgb(15, 23, 42) = #0F172A (the dark navy from preset), greeting/text = rgb(248, 250, 252) = #F8FAFC (light text — readable), accent + tile icons + tab-bar active tint turned green. Then tapped Red & White (testID=theme-preset-red_white) and every screen repainted to a light background (bg = rgb(248, 250, 252) = #F8FAFC on Appearance + Dashboard immediately after selection; greeting/tile $-values back to rgb(15, 23, 42) dark text). Monetary amounts on dashboard ($380.00 Paid YTD, $240.00 Raised), Money tab ($1,080 Open balance, $380 Paid YTD), athletes Open balance ($1,080.00), and reminder amounts ($350.00 Tuition, $250 Choreography) all use textPrimary color and stay READABLE in both themes. Root Stack background (app/_layout.tsx ThemedStack View) repaints with the palette — no persistent light flash behind dark screens. Regression PASS: athlete detail opens, Money Expenses/Payments/Fundraisers segments all switchable, Competitions list + Summit Championship card visible, Schedule list shows upcoming items, Calendar day-select still highlights day 29 and shows reminder under it. Household theme has been restored to red_white via the in-app Appearance picker (PATCH /api/household/theme {preset_id:red_white} fired successfully) at the end of this session.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Cold-start (fresh browser context, no AsyncStorage)",
+        "issues": [
+          "When the app loads with an empty AsyncStorage cache, the dashboard initially renders using the theme.ts module defaults (bg=#FAFAF9 stone-50) rather than the household's stored preset (red_white bg=#F8FAFC). The two colors are nearly indistinguishable (both near-white) so this is cosmetic only, but the household theme is not fetched/applied until the user visits Settings > Appearance (where refreshPresets() runs). Not blocking, not in scope of this iteration's bug, but worth a follow-up: trigger refreshPresets() once at the top of AuthProvider / on dashboard mount so first-paint matches household theme."
+        ]
+      }
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Optional follow-up (out of scope of this iter): call refreshPresets() once on app bootstrap (e.g. in ThemeProvider useEffect after AuthContext signals authenticated, or inside (tabs)/_layout) so the household theme is applied on cold-start rather than only after the user opens Settings > Appearance. Currently a fresh load briefly shows theme.ts default #FAFAF9 instead of the stored red_white #F8FAFC."
+  ],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only request)", "frontend": "100% (5 of 5 review-request scenarios pass — live repaint dark→all-tabs, live repaint light→all-tabs, monetary readability on both themes, root background matches theme, regression actions all working)"},
+  "seed_data_creation": "None; reused applereview@cheerplanner.app household.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The fresh-palette-object-via-context + useThemedStyles-keyed-on-palette + themed-View-around-Stack fix landed and is propagating LIVE across all 6 bottom tabs. Concrete DOM evidence captured during this run: outer SafeAreaView div bg went from rgb(248,250,252) → rgb(15,23,42) → rgb(248,250,252) without any back-navigation, and greeting <Text> color went from rgb(15,23,42) → rgb(248,250,252) → rgb(15,23,42) in lock-step. Household theme has been left on red_white (the production default). One non-blocking observation: on a fully cold start with empty AsyncStorage, the dashboard initial paint uses theme.ts defaults (#FAFAF9) rather than the stored household preset; refreshPresets fires only when Appearance screen is opened. The two near-whites differ by ~2 in the RGB blue channel so it's effectively invisible, but worth a one-line follow-up to call refreshPresets() at app bootstrap.",
+  "rca_of_issue": "Previous root-cause from iteration_28 confirmed: useThemedStyles consuming a static `colors` singleton (mutated in place) returned the SAME memoized StyleSheet across theme changes for bg/card/textPrimary slots while accent slots got fresh class names from RN-Web's atomic CSS allocator. Fix landed in iteration 29: (a) ThemeContext now sets `palette` in React state with a fresh object identity on every applyPreset/refreshPresets, (b) useThemedStyles reads `palette` from context and depends on its object identity in useMemo, so the factory re-runs and a new StyleSheet is registered on every theme change, (c) app/_layout.tsx wraps <Stack> in <View style={{flex:1,backgroundColor:palette.bg}}> so react-native-screens captured-once contentStyle is bypassed, and (d) appearance.tsx migrated to the hook. Verification confirmed all four code paths work in the live web preview."
+}
