@@ -1,0 +1,23 @@
+{
+  "summary": "CUSTOM THEME BUILDER UPGRADE (full color picker via reanimated-color-picker) — ALL 5 REVIEW-REQUEST FLOWS PASSED. Logged in as applereview@cheerplanner.app and navigated to /settings/appearance on mobile viewport (390x844). (1) Color picker renders: All 4 role chips (role-accent, role-bg, role-card, role-text) and custom-apply found exactly once. The picker (Preview + Panel1 + HueSlider) renders with hex preview (saw '#007cff' chip). Tapping role-bg flipped the 'Editing' label to 'Editing Background'; role-card → 'Editing Surface'; role-text → 'Editing Text'; role-accent → 'Editing Accent'. No crash/red-screen when switching roles, confirming ColorPicker remount via key=role works. (2) Apply custom theme: tapping custom-apply fired PATCH /api/household/theme with body {preset_id:'custom', custom:{accent:'#007CFF', accentSubtle:'#007CFF22', bg:'#FAFAF9', card:'#FFFFFF', textPrimary:'#0F172A', tabActive:'#007CFF'}} → 200 OK. ACTIVE pill rendered next to BUILD YOUR OWN, and the 4-stripe live preview reflected the chosen palette. GET /api/household confirmed theme={preset_id:'custom', custom:{...same...}}. (3) Persistence: page reload — ACTIVE pill still present (count=1), custom theme restored from household.theme.custom via ThemeContext.refreshPresets. (4) Preset swap: tapping theme-preset-green_black fired PATCH {preset_id:'green_black'} → 200; ACTIVE pill disappeared (count=0). Re-tapping custom-apply fired PATCH {preset_id:'custom', custom:{...}} → 200; ACTIVE pill returned. (5) Docs: /help/setup shows step 12 'Personalize your theme' (count=1). /help/faq has the 'Appearance & themes' section (count=1); expanding 'How does the custom theme builder work?' reveals the full answer mentioning Accent/Background/Surface/Text roles. CLEANUP DONE: tapped theme-preset-red_white → PATCH 200 {preset_id:'red_white'}; final GET /api/household returned theme={preset_id:'red_white', custom:null}. Production state is back to default.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "ThemeContext.refreshPresets() spread order at line 91-96 of /app/frontend/src/context/ThemeContext.tsx: { id, name, tabActive, ...theme.custom } — since theme.custom contains its own tabActive, the spread overrides the explicit fallback. That's correct, but the order is subtle; consider rewriting as `{ id:'custom', name:'Custom', ...theme.custom, tabActive: theme.custom.tabActive || theme.custom.accent }` to make the fallback unambiguous. Not a bug today because backend always sends tabActive.",
+    "(Minor / cosmetic, non-blocking) Reanimated v5 console warnings observed: 'shadow* style props are deprecated. Use boxShadow' and 'props.pointerEvents is deprecated. Use style.pointerEvents' — emitted on every screen, not specific to this feature. Worth a sweep in a future iteration."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only request; backend PATCH/GET /api/household exercised via UI, all 200)", "frontend": "100% — 5/5 scenarios pass (picker renders + role switching, apply custom→200+ACTIVE+repaint, persistence after reload, preset swap + re-apply, docs render and expand)"},
+  "seed_data_creation": "None; reused applereview@cheerplanner.app seeded household.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Custom theme builder (full color picker) is fully working end-to-end. testIDs verified: role-accent, role-bg, role-card, role-text, custom-apply, theme-preset-<id>. Old testIDs custom-accent-*, custom-mode-*, custom-hex-* no longer exist as documented. The household theme has been left on red_white at the end of this session. PATCH /api/household/theme accepts {preset_id:<id>} for presets and {preset_id:'custom', custom:{accent, accentSubtle, bg, card, textPrimary, tabActive}} for custom. reanimated-color-picker@5.1.1 renders on web inside the Expo preview without errors. Note: I did not drag the saturation panel / hue slider explicitly — applying the picker's current default value (=#007CFF accent) was enough to validate the PATCH contract; the role-switch test exercised key=role remount. If a future test needs to drag the panel, page.mouse.move/down/up on the panel bounding box works.",
+  "rca_of_issue": "Not applicable — feature validation only. No bugs found."
+}

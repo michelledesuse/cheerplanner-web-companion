@@ -84,6 +84,13 @@ const STEPS: Step[] = [
     body:
       "Already track expenses in Excel or Google Sheets? Open Settings → Import. Download the CSV template, paste your data, and import in one tap. The same flow works for athletes, competitions, payments, and schedule events.",
   },
+  {
+    num: 12,
+    title: "Personalize your theme",
+    body:
+      "Open Settings → Appearance to recolor the whole app for your household. Pick one of the 12 ready-made presets (Red & White, Royal Blue, Green & Black and more — including dark themes), or scroll to Build your own to create a custom theme. The custom builder gives you a full color picker and up to 4 colors — Accent, Background, Surface, and Text — so you can match your gym's colors exactly. Changes apply instantly across every screen.",
+    tip: "Themes are shared household-wide and sync to every member's phone, so pick something everyone likes.",
+  },
 ];
 
 export default function SetupGuideScreen() {

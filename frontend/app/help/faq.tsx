@@ -132,6 +132,31 @@ const FAQ: Section[] = [
     ],
   },
   {
+    title: "Appearance & themes",
+    items: [
+      {
+        q: "Can I change the app's colors?",
+        a:
+          "Yes. Open Settings → Appearance. Choose from 12 built-in presets (including dark themes like Green & Black and Red & Black), or scroll down to Build your own to create a fully custom theme.",
+      },
+      {
+        q: "How does the custom theme builder work?",
+        a:
+          "Under Build your own you get a full color picker and four color roles — Accent, Background, Surface, and Text. Tap a role to select it, drag the picker to choose its color, watch the live preview update, then tap Apply custom theme. Set as many or as few of the four colors as you like.",
+      },
+      {
+        q: "Do theme changes affect everyone in my household?",
+        a:
+          "Yes — the theme is saved for the whole household and syncs to every member's phone automatically. It also persists when you reopen the app.",
+      },
+      {
+        q: "A screen still shows the old colors — what do I do?",
+        a:
+          "Theme changes now apply instantly across the whole app. If you ever see a stale color, just navigate away and back; the screen will already be repainted.",
+      },
+    ],
+  },
+  {
     title: "Account & privacy",
     items: [
       {
