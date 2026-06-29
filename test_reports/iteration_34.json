@@ -1,0 +1,31 @@
+{
+  "summary": "v1.0.8 Team logo upload feature — ALL backend & frontend flows PASS after `supervisorctl restart expo` (Metro was running in CI mode and was serving a stale bundle that didn't include the new Logo section). BACKEND (7/7 pytest tests pass, /app/backend/tests/test_team_logo_image.py): POST /api/teams with logo_image (data:image/png;base64,...) returns 200 with logo_image persisted; GET /api/teams includes the logo_image data URL; PATCH updates logo_image to a new value (verified via GET); PATCH with logo_image:'' clears the field; teams created without a logo can later acquire one via PATCH; DELETE still works. FRONTEND (Playwright mobile viewport 390x844, logged in as applereview@cheerplanner.app): (1) Seeded a team WITH logo_image and a team WITHOUT logo via API using user token. /teams screen renders the logo team's row with an <img> element (1 img total on page), and the no-logo team's row with the colored swatch — verified DOM (firstChild bgColor = team color #F59E0B for no-logo, <img> child for logo). (2) Tapping teams-add opens the New team modal: testIDs team-logo-pick + team-logo-upload exist; 'Logo (optional)' label, 'Upload logo' button, and 'Shown as the team icon across the app.' hint all render correctly. Filling name+season and tapping Save creates the team (verified via GET) without a logo, modal closes. (3) Tapping the logo team's row (team-row-<id>) opens Edit team modal pre-filled with name=TEST_LogoSeed, season=2025-2026, color=#22C55E; logo preview <img> renders inside team-logo-pick; button text is 'Change logo'; team-logo-remove button visible. (4) Tapping team-logo-remove + team-save-btn → backend GET returns logo_image='' (cleared) and the row in /teams reverts to the color swatch (0 imgs, firstChild bgColor=rgb(34,197,94)=team color). (5) Theme regression: Teams screen repaints with active theme — body bg + row card bg are themed colors (light theme during run). All cleanup teams deleted via API at end of test. Note: expo-image-picker's native dialog is not automatable on web — UI render verified, picker invocation not attempted (per request).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_logo_image.py",
+    "/app/test_reports/pytest/pytest_team_logo_image.xml"
+  ],
+  "action_items": [
+    "Heads-up for main agent: Metro/expo is running in CI mode (`Metro is running in CI mode, reloads are disabled.` in expo.out.log). Any code changes to /app/frontend require `sudo supervisorctl restart expo` to be picked up — before this restart, the deployed bundle did NOT include the new Logo section in the New/Edit team modal (testIDs team-logo-pick/team-logo-upload missing from DOM, 'Logo (optional)' label absent), even though /app/frontend/app/teams.tsx clearly contained the code on disk. After restart, everything works. Recommend either documenting this in workflow or removing CI=true to enable watch mode."
+  ],
+  "critical_code_review_comments": [
+    "teams.tsx L87 sends `logo_image: logoImage || \"\"` — empty string (not null) — to PATCH. Backend update_team accepts this because it only filters `if v is not None`, so the empty string is set on the doc. Works, but the field then stores '' (empty string) instead of being removed. Frontend conditional `t.logo_image ? <Image/> : <View swatch/>` treats '' as falsy so display is correct. Consider sending null and including it in updates (would need to relax `if v is not None` filter), or normalize to None in backend when value is ''.",
+    "teams.tsx L13 Team type lacks logo_shape — backend Team model has logo_shape ('square'|'circle') which is sent in responses but unused on frontend. Either drop from backend or wire into the UI (the original request mentioned logo_shape as a crop preference).",
+    "ImagePicker.MediaTypeOptions is deprecated in expo-image-picker 17 (use `mediaTypes: ['images']` array form). Currently still works but emits deprecation warning. teams.tsx L70."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_team_logo_image.py (new — 7 pytest tests for logo_image POST/GET/PATCH/clear/delete round-trip)"
+  ],
+  "success_rate": {"backend": "100% (7/7 pytest)", "frontend": "100% (5/5 review-request flows)"},
+  "seed_data_creation": "Created 2 seed teams + 1 UI-created team during tests via /api/teams. All 3 deleted via DELETE /api/teams/{id} at end of session — verified household has only the original 'Senior Elite Coed 5' and 'Youth Level 2' teams remaining.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Team logo upload feature verified end-to-end. testIDs working: teams-add, teams-back, team-row-<id>, team-delete-<id>, team-name-input, team-season-input, team-color, team-logo-pick, team-logo-upload, team-logo-remove, team-save-btn. Auth token is stored in localStorage under key `ct_auth_token` as a JSON-stringified string (so strip leading/trailing quotes before using as Bearer). Backend contract: POST/PATCH /api/teams accept `logo_image` (base64 data URL string) and `logo_shape` ('square'|'circle'). GET /api/teams returns these fields. PATCH with logo_image:'' clears the field (stored as empty string, treated as falsy by UI). expo-image-picker's launchImageLibraryAsync cannot be triggered in Playwright/web — only the surrounding UI was verified. EXPO IMPORTANT: Metro is in CI mode with no watch — must `sudo supervisorctl restart expo` after any frontend code change to see updates.",
+  "rca_of_issue": "Initial test runs falsely showed the Logo section missing from the modal and row icons not rendering as images. RCA: Metro bundler is configured with `CI=true` (per expo.out.log: 'Metro is running in CI mode, reloads are disabled.'), so it serves the bundle generated at start-up and does NOT pick up source file changes. After `sudo supervisorctl restart expo`, a fresh bundle was generated containing the new teams.tsx Logo UI and the conditional render of <Image> for rows with logo_image — all flows then passed. Mitigation: main agent should restart expo after frontend edits, or remove CI=true from the expo startup env to enable watch mode."
+}
