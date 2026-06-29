@@ -64,3 +64,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Import hub: global CSV/XLSX format toggle; all templates downloadable as `.csv` or `.xlsx` (openpyxl). XLSX includes a "Reference" sheet (valid Categories / accepted options).
 - New "Teams to Watch" import: template + parser + commit. Rows match a Competition by name and append a `TeamToWatch` ({name,date,location,performance_time}); unmatched competition names auto-create a placeholder competition (with a warning). Rows missing competition OR team name are skipped.
 - `ALLOWED_IMPORT_KINDS` now includes `teams_to_watch`.
+
+## Backlog (deferred to a future session)
+- Shareable fundraiser links (P2).
+- Teams-to-Watch preview screen: add a "Create missing competitions" confirmation toggle (like Travel import) so a typo'd competition name doesn't silently create a placeholder.
