@@ -411,6 +411,7 @@ function TemplatePicker({
   onPick: (t: Template) => void;
   onSeedDefault: () => void;
 }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
