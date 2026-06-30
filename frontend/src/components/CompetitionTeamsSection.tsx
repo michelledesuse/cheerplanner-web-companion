@@ -8,9 +8,10 @@ import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import DebouncedTextInput from "@/src/components/DebouncedTextInput";
+import TeamAvatar from "@/src/components/TeamAvatar";
 import { formatDate } from "@/src/utils/format";
 
-export type Team = { id: string; name: string; color?: string; season?: string };
+export type Team = { id: string; name: string; color?: string; season?: string; logo_image?: string | null };
 export type TeamMeetTime = {
   team_id: string;
   date?: string | null;                  // ISO YYYY-MM-DD — performance day
@@ -168,7 +169,7 @@ export default function CompetitionTeamsSection({
                 style={[styles.teamChip, on && { backgroundColor: t.color || colors.accent, borderColor: t.color || colors.accent }]}
                 testID={`comp-team-${t.id}`}
               >
-                <View style={[styles.teamDot, { backgroundColor: on ? "white" : (t.color || colors.accent) }]} />
+                <TeamAvatar logoImage={t.logo_image} color={t.color} size={18} dotColor={on ? "white" : undefined} />
                 <Text style={[styles.teamChipText, on && { color: "white" }]} numberOfLines={1}>{t.name}</Text>
                 {on && <Ionicons name="checkmark-circle" size={14} color="white" />}
               </TouchableOpacity>
@@ -199,7 +200,7 @@ export default function CompetitionTeamsSection({
             return (
               <View key={tid} style={styles.meetTeamWrap}>
                 <View style={styles.meetTeamHeader}>
-                  <View style={[styles.teamDot, { backgroundColor: t.color || colors.accent }]} />
+                  <TeamAvatar logoImage={t.logo_image} color={t.color} size={22} />
                   <Text style={styles.meetTeam}>{t.name}</Text>
                   <View style={{ flex: 1 }} />
                   <TouchableOpacity

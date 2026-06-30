@@ -9,6 +9,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
+import TeamAvatar from "@/src/components/TeamAvatar";
 
 const DEFAULT_COLOR = "#0EA5E9";
 
@@ -23,7 +24,7 @@ type Athlete = {
   team_ids?: string[];
 };
 
-type Team = { id: string; name: string; color?: string; season?: string };
+type Team = { id: string; name: string; color?: string; season?: string; logo_image?: string | null };
 
 export default function AthleteForm() {
   const styles = useThemedStyles(makeStyles);
@@ -239,7 +240,7 @@ export default function AthleteForm() {
                     style={[styles.teamChip, on && { backgroundColor: t.color || colors.accent, borderColor: t.color || colors.accent }]}
                     testID={`team-chip-${t.id}`}
                   >
-                    <View style={[styles.teamDot, { backgroundColor: on ? "white" : (t.color || colors.accent) }]} />
+                    <TeamAvatar logoImage={t.logo_image} color={t.color} size={18} dotColor={on ? "white" : undefined} />
                     <Text style={[styles.teamChipText, on && { color: "white" }]} numberOfLines={1}>{t.name}</Text>
                   </TouchableOpacity>
                 );
