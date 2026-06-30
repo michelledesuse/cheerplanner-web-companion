@@ -300,7 +300,7 @@ async def calendar_feed(
     teams_by_id = {
         t["id"]: t async for t in db.teams.find(
             {"user_id": {"$in": member_ids}},
-            {"_id": 0, "id": 1, "name": 1, "color": 1},
+            {"_id": 0, "id": 1, "name": 1, "color": 1, "logo_image": 1},
         )
     }
     async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
@@ -330,6 +330,7 @@ async def calendar_feed(
                     "time": mt_time,
                     "subtitle": " · ".join(subtitle_bits),
                     "color": team_color,
+                    "logo_image": (t or {}).get("logo_image"),
                     "link": comp_link,
                 })
             perf_time = mt.get("performance_time")
@@ -345,6 +346,7 @@ async def calendar_feed(
                     "time": perf_time,
                     "subtitle": " · ".join(subtitle_bits),
                     "color": team_color,
+                    "logo_image": (t or {}).get("logo_image"),
                     "link": comp_link,
                 })
             if not mt_time and not perf_time and mt.get("date"):
@@ -355,6 +357,7 @@ async def calendar_feed(
                     "title": f"{team_name} performance day",
                     "subtitle": perf_loc,
                     "color": team_color,
+                    "logo_image": (t or {}).get("logo_image"),
                     "link": comp_link,
                 })
 

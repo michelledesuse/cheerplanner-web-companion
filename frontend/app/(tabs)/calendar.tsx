@@ -12,6 +12,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDateLong, todayISO } from "@/src/utils/format";
+import TeamAvatar from "@/src/components/TeamAvatar";
 
 type CalEvent = {
   id: string;
@@ -21,6 +22,7 @@ type CalEvent = {
   subtitle?: string;
   amount?: number;
   color: string;
+  logo_image?: string | null;
   link?: string;
 };
 
@@ -155,9 +157,13 @@ export default function CalendarTab() {
                 style={styles.eventRow}
                 testID={`event-${e.id}`}
               >
-                <View style={[styles.eventIcon, { backgroundColor: e.color + "22" }]}>
-                  <Ionicons name={KIND_ICONS[e.kind] || "calendar"} size={18} color={e.color} />
-                </View>
+                {e.logo_image ? (
+                  <TeamAvatar logoImage={e.logo_image} color={e.color} size={36} />
+                ) : (
+                  <View style={[styles.eventIcon, { backgroundColor: e.color + "22" }]}>
+                    <Ionicons name={KIND_ICONS[e.kind] || "calendar"} size={18} color={e.color} />
+                  </View>
+                )}
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <Text style={styles.eventTitle}>{e.title}</Text>
                   {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}

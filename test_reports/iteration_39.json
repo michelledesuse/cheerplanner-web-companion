@@ -1,0 +1,31 @@
+{
+  "summary": "Verified v2.2 bug fix: team logos now appear on the Calendar tab's day-detail rows for competition team_meet and team_performance entries. Backend: 7/7 pytest cases pass in /app/backend/tests/test_calendar_team_logo.py — /api/calendar returns a `logo_image` field on team_meet/team_performance items, valid base64 data URI (Senior Elite Coed 5), and team_to_watch / other kinds carry no logo. Frontend: navigated calendar to July 2026, tapped day 8 (Wed, 2026-07-08), confirmed the two rows 'Senior Elite Coed 5 — meet' and 'Senior Elite Coed 5 — performance' now render rounded <img> elements (hasImg=1, src starts with data:image/png;base64) in place of the generic people/ribbon Ionicons. Regression confirmed: Summit Championship and Stay (hotel) rows on the same day still render the colored Ionicons (trophy, bed) with no <img>. Tapping a team-meet row navigates to /competitions/{id} as expected. Initial UI run found the rendered HTML still using the old icon path because the Metro dev bundle was stale (CI mode, hot reload disabled); restarting expo via supervisor rebuilt the bundle and the fix then rendered correctly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calendar_team_logo.py",
+    "/app/test_reports/pytest/pytest_calendar_team_logo.xml"
+  ],
+  "action_items": [
+    "No code fix required. Note for E1: Metro is running in CI mode (no hot reload). After editing /app/frontend/app/(tabs)/calendar.tsx, always run `sudo supervisorctl restart expo` so the web bundle picks up changes before manual/UI testing — initial UI test in this iteration showed the OLD bundle because expo was not restarted by the prior edit."
+  ],
+  "critical_code_review_comments": [
+    "calendar.tsx correctly chooses TeamAvatar (Image) when e.logo_image is truthy and falls back to the colored Ionicons View otherwise — clean and readable.",
+    "backend/routers/calendar.py exposes logo_image only on team_meet/team_performance items (kept off team_to_watch as intended). Team lookup uses a single dict comprehension up-front so it scales fine for typical user team counts.",
+    "Optional: backend includes the entire base64 image inline on every team_meet/team_performance item; for users with many competitions and large team logos this could noticeably inflate the /api/calendar payload. A follow-up could send just a thumbnail or a logo URL reference."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_calendar_team_logo.py (new — pytest suite for this bug)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (logo render + regression + nav verified)"},
+  "seed_data_creation": "None — used existing seeded competitions for applereview@cheerplanner.app; verified team 'Senior Elite Coed 5' already has logo_image set.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Calendar event TouchableOpacities expose testID `event-<id>`; calendar header arrows are `undefined.header.leftArrow` / `undefined.header.rightArrow`; day cells expose `undefined.day_YYYY-MM-DD`. For team logos on calendar: navigate to July 2026, tap day 8 — Senior Elite Coed 5 has team_meet@01:00 and team_performance@14:30 there. Use EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env. Reminder: Metro is in CI mode; restart expo after frontend changes.",
+  "rca_of_issue": "Original bug RCA: backend /api/calendar omitted logo_image on team_meet/team_performance items and the calendar.tsx event row always rendered the generic Ionicon. Fix verified: routers/calendar.py now resolves the linked team (teams_by_id) and attaches logo_image to each team_meet / team_performance dict (lines 333, 349, 360). calendar.tsx renders <TeamAvatar logoImage={e.logo_image} ... /> when e.logo_image is truthy, otherwise the colored Ionicons View (lines 160-166). Verified end-to-end against backend JSON and the rendered DOM."
+}
