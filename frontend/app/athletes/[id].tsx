@@ -12,8 +12,10 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
+import TeamAvatar from "@/src/components/TeamAvatar";
 
-type Athlete = { id: string; name: string; team?: string; gym?: string; avatar_color?: string; avatar_image?: string | null; competition_ids?: string[] };
+type Team = { id: string; name: string; color?: string | null; logo_image?: string | null };
+type Athlete = { id: string; name: string; team?: string; gym?: string; team_ids?: string[] | null; avatar_color?: string; avatar_image?: string | null; competition_ids?: string[] };
 type Expense = { id: string; category: string; amount: number; paid_amount?: number; balance_due?: number; note?: string; incurred_on: string; due_date?: string; paid: boolean };
 type Payment = { id: string; amount: number; paid_on: string; method?: string; note?: string; applied_expense_ids?: string[]; allocations?: { expense_id: string; amount: number }[] };
 type Competition = { id: string; name: string; location?: string; event_date: string };
@@ -27,6 +29,7 @@ export default function AthleteDetail() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [tab, setTab] = useState<"expenses" | "payments" | "events">("expenses");
   const [loading, setLoading] = useState(true);
@@ -49,6 +52,7 @@ export default function AthleteDetail() {
       setPayments(p.data);
       setCompetitions(c.data);
       setEvents(s.data);
+      try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
     } finally { setLoading(false); setRefreshing(false); }
   }, [id]);
 
@@ -168,9 +172,23 @@ export default function AthleteDetail() {
             )}
           </View>
           <Text style={styles.athleteName}>{athlete?.name}</Text>
-          {(athlete?.team || athlete?.gym) && (
-            <Text style={styles.athleteMeta}>{[athlete?.team, athlete?.gym].filter(Boolean).join(" • ")}</Text>
-          )}
+          {(() => {
+            const at =
+              (athlete?.team_ids || []).map((tid) => teams.find((t) => t.id === tid)).find(Boolean) ||
+              (athlete?.team ? teams.find((t) => t.name.toLowerCase() === String(athlete.team).toLowerCase()) : undefined);
+            if (at) {
+              return (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <TeamAvatar logoImage={at.logo_image} color={at.color} size={18} />
+                  <Text style={styles.athleteMeta}>{[at.name, athlete?.gym].filter(Boolean).join(" • ")}</Text>
+                </View>
+              );
+            }
+            if (athlete?.team || athlete?.gym) {
+              return <Text style={styles.athleteMeta}>{[athlete?.team, athlete?.gym].filter(Boolean).join(" • ")}</Text>;
+            }
+            return null;
+          })()}
           <View style={styles.summaryRow}>
             <Stat label="Total spent" value={formatCurrency(totalSpent)} />
             <View style={styles.vdiv} />

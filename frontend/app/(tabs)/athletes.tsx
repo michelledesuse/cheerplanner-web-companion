@@ -16,13 +16,16 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency } from "@/src/utils/format";
+import TeamAvatar from "@/src/components/TeamAvatar";
 
+type Team = { id: string; name: string; color?: string | null; logo_image?: string | null };
 type Athlete = {
   id: string;
   name: string;
   role?: "athlete" | "coach";
   team?: string | null;
   gym?: string | null;
+  team_ids?: string[] | null;
   avatar_color?: string | null;
   avatar_image?: string | null;
 };
@@ -31,6 +34,7 @@ export default function AthletesScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [totals, setTotals] = useState<Record<string, { spent: number; paid: number; open: number }>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,6 +43,7 @@ export default function AthletesScreen() {
     try {
       const list = await api.get<Athlete[]>("/athletes");
       setAthletes(list.data);
+      try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
       const [exp, pay] = await Promise.all([api.get("/expenses"), api.get("/payments")]);
       const t: Record<string, { spent: number; paid: number; open: number }> = {};
       for (const a of list.data) t[a.id] = { spent: 0, paid: 0, open: 0 };
@@ -103,6 +108,9 @@ export default function AthletesScreen() {
           {athletes.map((a) => {
             const t = totals[a.id] || { spent: 0, paid: 0, open: 0 };
             const open = Math.max(0, t.open);
+            const athleteTeam =
+              (a.team_ids || []).map((id) => teams.find((tm) => tm.id === id)).find(Boolean) ||
+              (a.team ? teams.find((tm) => tm.name.toLowerCase() === String(a.team).toLowerCase()) : undefined);
             return (
               <TouchableOpacity
                 key={a.id}
@@ -128,7 +136,10 @@ export default function AthletesScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.meta}>{a.team || a.gym || (a.role === "coach" ? "Coach" : "Cheer athlete")}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
+                    {athleteTeam ? <TeamAvatar logoImage={athleteTeam.logo_image} color={athleteTeam.color} size={16} /> : null}
+                    <Text style={styles.meta}>{athleteTeam?.name || a.team || a.gym || (a.role === "coach" ? "Coach" : "Cheer athlete")}</Text>
+                  </View>
                   <View style={styles.statsRow}>
                     <Text style={styles.stat}>Spent <Text style={styles.statValue}>{formatCurrency(t.spent)}</Text></Text>
                     <Text style={styles.stat}>Paid <Text style={[styles.statValue, { color: colors.successText }]}>{formatCurrency(t.paid)}</Text></Text>

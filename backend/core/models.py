@@ -82,6 +82,7 @@ class ScheduleEvent(BaseModel):
     title: str
     location: Optional[str] = None
     address: Optional[str] = None  # NEW: full street address used by maps
+    team_id: Optional[str] = None  # NEW: optional link to a Team (shows its logo)
     date: str  # ISO YYYY-MM-DD
     start_time: Optional[str] = None  # "18:00"
     end_time: Optional[str] = None
@@ -97,6 +98,7 @@ class ScheduleEventCreate(BaseModel):
     title: str
     location: Optional[str] = None
     address: Optional[str] = None
+    team_id: Optional[str] = None
     date: str
     start_time: Optional[str] = None
     end_time: Optional[str] = None
@@ -110,6 +112,7 @@ class ScheduleEventUpdate(BaseModel):
     title: Optional[str] = None
     location: Optional[str] = None
     address: Optional[str] = None
+    team_id: Optional[str] = None
     date: Optional[str] = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None

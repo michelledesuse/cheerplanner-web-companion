@@ -12,12 +12,14 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDate } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
+import TeamAvatar from "@/src/components/TeamAvatar";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
+type Team = { id: string; name: string; color?: string; logo_image?: string | null };
 type Evt = {
   id: string; event_type: string; title: string; location?: string;
   date: string; start_time?: string; end_time?: string;
-  athlete_ids?: string[]; notes?: string;
+  athlete_ids?: string[]; notes?: string; team_id?: string | null;
   series_id?: string | null;
 };
 
@@ -35,6 +37,7 @@ export default function ScheduleTab() {
   const styles = useThemedStyles(makeStyles);
   const [events, setEvents] = useState<Evt[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
@@ -51,6 +54,7 @@ export default function ScheduleTab() {
     try {
       const [s, a] = await Promise.all([api.get<Evt[]>("/schedule"), api.get<Athlete[]>("/athletes")]);
       setEvents(s.data); setAthletes(a.data);
+      try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -209,6 +213,7 @@ export default function ScheduleTab() {
                 key={e.id}
                 e={e}
                 athletes={athletes}
+                teams={teams}
                 selectMode={selectMode}
                 selected={selectedIds.has(e.id)}
                 onPress={() => {
@@ -225,6 +230,7 @@ export default function ScheduleTab() {
                 key={e.id}
                 e={e}
                 athletes={athletes}
+                teams={teams}
                 selectMode={selectMode}
                 selected={selectedIds.has(e.id)}
                 onPress={() => {
@@ -242,11 +248,12 @@ export default function ScheduleTab() {
   );
 }
 
-function Row({ e, athletes, onPress, onLongPress, onDelete, selectMode, selected }: {
-  e: Evt; athletes: Athlete[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
+function Row({ e, athletes, teams, onPress, onLongPress, onDelete, selectMode, selected }: {
+  e: Evt; athletes: Athlete[]; teams: Team[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
   const color = TYPE_COLOR[e.event_type] || "#64748B";
+  const team = e.team_id ? teams.find((t) => t.id === e.team_id) : undefined;
   const fmt12 = (t?: string) => {
     if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";
     const [hS, m] = t.split(":");
@@ -275,6 +282,12 @@ function Row({ e, athletes, onPress, onLongPress, onDelete, selectMode, selected
           <Text style={styles.rowTitle} numberOfLines={1}>{e.title}</Text>
           {e.series_id ? <Ionicons name="repeat" size={14} color={colors.accent} /> : null}
         </View>
+        {team ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 3 }}>
+            <TeamAvatar logoImage={team.logo_image} color={team.color} size={16} />
+            <Text style={styles.rowTeam} numberOfLines={1}>{team.name}</Text>
+          </View>
+        ) : null}
         <Text style={styles.rowMeta}>
           {formatDate(e.date, { withYear: true })}{time ? ` • ${time}` : ""}
         </Text>
@@ -324,6 +337,7 @@ const makeStyles = (c: ThemePalette) => ({
   typeStripe: { width: 4, alignSelf: "stretch", borderRadius: 2 },
   rowTitle: { ...typography.bodyMedium, color: c.textPrimary },
   rowMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  rowTeam: { ...typography.caption, color: c.textPrimary, fontWeight: "700", fontSize: 12 },
   rowAthletes: { ...typography.caption, color: c.accent, marginTop: 2, fontWeight: "600" },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
   empty: { ...typography.h3, color: c.textPrimary, marginTop: spacing.sm },

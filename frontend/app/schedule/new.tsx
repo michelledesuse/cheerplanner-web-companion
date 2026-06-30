@@ -10,6 +10,7 @@ import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
+import TeamAvatar from "@/src/components/TeamAvatar";
 
 const TYPES = [
   { key: "practice", label: "Practice", icon: "barbell", color: "#EA580C" },
@@ -31,6 +32,7 @@ const FREQUENCIES = [
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type Athlete = { id: string; name: string; avatar_color?: string };
+type Team = { id: string; name: string; color?: string; logo_image?: string | null };
 type Rule = { frequency: string; days_of_week: number[]; until: string };
 
 function defaultUntil(fromISO: string): string {
@@ -62,6 +64,8 @@ export default function ScheduleForm() {
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamId, setTeamId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Recurrence
@@ -82,6 +86,7 @@ export default function ScheduleForm() {
     (async () => {
       const a = await api.get<Athlete[]>("/athletes");
       setAthletes(a.data);
+      try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
       if (isEdit) {
         try {
           const r = await api.get("/schedule");
@@ -96,6 +101,7 @@ export default function ScheduleForm() {
             setEndTime(e.end_time || "");
             setNotes(e.notes || "");
             setSelectedIds(new Set(e.athlete_ids || []));
+            setTeamId(e.team_id || null);
             setSeriesId(e.series_id || null);
             if (e.recurrence_rule) {
               setRepeat(true);
@@ -129,6 +135,7 @@ export default function ScheduleForm() {
     title: title.trim(),
     location: location.trim() || null,
     address: address.trim() || null,
+    team_id: teamId || null,
     date,
     start_time: startTime.trim() || null,
     end_time: endTime.trim() || null,
@@ -257,6 +264,28 @@ export default function ScheduleForm() {
           <Text style={styles.label}>Title</Text>
           <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Senior 5 practice" placeholderTextColor={colors.textTertiary} testID="schedule-title" />
 
+          {teams.length > 0 && (
+            <>
+              <Text style={styles.label}>Team (optional)</Text>
+              <View style={styles.chips}>
+                {teams.map((t) => {
+                  const on = teamId === t.id;
+                  return (
+                    <TouchableOpacity
+                      key={t.id}
+                      onPress={() => setTeamId(on ? null : t.id)}
+                      style={[styles.teamChip, on && { backgroundColor: t.color || colors.accent, borderColor: t.color || colors.accent }]}
+                      testID={`schedule-team-${t.id}`}
+                    >
+                      <TeamAvatar logoImage={t.logo_image} color={t.color} size={18} dotColor={on ? "white" : undefined} />
+                      <Text style={[styles.chipText, on && styles.chipTextActive]} numberOfLines={1}>{t.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
+
           <Text style={styles.label}>Location (optional)</Text>
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. California Allstars gym" placeholderTextColor={colors.textTertiary} />
 
@@ -378,6 +407,7 @@ const makeStyles = () => ({
   typeBtnText: { ...typography.caption, fontWeight: "700", color: colors.textPrimary },
   chips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  teamChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600" },
   chipTextActive: { color: "white" },
