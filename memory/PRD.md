@@ -77,3 +77,18 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - 4. In-app autofill: remember previously used values (locations, addresses, providers, categories, team names, etc.) and suggest them in form fields.
 - 5. Calendar tab: toggle to view Day / Week / Month.
 - 6. Home tab: "Total Due Today" card = sum of all expenses + travel costs due today.
+
+## Backlog — web companion (added)
+- Companion WEBSITE that shares the SAME backend/database so users can use CheerPlanner on desktop or phone. Ranked HARDEST/largest: reuses existing FastAPI API + JWT auth, but is effectively a full second frontend (all screens, auth, responsive web UI). Bigger than offline support. Do as a dedicated multi-phase project.
+
+## Difficulty order (easiest -> hardest), pending
+1. Fundraiser as schedule event type  [STARTING]
+2. Teams-to-Watch "create missing competitions" toggle  [STARTING]
+3. Home "Total Due Today" card  [STARTING]
+4. Schedule event start/end date range
+5. Calendar Day/Week/Month toggle
+6. Shareable fundraiser links
+7. User-created custom event types
+8. In-app autofill with memory
+9. Offline support (phased)
+10. Companion website (shared DB) — hardest
