@@ -635,6 +635,7 @@ class Fundraiser(BaseModel):
     raised_on: str
     note: Optional[str] = None
     goal_amount: Optional[float] = None
+    link_url: Optional[str] = None
     is_public: bool = False
     share_token: Optional[str] = None
     # Response-only convenience field
@@ -649,6 +650,7 @@ class FundraiserCreate(BaseModel):
     raised_on: str
     note: Optional[str] = None
     goal_amount: Optional[float] = None
+    link_url: Optional[str] = None
 
 
 class FundraiserUpdate(BaseModel):
@@ -658,6 +660,7 @@ class FundraiserUpdate(BaseModel):
     raised_on: Optional[str] = None
     note: Optional[str] = None
     goal_amount: Optional[float] = None
+    link_url: Optional[str] = None
 
 
 # ============================================================

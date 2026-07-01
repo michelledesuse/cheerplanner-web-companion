@@ -38,7 +38,7 @@ async def create_fundraiser(payload: FundraiserCreate, current_user=Depends(get_
 
 @router.patch("/fundraisers/{fundraiser_id}", response_model=Fundraiser)
 async def update_fundraiser(fundraiser_id: str, payload: FundraiserUpdate, current_user=Depends(get_current_user)):
-    nullable_fields = {"athlete_id", "note", "goal_amount"}
+    nullable_fields = {"athlete_id", "note", "goal_amount", "link_url"}
     sent = payload.model_dump(exclude_unset=True)
     updates: dict = {}
     for k, v in sent.items():

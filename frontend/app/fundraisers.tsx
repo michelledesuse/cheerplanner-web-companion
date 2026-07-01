@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Share } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Share, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -11,7 +11,9 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 
-type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string; goal_amount?: number | null };
+type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string; goal_amount?: number | null; link_url?: string | null };
+
+const normalizeUrl = (u: string) => (/^https?:\/\//i.test(u.trim()) ? u.trim() : `https://${u.trim()}`);
 
 export default function FundraisersScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -23,6 +25,7 @@ export default function FundraisersScreen() {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [goal, setGoal] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const [raisedOn, setRaisedOn] = useState(todayISO());
   const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
 
@@ -40,7 +43,7 @@ export default function FundraisersScreen() {
   const total = items.reduce((s, i) => s + Number(i.amount_raised || 0), 0);
 
   const resetForm = () => {
-    setName(""); setAmount(""); setGoal(""); setRaisedOn(todayISO()); setEditingId(null); setShowAdd(false);
+    setName(""); setAmount(""); setGoal(""); setLinkUrl(""); setRaisedOn(todayISO()); setEditingId(null); setShowAdd(false);
   };
 
   const save = async () => {
@@ -48,7 +51,7 @@ export default function FundraisersScreen() {
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { Alert.alert("Missing", "Enter a valid amount"); return; }
     const goalNum = goal.trim() ? parseFloat(goal) : null;
-    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null };
+    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null, link_url: linkUrl.trim() ? normalizeUrl(linkUrl) : null };
     try {
       if (editingId) {
         await api.patch(`/fundraisers/${editingId}`, body);
@@ -67,21 +70,37 @@ export default function FundraisersScreen() {
     setName(f.name);
     setAmount(String(f.amount_raised));
     setGoal(f.goal_amount != null ? String(f.goal_amount) : "");
+    setLinkUrl(f.link_url || "");
     setRaisedOn(f.raised_on);
     setShowAdd(true);
   };
 
   const remove = async (id: string) => { await api.delete(`/fundraisers/${id}`); if (editingId === id) resetForm(); load(); };
 
+  const openLink = (f: Fundraiser) => {
+    if (!f.link_url) return;
+    Linking.openURL(normalizeUrl(f.link_url)).catch(() => Alert.alert("Couldn't open link", "Please check the URL you entered."));
+  };
+
   const shareFundraiser = async (f: Fundraiser) => {
-    try {
-      const r = await api.post(`/fundraisers/${f.id}/share`, { enabled: true });
-      const base = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
-      const url = `${base}/f/${r.data.share_token}`;
-      await Share.share({ message: `Support our fundraiser "${f.name}" 🎉\n${url}`, url });
-    } catch (e: any) {
-      Alert.alert("Couldn't create link", e?.response?.data?.detail || "Please try again.");
+    if (!f.link_url) {
+      Alert.alert("No link yet", "Add a fundraiser link (tap the fundraiser → Edit details) so you can share it.");
+      return;
     }
+    try {
+      const url = normalizeUrl(f.link_url);
+      await Share.share({ message: `Support our fundraiser "${f.name}" 🎉\n${url}`, url });
+    } catch {
+      /* user cancelled */
+    }
+  };
+
+  const openFundraiserOptions = (f: Fundraiser) => {
+    const buttons: any[] = [];
+    if (f.link_url) buttons.push({ text: "Open fundraiser link", onPress: () => openLink(f) });
+    buttons.push({ text: "Edit details", onPress: () => startEdit(f) });
+    buttons.push({ text: "Cancel", style: "cancel" });
+    Alert.alert(f.name, f.link_url ? normalizeUrl(f.link_url) : "No fundraiser link added yet.", buttons);
   };
 
   return (
@@ -122,6 +141,8 @@ export default function FundraisersScreen() {
               <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="fundraiser-amount-input" />
               <Text style={styles.label}>Goal (optional, USD)</Text>
               <TextInput style={styles.input} value={goal} onChangeText={setGoal} keyboardType="decimal-pad" placeholder="e.g. 1000" placeholderTextColor={colors.textTertiary} testID="fundraiser-goal-input" />
+              <Text style={styles.label}>Fundraiser link (optional)</Text>
+              <TextInput style={styles.input} value={linkUrl} onChangeText={setLinkUrl} autoCapitalize="none" keyboardType="url" placeholder="e.g. gofundme.com/our-team" placeholderTextColor={colors.textTertiary} testID="fundraiser-link-input" />
               <Text style={styles.label}>Date</Text>
               <DateField value={raisedOn} onChange={setRaisedOn} />
               <TouchableOpacity style={styles.saveBtn} onPress={save} testID="fundraiser-save-btn">
@@ -148,7 +169,7 @@ export default function FundraisersScreen() {
                 <View style={[styles.iconCircle, { backgroundColor: colors.warningBg }]}>
                   <Ionicons name="gift" size={16} color={colors.warningText} />
                 </View>
-                <View style={{ flex: 1, marginLeft: spacing.md }}>
+                <TouchableOpacity style={{ flex: 1, marginLeft: spacing.md }} activeOpacity={0.7} onPress={() => openFundraiserOptions(f)} testID={`fundraiser-row-${f.id}`}>
                   <Text style={styles.rowTitle}>{f.name}</Text>
                   <Text style={styles.rowMeta}>
                     {formatDate(f.raised_on, { withYear: true })}
@@ -164,7 +185,7 @@ export default function FundraisersScreen() {
                       <Text style={styles.applyBtnText}>Apply to expense</Text>
                     </TouchableOpacity>
                   )}
-                </View>
+                </TouchableOpacity>
                 <View style={{ alignItems: "flex-end" }}>
                   <Text style={styles.rowAmount}>{formatCurrency(f.amount_raised)}</Text>
                   {applied > 0 && (
