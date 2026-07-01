@@ -86,7 +86,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 2. Teams-to-Watch "create missing competitions" toggle  [DONE]
 3. Home "Total Due Today" card  [DONE]
 4. Schedule event start/end date range  [DONE]
-5. Calendar Day/Week/Month toggle
+5. Calendar Day/Week/Month toggle  [DONE]
 6. Shareable fundraiser links  [DONE]
 7. User-created custom event types
 8. In-app autofill with memory
@@ -97,3 +97,8 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Stored in backend/.env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER=+18446977111 (toll-free).
 - Toll-free verification IN PROGRESS — SMS delivery unreliable until approved.
 - Plan when resumed: self-managed OTP (no Verify Service SID needed) using the toll-free number; store phone_number/phone_verified/sms_reminders_enabled on notification prefs; hook into hourly digest scheduler; respect STOP/opt-out.
+
+## Session update
+- DONE: #5 Calendar Day/Week/Month toggle (segmented Month/Week/Day, prev/next nav, reuses /api/calendar range).
+- DONE: Fundraiser page improvement — goal_amount field + public /f/<token> progress bar + Copy link. PATCH can clear goal (nullable).
+- DEFERRED: #7 user-created custom event types (full-stack; next focused session).
