@@ -68,3 +68,12 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 ## Backlog (deferred to a future session)
 - Shareable fundraiser links (P2).
 - Teams-to-Watch preview screen: add a "Create missing competitions" confirmation toggle (like Travel import) so a typo'd competition name doesn't silently create a placeholder.
+
+## Backlog — added (future, not yet built)
+- Offline support (user question, phased): Phase 1 = local read-cache (AsyncStorage/expo-sqlite) so screens render with no connection; Phase 2 = offline write queue + sync engine with conflict resolution (multi-member households). Larger effort — do in phases.
+- 1. Schedule Event: add an explicit start/end date range (multi-day event, e.g. Choreography Jul 1–Jul 5), offered IN ADDITION to the existing recurring-event option.
+- 2. Add "Fundraiser" as a selectable schedule Event type.
+- 3. Let users create/manage their own custom event types (persisted per household).
+- 4. In-app autofill: remember previously used values (locations, addresses, providers, categories, team names, etc.) and suggest them in form fields.
+- 5. Calendar tab: toggle to view Day / Week / Month.
+- 6. Home tab: "Total Due Today" card = sum of all expenses + travel costs due today.
