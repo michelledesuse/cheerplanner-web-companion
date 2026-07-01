@@ -82,9 +82,9 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Companion WEBSITE that shares the SAME backend/database so users can use CheerPlanner on desktop or phone. Ranked HARDEST/largest: reuses existing FastAPI API + JWT auth, but is effectively a full second frontend (all screens, auth, responsive web UI). Bigger than offline support. Do as a dedicated multi-phase project.
 
 ## Difficulty order (easiest -> hardest), pending
-1. Fundraiser as schedule event type  [STARTING]
-2. Teams-to-Watch "create missing competitions" toggle  [STARTING]
-3. Home "Total Due Today" card  [STARTING]
+1. Fundraiser as schedule event type  [DONE]
+2. Teams-to-Watch "create missing competitions" toggle  [DONE]
+3. Home "Total Due Today" card  [DONE]
 4. Schedule event start/end date range
 5. Calendar Day/Week/Month toggle
 6. Shareable fundraiser links
