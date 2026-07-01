@@ -85,9 +85,9 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 1. Fundraiser as schedule event type  [DONE]
 2. Teams-to-Watch "create missing competitions" toggle  [DONE]
 3. Home "Total Due Today" card  [DONE]
-4. Schedule event start/end date range
+4. Schedule event start/end date range  [DONE]
 5. Calendar Day/Week/Month toggle
-6. Shareable fundraiser links
+6. Shareable fundraiser links  [DONE]
 7. User-created custom event types
 8. In-app autofill with memory
 9. Offline support (phased)
