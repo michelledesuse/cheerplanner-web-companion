@@ -92,3 +92,8 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 8. In-app autofill with memory
 9. Offline support (phased)
 10. Companion website (shared DB) — hardest
+
+## Twilio SMS — deferred (creds stored)
+- Stored in backend/.env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER=+18446977111 (toll-free).
+- Toll-free verification IN PROGRESS — SMS delivery unreliable until approved.
+- Plan when resumed: self-managed OTP (no Verify Service SID needed) using the toll-free number; store phone_number/phone_verified/sms_reminders_enabled on notification prefs; hook into hourly digest scheduler; respect STOP/opt-out.

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, RefreshControl, KeyboardAvoidingView, Platform, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -68,6 +68,17 @@ export default function FundraisersScreen() {
   };
 
   const remove = async (id: string) => { await api.delete(`/fundraisers/${id}`); if (editingId === id) resetForm(); load(); };
+
+  const shareFundraiser = async (f: Fundraiser) => {
+    try {
+      const r = await api.post(`/fundraisers/${f.id}/share`, { enabled: true });
+      const base = (process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "");
+      const url = `${base}/f/${r.data.share_token}`;
+      await Share.share({ message: `Support our fundraiser "${f.name}" 🎉\n${url}`, url });
+    } catch (e: any) {
+      Alert.alert("Couldn't create link", e?.response?.data?.detail || "Please try again.");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -154,6 +165,9 @@ export default function FundraisersScreen() {
                     <Text style={styles.rowMeta}>{formatCurrency(avail)} left</Text>
                   )}
                   <View style={{ flexDirection: "row", gap: 12, marginTop: 4 }}>
+                    <TouchableOpacity onPress={() => shareFundraiser(f)} hitSlop={10} testID={`fundraiser-share-${f.id}`}>
+                      <Ionicons name="share-social-outline" size={16} color={colors.accent} />
+                    </TouchableOpacity>
                     <TouchableOpacity onPress={() => startEdit(f)} hitSlop={10} testID={`fundraiser-edit-${f.id}`}>
                       <Ionicons name="create-outline" size={16} color={colors.accent} />
                     </TouchableOpacity>

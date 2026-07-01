@@ -266,11 +266,13 @@ async def calendar_feed(
                 "link": "/fundraisers",
             })
 
-    # Schedule events
+    # Schedule events (expand multi-day events across their inclusive date range)
+    from datetime import date as _dcls, timedelta as _tdelta
     async for s in db.schedule_events.find({"user_id": {"$in": member_ids}}, {"_id": 0}):
         day = _normalize_date(s.get("date"))
-        if not day or not in_range(day):
+        if not day:
             continue
+        end_day = _normalize_date(s.get("end_date")) or day
         et = s.get("event_type", "practice")
         colors_by_type = {
             "practice": "#EA580C",
@@ -287,15 +289,39 @@ async def calendar_feed(
             if s.get("end_time"):
                 time_str += f" – {_fmt_time_12h(s['end_time'])}"
         subtitle = " · ".join([x for x in [time_str, s.get("location") or ""] if x])
-        items.append({
-            "id": f"schedule-{s['id']}",
-            "kind": "schedule",
-            "date": day,
-            "title": s.get("title", "Event"),
-            "subtitle": subtitle,
-            "color": colors_by_type.get(et, "#64748B"),
-            "link": f"/schedule/new?id={s['id']}",
-        })
+        try:
+            sd = _dcls.fromisoformat(day)
+            ed = _dcls.fromisoformat(end_day)
+        except Exception:
+            sd = ed = None
+        if not (sd and ed) or ed < sd:
+            sd = ed = None
+        if sd and ed:
+            total = min((ed - sd).days + 1, 366)
+            multi = ed > sd
+            for i in range(total):
+                ds = (sd + _tdelta(days=i)).isoformat()
+                if not in_range(ds):
+                    continue
+                items.append({
+                    "id": f"schedule-{s['id']}-{i}" if multi else f"schedule-{s['id']}",
+                    "kind": "schedule",
+                    "date": ds,
+                    "title": s.get("title", "Event") + (f" (day {i + 1}/{total})" if multi else ""),
+                    "subtitle": subtitle,
+                    "color": colors_by_type.get(et, "#64748B"),
+                    "link": f"/schedule/new?id={s['id']}",
+                })
+        elif in_range(day):
+            items.append({
+                "id": f"schedule-{s['id']}",
+                "kind": "schedule",
+                "date": day,
+                "title": s.get("title", "Event"),
+                "subtitle": subtitle,
+                "color": colors_by_type.get(et, "#64748B"),
+                "link": f"/schedule/new?id={s['id']}",
+            })
 
     # Team meet/performance times (per-team multi-day schedule per competition)
     teams_by_id = {

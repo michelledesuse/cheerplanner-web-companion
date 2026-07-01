@@ -84,6 +84,7 @@ class ScheduleEvent(BaseModel):
     address: Optional[str] = None  # NEW: full street address used by maps
     team_id: Optional[str] = None  # NEW: optional link to a Team (shows its logo)
     date: str  # ISO YYYY-MM-DD
+    end_date: Optional[str] = None  # NEW: optional multi-day range end (inclusive)
     start_time: Optional[str] = None  # "18:00"
     end_time: Optional[str] = None
     notes: Optional[str] = None
@@ -104,6 +105,7 @@ class ScheduleEventCreate(BaseModel):
     end_time: Optional[str] = None
     notes: Optional[str] = None
     recurrence_rule: Optional[RecurrenceRule] = None
+    end_date: Optional[str] = None
 
 
 class ScheduleEventUpdate(BaseModel):
@@ -117,6 +119,7 @@ class ScheduleEventUpdate(BaseModel):
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     notes: Optional[str] = None
+    end_date: Optional[str] = None
 
 
 # ============================================================
@@ -631,6 +634,8 @@ class Fundraiser(BaseModel):
     applied_amount: float = 0.0  # how much has been applied to expenses
     raised_on: str
     note: Optional[str] = None
+    is_public: bool = False
+    share_token: Optional[str] = None
     # Response-only convenience field
     available: float = 0.0
     created_at: str = Field(default_factory=utcnow_iso)

@@ -1,6 +1,8 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+import uuid
 
 from core.db import db
 from core.models import (
@@ -62,3 +64,39 @@ async def delete_fundraiser(fundraiser_id: str, current_user=Depends(get_current
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Fundraiser not found")
     return {"deleted": True}
+
+
+class FundraiserShare(BaseModel):
+    enabled: bool = True
+
+
+@router.post("/fundraisers/{fundraiser_id}/share")
+async def share_fundraiser(fundraiser_id: str, payload: FundraiserShare, current_user=Depends(get_current_user)):
+    ids = await _household_user_ids(current_user["id"])
+    doc = await db.fundraisers.find_one({"id": fundraiser_id, "user_id": {"$in": ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Fundraiser not found")
+    if payload.enabled:
+        token = doc.get("share_token") or uuid.uuid4().hex[:12]
+        await db.fundraisers.update_one({"id": fundraiser_id}, {"$set": {"is_public": True, "share_token": token}})
+        return {"is_public": True, "share_token": token}
+    await db.fundraisers.update_one({"id": fundraiser_id}, {"$set": {"is_public": False}})
+    return {"is_public": False, "share_token": doc.get("share_token")}
+
+
+@router.get("/public/fundraisers/{token}")
+async def public_fundraiser(token: str):
+    """Unauthenticated read of a fundraiser that has been shared publicly."""
+    doc = await db.fundraisers.find_one({"share_token": token, "is_public": True}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="This fundraiser link is not available.")
+    raised = float(doc.get("amount_raised") or 0)
+    applied = float(doc.get("applied_amount") or 0)
+    return {
+        "name": doc.get("name"),
+        "amount_raised": round(raised, 2),
+        "applied_amount": round(applied, 2),
+        "available": round(max(0.0, raised - applied), 2),
+        "raised_on": doc.get("raised_on"),
+        "note": doc.get("note"),
+    }

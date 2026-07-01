@@ -67,6 +67,7 @@ export default function ScheduleForm() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [teamId, setTeamId] = useState<string | null>(null);
+  const [endDate, setEndDate] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Recurrence
@@ -103,6 +104,7 @@ export default function ScheduleForm() {
             setNotes(e.notes || "");
             setSelectedIds(new Set(e.athlete_ids || []));
             setTeamId(e.team_id || null);
+            setEndDate(e.end_date || "");
             setSeriesId(e.series_id || null);
             if (e.recurrence_rule) {
               setRepeat(true);
@@ -137,6 +139,7 @@ export default function ScheduleForm() {
     location: location.trim() || null,
     address: address.trim() || null,
     team_id: teamId || null,
+    end_date: (!repeat && endDate && endDate > date) ? endDate : null,
     date,
     start_time: startTime.trim() || null,
     end_time: endTime.trim() || null,
@@ -303,6 +306,18 @@ export default function ScheduleForm() {
 
           <Text style={styles.label}>{repeat ? "Starts" : "Date"}</Text>
           <DateField value={date} onChange={setDate} testID="schedule-date" />
+
+          {!repeat && (
+            <>
+              <Text style={styles.label}>End date (optional · multi-day)</Text>
+              <DateField value={endDate || date} onChange={setEndDate} testID="schedule-end-date" />
+              {endDate && endDate > date ? (
+                <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
+                  Spans {date} → {endDate}
+                </Text>
+              ) : null}
+            </>
+          )}
 
           {/* Stacked vertically so the AM/PM toggle on each TimeField always has
               the full container width — guarantees the period button never gets

@@ -60,7 +60,7 @@ async def update_schedule(
     current_user=Depends(get_current_user),
 ):
     sent = payload.model_dump(exclude_unset=True)
-    nullable = {"location", "start_time", "end_time", "notes", "team_id"}
+    nullable = {"location", "start_time", "end_time", "notes", "team_id", "end_date"}
     updates = {k: v for k, v in sent.items() if v is not None or k in nullable}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")

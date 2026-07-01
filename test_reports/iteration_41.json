@@ -1,0 +1,28 @@
+{
+  "summary": "CheerPlanner v2.2 batch: Multi-day schedule events (#4) and shareable fundraiser links (#6) — ALL PASS. Backend: 10/10 pytest cases passed (multi-day persistence, calendar expansion with 'day N/total' suffix, single-day no-suffix, recurring regression, share enable/disable, public GET, bad-token 404). Frontend (mobile viewport 390x844): /schedule/new correctly shows the 'End date (optional · multi-day)' DateField only when Repeat is OFF and hides it when Repeat is ON; Calendar tab renders a real multi-day event as 'ZZZ Choreo Camp (day 1/5)' with dots on the full range; /fundraisers share icon fires POST /api/fundraisers/{id}/share (200 + share_token), the unauthenticated /f/<token> route renders the fundraiser (name, $ amount, raised_on, note) and /f/deadbeef shows the friendly 'This fundraiser link isn't available.' message.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_multiday_and_share.py",
+    "/app/test_reports/pytest/pytest_v22_multiday_and_share.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "schedule/new.tsx: buildPayload sends `end_date: null` when Repeat is ON — the backend ScheduleEventUpdate treats end_date as nullable, so this correctly clears an end_date on edit. Non-blocking, just noting.",
+    "calendar.py: multi-day expansion is capped at 366 days (safety cap). Anything beyond that will silently truncate. Reasonable but worth documenting."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v22_multiday_and_share.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "All schedule events and fundraisers created by pytest are cleaned up via teardown. UI test created one fundraiser 'Spring Car Wash' remains only if it existed before (used an existing seed fundraiser). No orphaned data expected.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "v2.2 features #4 (multi-day schedule events) and #6 (shareable fundraiser links) verified fully — 10/10 backend pytest + full UI walk-through (Repeat toggle hides/shows end-date field, calendar 'day N/total' rendering, share endpoint call, public /f/<token> render, invalid token error page). Test file lives at /app/backend/tests/test_v22_multiday_and_share.py and uses dotenv to load EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env.",
+  "rca_of_issue": "N/A — no bugs found."
+}
