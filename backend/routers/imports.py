@@ -269,6 +269,10 @@ async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_c
                 continue
             comp_id = explicit.get(cname) or name_to_id.get(cname.lower())
             if not comp_id:
+                if not payload.create_missing_competitions:
+                    skipped += 1
+                    warnings.append(f"Skipped '{tname}' — no competition named '{cname}'.")
+                    continue
                 comp = Competition(
                     user_id=user_id,
                     name=cname,

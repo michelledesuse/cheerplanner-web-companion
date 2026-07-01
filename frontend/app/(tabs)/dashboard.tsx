@@ -26,6 +26,7 @@ type Dashboard = {
   total_expenses_ytd: number;
   total_payments_ytd: number;
   outstanding_balance: number;
+  due_today: number;
   booking_balance: number;
   unpaid_expense_balance: number;
   month_spend: number;
@@ -157,6 +158,24 @@ export default function DashboardScreen() {
             <Text style={styles.tileLabel}>Raised</Text>
           </TouchableOpacity>
         </View>
+
+        {(data?.due_today || 0) > 0 && (
+          <TouchableOpacity
+            style={styles.dueTodayCard}
+            activeOpacity={0.85}
+            onPress={() => router.push("/(tabs)/expenses?filter=open")}
+            testID="due-today-card"
+          >
+            <View style={styles.dueTodayIcon}>
+              <Ionicons name="alarm" size={20} color="white" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.dueTodayLabel}>Total due today</Text>
+              <Text style={styles.dueTodaySub}>Expenses + travel costs</Text>
+            </View>
+            <Text style={styles.dueTodayValue}>{formatCurrency(data?.due_today || 0)}</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Next competition */}
         <View style={styles.sectionHead}>
@@ -322,6 +341,15 @@ const makeStyles = (c: ThemePalette) => ({
     alignItems: "center",
   },
   miniBalanceItem: { flex: 1, alignItems: "center" },
+  dueTodayCard: {
+    marginTop: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md,
+    backgroundColor: c.dangerBg, borderRadius: radius.lg, borderWidth: 1, borderColor: c.dangerText + "33",
+    paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+  },
+  dueTodayIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.dangerText, alignItems: "center", justifyContent: "center" },
+  dueTodayLabel: { ...typography.bodyMedium, color: c.dangerText, fontWeight: "800" },
+  dueTodaySub: { ...typography.micro, color: c.dangerText, opacity: 0.8, marginTop: 1 },
+  dueTodayValue: { fontSize: 20, fontWeight: "800", color: c.dangerText, letterSpacing: -0.3 },
   miniBalanceLabel: { ...typography.micro, color: c.textSecondary, marginBottom: 4 },
   miniBalanceValue: { fontSize: 17, fontWeight: "800", color: c.textPrimary, letterSpacing: -0.2 },
   miniBalanceValueSm: { fontSize: 14, fontWeight: "700", color: c.textPrimary },

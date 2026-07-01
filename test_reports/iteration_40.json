@@ -1,0 +1,33 @@
+{
+  "summary": "CheerPlanner v2.2 — Tested all three new features (Fundraiser event type, Teams-to-Watch create_missing_competitions toggle, Dashboard 'Total due today' card). Backend: 10/10 pytest cases pass (POST /api/schedule with event_type='fundraiser', GET /api/schedule listing, /api/calendar shows fundraiser color #16A34A, teams_to_watch toggle=false skips + warns and does NOT create a competition, toggle=true creates the competition, GET /api/dashboard due_today increments by 123.45 after posting an unpaid expense with due_date=today, is numeric, and returns to 0 after cleanup). Frontend: Fundraiser button present with all 7 event types on /schedule/new, saving a fundraiser via POST /api/schedule persists and appears on Schedule tab with green stripe; due-today-card renders on Dashboard with '$123.45' and correct label, tapping it navigates to /expenses?filter=open; import /import/teams_to_watch screen loads correctly (toggle appears after file upload — added missing testID 'create-missing-comps-toggle' for future test coverage). Test data cleaned up post-run.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_fundraiser_toggle_duetoday.py",
+    "/app/test_reports/pytest/pytest_v22_fundraiser.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Teams-to-watch toggle worked as spec: OFF => skipped + warning + no competition created; ON => competition auto-created and team appended. Warning message includes team name and competition name for clarity.",
+    "Fundraiser color (#16A34A) is consistent between /api/calendar feed, schedule tab TYPE_COLOR map, and schedule/new TYPES list.",
+    "Dashboard due_today correctly sums unpaid expense balances with due_date==today plus booking balances with balance_due_date==today; card hidden when 0 (verified after cleanup)."
+  ],
+  "updated_files": [
+    "/app/frontend/app/import/[kind].tsx (added testID='create-missing-comps-toggle' to the toggle for future test coverage)",
+    "/app/backend/tests/test_v22_fundraiser_toggle_duetoday.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created and cleaned up: TEST_Fundraiser Car Wash schedule event, TEST_UI_Fundraiser_1 schedule event, TEST_NoMatchComp_Create_XYZ competition + TEST_Team_Create team-to-watch, TEST_DueToday expense. All removed at end of run — verified due_today back to 0.0.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "POST /api/schedule and POST /api/expenses return a LIST (not a single object). Use `arr[0]` to access the created item. Login endpoint returns {'access_token': ...}. The teams_to_watch import toggle payload key is 'create_missing_competitions' (default true). Dashboard due_today is computed from expense.due_date and booking.balance_due_date (string[:10] == today UTC ISO).",
+  "rca_of_issue": "N/A — no bugs found; all three features work as specified."
+}

@@ -25,11 +25,11 @@ type Evt = {
 
 const TYPE_LABEL: Record<string, string> = {
   practice: "Practice", team_bonding: "Team Bonding", private_lesson: "Private Lesson",
-  choreography: "Choreography", class: "Class", other: "Other",
+  choreography: "Choreography", class: "Class", fundraiser: "Fundraiser", other: "Other",
 };
 const TYPE_COLOR: Record<string, string> = {
   practice: "#EA580C", team_bonding: "#0EA5E9", private_lesson: "#DB2777",
-  choreography: "#9333EA", class: "#0891B2", other: "#64748B",
+  choreography: "#9333EA", class: "#0891B2", fundraiser: "#16A34A", other: "#64748B",
 };
 
 export default function ScheduleTab() {

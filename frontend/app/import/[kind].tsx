@@ -114,7 +114,7 @@ export default function ImportRunner() {
       const toSend = rows.filter((_, i) => selected[i]);
       const payload: any = { kind, rows: toSend };
       if (kind === "expenses" && format === "wide") payload.athlete_map = athleteMap;
-      if (kind === "travel") payload.create_missing_competitions = createMissingComps;
+      if (kind === "travel" || kind === "teams_to_watch") payload.create_missing_competitions = createMissingComps;
       const res = await api.post("/import/commit", payload);
       setResultCreated(res.data.created || 0);
       setResultSkipped(res.data.skipped || 0);
@@ -291,10 +291,11 @@ export default function ImportRunner() {
           </View>
         )}
 
-        {kind === "travel" && (
+        {(kind === "travel" || kind === "teams_to_watch") && (
           <TouchableOpacity
             style={[styles.toggleCard, createMissingComps && styles.toggleCardOn]}
             onPress={() => setCreateMissingComps((s) => !s)}
+            testID="create-missing-comps-toggle"
           >
             <View style={[styles.check, createMissingComps && styles.checkOn]}>
               {createMissingComps && <Ionicons name="checkmark" size={14} color="white" />}

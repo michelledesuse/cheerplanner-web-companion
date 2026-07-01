@@ -278,6 +278,7 @@ async def calendar_feed(
             "private_lesson": "#DB2777",
             "choreography": "#9333EA",
             "class": "#0891B2",
+            "fundraiser": "#16A34A",
             "other": "#64748B",
         }
         time_str = ""

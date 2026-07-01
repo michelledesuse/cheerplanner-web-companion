@@ -18,6 +18,7 @@ const TYPES = [
   { key: "private_lesson", label: "Private Lesson", icon: "person", color: "#DB2777" },
   { key: "choreography", label: "Choreography", icon: "musical-notes", color: "#9333EA" },
   { key: "class", label: "Class", icon: "school", color: "#0891B2" },
+  { key: "fundraiser", label: "Fundraiser", icon: "gift", color: "#16A34A" },
   { key: "other", label: "Other", icon: "calendar", color: "#64748B" },
 ] as const;
 
