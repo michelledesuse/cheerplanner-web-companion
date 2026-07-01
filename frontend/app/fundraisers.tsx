@@ -11,7 +11,7 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 
-type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string };
+type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string; goal_amount?: number | null };
 
 export default function FundraisersScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -22,6 +22,7 @@ export default function FundraisersScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [goal, setGoal] = useState("");
   const [raisedOn, setRaisedOn] = useState(todayISO());
   const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
 
@@ -39,18 +40,20 @@ export default function FundraisersScreen() {
   const total = items.reduce((s, i) => s + Number(i.amount_raised || 0), 0);
 
   const resetForm = () => {
-    setName(""); setAmount(""); setRaisedOn(todayISO()); setEditingId(null); setShowAdd(false);
+    setName(""); setAmount(""); setGoal(""); setRaisedOn(todayISO()); setEditingId(null); setShowAdd(false);
   };
 
   const save = async () => {
     if (!name.trim()) { Alert.alert("Missing", "Add a name"); return; }
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { Alert.alert("Missing", "Enter a valid amount"); return; }
+    const goalNum = goal.trim() ? parseFloat(goal) : null;
+    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null };
     try {
       if (editingId) {
-        await api.patch(`/fundraisers/${editingId}`, { name: name.trim(), amount_raised: amt, raised_on: raisedOn });
+        await api.patch(`/fundraisers/${editingId}`, body);
       } else {
-        await api.post("/fundraisers", { name: name.trim(), amount_raised: amt, raised_on: raisedOn });
+        await api.post("/fundraisers", body);
       }
       resetForm();
       load();
@@ -63,6 +66,7 @@ export default function FundraisersScreen() {
     setEditingId(f.id);
     setName(f.name);
     setAmount(String(f.amount_raised));
+    setGoal(f.goal_amount != null ? String(f.goal_amount) : "");
     setRaisedOn(f.raised_on);
     setShowAdd(true);
   };
@@ -116,6 +120,8 @@ export default function FundraisersScreen() {
               <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Bake sale" placeholderTextColor={colors.textTertiary} testID="fundraiser-name-input" />
               <Text style={styles.label}>Amount raised (USD)</Text>
               <TextInput style={styles.input} value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="fundraiser-amount-input" />
+              <Text style={styles.label}>Goal (optional, USD)</Text>
+              <TextInput style={styles.input} value={goal} onChangeText={setGoal} keyboardType="decimal-pad" placeholder="e.g. 1000" placeholderTextColor={colors.textTertiary} testID="fundraiser-goal-input" />
               <Text style={styles.label}>Date</Text>
               <DateField value={raisedOn} onChange={setRaisedOn} />
               <TouchableOpacity style={styles.saveBtn} onPress={save} testID="fundraiser-save-btn">

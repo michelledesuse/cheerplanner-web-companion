@@ -634,6 +634,7 @@ class Fundraiser(BaseModel):
     applied_amount: float = 0.0  # how much has been applied to expenses
     raised_on: str
     note: Optional[str] = None
+    goal_amount: Optional[float] = None
     is_public: bool = False
     share_token: Optional[str] = None
     # Response-only convenience field
@@ -647,6 +648,7 @@ class FundraiserCreate(BaseModel):
     amount_raised: float = 0.0
     raised_on: str
     note: Optional[str] = None
+    goal_amount: Optional[float] = None
 
 
 class FundraiserUpdate(BaseModel):
@@ -655,6 +657,7 @@ class FundraiserUpdate(BaseModel):
     amount_raised: Optional[float] = None
     raised_on: Optional[str] = None
     note: Optional[str] = None
+    goal_amount: Optional[float] = None
 
 
 # ============================================================

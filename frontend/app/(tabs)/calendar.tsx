@@ -43,31 +43,47 @@ const KIND_ICONS: Record<string, any> = {
   team_to_watch: "eye",
 };
 
+type CalView = "month" | "week" | "day";
+
+function isoAddDays(iso: string, n: number): string {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function isoStartOfWeek(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  return isoAddDays(iso, -d.getDay());
+}
+
 export default function CalendarTab() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [events, setEvents] = useState<CalEvent[]>([]);
   const [selected, setSelected] = useState<string>(todayISO());
   const [month, setMonth] = useState<string>(todayISO().slice(0, 7));
+  const [view, setView] = useState<CalView>("month");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const monthRange = useMemo(() => {
+  const range = useMemo(() => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    if (view === "day") return { start: selected, end: selected };
+    if (view === "week") { const s = isoStartOfWeek(selected); return { start: s, end: isoAddDays(s, 6) }; }
     const [y, m] = month.split("-").map(Number);
     const startDate = new Date(Date.UTC(y, m - 1, 1));
     const endDate = new Date(Date.UTC(y, m, 0));
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const start = `${startDate.getUTCFullYear()}-${pad(startDate.getUTCMonth() + 1)}-${pad(startDate.getUTCDate())}`;
-    const end = `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}`;
-    return { start, end };
-  }, [month]);
+    return {
+      start: `${startDate.getUTCFullYear()}-${pad(startDate.getUTCMonth() + 1)}-${pad(startDate.getUTCDate())}`,
+      end: `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}`,
+    };
+  }, [view, selected, month]);
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ items: CalEvent[] }>(`/calendar?start=${monthRange.start}&end=${monthRange.end}`);
+      const r = await api.get<{ items: CalEvent[] }>(`/calendar?start=${range.start}&end=${range.end}`);
       setEvents(r.data.items);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [monthRange.start, monthRange.end]);
+  }, [range.start, range.end]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -94,87 +110,121 @@ export default function CalendarTab() {
     return map;
   }, [events, selected]);
 
-  const dayEvents = events.filter((e) => e.date === selected);
+  const dayEvents = (d: string) => events.filter((e) => e.date === d);
+
+  const renderEvent = (e: CalEvent) => (
+    <TouchableOpacity
+      key={e.id}
+      onPress={() => { if (e.link) router.push(e.link as any); }}
+      style={styles.eventRow}
+      testID={`event-${e.id}`}
+    >
+      {e.logo_image ? (
+        <TeamAvatar logoImage={e.logo_image} color={e.color} size={36} />
+      ) : (
+        <View style={[styles.eventIcon, { backgroundColor: e.color + "22" }]}>
+          <Ionicons name={KIND_ICONS[e.kind] || "calendar"} size={18} color={e.color} />
+        </View>
+      )}
+      <View style={{ flex: 1, marginLeft: spacing.md }}>
+        <Text style={styles.eventTitle}>{e.title}</Text>
+        {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
+      </View>
+      {e.amount != null && (
+        <Text style={[styles.eventAmount, { color: e.color }]}>{formatCurrency(e.amount)}</Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  const weekDays = useMemo(() => {
+    const s = isoStartOfWeek(selected);
+    return Array.from({ length: 7 }, (_, i) => isoAddDays(s, i));
+  }, [selected]);
+
+  const spinner = <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.md }} />;
+  const emptyText = <Text style={styles.empty}>Nothing scheduled.</Text>;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Calendar</Text>
+        <View style={styles.viewToggle}>
+          {(["month", "week", "day"] as const).map((v) => (
+            <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`calview-${v}`}>
+              <Text style={[styles.viewChipText, view === v && styles.viewChipTextOn]}>{v[0].toUpperCase() + v.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
       >
-        <Calendar
-          current={selected}
-          markingType="multi-dot"
-          markedDates={markedDates}
-          onDayPress={(d: DateData) => setSelected(d.dateString)}
-          onMonthChange={(d: DateData) => setMonth(`${d.year}-${String(d.month).padStart(2, "0")}`)}
-          theme={{
-            backgroundColor: colors.bg,
-            calendarBackground: colors.bg,
-            todayTextColor: colors.accent,
-            selectedDayBackgroundColor: colors.accent,
-            selectedDayTextColor: "white",
-            arrowColor: colors.accent,
-            textMonthFontWeight: "800",
-            textDayFontWeight: "500",
-            textDayHeaderFontWeight: "700",
-            monthTextColor: colors.textPrimary,
-            dayTextColor: colors.textPrimary,
-            textSectionTitleColor: colors.textSecondary,
-          }}
-          style={{ marginHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, paddingBottom: 8 }}
-        />
-
-        <View style={styles.legend}>
-          {[
-            { color: "#E11D48", label: "Due" },
-            { color: "#007CFF", label: "Comp" },
-            { color: "#7C3AED", label: "Travel" },
-            { color: "#16A34A", label: "Fundraiser" },
-          ].map((l) => (
-            <View key={l.label} style={styles.legendItem}>
-              <View style={[styles.legendDot, { backgroundColor: l.color }]} />
-              <Text style={styles.legendText}>{l.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.daySection}>
-          <Text style={styles.dayTitle}>{formatDateLong(selected)}</Text>
-          {loading ? (
-            <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.md }} />
-          ) : dayEvents.length === 0 ? (
-            <Text style={styles.empty}>Nothing scheduled.</Text>
-          ) : (
-            dayEvents.map((e) => (
-              <TouchableOpacity
-                key={e.id}
-                onPress={() => { if (e.link) router.push(e.link as any); }}
-                style={styles.eventRow}
-                testID={`event-${e.id}`}
-              >
-                {e.logo_image ? (
-                  <TeamAvatar logoImage={e.logo_image} color={e.color} size={36} />
-                ) : (
-                  <View style={[styles.eventIcon, { backgroundColor: e.color + "22" }]}>
-                    <Ionicons name={KIND_ICONS[e.kind] || "calendar"} size={18} color={e.color} />
-                  </View>
-                )}
-                <View style={{ flex: 1, marginLeft: spacing.md }}>
-                  <Text style={styles.eventTitle}>{e.title}</Text>
-                  {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
+        {view === "month" && (
+          <>
+            <Calendar
+              current={selected}
+              markingType="multi-dot"
+              markedDates={markedDates}
+              onDayPress={(d: DateData) => setSelected(d.dateString)}
+              onMonthChange={(d: DateData) => setMonth(`${d.year}-${String(d.month).padStart(2, "0")}`)}
+              theme={{
+                backgroundColor: colors.bg, calendarBackground: colors.bg,
+                todayTextColor: colors.accent, selectedDayBackgroundColor: colors.accent,
+                selectedDayTextColor: "white", arrowColor: colors.accent,
+                textMonthFontWeight: "800", textDayFontWeight: "500", textDayHeaderFontWeight: "700",
+                monthTextColor: colors.textPrimary, dayTextColor: colors.textPrimary,
+                textSectionTitleColor: colors.textSecondary,
+              }}
+              style={{ marginHorizontal: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, paddingBottom: 8 }}
+            />
+            <View style={styles.legend}>
+              {[
+                { color: "#E11D48", label: "Due" },
+                { color: "#007CFF", label: "Comp" },
+                { color: "#7C3AED", label: "Travel" },
+                { color: "#16A34A", label: "Fundraiser" },
+              ].map((l) => (
+                <View key={l.label} style={styles.legendItem}>
+                  <View style={[styles.legendDot, { backgroundColor: l.color }]} />
+                  <Text style={styles.legendText}>{l.label}</Text>
                 </View>
-                {e.amount != null && (
-                  <Text style={[styles.eventAmount, { color: e.color }]}>{formatCurrency(e.amount)}</Text>
-                )}
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
+              ))}
+            </View>
+            <View style={styles.daySection}>
+              <Text style={styles.dayTitle}>{formatDateLong(selected)}</Text>
+              {loading ? spinner : dayEvents(selected).length === 0 ? emptyText : dayEvents(selected).map(renderEvent)}
+            </View>
+          </>
+        )}
+
+        {view === "day" && (
+          <View style={styles.daySection}>
+            <View style={styles.navRow}>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, -1))} style={styles.navBtn} testID="cal-prev"><Ionicons name="chevron-back" size={20} color={colors.textPrimary} /></TouchableOpacity>
+              <Text style={styles.dayTitle}>{formatDateLong(selected)}</Text>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, 1))} style={styles.navBtn} testID="cal-next"><Ionicons name="chevron-forward" size={20} color={colors.textPrimary} /></TouchableOpacity>
+            </View>
+            {loading ? spinner : dayEvents(selected).length === 0 ? emptyText : dayEvents(selected).map(renderEvent)}
+          </View>
+        )}
+
+        {view === "week" && (
+          <View style={styles.daySection}>
+            <View style={styles.navRow}>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, -7))} style={styles.navBtn} testID="cal-prev"><Ionicons name="chevron-back" size={20} color={colors.textPrimary} /></TouchableOpacity>
+              <Text style={styles.dayTitle}>Week of {formatDateLong(weekDays[0])}</Text>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, 7))} style={styles.navBtn} testID="cal-next"><Ionicons name="chevron-forward" size={20} color={colors.textPrimary} /></TouchableOpacity>
+            </View>
+            {loading ? spinner : weekDays.map((d) => (
+              <View key={d} style={{ marginBottom: spacing.md }}>
+                <Text style={styles.weekDayHead}>{formatDateLong(d)}</Text>
+                {dayEvents(d).length === 0 ? <Text style={styles.weekEmpty}>—</Text> : dayEvents(d).map(renderEvent)}
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -182,8 +232,17 @@ export default function CalendarTab() {
 
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
-  headerBar: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  headerBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   headerTitle: { ...typography.h1, color: c.textPrimary },
+  viewToggle: { flexDirection: "row", backgroundColor: c.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: c.border },
+  viewChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  viewChipOn: { backgroundColor: c.accent },
+  viewChipText: { ...typography.caption, fontWeight: "800", color: c.textSecondary },
+  viewChipTextOn: { color: "white" },
+  navRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
+  navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  weekDayHead: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, marginBottom: 6 },
+  weekEmpty: { ...typography.caption, color: c.textTertiary, marginBottom: 4 },
   legend: { flexDirection: "row", flexWrap: "wrap", gap: 12, paddingHorizontal: spacing.lg, marginTop: spacing.sm },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },

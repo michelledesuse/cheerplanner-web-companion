@@ -1,0 +1,29 @@
+{
+  "summary": "CheerPlanner v2.2 batch — Feature #5 (Calendar Month/Week/Day toggle) and Feature #6b (Fundraiser goal_amount + public progress bar + copy-link) — ALL PASS. Backend: 9/9 pytest cases green (goal_amount create/patch/get, public endpoint returns goal_amount, no-goal null case, calendar day/week/month range slicing + multi-day 'day N/total' expansion + out-of-range exclusion). Frontend (390x844): Calendar tab shows Month/Week/Day segmented toggle (testIDs calview-month/week/day); Week view renders 'Week of Sun, 06-28-2026' with cal-prev/cal-next arrows advancing by 7 days ('Week of Sun, 07-05-2026' after next) and events grouped under each of 7 day headings; Day view renders single-day list with cal-prev/cal-next stepping by 1 day; Month view keeps existing react-native-calendars grid, colored dots, legend, and selected-day event list. Fundraisers form shows 'Goal (optional, USD)' input (testID fundraiser-goal-input); saving with goal=1000 + amount=400 persists, and re-opening in edit mode preloads value '1000'. Public share page /f/<token> (no auth) renders progress bar with '40% of $1,000.00 goal' text and Copy link button (testID copy-link-btn); no-goal fundraiser correctly hides the progress bar and percentage while still showing Copy link.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_goal_and_calview.py",
+    "/app/test_reports/pytest/pytest_v22_goal_calview.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "calendar.tsx: isoStartOfWeek uses local timezone Date(iso+'T00:00:00'); in edge timezones this could produce off-by-one week starts. Currently works for tested env; non-blocking.",
+    "f/[token].tsx: on web, copyLink() uses navigator.clipboard which requires a secure context and user gesture; if it fails silently the 'Link copied!' confirmation won't appear. Consider a fallback using document.execCommand or explicit try/catch messaging. Non-blocking (still uses Share on native).",
+    "fundraisers.py POST: for a fresh Fundraiser without an explicit goal_amount the model default of None is stored; PATCH does not allow clearing goal_amount back to None (goal_amount not in nullable_fields set) — if intentional this is fine, otherwise add 'goal_amount' to nullable_fields to let users remove a goal."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v22_goal_and_calview.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "All test fundraisers and schedule events created by pytest are cleaned up via teardown_class. Two UI-created fundraisers (TEST_UI_goal_fund, TEST_UI_nogoal) were deleted via API after UI verification. No orphaned data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "v2.2 features #5 (calendar toggle) and #6b (fundraiser goal + copy link) verified end-to-end. Backend tests: /app/backend/tests/test_v22_goal_and_calview.py (9 tests, JUnit XML in pytest_v22_goal_calview.xml). UI verified with mobile viewport 390x844 against EXPO_PUBLIC_BACKEND_URL. Public /f/<token> render + progress bar + Copy link button work without auth. Note: LogBox 'Uncaught Error 401' overlay pops up on Expo web at the login screen because of an early /api/auth/me probe; harmless — dismissible via 'Minimize' button and does not affect UX after login. #7 custom event types was deferred per instructions and NOT tested.",
+  "rca_of_issue": "N/A — no bugs found."
+}

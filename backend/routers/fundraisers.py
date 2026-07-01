@@ -97,6 +97,7 @@ async def public_fundraiser(token: str):
         "amount_raised": round(raised, 2),
         "applied_amount": round(applied, 2),
         "available": round(max(0.0, raised - applied), 2),
+        "goal_amount": doc.get("goal_amount"),
         "raised_on": doc.get("raised_on"),
         "note": doc.get("note"),
     }
