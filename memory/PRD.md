@@ -106,3 +106,10 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 ## Session update 2
 - DONE: Fundraiser external link — added optional "Fundraiser link (URL)" field on add/edit form (link_url on Fundraiser/Create/Update, nullable so it can be cleared). Share button now shares the ACTUAL external URL (not the app summary page). Tapping a fundraiser row opens a popup: "Open fundraiser link" (external browser via Linking) or "Edit details". If no link set, share/open prompts to add one. URLs auto-prefixed with https:// if missing scheme.
 - Note: the old /f/<token> public summary page + /fundraisers/{id}/share endpoint remain but are no longer used by the app (harmless; can be retired later).
+
+## Backlog — added (for later, NOT yet built)
+- B1 (BUG): Expenses not consistently in ascending order across ALL screens. Make sort order consistent app-wide (dashboard, expenses tab, athlete detail, calendar, etc.). Earlier fix only touched the Expenses tab default sort.
+- B2: User-created custom EVENT types AND custom EXPENSE types — creatable, saved, reusable/selectable later (extends deferred #7 to also cover expense categories).
+- B3: Filter events AND expenses by athlete, team, and/or type (combinable, e.g. "Cheerleader A" + "Practice" shows only those). Applies to schedule/calendar + expenses.
+- B4: Calendar Day/Week/Month — add a date picker dropdown to jump directly to the day/week/month containing a chosen date (currently only prev/next stepping).
+- B5 (small): Rename "Spent" label to "Season Total" (or "Total" if space is tight), wherever "Spent" appears.
