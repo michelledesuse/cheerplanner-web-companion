@@ -52,6 +52,12 @@ async def update_preferences(payload: NotificationPreferencesUpdate, current_use
         merged["categories"] = {**merged["categories"], **dict(sent["categories"])}
     if "timezone" in sent and sent["timezone"]:
         merged["timezone"] = sent["timezone"]
+    if "sms_enabled" in sent:
+        merged["sms_enabled"] = bool(sent["sms_enabled"])
+    if "sms_phone" in sent:
+        merged["sms_phone"] = sent["sms_phone"]
+    if "sms_consent_at" in sent:
+        merged["sms_consent_at"] = sent["sms_consent_at"]
 
     await db.users.update_one(
         {"id": current_user["id"]},

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Switch, ActivityIndicator, Alert, Platform, TextInput, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +23,9 @@ type Preferences = {
   frequency: Frequency;
   timezone: string;
   categories: Record<CategoryKey, boolean>;
+  sms_enabled?: boolean;
+  sms_phone?: string | null;
+  sms_consent_at?: string | null;
 };
 
 const FREQUENCY_OPTIONS: { id: Frequency; label: string; sub: string }[] = [
@@ -46,6 +49,7 @@ export default function NotificationsSettingsScreen() {
   const [prefs, setPrefs] = useState<Preferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [smsPhone, setSmsPhone] = useState("");
 
   useEffect(() => {
     (async () => {

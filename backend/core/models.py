@@ -724,6 +724,10 @@ class NotificationPreferences(BaseModel):
     categories: NotificationCategoryPrefs = Field(default_factory=NotificationCategoryPrefs)
     # IANA tz, e.g. "America/New_York". Used only by the digest scheduler.
     timezone: str = "America/New_York"
+    # SMS reminders (Twilio) — explicit opt-in consent captured in-app
+    sms_enabled: bool = False
+    sms_phone: Optional[str] = None
+    sms_consent_at: Optional[str] = None
 
 
 class NotificationPreferencesUpdate(BaseModel):
@@ -731,6 +735,9 @@ class NotificationPreferencesUpdate(BaseModel):
     frequency: Optional[NotificationFrequency] = None
     categories: Optional[NotificationCategoryPrefs] = None
     timezone: Optional[str] = None
+    sms_enabled: Optional[bool] = None
+    sms_phone: Optional[str] = None
+    sms_consent_at: Optional[str] = None
 
 
 # ============================================================
