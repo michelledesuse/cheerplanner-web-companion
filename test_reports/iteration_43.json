@@ -1,0 +1,37 @@
+{
+  "summary": "CheerPlanner v2.2 SMS opt-in + Privacy Policy tested end-to-end (backend + frontend). Backend 5/5 pytest cases passed against PATCH/GET /api/notifications/preferences with new sms_enabled/sms_phone/sms_consent_at fields. Frontend flows on /settings/notifications and /settings/privacy all work as spec'd once Metro rebundled the newly added files (Expo restart required — Metro was running in CI mode so hot reload was disabled). SMS opt-in normalizes 10-digit US numbers to +1XXXXXXXXXX, disables the phone input after opt-in, shows 'You're opted in.' subtitle, persists across reload, and toggling OFF re-enables editing. Privacy Policy screen renders with the required SMS / text message reminders section and is reachable from both notif-privacy-link and the Settings tab settings-privacy row.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "expo-router / Metro CI mode", "issue": "Metro is started with CI=true (reloads disabled), so newly added files under /app/frontend/app/settings/privacy.tsx and edits to notifications.tsx / (tabs)/settings.tsx were not picked up until `sudo supervisorctl restart expo` was run. Before restart, /settings/privacy showed 'Unmatched Route' and the settings-privacy row was absent. Not a code bug — flag for awareness so future feature testing always restarts Expo after new route files are added. Reference: /var/log/supervisor/expo.out.log ('Metro is running in CI mode, reloads are disabled')."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_sms_optin.py",
+    "/app/test_reports/pytest/pytest_v22_sms_optin.xml"
+  ],
+  "action_items": [
+    "None required for the SMS opt-in / Privacy Policy features — both are working end-to-end.",
+    "Optional: when adding brand-new route files in future iterations, run `sudo supervisorctl restart expo` because Metro is in CI mode and won't auto-detect new files."
+  ],
+  "critical_code_review_comments": [
+    "notifications.tsx toggleSmsConsent guard uses digits.length < 10 — this correctly blocks empty/short numbers. Verified behavior: with empty phone the switch does NOT flip to ON (state remained OFF and next-step toggle with a valid number succeeded). Note: page.on('dialog') did not capture the Alert.alert message because react-native-web renders Alert as an in-app modal, not window.alert — behavior is still correct.",
+    "notifications.py PATCH handler correctly persists sms_enabled/sms_phone/sms_consent_at, and setting sms_phone: null / sms_consent_at: null works (verified in cleanup test).",
+    "settings.tsx (Settings tab) correctly links to /settings/privacy via testID settings-privacy — visible after scrolling into the Help & support section."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v22_sms_optin.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100% (all 4 sub-flows verified)"},
+  "seed_data_creation": "No new seed data. Test uses seeded applereview@cheerplanner.app account and resets sms_* fields to null at end of test module for idempotency.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Metro runs in CI mode — after E1 adds new expo-router route files, always `sudo supervisorctl restart expo` before running Playwright tests, otherwise new routes will render as 'Unmatched Route'. Login uses testIDs login-email-input / login-password-input / login-submit-button. Notification prefs GET/PATCH already returns sms_enabled/sms_phone/sms_consent_at.",
+  "rca_of_issue": "N/A — no functional bugs found."
+}

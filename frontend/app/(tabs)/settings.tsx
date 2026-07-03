@@ -208,6 +208,13 @@ export default function SettingsScreen() {
             chevron
             testID="settings-contact"
           />
+          <SettingRow
+            icon="shield-checkmark-outline"
+            label="Privacy Policy"
+            onPress={() => router.push("/settings/privacy" as any)}
+            chevron
+            testID="settings-privacy"
+          />
         </View>
 
         <TouchableOpacity style={styles.signOutBtn} onPress={onSignOut} testID="sign-out-btn">

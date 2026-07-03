@@ -56,6 +56,7 @@ export default function NotificationsSettingsScreen() {
       try {
         const r = await api.get<Preferences>("/notifications/preferences");
         setPrefs(r.data);
+        setSmsPhone(r.data?.sms_phone || "");
       } catch (e: any) {
         Alert.alert("Couldn't load preferences", e?.response?.data?.detail || "Try again later.");
       } finally {
@@ -81,6 +82,32 @@ export default function NotificationsSettingsScreen() {
       Alert.alert("Couldn't save", e?.response?.data?.detail || "Try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const normalizePhone = (raw: string) => {
+    const trimmed = raw.trim();
+    const digits = trimmed.replace(/[^0-9]/g, "");
+    // Default US country code if a bare 10-digit number is entered.
+    if (trimmed.startsWith("+")) return "+" + digits;
+    if (digits.length === 10) return "+1" + digits;
+    return "+" + digits;
+  };
+
+  const toggleSmsConsent = async (v: boolean) => {
+    if (v) {
+      const digits = smsPhone.replace(/[^0-9]/g, "");
+      if (digits.length < 10) {
+        Alert.alert("Add your mobile number", "Please enter a valid mobile number before opting in to SMS reminders.");
+        return;
+      }
+      await patch({
+        sms_enabled: true,
+        sms_phone: normalizePhone(smsPhone),
+        sms_consent_at: new Date().toISOString(),
+      });
+    } else {
+      await patch({ sms_enabled: false });
     }
   };
 
@@ -175,6 +202,67 @@ export default function NotificationsSettingsScreen() {
           })}
         </View>
 
+        {/* SMS reminders (opt-in) */}
+        <Text style={styles.sectionHead}>Text message (SMS) reminders</Text>
+        <View style={styles.group}>
+          <View style={styles.smsIntroRow}>
+            <View style={styles.catIcon}>
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textPrimary} />
+            </View>
+            <Text style={styles.smsIntroText}>
+              Get a text when a payment, competition, or travel deadline is coming up.
+            </Text>
+          </View>
+
+          <View style={styles.smsFieldWrap}>
+            <Text style={styles.smsFieldLabel}>Mobile number</Text>
+            <TextInput
+              testID="notif-sms-phone"
+              value={smsPhone}
+              onChangeText={setSmsPhone}
+              editable={!prefs.sms_enabled}
+              placeholder="(555) 123-4567"
+              placeholderTextColor={colors.textTertiary}
+              keyboardType="phone-pad"
+              style={styles.smsInput}
+            />
+          </View>
+
+          <View style={[styles.catRow, { borderBottomWidth: 0 }]}>
+            <View style={{ flex: 1, paddingRight: spacing.sm }}>
+              <Text style={styles.catLabel}>Send me SMS reminders</Text>
+              <Text style={styles.catSub}>
+                {prefs.sms_enabled ? "You're opted in. Turn off to stop texts." : "You must opt in to receive texts."}
+              </Text>
+            </View>
+            <Switch
+              testID="notif-sms-consent"
+              value={!!prefs.sms_enabled}
+              onValueChange={toggleSmsConsent}
+              trackColor={{ false: "#CBD5E1", true: colors.accent }}
+              thumbColor={Platform.OS === "android" ? "#fff" : undefined}
+            />
+          </View>
+        </View>
+
+        <View style={styles.consentBox}>
+          <Text style={styles.consentText}>
+            By opting in, you agree to receive recurring automated reminder text messages from
+            CheerPlanner at the mobile number provided (e.g. payment due dates, competitions, and
+            travel deadlines). Consent is not a condition of purchase. Message frequency varies.
+            Message and data rates may apply. Reply STOP to unsubscribe or HELP for help.
+          </Text>
+          <View style={styles.consentLinksRow}>
+            <TouchableOpacity onPress={() => router.push("/settings/privacy" as any)} testID="notif-privacy-link">
+              <Text style={styles.consentLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.consentDot}>•</Text>
+            <TouchableOpacity onPress={() => Linking.openURL("https://cheer-planner.com/privacy")} testID="notif-privacy-web">
+              <Text style={styles.consentLink}>cheer-planner.com/privacy</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <Text style={styles.note}>
           Reminders are sent in your local timezone. To turn everything off, choose "Off" above.
           You can also tap the unsubscribe link at the bottom of any reminder email.
@@ -219,4 +307,25 @@ const makeStyles = () => ({
   catSub: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
   note: { ...typography.caption, color: colors.textTertiary, marginTop: spacing.lg, lineHeight: 18 },
+
+  smsIntroRow: {
+    flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md,
+    borderBottomWidth: 1, borderBottomColor: colors.borderSoft,
+  },
+  smsIntroText: { ...typography.caption, color: colors.textSecondary, flex: 1, lineHeight: 18 },
+  smsFieldWrap: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  smsFieldLabel: { ...typography.micro, color: colors.textTertiary, marginBottom: spacing.xs, textTransform: "uppercase", letterSpacing: 0.5 },
+  smsInput: {
+    ...typography.body, color: colors.textPrimary, backgroundColor: colors.bg,
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.md,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+  },
+  consentBox: {
+    marginTop: spacing.md, padding: spacing.md,
+    backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border,
+  },
+  consentText: { ...typography.caption, color: colors.textSecondary, lineHeight: 18 },
+  consentLinksRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap" },
+  consentLink: { ...typography.caption, color: colors.accent, fontWeight: "600" },
+  consentDot: { color: colors.textTertiary },
 });
