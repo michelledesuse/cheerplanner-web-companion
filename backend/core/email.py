@@ -134,15 +134,17 @@ def verify_unsubscribe_token(token: str) -> Optional[str]:
 # ============================================================
 # Deep-link helpers
 # ============================================================
-def password_reset_links(token: str) -> Tuple[str, str]:
+def password_reset_links(token: str, base_url: Optional[str] = None) -> Tuple[str, str]:
     """Return (deep_link, web_fallback) URLs for a password reset.
 
-    The web fallback now points to the backend-hosted reset page at
-    `/api/auth/reset` — desktop users can complete the reset there without
-    needing the mobile app installed.
+    `base_url` — when provided (derived from the incoming request's public
+    host, e.g. via X-Forwarded-Host) — is used for the web fallback so the
+    link points at whatever public domain actually serves this backend, in
+    both preview and production. Falls back to BACKEND_PUBLIC_URL otherwise.
     """
     deep = f"{APP_URL_SCHEME}://reset?token={token}"
-    web = f"{BACKEND_PUBLIC_URL}/api/auth/reset?token={token}"
+    root = (base_url or BACKEND_PUBLIC_URL).rstrip("/")
+    web = f"{root}/api/auth/reset?token={token}"
     return deep, web
 
 

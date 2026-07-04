@@ -30,6 +30,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
+def _public_base_url(request: Request) -> str | None:
+    """Reconstruct this backend's public origin from proxy headers.
+
+    The Emergent ingress terminates TLS and forwards the original host in
+    `X-Forwarded-Host` (request.base_url is the internal cluster host, which
+    is useless in emails). Works in preview and after Publish/deploy without
+    hardcoding a domain. Returns None if headers are absent so callers fall
+    back to the configured env URL.
+    """
+    xf_host = request.headers.get("x-forwarded-host")
+    if not xf_host:
+        return None
+    # X-Forwarded-Host can be a comma-separated list; take the first.
+    xf_host = xf_host.split(",")[0].strip()
+    xf_proto = (request.headers.get("x-forwarded-proto") or "https").split(",")[0].strip()
+    return f"{xf_proto}://{xf_host}"
+
+
+
+
 @router.post("/auth/forgot-password")
 @limiter.limit("5/minute")
 async def forgot_password(request: Request, payload: ForgotPasswordPayload):
@@ -40,7 +60,7 @@ async def forgot_password(request: Request, payload: ForgotPasswordPayload):
         logger.info("forgot-password: no user for %s (returning ok)", email)
         return {"ok": True}
     token = make_password_reset_token(user["id"])
-    deep, web = password_reset_links(token)
+    deep, web = password_reset_links(token, base_url=_public_base_url(request))
     subject, html, text = render_password_reset(
         name=user.get("name"),
         deep_link=deep,
