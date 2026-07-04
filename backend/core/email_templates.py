@@ -61,21 +61,22 @@ def render_password_reset(name: str | None, deep_link: str, web_link: str, ttl_m
     subject = f"Reset your {BRAND} password"
     body = (
         f"<p>Hi {safe_name}, we got a request to reset your {BRAND} password.</p>"
-        f"<p>Tap the button below from your phone to set a new one. This link expires in <strong>{ttl_minutes} minutes</strong>.</p>"
+        f"<p>Tap the button below to set a new one. This link expires in <strong>{ttl_minutes} minutes</strong>.</p>"
         f'<p style="text-align:center;margin:24px 0">'
-        f'<a href="{deep_link}" '
+        f'<a href="{web_link}" '
         f'style="display:inline-block;background:{ACCENT};color:#fff;padding:12px 24px;'
         f'border-radius:10px;text-decoration:none;font-weight:700">Reset password</a></p>'
-        f'<p style="font-size:13px;color:{MUTED}">Button not working? Open this link on your phone:<br>'
-        f'<a href="{deep_link}" style="color:{ACCENT};word-break:break-all">{deep_link}</a></p>'
-        f'<p style="font-size:13px;color:{MUTED}">On a computer? Visit <a href="{web_link}" style="color:{ACCENT}">{web_link}</a>.</p>'
+        f'<p style="font-size:13px;color:{MUTED}">Button not working? Copy and paste this link into your browser:<br>'
+        f'<a href="{web_link}" style="color:{ACCENT};word-break:break-all">{web_link}</a></p>'
+        f'<p style="font-size:13px;color:{MUTED}">It works on your phone or computer. If you have the '
+        f'{BRAND} app installed, the page will offer to open it.</p>'
         f'<p style="font-size:13px;color:{MUTED}">If you didn\'t request this, you can safely ignore this email.</p>'
     )
     html = _shell("Reset your password", body, unsubscribe_token=None, web_url="")
     text = (
-        f"Hi {safe_name}, reset your {BRAND} password by opening this link on your phone "
-        f"(expires in {ttl_minutes} minutes):\n\n{deep_link}\n\n"
-        f"On a computer? Visit: {web_link}\n\n"
+        f"Hi {safe_name}, reset your {BRAND} password by opening this link "
+        f"(expires in {ttl_minutes} minutes):\n\n{web_link}\n\n"
+        f"It works on your phone or computer.\n\n"
         f"Didn't request this? You can ignore this email."
     )
     return subject, html, text
