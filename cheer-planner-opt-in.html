@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SMS Reminder Opt-In — CheerPlanner</title>
+  <meta name="description" content="How CheerPlanner customers opt in to receive SMS reminder text messages." />
+  <style>
+    :root { --accent:#E11D48; --bg:#F8FAFC; --card:#FFFFFF; --text:#0F172A; --muted:#64748B; --border:#E2E8F0; }
+    * { box-sizing: border-box; }
+    body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+           background:var(--bg); color:var(--text); margin:0; padding:40px 16px; line-height:1.6; }
+    .wrap { max-width:640px; margin:0 auto; }
+    .brand { font-weight:800; color:var(--accent); font-size:20px; margin-bottom:6px; }
+    h1 { font-size:26px; margin:0 0 6px; }
+    h2 { font-size:17px; margin:28px 0 8px; }
+    .lead { color:var(--muted); font-size:15px; margin:0 0 24px; }
+    p { font-size:15px; color:#334155; margin:0 0 12px; }
+    blockquote { margin:0; border-left:4px solid var(--accent); background:var(--card);
+                 border:1px solid var(--border); border-radius:8px; padding:14px 16px;
+                 color:#334155; font-size:14px; }
+    a { color:var(--accent); }
+    /* Phone mockup */
+    .phone { max-width:340px; margin:0 auto 8px; border:1px solid var(--border); border-radius:16px;
+             overflow:hidden; background:var(--card); }
+    .phone-top { background:#0F172A; color:#fff; text-align:center; padding:12px; font-weight:700; }
+    .phone-body { padding:16px; }
+    .eyebrow { text-transform:uppercase; letter-spacing:.5px; color:#94A3B8; font-size:11px; margin-bottom:8px; }
+    .cardbox { border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:12px; }
+    .desc { color:#475569; font-size:13px; margin-bottom:12px; }
+    .field-label { text-transform:uppercase; letter-spacing:.5px; color:#94A3B8; font-size:10px; margin-bottom:4px; }
+    .field { border:1px solid var(--border); border-radius:8px; padding:10px; color:var(--text); font-size:14px; margin-bottom:14px; }
+    .toggle-row { display:flex; align-items:center; justify-content:space-between; }
+    .toggle-label { font-weight:600; color:var(--text); font-size:14px; }
+    .toggle-sub { color:var(--muted); font-size:12px; }
+    .switch { width:44px; height:26px; border-radius:13px; background:var(--accent); position:relative; flex:none; }
+    .switch .knob { position:absolute; top:3px; right:3px; width:20px; height:20px; border-radius:10px; background:#fff; }
+    .disclosure { background:var(--bg); border:1px solid var(--border); border-radius:12px;
+                  padding:12px; color:#475569; font-size:12px; }
+    .foot { color:#94A3B8; font-size:12px; margin-top:28px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">CheerPlanner</div>
+    <h1>SMS Reminder Opt-In</h1>
+    <p class="lead">How customers consent to receive text messages from CheerPlanner.</p>
+
+    <h2>How opt-in is collected</h2>
+    <p>
+      CheerPlanner is a mobile app for cheer/dance parents. After signing in, a user goes to
+      <b>Settings &rarr; Notifications</b>, enters their mobile number, and turns the
+      <b>&ldquo;Send me SMS reminders&rdquo;</b> toggle ON. The toggle is OFF by default; the user must
+      actively enable it. When enabled, the app records the consent timestamp and mobile number on
+      the user&rsquo;s account. No messages are sent unless the user opts in. Consent is not a
+      condition of using the app.
+    </p>
+
+    <h2>The opt-in screen (in-app)</h2>
+    <div class="phone">
+      <div class="phone-top">Notifications</div>
+      <div class="phone-body">
+        <div class="eyebrow">Text message (SMS) reminders</div>
+        <div class="cardbox">
+          <div class="desc">Get a text when a payment, competition, or travel deadline is coming up.</div>
+          <div class="field-label">Mobile number</div>
+          <div class="field">(555) 123-4567</div>
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-label">Send me SMS reminders</div>
+              <div class="toggle-sub">You must opt in to receive texts.</div>
+            </div>
+            <div class="switch"><div class="knob"></div></div>
+          </div>
+        </div>
+        <div class="disclosure">
+          By opting in, you agree to receive recurring automated reminder text messages from
+          CheerPlanner at the mobile number provided (e.g. payment due dates, competitions, and
+          travel deadlines). Consent is not a condition of purchase. Message frequency varies.
+          Message and data rates may apply. Reply STOP to unsubscribe or HELP for help.
+        </div>
+      </div>
+    </div>
+
+    <h2>Exact consent language shown to the user</h2>
+    <blockquote>
+      By opting in, you agree to receive recurring automated reminder text messages from
+      CheerPlanner at the mobile number provided (e.g. payment due dates, competitions, and
+      travel deadlines). Consent is not a condition of purchase. Message frequency varies.
+      Message and data rates may apply. Reply STOP to unsubscribe or HELP for help.
+    </blockquote>
+
+    <h2>Message types &amp; frequency</h2>
+    <p>
+      Account reminders only: payment due dates, upcoming competitions, and travel/booking deadlines.
+      Frequency varies with the user&rsquo;s own schedule (typically a few messages per month).
+      Message and data rates may apply.
+    </p>
+    <p><b>Sample message:</b> &ldquo;CheerPlanner: Tuition of $150 for Emma is due tomorrow (Jul 4). Reply STOP to opt out.&rdquo;</p>
+
+    <h2>Opt-out</h2>
+    <p>
+      Users can reply STOP at any time, or turn the toggle OFF in Settings &rarr; Notifications.
+      Reply HELP for help.
+    </p>
+
+    <h2>Privacy</h2>
+    <p>
+      Privacy Policy: <a href="https://cheer-planner.com/privacy">cheer-planner.com/privacy</a>.
+      Mobile opt-in data and phone numbers are never sold or shared with third parties for marketing.
+    </p>
+
+    <p class="foot">CheerPlanner &middot; info@cheer-planner.com</p>
+  </div>
+</body>
+</html>
