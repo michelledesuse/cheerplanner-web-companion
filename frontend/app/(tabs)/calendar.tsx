@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl,
+  RefreshControl, Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +24,7 @@ type CalEvent = {
   color: string;
   logo_image?: string | null;
   link?: string;
+  links?: { label: string; url: string }[];
 };
 
 const KIND_ICONS: Record<string, any> = {
@@ -113,27 +114,46 @@ export default function CalendarTab() {
   const dayEvents = (d: string) => events.filter((e) => e.date === d);
 
   const renderEvent = (e: CalEvent) => (
-    <TouchableOpacity
-      key={e.id}
-      onPress={() => { if (e.link) router.push(e.link as any); }}
-      style={styles.eventRow}
-      testID={`event-${e.id}`}
-    >
-      {e.logo_image ? (
-        <TeamAvatar logoImage={e.logo_image} color={e.color} size={36} />
-      ) : (
-        <View style={[styles.eventIcon, { backgroundColor: e.color + "22" }]}>
-          <Ionicons name={KIND_ICONS[e.kind] || "calendar"} size={18} color={e.color} />
+    <View key={e.id} style={styles.eventRow} testID={`event-${e.id}`}>
+      <TouchableOpacity
+        onPress={() => { if (e.link) router.push(e.link as any); }}
+        style={styles.eventMain}
+        testID={`event-open-${e.id}`}
+      >
+        {e.logo_image ? (
+          <TeamAvatar logoImage={e.logo_image} color={e.color} size={36} />
+        ) : (
+          <View style={[styles.eventIcon, { backgroundColor: e.color + "22" }]}>
+            <Ionicons name={KIND_ICONS[e.kind] || "calendar"} size={18} color={e.color} />
+          </View>
+        )}
+        <View style={{ flex: 1, marginLeft: spacing.md }}>
+          <Text style={styles.eventTitle}>{e.title}</Text>
+          {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
+        </View>
+        {e.amount != null && (
+          <Text style={[styles.eventAmount, { color: e.color }]}>{formatCurrency(e.amount)}</Text>
+        )}
+      </TouchableOpacity>
+
+      {Array.isArray(e.links) && e.links.length > 0 && (
+        <View style={styles.linkChips}>
+          {e.links.map((lnk, i) => (
+            <TouchableOpacity
+              key={i}
+              style={[styles.linkChip, { borderColor: e.color }]}
+              onPress={() => Linking.openURL(lnk.url)}
+              testID={`event-link-${e.id}-${i}`}
+            >
+              <Ionicons name="link-outline" size={13} color={e.color} />
+              <Text style={[styles.linkChipText, { color: e.color }]} numberOfLines={1}>
+                {lnk.label || lnk.url}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
       )}
-      <View style={{ flex: 1, marginLeft: spacing.md }}>
-        <Text style={styles.eventTitle}>{e.title}</Text>
-        {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
-      </View>
-      {e.amount != null && (
-        <Text style={[styles.eventAmount, { color: e.color }]}>{formatCurrency(e.amount)}</Text>
-      )}
-    </TouchableOpacity>
+    </View>
   );
 
   const weekDays = useMemo(() => {
@@ -250,7 +270,11 @@ const makeStyles = (c: ThemePalette) => ({
   daySection: { padding: spacing.lg },
   dayTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
   empty: { ...typography.body, color: c.textTertiary, marginTop: spacing.lg, textAlign: "center" },
-  eventRow: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
+  eventRow: { padding: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
+  eventMain: { flexDirection: "row", alignItems: "center" },
+  linkChips: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10, marginLeft: 48 },
+  linkChip: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, maxWidth: 200 },
+  linkChipText: { ...typography.caption, fontWeight: "700", flexShrink: 1 },
   eventIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   eventTitle: { ...typography.bodyMedium, color: c.textPrimary },
   eventMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },

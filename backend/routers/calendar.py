@@ -311,6 +311,7 @@ async def calendar_feed(
                     "subtitle": subtitle,
                     "color": colors_by_type.get(et, "#64748B"),
                     "link": f"/schedule/new?id={s['id']}",
+                    "links": s.get("links", []),
                 })
         elif in_range(day):
             items.append({
@@ -321,6 +322,7 @@ async def calendar_feed(
                 "subtitle": subtitle,
                 "color": colors_by_type.get(et, "#64748B"),
                 "link": f"/schedule/new?id={s['id']}",
+                "links": s.get("links", []),
             })
 
     # Team meet/performance times (per-team multi-day schedule per competition)
