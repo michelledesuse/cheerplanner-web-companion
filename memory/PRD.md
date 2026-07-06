@@ -108,8 +108,9 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Note: the old /f/<token> public summary page + /fundraisers/{id}/share endpoint remain but are no longer used by the app (harmless; can be retired later).
 
 ## Backlog — added (for later, NOT yet built)
-- B1 (BUG): Expenses not consistently in ascending order across ALL screens. Make sort order consistent app-wide (dashboard, expenses tab, athlete detail, calendar, etc.). Earlier fix only touched the Expenses tab default sort.
+- B1 (BUG): [DONE] Expenses ascending order across ALL screens — fixed backend /expenses sort to incurred_on asc.
 - B2: User-created custom EVENT types AND custom EXPENSE types — creatable, saved, reusable/selectable later (extends deferred #7 to also cover expense categories).
-- B3: Filter events AND expenses by athlete, team, and/or type (combinable, e.g. "Cheerleader A" + "Practice" shows only those). Applies to schedule/calendar + expenses.
+- B3: [DONE] Filter events AND expenses by athlete/team/type (combinable) — inline chip rows on Expenses, Schedule, Competitions.
 - B4: Calendar Day/Week/Month — add a date picker dropdown to jump directly to the day/week/month containing a chosen date (currently only prev/next stepping).
-- B5 (small): Rename "Spent" label to "Season Total" (or "Total" if space is tight), wherever "Spent" appears.
+- B5 (small): [DONE] Renamed "Spent" → "Season Total" (Athletes cards, Athlete detail, FAQ).
+- B6 (small): Active-filters UI — show a count of applied filters + a "Clear all" pill/button on Expenses, Schedule, and Competitions tabs so parents can reset stacked Athlete+Team+Type/Category filters in one tap.
