@@ -26,6 +26,7 @@ type Competition = {
   team_ids?: string[];
   team_meet_times?: TeamMeetTime[];
   teams_to_watch?: TeamToWatch[];
+  links?: { label: string; url: string }[];
 };
 
 type Athlete = { id: string; name: string; avatar_color?: string; competition_ids?: string[] };
@@ -256,6 +257,26 @@ export default function CompetitionDetail() {
           />
         ))}
 
+        {Array.isArray(comp.links) && comp.links.length > 0 && (
+          <>
+            <Text style={styles.sectionHead}>Links</Text>
+            <View style={styles.linksCard}>
+              {comp.links.map((lnk, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[styles.linkRow, i === comp.links!.length - 1 && { borderBottomWidth: 0 }]}
+                  onPress={() => Linking.openURL(lnk.url)}
+                  testID={`comp-detail-link-${i}`}
+                >
+                  <Ionicons name="link-outline" size={18} color={colors.accent} />
+                  <Text style={styles.linkRowText} numberOfLines={1}>{lnk.label || lnk.url}</Text>
+                  <Ionicons name="open-outline" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
         {!!comp.notes && (
           <>
             <Text style={styles.sectionHead}>Notes</Text>
@@ -446,4 +467,7 @@ const makeStyles = () => ({
   bookingNotes: { marginTop: spacing.md, ...typography.caption, color: colors.textSecondary },
   notesCard: { backgroundColor: colors.card, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border },
   notesText: { ...typography.body, color: colors.textPrimary },
+  linksCard: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+  linkRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  linkRowText: { ...typography.body, color: colors.textPrimary, flex: 1 },
 });

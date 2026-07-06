@@ -11,6 +11,7 @@ import { todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import TeamAvatar from "@/src/components/TeamAvatar";
+import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 
 const TYPES = [
   { key: "practice", label: "Practice", icon: "barbell", color: "#EA580C" },
@@ -69,6 +70,7 @@ export default function ScheduleForm() {
   const [teamId, setTeamId] = useState<string | null>(null);
   const [endDate, setEndDate] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [links, setLinks] = useState<ExternalLink[]>([]);
 
   // Recurrence
   const [repeat, setRepeat] = useState(false);
@@ -106,6 +108,7 @@ export default function ScheduleForm() {
             setTeamId(e.team_id || null);
             setEndDate(e.end_date || "");
             setSeriesId(e.series_id || null);
+            setLinks(Array.isArray(e.links) ? e.links : []);
             if (e.recurrence_rule) {
               setRepeat(true);
               setFrequency(e.recurrence_rule.frequency || "weekly");
@@ -145,6 +148,7 @@ export default function ScheduleForm() {
     end_time: endTime.trim() || null,
     notes: notes.trim() || null,
     athlete_ids: Array.from(selectedIds),
+    links: cleanLinks(links),
     ...(includeRecurrence && repeat ? {
       recurrence_rule: {
         frequency,
@@ -398,6 +402,9 @@ export default function ScheduleForm() {
               </View>
             </>
           )}
+
+          <Text style={styles.label}>Links (optional)</Text>
+          <LinksEditor value={links} onChange={setLinks} testIDPrefix="schedule-link" />
 
           <Text style={styles.label}>Notes (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wear comp shoes" placeholderTextColor={colors.textTertiary} />

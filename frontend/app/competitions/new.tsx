@@ -11,6 +11,7 @@ import { isoToInput, userDateToISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
 import TimeField from "@/src/components/TimeField";
+import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 
 export default function CompetitionForm() {
   const styles = useThemedStyles(makeStyles);
@@ -29,6 +30,7 @@ export default function CompetitionForm() {
   const [bookingLink, setBookingLink] = useState("");
   const [bookingReleaseAt, setBookingReleaseAt] = useState("");
   const [notes, setNotes] = useState("");
+  const [links, setLinks] = useState<ExternalLink[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
 
@@ -48,6 +50,7 @@ export default function CompetitionForm() {
         setBookingLink(c.booking_link || "");
         setBookingReleaseAt(c.booking_release_at || "");
         setNotes(c.notes || "");
+        setLinks(Array.isArray(c.links) ? c.links : []);
       } catch (_e) {
         Alert.alert("Error", "Could not load competition");
       } finally {
@@ -71,6 +74,7 @@ export default function CompetitionForm() {
         booking_link: bookingLink.trim() || null,
         booking_release_at: bookingReleaseAt || null,
         notes: notes.trim() || null,
+        links: cleanLinks(links),
       };
       if (isEdit) {
         await api.patch(`/competitions/${editingId}`, payload);
@@ -142,6 +146,9 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Booking link (optional)</Text>
           <TextInput style={styles.input} value={bookingLink} onChangeText={setBookingLink} placeholder="https://..." placeholderTextColor={colors.textTertiary} autoCapitalize="none" />
+
+          <Text style={styles.label}>Links (optional)</Text>
+          <LinksEditor value={links} onChange={setLinks} testIDPrefix="comp-link" />
 
           <Text style={styles.label}>Booking release (date &amp; time)</Text>
           <DateTimeField value={bookingReleaseAt} onChange={setBookingReleaseAt} testID="comp-booking-release-input" />

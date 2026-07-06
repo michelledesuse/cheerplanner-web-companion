@@ -9,6 +9,12 @@ def utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class ExternalLink(BaseModel):
+    """A user-added external link (label + URL) attached to events/competitions."""
+    label: str = ""
+    url: str
+
+
 # ============================================================
 # Auth / users
 # ============================================================
@@ -90,6 +96,7 @@ class ScheduleEvent(BaseModel):
     notes: Optional[str] = None
     series_id: Optional[str] = None  # all events of a recurring series share this id
     recurrence_rule: Optional[RecurrenceRule] = None  # stored on every instance for convenience
+    links: List[ExternalLink] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -106,6 +113,7 @@ class ScheduleEventCreate(BaseModel):
     notes: Optional[str] = None
     recurrence_rule: Optional[RecurrenceRule] = None
     end_date: Optional[str] = None
+    links: List[ExternalLink] = Field(default_factory=list)
 
 
 class ScheduleEventUpdate(BaseModel):
@@ -120,6 +128,7 @@ class ScheduleEventUpdate(BaseModel):
     end_time: Optional[str] = None
     notes: Optional[str] = None
     end_date: Optional[str] = None
+    links: Optional[List[ExternalLink]] = None
 
 
 # ============================================================
@@ -351,6 +360,7 @@ class Competition(BaseModel):
     team_ids: List[str] = Field(default_factory=list)
     team_meet_times: List[TeamMeetTime] = Field(default_factory=list)
     teams_to_watch: List[TeamToWatch] = Field(default_factory=list)
+    links: List[ExternalLink] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -368,6 +378,7 @@ class CompetitionCreate(BaseModel):
     team_ids: Optional[List[str]] = None
     team_meet_times: Optional[List[TeamMeetTime]] = None
     teams_to_watch: Optional[List[TeamToWatch]] = None
+    links: Optional[List[ExternalLink]] = None
 
 
 class CompetitionUpdate(BaseModel):
@@ -384,6 +395,7 @@ class CompetitionUpdate(BaseModel):
     team_ids: Optional[List[str]] = None
     team_meet_times: Optional[List[TeamMeetTime]] = None
     teams_to_watch: Optional[List[TeamToWatch]] = None
+    links: Optional[List[ExternalLink]] = None
 
 
 # ============================================================
