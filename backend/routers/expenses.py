@@ -32,7 +32,7 @@ async def list_expenses(
     q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
     if athlete_id:
         q["athlete_id"] = athlete_id
-    docs = await db.expenses.find(q, {"_id": 0}).sort("incurred_on", -1).to_list(2000)
+    docs = await db.expenses.find(q, {"_id": 0}).sort([("incurred_on", 1), ("created_at", 1)]).to_list(2000)
     paid_map = await _build_paid_map(current_user["id"])
     return [_expense_with_balance(d, paid_map) for d in docs]
 
