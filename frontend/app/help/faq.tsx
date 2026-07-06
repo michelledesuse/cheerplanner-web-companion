@@ -50,9 +50,9 @@ const FAQ: Section[] = [
           "Yes. Tap any payment row to open its edit screen. You can change the amount, the date, the payment method, and which expenses it covers. The app re-runs the waterfall and updates each expense's paid status automatically.",
       },
       {
-        q: "What's the difference between 'Total Spent', 'Open', and 'Paid'?",
+        q: "What's the difference between 'Season Total', 'Open', and 'Paid'?",
         a:
-          "Total Spent is everything you've been billed (sum of all expenses). Paid is how much you've actually paid. Open is what's still owed (Total Spent minus Paid). The Money tab and Dashboard tiles all use the same math.",
+          "Season Total is everything you've been billed (sum of all expenses). Paid is how much you've actually paid. Open is what's still owed (Season Total minus Paid). The Money tab and Dashboard tiles all use the same math.",
       },
       {
         q: "How do I import expenses from a spreadsheet?",

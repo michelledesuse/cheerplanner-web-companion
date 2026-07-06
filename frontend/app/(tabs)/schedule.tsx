@@ -13,6 +13,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { formatDate } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import TeamAvatar from "@/src/components/TeamAvatar";
+import FilterChipRow, { type FilterOption } from "@/src/components/FilterChipRow";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -41,6 +42,8 @@ export default function ScheduleTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);
+  const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -85,7 +88,11 @@ export default function ScheduleTab() {
     }
   };
 
-  const filtered = useMemo(() => (typeFilter ? events.filter((e) => e.event_type === typeFilter) : events), [events, typeFilter]);
+  const filtered = useMemo(() => events.filter((e) =>
+    (!typeFilter || e.event_type === typeFilter) &&
+    (!athleteFilter || (e.athlete_ids || []).includes(athleteFilter)) &&
+    (!teamFilter || e.team_id === teamFilter)
+  ), [events, typeFilter, athleteFilter, teamFilter]);
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = useMemo(() => filtered.filter((e) => e.date >= today), [filtered, today]);
   const past = useMemo(() => filtered.filter((e) => e.date < today), [filtered, today]);
@@ -174,16 +181,32 @@ export default function ScheduleTab() {
       </View>
 
       {!selectMode && (
-        <View style={styles.filterWrap}>
-          <TouchableOpacity onPress={() => setTypeFilter(null)} style={[styles.chip, typeFilter === null && styles.chipOn]}>
-            <Text style={[styles.chipText, typeFilter === null && styles.chipTextOn]}>All</Text>
-          </TouchableOpacity>
-          {Object.entries(TYPE_LABEL).map(([k, label]) => (
-            <TouchableOpacity key={k} onPress={() => setTypeFilter(k)} style={[styles.chip, typeFilter === k && styles.chipOn, { borderColor: TYPE_COLOR[k] }]}>
-              <View style={[styles.chipDot, { backgroundColor: TYPE_COLOR[k] }]} />
-              <Text style={[styles.chipText, typeFilter === k && styles.chipTextOn]}>{label}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={styles.filtersContainer}>
+          <FilterChipRow
+            label="Type"
+            testIDPrefix="sched-filter-type"
+            selectedId={typeFilter}
+            onSelect={setTypeFilter}
+            options={Object.entries(TYPE_LABEL).map(([k, label]) => ({ id: k, label, color: TYPE_COLOR[k] }))}
+          />
+          {athletes.length > 0 && (
+            <FilterChipRow
+              label="Athlete"
+              testIDPrefix="sched-filter-athlete"
+              selectedId={athleteFilter}
+              onSelect={setAthleteFilter}
+              options={athletes.map((a) => ({ id: a.id, label: a.name, color: a.avatar_color }))}
+            />
+          )}
+          {teams.length > 0 && (
+            <FilterChipRow
+              label="Team"
+              testIDPrefix="sched-filter-team"
+              selectedId={teamFilter}
+              onSelect={setTeamFilter}
+              options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
+            />
+          )}
         </View>
       )}
 
@@ -332,6 +355,7 @@ const makeStyles = (c: ThemePalette) => ({
   chipText: { ...typography.caption, color: c.textPrimary, fontWeight: "600", fontSize: 12 },
   chipTextOn: { color: "white" },
   filterWrap: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
+  filtersContainer: { paddingTop: spacing.xs, paddingBottom: spacing.xs },
   sectionHead: { ...typography.caption, color: c.textSecondary, fontWeight: "700", letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm, textTransform: "uppercase" },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: c.card, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 8 },
   typeStripe: { width: 4, alignSelf: "stretch", borderRadius: 2 },

@@ -1,0 +1,41 @@
+{
+  "summary": "Regression tested v2.2 batch (tappable schedule-event link chips on Calendar, inline combinable filter chip rows on Schedule/Expenses/Competitions, 'Season Total' rename, multi-link editor on schedule/competition create forms, backend links[] persistence, expenses ascending sort). Both backend (pytest, 7/7) and mobile-web UI (Playwright, 375x667 & 390x844) verified against public preview URL. All targeted flows pass. No deprecated packages introduced by this batch. No React Native red screens. Only unrelated warnings observed: props.pointerEvents/style.tintColor deprecation warnings from Expo/RN internals (pre-existing).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v22_links_and_filters.py",
+    "/app/test_reports/pytest/pytest_v22_links_filters.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "calendar.py: schedule item spans now include links[] on every day of a multi-day event (line 314). That is correct given links belong to the event itself; but reviewers should be aware every span-day chip will link to the same URLs. Not a bug; noting for awareness.",
+    "LinksEditor.tsx cleanLinks(): auto-prepends https:// for URLs missing scheme. Good defensive normalization; ensure calendar tap uses this same string (it does — value stored is already normalized on save).",
+    "FilterChipRow.tsx: hides entire row when options.length===0. This is why the empty-state category row correctly disappears when there are no expenses.",
+    "Backend POST /api/schedule returns List[ScheduleEvent] due to recurrence expansion — test harness had to be aware."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v22_links_and_filters.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% on scoped flows"},
+  "seed_data_creation": "Ephemeral schedule event + competition with links created via pytest and via manual Python script for UI verification (title/name prefix TEST_). All rows deleted post-test — verified via cleanup script. One stray 'TEST_sched_links_fd2ac4' from an earlier session was also cleaned.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Tab labels in the bottom nav are: Home, Athletes, Expenses, Comps, Schedule, Calendar (not 'Money'/'Competitions'). Direct routes: /athletes, /expenses, /competitions, /schedule, /calendar, /help/faq, /schedule/new, /competitions/new. Login endpoint returns 'access_token' (not 'token'). POST /api/schedule returns List[ScheduleEvent] (recurrence-aware) — always index [0] or handle list. Public URL: EXPO_PUBLIC_BACKEND_URL from frontend/.env. Credentials: applereview@cheerplanner.app / Review2026!.",
+  "detailed_verifications": {
+    "calendar_link_chips": "Created schedule event on 2026-07-08 with 2 links (Livestream, Roster). Calendar Week view rendered testIDs event-link-schedule-<id>-0 and event-link-schedule-<id>-1 with correct labels.",
+    "schedule_filters": "sched-filter-type-all + 7 type chips, sched-filter-athlete-all + 2 athletes, sched-filter-team-all + 2 teams present. Applying 'team_bonding' filter hid the TEST_link_ui_event (practice); deselecting restored original list.",
+    "expenses_filters": "exp-filter-team-all + 2 teams, exp-filter-cat-all + 6 categories. Filters coexist with athlete row and OPEN/PAID toggle.",
+    "competitions_filters": "comp-filter-athlete-all + 2 athletes, comp-filter-team-all + 2 teams present above Upcoming/Past lists.",
+    "season_total_rename": "'Season Total' present on Athletes cards, Athlete detail Stat, and FAQ (\"What's the difference between 'Season Total', 'Open', and 'Paid'?\"). No occurrences of 'Total spent' or bare 'Spent' label found.",
+    "links_editor_forms": "/schedule/new and /competitions/new both show 'Add link' button (schedule-link-add / comp-link-add). Clicking creates row with schedule-link-label-0, schedule-link-url-0, schedule-link-remove-0 (and comp-link-* equivalents).",
+    "backend_persistence": "POST/PATCH /api/schedule and /api/competitions round-trip links[]; GET /api/calendar returns links[] on schedule items; expenses list sorted ascending by incurred_on."
+  }
+}

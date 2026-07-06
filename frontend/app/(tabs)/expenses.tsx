@@ -13,8 +13,10 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
+import FilterChipRow from "@/src/components/FilterChipRow";
 
-type Athlete = { id: string; name: string; avatar_color?: string };
+type Athlete = { id: string; name: string; avatar_color?: string; team_ids?: string[] };
+type Team = { id: string; name: string; color?: string; logo_image?: string | null };
 type Expense = { id: string; athlete_id: string; category: string; amount: number; paid_amount?: number; balance_due?: number; incurred_on: string; due_date?: string; paid: boolean; note?: string };
 type Payment = { id: string; athlete_id: string; amount: number; paid_on: string; method?: string; note?: string; applied_expense_ids?: string[] };
 type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string };
@@ -26,7 +28,10 @@ export default function ExpensesTab() {
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
   const [sortMode, setSortMode] = useState<"recent" | "due">("recent");
   const [athleteFilter, setAthleteFilter] = useState<string | null>(null);  // null = all athletes
+  const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [fundraisers, setFundraisers] = useState<Fundraiser[]>([]);
@@ -89,6 +94,7 @@ export default function ExpensesTab() {
         api.get<Fundraiser[]>("/fundraisers"),
       ]);
       setAthletes(a.data); setExpenses(e.data); setPayments(p.data); setFundraisers(f.data);
+      try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* teams optional */ }
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -101,7 +107,10 @@ export default function ExpensesTab() {
   const athleteColor = (id: string) => athletes.find((a) => a.id === id)?.avatar_color || colors.accent;
 
   const filteredExpenses = useMemo(() => {
+    const athById = new Map(athletes.map((a) => [a.id, a]));
     let list = athleteFilter ? expenses.filter((e) => e.athlete_id === athleteFilter) : expenses;
+    if (teamFilter) list = list.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).includes(teamFilter));
+    if (categoryFilter) list = list.filter((e) => e.category === categoryFilter);
     if (filter === "open") list = list.filter((e) => !e.paid && Number(e.balance_due || 0) > 0);
     else if (filter === "paid") list = list.filter((e) => e.paid || Number(e.balance_due || 0) <= 0.001);
     if (sortMode === "due") {
@@ -125,7 +134,7 @@ export default function ExpensesTab() {
       });
     }
     return list;
-  }, [expenses, filter, athleteFilter, sortMode]);
+  }, [expenses, filter, athleteFilter, teamFilter, categoryFilter, athletes, sortMode]);
 
   const filteredPayments = useMemo(() => {
     return athleteFilter ? payments.filter((p) => p.athlete_id === athleteFilter) : payments;
@@ -298,6 +307,22 @@ export default function ExpensesTab() {
         )}
         {tab === "expenses" && (
           <>
+            {teams.length > 0 && (
+              <FilterChipRow
+                label="Team"
+                testIDPrefix="exp-filter-team"
+                selectedId={teamFilter}
+                onSelect={setTeamFilter}
+                options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
+              />
+            )}
+            <FilterChipRow
+              label="Category"
+              testIDPrefix="exp-filter-cat"
+              selectedId={categoryFilter}
+              onSelect={setCategoryFilter}
+              options={Array.from(new Set(expenses.map((e) => e.category).filter(Boolean))).sort().map((c) => ({ id: c, label: c }))}
+            />
             <View style={styles.filterRow}>
               {(["all","open","paid"] as const).map((f) => (
                 <TouchableOpacity key={f} onPress={() => setFilter(f)} style={[styles.filterChip, filter === f && styles.filterChipOn]} testID={`filter-${f}`}>

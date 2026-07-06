@@ -141,7 +141,7 @@ export default function AthletesScreen() {
                     <Text style={styles.meta}>{athleteTeam?.name || a.team || a.gym || (a.role === "coach" ? "Coach" : "Cheer athlete")}</Text>
                   </View>
                   <View style={styles.statsRow}>
-                    <Text style={styles.stat}>Spent <Text style={styles.statValue}>{formatCurrency(t.spent)}</Text></Text>
+                    <Text style={styles.stat}>Season Total <Text style={styles.statValue}>{formatCurrency(t.spent)}</Text></Text>
                     <Text style={styles.stat}>Paid <Text style={[styles.statValue, { color: colors.successText }]}>{formatCurrency(t.paid)}</Text></Text>
                   </View>
                 </View>

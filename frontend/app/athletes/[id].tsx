@@ -190,7 +190,7 @@ export default function AthleteDetail() {
             return null;
           })()}
           <View style={styles.summaryRow}>
-            <Stat label="Total spent" value={formatCurrency(totalSpent)} />
+            <Stat label="Season Total" value={formatCurrency(totalSpent)} />
             <View style={styles.vdiv} />
             <Stat label="Paid" value={formatCurrency(totalPaid)} color={colors.successText} />
             <View style={styles.vdiv} />

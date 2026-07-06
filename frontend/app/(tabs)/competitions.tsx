@@ -18,6 +18,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDateLong, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
+import FilterChipRow from "@/src/components/FilterChipRow";
 
 type Competition = {
   id: string;
@@ -27,12 +28,19 @@ type Competition = {
   housing_required: boolean;
   booking_link?: string | null;
   booking_release_at?: string | null;
+  team_ids?: string[];
 };
+type Athlete = { id: string; name: string; avatar_color?: string; competition_ids?: string[] };
+type Team = { id: string; name: string; color?: string; logo_image?: string | null };
 
 export default function CompetitionsScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [items, setItems] = useState<Competition[]>([]);
+  const [athletes, setAthletes] = useState<Athlete[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);
+  const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   // Multi-select
@@ -49,6 +57,10 @@ export default function CompetitionsScreen() {
     try {
       const res = await api.get<Competition[]>("/competitions");
       setItems(res.data);
+      try {
+        const [a, t] = await Promise.all([api.get<Athlete[]>("/athletes"), api.get<Team[]>("/teams")]);
+        setAthletes(a.data); setTeams(t.data);
+      } catch (_) { /* filters optional */ }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -60,14 +72,23 @@ export default function CompetitionsScreen() {
     return () => { setSelectMode(false); setSelectedIds(new Set()); };
   }, [load]));
 
+  const matches = useCallback((c: Competition) => {
+    if (teamFilter && !(c.team_ids || []).includes(teamFilter)) return false;
+    if (athleteFilter) {
+      const ath = athletes.find((a) => a.id === athleteFilter);
+      if (!ath || !(ath.competition_ids || []).includes(c.id)) return false;
+    }
+    return true;
+  }, [teamFilter, athleteFilter, athletes]);
+
   const upcoming = useMemo(() => items.filter((c) => {
     const d = daysBetween(c.event_date);
-    return d === null || d >= 0;
-  }), [items]);
+    return (d === null || d >= 0) && matches(c);
+  }), [items, matches]);
   const past = useMemo(() => items.filter((c) => {
     const d = daysBetween(c.event_date);
-    return d !== null && d < 0;
-  }), [items]);
+    return d !== null && d < 0 && matches(c);
+  }), [items, matches]);
 
   const visibleIds = useMemo(() => items.map((c) => c.id), [items]);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
@@ -172,6 +193,28 @@ export default function CompetitionsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
           testID="competitions-list"
         >
+          {!selectMode && (
+            <View style={{ marginBottom: spacing.sm, marginHorizontal: -spacing.lg }}>
+              {athletes.length > 0 && (
+                <FilterChipRow
+                  label="Athlete"
+                  testIDPrefix="comp-filter-athlete"
+                  selectedId={athleteFilter}
+                  onSelect={setAthleteFilter}
+                  options={athletes.map((a) => ({ id: a.id, label: a.name, color: a.avatar_color }))}
+                />
+              )}
+              {teams.length > 0 && (
+                <FilterChipRow
+                  label="Team"
+                  testIDPrefix="comp-filter-team"
+                  selectedId={teamFilter}
+                  onSelect={setTeamFilter}
+                  options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
+                />
+              )}
+            </View>
+          )}
           {upcoming.length > 0 && <Text style={styles.sectionHead}>Upcoming</Text>}
           {upcoming.map((c) => (
             <CompCard
