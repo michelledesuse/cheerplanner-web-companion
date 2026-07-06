@@ -236,7 +236,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>CheerPlanner • v1.0.9</Text>
+        <Text style={styles.footer}>CheerPlanner • v1.0.3</Text>
       </ScrollView>
 
       {/* Password-confirm modal for account deletion (Apple 5.1.1(v) compliance) */}
