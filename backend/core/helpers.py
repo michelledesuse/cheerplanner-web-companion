@@ -152,6 +152,28 @@ def _expand_recurrence(base_date: str, rule: RecurrenceRule) -> List[str]:
     return iso_set or [base_date]
 
 
+def _date_range(start_date: str, end_date: str) -> List[str]:
+    """Return inclusive list of ISO YYYY-MM-DD dates from start to end.
+
+    Used to split a multi-day event into one editable event per day. Falls back
+    to [start_date] on bad input; capped at 366 days for safety.
+    """
+    try:
+        start = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = datetime.strptime(end_date, "%Y-%m-%d").date()
+    except Exception:
+        return [start_date]
+    if end < start:
+        return [start_date]
+    out: List[str] = []
+    cur = start
+    while cur <= end and len(out) < 366:
+        out.append(cur.isoformat())
+        cur = cur + timedelta(days=1)
+    return out
+
+
+
 # ============================================================
 # Financial helpers (expenses / payments)
 # ============================================================

@@ -8,7 +8,7 @@ from core.models import (
     ScheduleEvent, ScheduleEventCreate, ScheduleEventUpdate, RecurrenceRule,
 )
 from core.security import get_current_user
-from core.helpers import _household_user_ids, _expand_recurrence
+from core.helpers import _household_user_ids, _expand_recurrence, _date_range
 
 router = APIRouter(prefix="/api")
 
@@ -43,6 +43,25 @@ async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get
                 recurrence_rule=rule_obj,
             )
             entries.append(ev)
+        if entries:
+            await db.schedule_events.insert_many([e.model_dump() for e in entries])
+        return entries
+
+    # Multi-day range (no recurrence): split into one editable event per day,
+    # linked by a shared series_id so each day can hold different links/times.
+    start_date = base.get("date")
+    end_date = base.get("end_date")
+    if end_date and start_date and end_date > start_date:
+        dates = _date_range(start_date, end_date)
+        series_id = str(uuid.uuid4())
+        entries = [
+            ScheduleEvent(
+                user_id=current_user["id"],
+                **{**base, "date": d, "end_date": None},
+                series_id=series_id,
+            )
+            for d in dates
+        ]
         if entries:
             await db.schedule_events.insert_many([e.model_dump() for e in entries])
         return entries

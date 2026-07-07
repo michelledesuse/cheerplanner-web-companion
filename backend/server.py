@@ -118,6 +118,39 @@ async def startup_db_client():
     except Exception as exc:
         logger.warning(f"Could not create sent_notifications index: {exc}")
 
+    # One-time (idempotent) migration: split legacy multi-day events into a
+    # per-day series so each day is independently editable. Converted docs get
+    # end_date cleared, so they are never re-processed.
+    try:
+        from core.helpers import _date_range
+        import uuid as _uuid
+        cursor = db.schedule_events.find({"end_date": {"$nin": [None, ""]}}, {"_id": 0})
+        split_count = 0
+        async for ev in cursor:
+            start, end = ev.get("date"), ev.get("end_date")
+            if not (start and end and end > start):
+                if end and start and end <= start:
+                    await db.schedule_events.update_one({"id": ev["id"]}, {"$set": {"end_date": None}})
+                continue
+            dates = _date_range(start, end)
+            series_id = ev.get("series_id") or str(_uuid.uuid4())
+            await db.schedule_events.update_one(
+                {"id": ev["id"]},
+                {"$set": {"end_date": None, "series_id": series_id, "date": dates[0]}},
+            )
+            clones = []
+            for d in dates[1:]:
+                clone = {k: v for k, v in ev.items() if k != "_id"}
+                clone.update({"id": str(_uuid.uuid4()), "date": d, "end_date": None, "series_id": series_id})
+                clones.append(clone)
+            if clones:
+                await db.schedule_events.insert_many(clones)
+            split_count += 1
+        if split_count:
+            logger.info(f"Startup migration: split {split_count} multi-day event(s) into per-day series")
+    except Exception as exc:
+        logger.warning(f"Startup multi-day split skipped: {exc}")
+
     # Start the digest scheduler.
     try:
         start_scheduler()

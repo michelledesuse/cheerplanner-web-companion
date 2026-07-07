@@ -114,3 +114,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - B4: Calendar Day/Week/Month — add a date picker dropdown to jump directly to the day/week/month containing a chosen date (currently only prev/next stepping).
 - B5 (small): [DONE] Renamed "Spent" → "Season Total" (Athletes cards, Athlete detail, FAQ).
 - B6 (small): Active-filters UI — show a count of applied filters + a "Clear all" pill/button on Expenses, Schedule, and Competitions tabs so parents can reset stacked Athlete+Team+Type/Category filters in one tap.
+
+## Session update 3 (bug fixes)
+- Recurring/repeat events: verified already working in current code (backend expands series, calendar shows all occurrences). The user's report was against an older installed build; fixed once v1.1.0 ships.
+- Multi-day events now split into one editable event per day (shared series_id) so each day can hold different links/times/notes. Editing/deleting prompts "This day only" vs "All days". Applied to new events + idempotent startup migration converts legacy multi-day docs on deploy. Files: routers/schedule.py, core/helpers.py (_date_range), server.py (startup migration), scripts/migrate_multiday_events.py, app/schedule/new.tsx.

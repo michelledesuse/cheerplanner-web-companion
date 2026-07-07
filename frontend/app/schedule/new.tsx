@@ -311,13 +311,13 @@ export default function ScheduleForm() {
           <Text style={styles.label}>{repeat ? "Starts" : "Date"}</Text>
           <DateField value={date} onChange={setDate} testID="schedule-date" />
 
-          {!repeat && (
+          {!repeat && !isPartOfSeries && (
             <>
               <Text style={styles.label}>End date (optional · multi-day)</Text>
               <DateField value={endDate || date} onChange={setEndDate} testID="schedule-end-date" />
               {endDate && endDate > date ? (
                 <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>
-                  Spans {date} → {endDate}
+                  Spans {date} → {endDate} (creates one editable event per day)
                 </Text>
               ) : null}
             </>
