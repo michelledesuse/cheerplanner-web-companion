@@ -18,7 +18,7 @@
       }
     },
     "android": {
-      "package": "com.desuse.cheerplanner",
+      "package": "com.desuse.cheerplannerv1",
       "versionCode": 111,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
