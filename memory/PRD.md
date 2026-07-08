@@ -114,6 +114,11 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - B4: Calendar Day/Week/Month — add a date picker dropdown to jump directly to the day/week/month containing a chosen date (currently only prev/next stepping).
 - B5 (small): [DONE] Renamed "Spent" → "Season Total" (Athletes cards, Athlete detail, FAQ).
 - B6 (small): Active-filters UI — show a count of applied filters + a "Clear all" pill/button on Expenses, Schedule, and Competitions tabs so parents can reset stacked Athlete+Team+Type/Category filters in one tap.
+- B7 (LARGE): Email auto-import ("TripIt for cheer") — parse cheer-related emails (hotel/flight bookings, competition registrations, gym invoices, payment receipts) and auto-create Competitions/travel, Expenses, and Payments. All parsed items land in a "Review & confirm" inbox before committing (never auto-commit blindly).
+    - Phase 1 (recommended MVP): Forwarding inbox — unique per-user address (e.g. user@inbox.cheer-planner.com) via inbound email service (Postmark/SendGrid Inbound/Mailgun). Parse via known-sender templates + LLM extraction (Emergent key → structured JSON). Start with expenses + registrations.
+    - Phase 2: Travel/hotels → attach dates + booking link to the matching Competition.
+    - Phase 3 (optional, heavy): Gmail/Outlook OAuth auto-scan for zero-effort import. NOTE: Google restricted Gmail scopes require a CASA security assessment + privacy-policy obligations — main blocker, not the code.
+    - Considerations: ~90%+ accuracy on known senders (confirm step covers the rest); LLM cost fractions of a cent/email; privacy is the key concern (Phase 1 avoids full-mailbox access).
 
 ## Session update 3 (bug fixes)
 - Recurring/repeat events: verified already working in current code (backend expands series, calendar shows all occurrences). The user's report was against an older installed build; fixed once v1.1.0 ships.
