@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.desuse.cheerplanner",
       "version": "1.0.4",
-      "buildNumber": "111",
+      "buildNumber": "112",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes",
         "ITSAppUsesNonExemptEncryption": false
