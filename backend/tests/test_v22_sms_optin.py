@@ -11,7 +11,7 @@ import requests
 
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://dynamic-repaint-v108.preview.emergentagent.com"
+    BASE_URL = "https://athlete-expense-hub.preview.emergentagent.com"
 
 EMAIL = "applereview@cheerplanner.app"
 PASSWORD = "Review2026!"
