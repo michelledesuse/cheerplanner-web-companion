@@ -146,7 +146,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <SettingRow
             icon="mail-unread-outline"
-            label="Email reminders"
+            label="Email/SMS reminders"
             subtitle="Daily or weekly digest of upcoming payments, comps &amp; travel"
             value={notifFreq}
             onPress={() => router.push("/settings/notifications" as any)}
