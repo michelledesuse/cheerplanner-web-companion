@@ -142,74 +142,68 @@ export default function SettingsScreen() {
           <Text style={styles.profileEmail}>{user?.email}</Text>
         </View>
 
-        <Text style={styles.sectionHead}>Reminders &amp; notifications</Text>
+        <Text style={styles.sectionHead}>Reminders/Notifications</Text>
         <View style={styles.group}>
           <SettingRow
-            icon="mail-unread-outline"
-            label="Email/SMS reminders"
+            label="Email/SMS Reminders"
             subtitle="Daily or weekly digest of upcoming payments, comps &amp; travel"
             value={notifFreq}
             onPress={() => router.push("/settings/notifications" as any)}
             chevron
             testID="settings-notifications"
           />
-          <SettingRow icon="notifications-outline" label="In-app reminders" value="7 / 3 / 1 days before" />
+          <SettingRow label="In-app Reminders" value="7 / 3 / 1 days before" />
         </View>
 
         <Text style={styles.sectionHead}>Preferences</Text>
         <View style={styles.group}>
           <SettingRow
-            icon="color-palette-outline"
             label="Appearance"
             subtitle="Color theme for your household"
             onPress={() => router.push("/settings/appearance" as any)}
             chevron
             testID="settings-appearance"
           />
-          <SettingRow icon="cash-outline" label="Currency" value="USD ($)" />
+          <SettingRow label="Currency" value="USD ($)" />
         </View>
 
         <Text style={styles.sectionHead}>Sharing</Text>
         <View style={styles.group}>
-          <SettingRow icon="people-circle-outline" label="Household (share with co-parent)" onPress={() => router.push("/household")} chevron testID="settings-household" />
+          <SettingRow label="Invite Family Members" onPress={() => router.push("/household")} chevron testID="settings-household" />
         </View>
 
         <Text style={styles.sectionHead}>Data</Text>
         <View style={styles.group}>
-          <SettingRow icon="cloud-upload-outline" label="Import from spreadsheet" onPress={() => router.push("/import")} chevron />
-          <SettingRow icon="download-outline" label="Export expenses &amp; payments (CSV)" onPress={() => openExport("/export/expenses-payments.csv", "cheerplanner-expenses-payments.csv")} chevron testID="export-expenses-payments" />
-          <SettingRow icon="calendar-outline" label="Export calendar (.ics)" onPress={() => openExport("/export/calendar.ics", "cheerplanner.ics", "text/calendar")} chevron testID="export-calendar" />
-          <SettingRow icon="people-outline" label="Athletes" onPress={() => router.push("/(tabs)/athletes")} chevron />
-          <SettingRow icon="ribbon-outline" label="Teams" onPress={() => router.push("/teams" as any)} chevron testID="settings-teams" />
-          <SettingRow icon="trophy-outline" label="Competitions" onPress={() => router.push("/(tabs)/competitions")} chevron />
-          <SettingRow icon="gift-outline" label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />
+          <SettingRow label="Import from Spreadsheet" onPress={() => router.push("/import")} chevron />
+          <SettingRow label="Export Expenses &amp; Payments (CSV)" onPress={() => openExport("/export/expenses-payments.csv", "cheerplanner-expenses-payments.csv")} chevron testID="export-expenses-payments" />
+          <SettingRow label="Export Calendar (.ics)" onPress={() => openExport("/export/calendar.ics", "cheerplanner.ics", "text/calendar")} chevron testID="export-calendar" />
+          <SettingRow label="Athletes" onPress={() => router.push("/(tabs)/athletes")} chevron />
+          <SettingRow label="Teams" onPress={() => router.push("/teams" as any)} chevron testID="settings-teams" />
+          <SettingRow label="Competitions" onPress={() => router.push("/(tabs)/competitions")} chevron />
+          <SettingRow label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />
         </View>
 
-        <Text style={styles.sectionHead}>Help &amp; support</Text>
+        <Text style={styles.sectionHead}>Help &amp; Support</Text>
         <View style={styles.group}>
           <SettingRow
-            icon="rocket-outline"
-            label="Setup guide"
+            label="Setup Guide"
             onPress={() => router.push("/help/setup" as any)}
             chevron
             testID="settings-setup-guide"
           />
           <SettingRow
-            icon="help-circle-outline"
             label="FAQ"
             onPress={() => router.push("/help/faq" as any)}
             chevron
             testID="settings-faq"
           />
           <SettingRow
-            icon="mail-outline"
-            label="Contact support"
+            label="Contact Support"
             onPress={() => Linking.openURL("mailto:info@cheer-planner.com?subject=CheerPlanner%20support")}
             chevron
             testID="settings-contact"
           />
           <SettingRow
-            icon="shield-checkmark-outline"
             label="Privacy Policy"
             onPress={() => router.push("/settings/privacy" as any)}
             chevron
@@ -222,14 +216,14 @@ export default function SettingsScreen() {
           <Text style={styles.signOutText}>Sign out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.sectionHead}>Danger zone</Text>
+        <Text style={styles.sectionHead}>Danger Zone</Text>
         <View style={styles.group}>
           <TouchableOpacity style={styles.deleteRow} onPress={confirmDelete} activeOpacity={0.7} testID="settings-delete-account">
             <View style={[styles.rowIcon, { backgroundColor: colors.dangerBg }]}>
               <Ionicons name="trash" size={18} color={colors.danger} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.deleteRowLabel}>Delete account</Text>
+              <Text style={styles.deleteRowLabel}>Delete Account</Text>
               <Text style={styles.deleteRowSubtitle}>Permanently remove your account &amp; data</Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
@@ -290,7 +284,7 @@ function SettingRow({ icon, label, subtitle, value, onPress, chevron, testID }: 
   const Comp = onPress ? TouchableOpacity : View;
   return (
     <Comp style={styles.row} onPress={onPress} activeOpacity={0.7} testID={testID}>
-      <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={colors.textSecondary} /></View>
+      {icon ? <View style={styles.rowIcon}><Ionicons name={icon} size={18} color={colors.textSecondary} /></View> : null}
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>
         {subtitle ? <Text style={styles.rowSubtitle}>{subtitle}</Text> : null}
