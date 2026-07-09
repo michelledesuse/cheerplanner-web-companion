@@ -140,7 +140,7 @@ async def opt_in_proof():
 
         '<h2 style="font-size:16px;margin:24px 0 8px">How opt-in is collected</h2>'
         '<p style="color:#334155;font-size:15px;line-height:1.6;margin:0 0 16px">'
-        'CheerPlanner is a mobile app for cheer/dance parents. After signing in, a user goes to '
+        'CheerPlanner is a mobile app for cheer parents. After signing in, a user goes to '
         '<b>Settings &rarr; Notifications</b>, enters their mobile number, and turns the '
         '<b>&ldquo;Send me SMS reminders&rdquo;</b> toggle ON. The toggle is OFF by default; the user must '
         'actively enable it. When enabled, the app records the consent timestamp and mobile number on '
