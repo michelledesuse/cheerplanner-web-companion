@@ -1,0 +1,29 @@
+{
+  "summary": "Verified Calendar 'Jump to date' redesign on mobile-web preview. The dropdown popover opens on tapping cal-jump, exposing Month (cal-jump-month) and Year (cal-jump-year) as tap-to-expand DROPDOWN lists (not a scroll wheel / month-by-month date picker). Picking a month option (cal-jump-month-11 -> December) IMMEDIATELY moved the calendar GRID title from 'July 2026' -> 'December 2026' with NO 'Done' tap. Picking a year option (cal-jump-year-2027) IMMEDIATELY moved the grid from 'December 2026' -> 'December 2027'. Selected day (9) remains highlighted and the day-events section updates ('Thu, 12-09-2027'). cal-jump-close dismisses the popover. Month/Week/Day view toggles still switch views (calview-month/week/day). No red screen, no bundling errors. Only pre-existing console deprecation warnings (pointerEvents / Image.tintColor) surfaced. Primary bug is fixed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "global (RN Web)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Pre-existing, not caused by this change but should be migrated. Reference: various components using pointerEvents prop."},
+      {"component": "Image (RN Web)", "issue": "Console warning: 'Image: style.tintColor is deprecated. Please use props.tintColor.' Pre-existing on other screens, not introduced by this change."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "None for the reported bug — dropdown behavior and grid auto-jump are working. Optional cleanup: migrate deprecated pointerEvents prop and Image style.tintColor usages elsewhere (pre-existing, unrelated to this fix)."
+  ],
+  "critical_code_review_comments": [
+    "calendar.tsx uses key={selected} on <Calendar/> to force remount when jumping; this correctly resolves the previous 'grid stays put' bug. Side effect: swiping/tapping the calendar's native arrows still uses onMonthChange -> setMonth (does not change selected), so arrow navigation is not blocked.",
+    "DateJumpDropdown.tsx correctly calls onJump on each pick (no Done required) and closes the sub-list via setOpenWhich(null); Modal remains open so the user can also pick a year afterwards — good UX.",
+    "years list uses baseYear +/- 5..6 which yields 12 options; today (2026) surfaces 2021..2032 so 2027 is present as required."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "seed_data_creation": "None. Used existing applereview@cheerplanner.app test account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Calendar jump dropdown (DateJumpDropdown) is confirmed working: selecting a month or year immediately updates the grid AND the selected date, no Done button. testIDs: cal-jump, cal-jump-panel, cal-jump-month, cal-jump-year, cal-jump-month-{0..11}, cal-jump-year-{yyyy}, cal-jump-close. Note: current server date returned by todayISO() was July 9, 2026 during this run (not January) — unrelated to the fix, but be aware if writing time-based assertions.",
+  "rca_of_issue": "Original bug: user picked a date from the previous HTML/native date picker; events list updated but Calendar grid did not because Calendar was reading from `current` prop only on first mount. Fix: (a) replaced picker with a Month/Year DROPDOWN popover (DateJumpDropdown) that fires onJump on each option tap; (b) added key={selected} on <Calendar/> so it remounts when the jumped-to date is applied, forcing the grid to render the new month/year. Verified end-to-end via Playwright on the public preview URL."
+}

@@ -253,3 +253,18 @@ No production code modified by testing agent.
 - Calendar tab (`app/(tabs)/calendar.tsx`): new header button testID `cal-jump` (calendar icon). Web uses hidden HTML date input + showPicker(); native (iOS modal testID `cal-jump-done`, Android inline) uses @react-native-community/datetimepicker. Picking a date sets `selected` + `month` so month/week/day views jump to the chosen date.
 
 **Test focus:** apply one/multiple filters on each of the 3 tabs → bar shows correct count → "Clear all" resets all chips to All and hides the bar. Calendar: tap jump button → pick a date → calendar navigates to it (all 3 views). Credentials: applereview@cheerplanner.app / Review2026!.
+
+---
+
+## Iteration 47 — Calendar jump BUG FIX + dropdown redesign (user-reported)
+
+**User bug report:** (1) Picking a date in the jump picker showed events underneath but the calendar GRID did not navigate to that month. (2) User had to tap "Done" — wanted auto-apply. (3) Cosmetic: toggling Week→Day→Month didn't snap back. (4) User wants a DROPDOWN (month + year), NOT another month-scroll date picker.
+
+**Fixes:**
+- Root cause of (1): react-native-calendars `<Calendar>` only reads `current` on initial mount; changing it later doesn't move the grid. Fixed by adding `key={selected}` so the Calendar remounts to the selected month whenever a jump changes `selected`. (Swipe/onMonthChange only updates `month`, not `selected`, so swiping is unaffected.)
+- Replaced the DateTimePicker / hidden HTML date input with a new dropdown component `/app/frontend/src/components/DateJumpDropdown.tsx`: a popover under the header with a **Month dropdown** and **Year dropdown**. Selecting an option jumps the calendar INSTANTLY (no Done). Translucent backdrop; close via X (cal-jump-close) or tapping outside.
+- Removed @react-native-community/datetimepicker usage + unused Platform/Modal/Pressable/useRef imports + dead modal styles from calendar.tsx.
+
+**testIDs:** cal-jump (header btn), cal-jump-panel, cal-jump-month, cal-jump-year, cal-jump-month-<0..11>, cal-jump-year-<YYYY>, cal-jump-close.
+
+**Test focus:** Open Calendar → tap cal-jump → pick a Month and/or Year from the dropdowns → the calendar GRID must navigate to that month/year (selected day highlighted, month title updated) WITHOUT any Done tap. Verify no month-scroll wheel is shown (it should be dropdown lists). Regression: Month/Week/Day toggle still works; swiping months in Month view still works. Credentials: applereview@cheerplanner.app / Review2026!.
