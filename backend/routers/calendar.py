@@ -23,6 +23,16 @@ async def calendar_feed(
     """
     user_id = current_user["id"]
 
+    # Household custom event-type colors (v2.3) — merged into the schedule
+    # color map so custom types render with their chosen color on the calendar.
+    from core.helpers import _get_or_create_household
+    _hh = await _get_or_create_household(user_id)
+    custom_event_colors = {
+        t.get("id"): t.get("color")
+        for t in (_hh.get("custom_event_types") or [])
+        if t.get("id") and t.get("color")
+    }
+
     def _normalize_date(value: Optional[str]) -> Optional[str]:
         """Normalize a date string into ISO YYYY-MM-DD.
         Accepts: 'YYYY-MM-DD', 'YYYY-MM-DDTHH:MM[:SS]', 'DD-MM-YYYY [HH:MM]', 'DD/MM/YYYY'.
@@ -309,7 +319,7 @@ async def calendar_feed(
                     "date": ds,
                     "title": s.get("title", "Event") + (f" (day {i + 1}/{total})" if multi else ""),
                     "subtitle": subtitle,
-                    "color": colors_by_type.get(et, "#64748B"),
+                    "color": colors_by_type.get(et) or custom_event_colors.get(et) or "#64748B",
                     "link": f"/schedule/new?id={s['id']}",
                     "links": s.get("links", []),
                 })
@@ -320,7 +330,7 @@ async def calendar_feed(
                 "date": day,
                 "title": s.get("title", "Event"),
                 "subtitle": subtitle,
-                "color": colors_by_type.get(et, "#64748B"),
+                "color": colors_by_type.get(et) or custom_event_colors.get(et) or "#64748B",
                 "link": f"/schedule/new?id={s['id']}",
                 "links": s.get("links", []),
             })

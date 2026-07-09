@@ -12,6 +12,7 @@ import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import AddTypeModal from "@/src/components/AddTypeModal";
 
 const TYPES = [
   { key: "practice", label: "Practice", icon: "barbell", color: "#EA580C" },
@@ -71,6 +72,13 @@ export default function ScheduleForm() {
   const [endDate, setEndDate] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [links, setLinks] = useState<ExternalLink[]>([]);
+  const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
+  const [addTypeOpen, setAddTypeOpen] = useState(false);
+
+  const allTypes = useMemo(() => [
+    ...TYPES.map((t) => ({ key: t.key as string, label: t.label as string, color: t.color as string })),
+    ...customTypes.map((t) => ({ key: t.id, label: t.label, color: t.color })),
+  ], [customTypes]);
 
   // Recurrence
   const [repeat, setRepeat] = useState(false);
@@ -91,6 +99,7 @@ export default function ScheduleForm() {
       const a = await api.get<Athlete[]>("/athletes");
       setAthletes(a.data);
       try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
+      try { const ht = await api.get("/household/custom-types"); setCustomTypes(ht.data.event_types || []); } catch (_) { /* ignore */ }
       if (isEdit) {
         try {
           const r = await api.get("/schedule");
@@ -134,6 +143,28 @@ export default function ScheduleForm() {
   };
   const toggleDow = (i: number) => {
     setDaysOfWeek(s => { const n = new Set(s); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  };
+  const addType = async (name: string, color?: string) => {
+    try {
+      const r = await api.post("/household/custom-types/event-type", { label: name, color: color || "#64748B" });
+      setCustomTypes(r.data.event_types || []);
+      if (r.data.event_type) setEventType(r.data.event_type.id);
+      setAddTypeOpen(false);
+    } catch (e: any) {
+      Alert.alert("Couldn't add", e?.response?.data?.detail || "Try again.");
+    }
+  };
+  const deleteType = (t: { key: string; label: string }) => {
+    Alert.alert(`Delete "${t.label}"?`, "Existing events keep this type label — it's just removed from the picker.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          const r = await api.delete(`/household/custom-types/event-type/${t.key}`);
+          setCustomTypes(r.data.event_types || []);
+          if (eventType === t.key) setEventType("practice");
+        } catch (_) { /* ignore */ }
+      } },
+    ]);
   };
 
   const buildPayload = (includeRecurrence: boolean) => ({
@@ -259,14 +290,20 @@ export default function ScheduleForm() {
 
           <Text style={styles.label}>Event type</Text>
           <View style={styles.typeGrid}>
-            {TYPES.map(t => {
+            {allTypes.map(t => {
               const on = eventType === t.key;
+              const isCustom = customTypes.some((ct) => ct.id === t.key);
               return (
-                <TouchableOpacity key={t.key} onPress={() => setEventType(t.key)} style={[styles.typeBtn, on && { backgroundColor: t.color, borderColor: t.color }]} testID={`type-${t.key}`}>
+                <TouchableOpacity key={t.key} onPress={() => setEventType(t.key)} onLongPress={isCustom ? () => deleteType(t) : undefined} style={[styles.typeBtn, on && { backgroundColor: t.color, borderColor: t.color }]} testID={`type-${t.key}`}>
+                  {!on && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: t.color, marginRight: 6 }} />}
                   <Text style={[styles.typeBtnText, on && { color: "white" }]}>{t.label}</Text>
                 </TouchableOpacity>
               );
             })}
+            <TouchableOpacity onPress={() => setAddTypeOpen(true)} style={[styles.typeBtn, styles.addTypeBtn]} testID="type-add">
+              <Ionicons name="add" size={14} color={colors.accent} />
+              <Text style={[styles.typeBtnText, { color: colors.accent }]}>New</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.label}>Title</Text>
@@ -414,6 +451,14 @@ export default function ScheduleForm() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+      <AddTypeModal
+        visible={addTypeOpen}
+        title="New event type"
+        placeholder="e.g. Tumbling"
+        withColor
+        onSubmit={(name, color) => addType(name, color)}
+        onClose={() => setAddTypeOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -427,6 +472,7 @@ const makeStyles = () => ({
   input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   typeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  addTypeBtn: { borderStyle: "dashed", borderColor: colors.accent },
   typeBtnText: { ...typography.caption, fontWeight: "700", color: colors.textPrimary },
   chips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },

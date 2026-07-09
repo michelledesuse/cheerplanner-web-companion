@@ -54,6 +54,9 @@ class Household(BaseModel):
     member_user_ids: List[str] = Field(default_factory=list)
     # v1.0.8 theming — household-scoped so co-parents see the same theme.
     theme: Optional[Dict[str, Any]] = None
+    # v2.3 custom types — household-wide, reusable in create forms.
+    custom_expense_categories: List[str] = Field(default_factory=list)
+    custom_event_types: List[Dict[str, Any]] = Field(default_factory=list)  # [{id, label, color}]
     created_at: str = Field(default_factory=utcnow_iso)
 
 

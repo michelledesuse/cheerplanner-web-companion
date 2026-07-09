@@ -40,6 +40,7 @@ export default function ScheduleTab() {
   const [events, setEvents] = useState<Evt[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
@@ -59,6 +60,7 @@ export default function ScheduleTab() {
       const [s, a] = await Promise.all([api.get<Evt[]>("/schedule"), api.get<Athlete[]>("/athletes")]);
       setEvents(s.data); setAthletes(a.data);
       try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
+      try { const ht = await api.get("/household/custom-types"); setCustomTypes(ht.data.event_types || []); } catch (_) { /* ignore */ }
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -188,7 +190,10 @@ export default function ScheduleTab() {
             testIDPrefix="sched-filter-type"
             selectedId={typeFilter}
             onSelect={setTypeFilter}
-            options={Object.entries(TYPE_LABEL).map(([k, label]) => ({ id: k, label, color: TYPE_COLOR[k] }))}
+            options={[
+              ...Object.entries(TYPE_LABEL).map(([k, label]) => ({ id: k, label, color: TYPE_COLOR[k] })),
+              ...customTypes.map((t) => ({ id: t.id, label: t.label, color: t.color })),
+            ]}
           />
           {athletes.length > 0 && (
             <FilterChipRow
@@ -243,6 +248,7 @@ export default function ScheduleTab() {
                 e={e}
                 athletes={athletes}
                 teams={teams}
+                customTypes={customTypes}
                 selectMode={selectMode}
                 selected={selectedIds.has(e.id)}
                 onPress={() => {
@@ -260,6 +266,7 @@ export default function ScheduleTab() {
                 e={e}
                 athletes={athletes}
                 teams={teams}
+                customTypes={customTypes}
                 selectMode={selectMode}
                 selected={selectedIds.has(e.id)}
                 onPress={() => {
@@ -277,11 +284,11 @@ export default function ScheduleTab() {
   );
 }
 
-function Row({ e, athletes, teams, onPress, onLongPress, onDelete, selectMode, selected }: {
-  e: Evt; athletes: Athlete[]; teams: Team[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
+function Row({ e, athletes, teams, customTypes, onPress, onLongPress, onDelete, selectMode, selected }: {
+  e: Evt; athletes: Athlete[]; teams: Team[]; customTypes?: { id: string; label: string; color: string }[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
 }) {
   const styles = useThemedStyles(makeStyles);
-  const color = TYPE_COLOR[e.event_type] || "#64748B";
+  const color = TYPE_COLOR[e.event_type] || (customTypes || []).find((t) => t.id === e.event_type)?.color || "#64748B";
   const team = e.team_id ? teams.find((t) => t.id === e.team_id) : undefined;
   const fmt12 = (t?: string) => {
     if (!t || !/^\d{1,2}:\d{2}/.test(t)) return t || "";

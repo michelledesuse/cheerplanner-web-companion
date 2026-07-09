@@ -1,0 +1,24 @@
+{
+  "summary": "v2.3 Custom event types & expense categories — 14/14 backend pytest cases green and both frontend flows (Expense form + Schedule form) verified end-to-end via Playwright on mobile viewport. Add/duplicate/empty/builtin validations, inline '+ New' modal, color swatches, persistence after reload, and calendar color propagation all work. AddTypeModal renders with all required testIDs. Cleanup executed — applereview account is empty of custom types.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_v23_custom_types.py",
+    "/app/test_reports/pytest/pytest_v23_custom_types.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "calendar.py L322/L333 uses `colors_by_type.get(et) or custom_event_colors.get(et)` — because built-in colors map contains no None values, this correctly falls through for custom ids. Verified via test_calendar_uses_custom_color returning #F59E0B.",
+    "AddTypeModal + expenses/new + schedule/new correctly wire testIDs (add-type-modal / add-type-name / add-type-save / add-type-color-<hex> / expense-cat-add / type-add / type-custom_<slug>_xxxx).",
+    "Household POST for expense-category caps at 40 chars & 50 entries (last-50 window); DELETE by name is case-insensitive. POST for event-type generates id = custom_<slug>_<4hex>. All matches the spec.",
+    "Long-press delete on custom chips is wired via onLongPress → Alert.alert confirmation. Not exercised via Playwright (touch long-press hard to simulate on web), but delete API paths are covered by pytest."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v23_custom_types.py (new)"
+  ],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "100% of scripted checks (add + persist for both forms, color swatch present, testIDs correct)"},
+  "seed_data_creation": "Ephemeral: 1 custom expense category (TEST_ChoreoDeposit) + 1 custom event type (TEST_Tumbling / #F59E0B) created and deleted; no residual data on applereview.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Custom types are household-scoped (backend/routers/household.py). Schedule calendar color merges via custom_event_colors dict in backend/routers/calendar.py. Frontend uses AddTypeModal (src/components/AddTypeModal.tsx) with testIDs: add-type-modal, add-type-name, add-type-save, add-type-cancel, add-type-color-<hex>. Custom chips render with testID expense-cat-<name> and type-<custom_id>. Long-press delete triggers Alert.alert (not verifiable via web Playwright touch simulation — only API-level delete tested)."
+}

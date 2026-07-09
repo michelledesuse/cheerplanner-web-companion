@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.db import db
-from core.models import Household, HouseholdInvite, HouseholdJoinRequest, utcnow_iso
+from core.models import Household, HouseholdInvite, HouseholdJoinRequest, utcnow_iso, EXPENSE_CATEGORIES
 from core.security import get_current_user
 from core.helpers import _get_or_create_household
 from core.theme_presets import THEME_PRESETS, DEFAULT_THEME
@@ -22,7 +22,78 @@ async def get_household(current_user=Depends(get_current_user)):
         "id": h["id"],
         "members": members,
         "theme": h.get("theme") or dict(DEFAULT_THEME),
+        "custom_expense_categories": h.get("custom_expense_categories") or [],
+        "custom_event_types": h.get("custom_event_types") or [],
     }
+
+
+# ============================================================
+# v2.3 — Household custom types (event types + expense categories)
+# ============================================================
+@router.get("/household/custom-types")
+async def get_custom_types(current_user=Depends(get_current_user)):
+    h = await _get_or_create_household(current_user["id"])
+    return {
+        "expense_categories": h.get("custom_expense_categories") or [],
+        "event_types": h.get("custom_event_types") or [],
+    }
+
+
+@router.post("/household/custom-types/expense-category")
+async def add_custom_expense_category(
+    payload: Dict[str, Any] = Body(...),
+    current_user=Depends(get_current_user),
+):
+    name = (payload.get("name") or "").strip()[:40]
+    if not name:
+        raise HTTPException(status_code=400, detail="Category name is required")
+    h = await _get_or_create_household(current_user["id"])
+    existing = h.get("custom_expense_categories") or []
+    taken = {c.lower() for c in EXPENSE_CATEGORIES} | {c.lower() for c in existing}
+    if name.lower() in taken:
+        raise HTTPException(status_code=400, detail="That category already exists")
+    existing = (existing + [name])[-50:]
+    await db.households.update_one({"id": h["id"]}, {"$set": {"custom_expense_categories": existing}})
+    return {"expense_categories": existing}
+
+
+@router.delete("/household/custom-types/expense-category")
+async def delete_custom_expense_category(
+    payload: Dict[str, Any] = Body(...),
+    current_user=Depends(get_current_user),
+):
+    name = (payload.get("name") or "").strip()
+    h = await _get_or_create_household(current_user["id"])
+    existing = [c for c in (h.get("custom_expense_categories") or []) if c.lower() != name.lower()]
+    await db.households.update_one({"id": h["id"]}, {"$set": {"custom_expense_categories": existing}})
+    return {"expense_categories": existing}
+
+
+@router.post("/household/custom-types/event-type")
+async def add_custom_event_type(
+    payload: Dict[str, Any] = Body(...),
+    current_user=Depends(get_current_user),
+):
+    import re as _re, secrets as _secrets
+    label = (payload.get("label") or "").strip()[:30]
+    color = (payload.get("color") or "#64748B").strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="Event type name is required")
+    h = await _get_or_create_household(current_user["id"])
+    existing = h.get("custom_event_types") or []
+    slug = _re.sub(r"[^a-z0-9]+", "-", label.lower()).strip("-") or "type"
+    entry = {"id": f"custom_{slug}_{_secrets.token_hex(2)}", "label": label, "color": color}
+    existing = (existing + [entry])[-50:]
+    await db.households.update_one({"id": h["id"]}, {"$set": {"custom_event_types": existing}})
+    return {"event_types": existing, "event_type": entry}
+
+
+@router.delete("/household/custom-types/event-type/{type_id}")
+async def delete_custom_event_type(type_id: str, current_user=Depends(get_current_user)):
+    h = await _get_or_create_household(current_user["id"])
+    existing = [t for t in (h.get("custom_event_types") or []) if t.get("id") != type_id]
+    await db.households.update_one({"id": h["id"]}, {"$set": {"custom_event_types": existing}})
+    return {"event_types": existing}
 
 
 # ============================================================

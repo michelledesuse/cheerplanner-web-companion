@@ -13,6 +13,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { todayISO, formatCurrency } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
+import AddTypeModal from "@/src/components/AddTypeModal";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 
@@ -23,7 +24,10 @@ export default function ExpenseForm() {
   const editingId = params.id;
   const isEdit = !!editingId;
 
-  const [categories, setCategories] = useState<string[]>([]);
+  const [builtinCats, setBuiltinCats] = useState<string[]>([]);
+  const [customCats, setCustomCats] = useState<string[]>([]);
+  const categories = useMemo(() => [...builtinCats, ...customCats], [builtinCats, customCats]);
+  const [addCatOpen, setAddCatOpen] = useState(false);
   const [category, setCategory] = useState<string>("Tuition");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -38,6 +42,28 @@ export default function ExpenseForm() {
   const handleDueDateChange = (next: string) => {
     setDueDate(next);
     setDueDateTouched(true);
+  };
+  const addCategory = async (name: string) => {
+    try {
+      const r = await api.post("/household/custom-types/expense-category", { name });
+      setCustomCats(r.data.expense_categories || []);
+      setCategory(name);
+      setAddCatOpen(false);
+    } catch (e: any) {
+      Alert.alert("Couldn't add", e?.response?.data?.detail || "Try a different name.");
+    }
+  };
+  const deleteCategory = (name: string) => {
+    Alert.alert(`Delete "${name}"?`, "Existing expenses keep this label — it's just removed from the picker.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          const r = await api.delete("/household/custom-types/expense-category", { data: { name } });
+          setCustomCats(r.data.expense_categories || []);
+          if (category === name) setCategory(builtinCats[0] || "Misc");
+        } catch (_) { /* ignore */ }
+      } },
+    ]);
   };
   const [paid, setPaid] = useState(false);
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
@@ -55,8 +81,9 @@ export default function ExpenseForm() {
   useEffect(() => {
     (async () => {
       const [c, a] = await Promise.all([api.get("/expenses/categories"), api.get("/athletes")]);
-      setCategories(c.data.categories);
+      setBuiltinCats(c.data.categories);
       setAthletes(a.data);
+      try { const ht = await api.get("/household/custom-types"); setCustomCats(ht.data.expense_categories || []); } catch (_) { /* ignore */ }
       // Default-select first if none and not edit
       if (selectedIds.size === 0 && !isEdit && a.data.length) {
         setSelectedIds(new Set([a.data[0].id]));
@@ -229,11 +256,24 @@ export default function ExpenseForm() {
 
           <Text style={styles.label}>Category</Text>
           <View style={styles.chips}>
-            {categories.map((c) => (
-              <TouchableOpacity key={c} onPress={() => setCategory(c)} style={[styles.chip, category === c && styles.chipActive]} testID={`expense-cat-${c}`}>
-                <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
-              </TouchableOpacity>
-            ))}
+            {categories.map((c) => {
+              const isCustom = customCats.includes(c);
+              return (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => setCategory(c)}
+                  onLongPress={isCustom ? () => deleteCategory(c) : undefined}
+                  style={[styles.chip, category === c && styles.chipActive]}
+                  testID={`expense-cat-${c}`}
+                >
+                  <Text style={[styles.chipText, category === c && styles.chipTextActive]}>{c}</Text>
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity onPress={() => setAddCatOpen(true)} style={[styles.chip, styles.addChip]} testID="expense-cat-add">
+              <Ionicons name="add" size={14} color={colors.accent} />
+              <Text style={[styles.chipText, { color: colors.accent }]}>New</Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.label}>
@@ -319,6 +359,13 @@ export default function ExpenseForm() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+      <AddTypeModal
+        visible={addCatOpen}
+        title="New category"
+        placeholder="e.g. Choreo Deposit"
+        onSubmit={(name) => addCategory(name)}
+        onClose={() => setAddCatOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -333,6 +380,7 @@ const makeStyles = () => ({
   chips: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   chip: { flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  addChip: { gap: 4, borderStyle: "dashed", borderColor: colors.accent },
   chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600" },
   chipTextActive: { color: "white" },
   splitCard: { marginTop: spacing.md, padding: spacing.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },

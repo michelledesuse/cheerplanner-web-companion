@@ -268,3 +268,29 @@ No production code modified by testing agent.
 **testIDs:** cal-jump (header btn), cal-jump-panel, cal-jump-month, cal-jump-year, cal-jump-month-<0..11>, cal-jump-year-<YYYY>, cal-jump-close.
 
 **Test focus:** Open Calendar → tap cal-jump → pick a Month and/or Year from the dropdowns → the calendar GRID must navigate to that month/year (selected day highlighted, month title updated) WITHOUT any Done tap. Verify no month-scroll wheel is shown (it should be dropdown lists). Regression: Month/Week/Day toggle still works; swiping months in Month view still works. Credentials: applereview@cheerplanner.app / Review2026!.
+
+---
+
+## Iteration 48 — B2/#7 Custom event & expense types (household-wide, inline add)
+
+**Feature (needs backend + frontend testing):**
+
+### Backend (household-scoped, shared across co-parents)
+- Household model gained `custom_expense_categories: List[str]` and `custom_event_types: List[{id,label,color}]` (core/models.py).
+- New endpoints (routers/household.py), all household-scoped:
+  - GET  /api/household/custom-types → {expense_categories, event_types}
+  - POST /api/household/custom-types/expense-category  {name} → dedupes vs built-ins+existing (400 on dup/empty)
+  - DELETE /api/household/custom-types/expense-category (body {name})
+  - POST /api/household/custom-types/event-type  {label,color} → returns {event_types, event_type:{id,label,color}}
+  - DELETE /api/household/custom-types/event-type/{id}
+  - GET /api/household now also returns the two custom lists.
+- Calendar feed (routers/calendar.py) merges household custom_event_types colors so custom-typed schedule events render with their chosen color.
+- NOTE: expense `category` and schedule `event_type` are free strings already, so existing items with a (now-deleted) custom type keep their label as plain text — matches the chosen delete behavior.
+
+### Frontend
+- New reusable `/app/frontend/src/components/AddTypeModal.tsx` (name input + optional color swatches).
+- Expense form (app/expenses/new.tsx): category chips now include household custom categories + a dashed "+ New" chip (testID expense-cat-add) → AddTypeModal (name only). Long-press a custom category chip to delete it.
+- Schedule form (app/schedule/new.tsx): event-type grid includes custom types + a dashed "+ New" button (testID type-add) → AddTypeModal (name + color swatch, testIDs add-type-name / add-type-color-<hex> / add-type-save). Long-press a custom type to delete.
+- Schedule tab (app/(tabs)/schedule.tsx): row stripe color + Type filter row now include custom types.
+
+**Credentials:** applereview@cheerplanner.app / Review2026!. Custom types are HOUSEHOLD-WIDE.
