@@ -70,6 +70,8 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Teams-to-Watch preview screen: add a "Create missing competitions" confirmation toggle (like Travel import) so a typo'd competition name doesn't silently create a placeholder.
 
 ## Backlog — added (future, not yet built)
+- C1: **Conflict Detection for events** — highlight schedule events (and ideally practices vs comps/travel) whose date + start/end times OVERLAP, so parents can spot double-bookings. Surface a visual warning (e.g. a red "Overlaps with X" badge) on the Schedule tab and/or Calendar day view. Consider per-athlete conflict scope (an athlete double-booked) vs household-wide.
+- C2: **"Jump to Today" button on the Calendar** — a quick button to return to the current day after scrolling to other months/weeks/days. Should reset `selected` + `month` to today across all three views (Month/Week/Day). (Pairs with the existing Month/Year jump dropdown.)
 - Offline support (user question, phased): Phase 1 = local read-cache (AsyncStorage/expo-sqlite) so screens render with no connection; Phase 2 = offline write queue + sync engine with conflict resolution (multi-member households). Larger effort — do in phases.
 - 1. Schedule Event: add an explicit start/end date range (multi-day event, e.g. Choreography Jul 1–Jul 5), offered IN ADDITION to the existing recurring-event option.
 - 2. Add "Fundraiser" as a selectable schedule Event type.
