@@ -89,7 +89,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 4. Schedule event start/end date range  [DONE]
 5. Calendar Day/Week/Month toggle  [DONE]
 6. Shareable fundraiser links  [DONE]
-7. User-created custom event types
+7. User-created custom event types  [DONE — v2.3, iteration_48: household-wide custom event types (with color) + custom expense categories, added inline from create forms]
 8. In-app autofill with memory
 9. Offline support (phased)
 10. Companion website (shared DB) — hardest
@@ -110,7 +110,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 
 ## Backlog — added (for later, NOT yet built)
 - B1 (BUG): [DONE] Expenses ascending order across ALL screens — fixed backend /expenses sort to incurred_on asc.
-- B2: User-created custom EVENT types AND custom EXPENSE types — creatable, saved, reusable/selectable later (extends deferred #7 to also cover expense categories).
+- B2: [DONE — v2.3] User-created custom EVENT types AND custom EXPENSE categories — creatable inline from the create forms via a "+ New" option, saved household-wide, reusable/selectable later. Event types include a color; deleting a type keeps existing items' label as plain text. Calendar colors custom-typed events with their chosen color.
 - B3: [DONE] Filter events AND expenses by athlete/team/type (combinable) — inline chip rows on Expenses, Schedule, Competitions.
 - B4: [DONE] Calendar Day/Week/Month — added a "jump to date" header button (testID cal-jump) to jump directly to the day/week/month containing a chosen date (cross-platform: web HTML date picker, native DateTimePicker). Verified iteration_46.
 - B6 (small): [DONE] Active-filters UI — new `ActiveFiltersBar` component shows applied-filter count + a "Clear all" pill on Expenses, Schedule, and Competitions tabs to reset stacked Athlete+Team+Type/Category filters in one tap. Verified iteration_46.
