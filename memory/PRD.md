@@ -112,9 +112,10 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - B1 (BUG): [DONE] Expenses ascending order across ALL screens — fixed backend /expenses sort to incurred_on asc.
 - B2: User-created custom EVENT types AND custom EXPENSE types — creatable, saved, reusable/selectable later (extends deferred #7 to also cover expense categories).
 - B3: [DONE] Filter events AND expenses by athlete/team/type (combinable) — inline chip rows on Expenses, Schedule, Competitions.
-- B4: Calendar Day/Week/Month — add a date picker dropdown to jump directly to the day/week/month containing a chosen date (currently only prev/next stepping).
+- B4: [DONE] Calendar Day/Week/Month — added a "jump to date" header button (testID cal-jump) to jump directly to the day/week/month containing a chosen date (cross-platform: web HTML date picker, native DateTimePicker). Verified iteration_46.
+- B6 (small): [DONE] Active-filters UI — new `ActiveFiltersBar` component shows applied-filter count + a "Clear all" pill on Expenses, Schedule, and Competitions tabs to reset stacked Athlete+Team+Type/Category filters in one tap. Verified iteration_46.
 - B5 (small): [DONE] Renamed "Spent" → "Season Total" (Athletes cards, Athlete detail, FAQ).
-- B6 (small): Active-filters UI — show a count of applied filters + a "Clear all" pill/button on Expenses, Schedule, and Competitions tabs so parents can reset stacked Athlete+Team+Type/Category filters in one tap.
+- B6 (small): Active-filters UI — [DONE, see above under B4/B6 done entries]
 - B7 (LARGE): Email auto-import ("TripIt for cheer") — parse cheer-related emails (hotel/flight bookings, competition registrations, gym invoices, payment receipts) and auto-create Competitions/travel, Expenses, and Payments. All parsed items land in a "Review & confirm" inbox before committing (never auto-commit blindly).
     - Phase 1 (recommended MVP): Forwarding inbox — unique per-user address (e.g. user@inbox.cheer-planner.com) via inbound email service (Postmark/SendGrid Inbound/Mailgun). Parse via known-sender templates + LLM extraction (Emergent key → structured JSON). Start with expenses + registrations.
     - Phase 2: Travel/hotels → attach dates + booking link to the matching Competition.
