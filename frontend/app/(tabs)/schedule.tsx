@@ -14,6 +14,7 @@ import { formatDate } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import FilterChipRow, { type FilterOption } from "@/src/components/FilterChipRow";
+import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -207,6 +208,11 @@ export default function ScheduleTab() {
               options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
             />
           )}
+          <ActiveFiltersBar
+            testIDPrefix="sched-filters"
+            count={(typeFilter ? 1 : 0) + (athleteFilter ? 1 : 0) + (teamFilter ? 1 : 0)}
+            onClear={() => { setTypeFilter(null); setAthleteFilter(null); setTeamFilter(null); }}
+          />
         </View>
       )}
 

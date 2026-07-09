@@ -235,3 +235,21 @@ No production code modified by testing agent.
 - `/app/test_reports/pytest/pytest_iter20.xml`
 - `/app/test_reports/pytest/pytest_iter20_regression.xml` (combined iter-18 + iter-19 re-run)
 
+
+---
+
+## Iteration 46 — Quick wins: Active-filters bar (B6) + Calendar date-jump (B4)
+
+**Main agent implementation (needs frontend testing):**
+
+### B6 — Active-filters UI
+- New reusable component `/app/frontend/src/components/ActiveFiltersBar.tsx` — shows "<N> filter(s) applied" + a "Clear all" pill; renders nothing when count is 0.
+- Wired into:
+  - Expenses tab (`app/(tabs)/expenses.tsx`): counts athlete + team + category filters (team/category only on Expenses sub-tab). testIDs: `exp-filters-active-bar`, `exp-filters-clear-all`. Clear resets athleteFilter/teamFilter/categoryFilter.
+  - Schedule tab (`app/(tabs)/schedule.tsx`): counts type + athlete + team. testIDs: `sched-filters-active-bar`, `sched-filters-clear-all`.
+  - Competitions tab (`app/(tabs)/competitions.tsx`): counts athlete + team. testIDs: `comp-filters-active-bar`, `comp-filters-clear-all`.
+
+### B4 — Calendar date-jump
+- Calendar tab (`app/(tabs)/calendar.tsx`): new header button testID `cal-jump` (calendar icon). Web uses hidden HTML date input + showPicker(); native (iOS modal testID `cal-jump-done`, Android inline) uses @react-native-community/datetimepicker. Picking a date sets `selected` + `month` so month/week/day views jump to the chosen date.
+
+**Test focus:** apply one/multiple filters on each of the 3 tabs → bar shows correct count → "Clear all" resets all chips to All and hides the bar. Calendar: tap jump button → pick a date → calendar navigates to it (all 3 views). Credentials: applereview@cheerplanner.app / Review2026!.

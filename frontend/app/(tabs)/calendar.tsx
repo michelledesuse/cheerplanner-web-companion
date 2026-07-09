@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Linking,
+  RefreshControl, Linking, Platform, Modal, Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar, type DateData } from "react-native-calendars";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
@@ -65,6 +66,40 @@ export default function CalendarTab() {
   const [view, setView] = useState<CalView>("month");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [jumpTemp, setJumpTemp] = useState<Date | null>(null);
+  const webJumpRef = useRef<any>(null);
+
+  const toISO = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  const applyJump = (iso: string) => {
+    if (!iso) return;
+    setSelected(iso);
+    setMonth(iso.slice(0, 7));
+  };
+
+  const openJump = () => {
+    if (Platform.OS === "web") {
+      const inp = webJumpRef.current;
+      if (inp && typeof inp.showPicker === "function") {
+        try { inp.showPicker(); return; } catch (_) { /* fall through */ }
+      }
+      inp?.click();
+    } else {
+      setJumpTemp(null);
+      setJumpOpen(true);
+    }
+  };
+
+  const handleJump = (event: DateTimePickerEvent, d?: Date) => {
+    if (Platform.OS === "android") {
+      setJumpOpen(false);
+      if (event.type === "set" && d) applyJump(toISO(d));
+      return;
+    }
+    if (d) setJumpTemp(d);
+  };
 
   const range = useMemo(() => {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -168,14 +203,69 @@ export default function CalendarTab() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Calendar</Text>
-        <View style={styles.viewToggle}>
-          {(["month", "week", "day"] as const).map((v) => (
-            <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`calview-${v}`}>
-              <Text style={[styles.viewChipText, view === v && styles.viewChipTextOn]}>{v[0].toUpperCase() + v.slice(1)}</Text>
-            </TouchableOpacity>
-          ))}
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <TouchableOpacity onPress={openJump} style={styles.jumpBtn} testID="cal-jump" accessibilityLabel="Jump to date">
+            <Ionicons name="calendar-clear-outline" size={18} color={colors.accent} />
+            {Platform.OS === "web" && React.createElement("input" as any, {
+              ref: webJumpRef,
+              type: "date",
+              value: selected || "",
+              onChange: (e: any) => applyJump(e.target.value || ""),
+              style: { position: "absolute", width: 1, height: 1, opacity: 0, border: 0, padding: 0 },
+              "aria-hidden": true,
+              tabIndex: -1,
+            })}
+          </TouchableOpacity>
+          <View style={styles.viewToggle}>
+            {(["month", "week", "day"] as const).map((v) => (
+              <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`calview-${v}`}>
+                <Text style={[styles.viewChipText, view === v && styles.viewChipTextOn]}>{v[0].toUpperCase() + v.slice(1)}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </View>
+
+      {Platform.OS === "ios" && jumpOpen && (
+        <Modal transparent animationType="fade" visible={jumpOpen} onRequestClose={() => setJumpOpen(false)}>
+          <Pressable style={styles.modalBackdrop} onPress={() => setJumpOpen(false)}>
+            <Pressable style={styles.modalCard} onPress={(e) => e.stopPropagation?.()}>
+              <View style={styles.modalHeader}>
+                <Pressable onPress={() => setJumpOpen(false)} hitSlop={10}>
+                  <Text style={styles.modalCancel}>Cancel</Text>
+                </Pressable>
+                <Text style={styles.modalTitle}>Jump to date</Text>
+                <Pressable
+                  onPress={() => { applyJump(toISO(jumpTemp || new Date(selected + "T00:00:00"))); setJumpTemp(null); setJumpOpen(false); }}
+                  hitSlop={10}
+                  testID="cal-jump-done"
+                >
+                  <Text style={styles.modalDone}>Done</Text>
+                </Pressable>
+              </View>
+              <DateTimePicker
+                value={jumpTemp || new Date(selected + "T00:00:00")}
+                mode="date"
+                display="inline"
+                onChange={handleJump}
+                themeVariant="light"
+                accentColor={colors.accent}
+                textColor={colors.textPrimary}
+                style={{ width: "100%", backgroundColor: colors.card }}
+              />
+            </Pressable>
+          </Pressable>
+        </Modal>
+      )}
+
+      {Platform.OS === "android" && jumpOpen && (
+        <DateTimePicker
+          value={new Date(selected + "T00:00:00")}
+          mode="date"
+          display="default"
+          onChange={handleJump}
+        />
+      )}
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -255,6 +345,13 @@ const makeStyles = (c: ThemePalette) => ({
   headerBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   headerTitle: { ...typography.h1, color: c.textPrimary },
   viewToggle: { flexDirection: "row", backgroundColor: c.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: c.border },
+  jumpBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  modalCard: { width: "100%", maxWidth: 420, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.md },
+  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  modalTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  modalCancel: { ...typography.body, color: c.textSecondary },
+  modalDone: { ...typography.body, color: c.accent, fontWeight: "800" },
   viewChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   viewChipOn: { backgroundColor: c.accent },
   viewChipText: { ...typography.caption, fontWeight: "800", color: c.textSecondary },

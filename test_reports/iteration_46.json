@@ -1,0 +1,60 @@
+{
+  "summary": "Frontend-only test of two backlog features (B6 active-filters bar on Expenses/Schedule/Competitions; B4 Calendar jump-to-date). All 5 acceptance criteria pass. Login as apple-review user via /login works. Bottom-tab navigation across Home/Athletes/Expenses/Comps/Schedule/Calendar renders without red screens or bundling errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "verified_flows": [
+    {
+      "flow": "Expenses tab (Expenses sub-tab) active-filters bar",
+      "result": "PASS",
+      "details": "With no filters, exp-filters-active-bar is not present. Selecting an athlete (ath-filter-<id>), team (exp-filter-team-<id>) and category (exp-filter-cat-Choreography) chip renders bar with exact text '3 filters applied'. Tapping exp-filters-clear-all hides the bar and resets Athlete/Team/Category chips to All. List re-populates."
+    },
+    {
+      "flow": "Schedule tab active-filters bar",
+      "result": "PASS",
+      "details": "sched-filters-active-bar hidden initially. After picking sched-filter-type-practice, sched-filter-athlete-<id>, sched-filter-team-<id> the bar shows '3 filters applied'. sched-filters-clear-all resets all and hides bar."
+    },
+    {
+      "flow": "Competitions tab active-filters bar",
+      "result": "PASS",
+      "details": "comp-filters-active-bar hidden initially. After picking comp-filter-athlete-<id> + comp-filter-team-<id> the bar shows '2 filters applied'. comp-filters-clear-all resets and hides bar."
+    },
+    {
+      "flow": "Calendar jump-to-date (cal-jump)",
+      "result": "PASS",
+      "details": "cal-jump button is present in header next to Month/Week/Day toggle (data-testid=cal-jump, visible=True). Hidden <input type='date'> is present next to the button. Setting its value to 2026-08-15 and dispatching change navigates Month view to 'August 2026' with the 15th highlighted (selected day pill). Page markup contains 'August 2026' and 'Sat, 08-15-2026' after the jump."
+    },
+    {
+      "flow": "Regression: Month/Week/Day toggle + no bundling errors on Expenses/Schedule/Competitions/Calendar",
+      "result": "PASS",
+      "details": "calview-month, calview-week, calview-day all present and clickable without exceptions. No 'Something went wrong' / 'Unhandled' text on any of the 4 tabs. Only two benign warnings observed globally (props.pointerEvents / style.tintColor deprecation), unrelated to these features."
+    }
+  ],
+  "test_report_links": [
+    "/tmp/exp_default.png",
+    "/tmp/exp_with_bar.png",
+    "/tmp/exp_after_clear.png",
+    "/tmp/sched_default.png",
+    "/tmp/sched_bar.png",
+    "/tmp/comp_default.png",
+    "/tmp/comp_bar.png",
+    "/tmp/cal_default.png",
+    "/tmp/cal_after_jump.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor (not blocking, not new): after switching Calendar view Week/Day and back to Month, the Calendar library retains its own internal month position rather than snapping to `current={selected}`. Not triggered by the jump flow itself (the initial jump correctly renders August 2026 with day 15 highlighted); only reproducible if the user manually toggles view mode after jumping. Consider passing a `key={selected.slice(0,7)}` or using `initialDate` to force remount on selected change if this becomes user-visible.",
+    "Global console shows two RN Web deprecation warnings: 'props.pointerEvents is deprecated' and 'Image: style.tintColor is deprecated'. Not related to B4/B6; carry-over from earlier iterations."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "None. Used existing applereview@cheerplanner.app seeded account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow: /login page, fill data-testid=login-email-input + login-password-input, tap login-submit-button, then wait for URL to leave /login (typically ~2s to dashboard). Bottom tabs have no explicit testIDs; navigate directly via /expenses, /schedule, /competitions, /calendar routes. On Expenses, the ActiveFiltersBar only appears when tab='expenses' sub-tab is selected (tab-expenses testID); the Payments/Fundraisers sub-tabs do not show it (by design). On web, cal-jump uses a hidden <input type='date'>; showPicker() may or may not fire in headless — the reliable programmatic approach is to set the input value via the native setter and dispatch a 'change' event, which triggers applyJump.",
+  "rca_of_issue": "N/A - no bugs found."
+}

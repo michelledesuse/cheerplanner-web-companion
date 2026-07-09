@@ -14,6 +14,7 @@ import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 import FilterChipRow from "@/src/components/FilterChipRow";
+import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 
 type Athlete = { id: string; name: string; avatar_color?: string; team_ids?: string[] };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -304,6 +305,13 @@ export default function ExpensesTab() {
               </TouchableOpacity>
             ))}
           </ScrollView>
+        )}
+        {tab !== "fundraisers" && (
+          <ActiveFiltersBar
+            testIDPrefix="exp-filters"
+            count={(athleteFilter ? 1 : 0) + (tab === "expenses" ? (teamFilter ? 1 : 0) + (categoryFilter ? 1 : 0) : 0)}
+            onClear={() => { setAthleteFilter(null); setTeamFilter(null); setCategoryFilter(null); }}
+          />
         )}
         {tab === "expenses" && (
           <>

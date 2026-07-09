@@ -19,6 +19,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { formatDateLong, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import FilterChipRow from "@/src/components/FilterChipRow";
+import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 
 type Competition = {
   id: string;
@@ -213,6 +214,11 @@ export default function CompetitionsScreen() {
                   options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
                 />
               )}
+              <ActiveFiltersBar
+                testIDPrefix="comp-filters"
+                count={(athleteFilter ? 1 : 0) + (teamFilter ? 1 : 0)}
+                onClear={() => { setAthleteFilter(null); setTeamFilter(null); }}
+              />
             </View>
           )}
           {upcoming.length > 0 && <Text style={styles.sectionHead}>Upcoming</Text>}
