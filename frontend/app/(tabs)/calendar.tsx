@@ -177,6 +177,12 @@ export default function CalendarTab() {
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Calendar</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          {selected !== todayISO() && (
+            <TouchableOpacity onPress={() => applyJump(todayISO())} style={styles.todayBtn} testID="cal-today">
+              <Ionicons name="today-outline" size={14} color={colors.accent} />
+              <Text style={styles.todayText}>Today</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={() => setJumpOpen(true)} style={styles.jumpBtn} testID="cal-jump" accessibilityLabel="Jump to date">
             <Ionicons name="calendar-clear-outline" size={18} color={colors.accent} />
           </TouchableOpacity>
@@ -277,6 +283,8 @@ const makeStyles = (c: ThemePalette) => ({
   headerTitle: { ...typography.h1, color: c.textPrimary },
   viewToggle: { flexDirection: "row", backgroundColor: c.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: c.border },
   jumpBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  todayBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 38, paddingHorizontal: 12, borderRadius: 999, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  todayText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   viewChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
   viewChipOn: { backgroundColor: c.accent },
   viewChipText: { ...typography.caption, fontWeight: "800", color: c.textSecondary },
