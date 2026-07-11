@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="17" time="41.954" timestamp="2026-07-11T16:02:29.412317+00:00" hostname="agent-env-55514c5a-ab87-4c41-b6ea-17a32b375fbc"><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_precondition_applereview_not_opted_in" time="0.631" /><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_sms_test_returns_400_when_not_opted_in" time="0.096" /><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_sms_test_is_not_503_meaning_twilio_is_configured" time="0.135" /><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_sms_test_requires_auth" time="0.092" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestNormalizeUsPhone" name="test_pretty_formatted" time="0.001" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestNormalizeUsPhone" name="test_bare_10_digits" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestNormalizeUsPhone" name="test_e164_input" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestNormalizeUsPhone" name="test_garbage" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestNormalizeUsPhone" name="test_none_and_empty" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestNormalizeUsPhone" name="test_leading_1_11_digits" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestBuildSmsBody" name="test_body_shape_with_items" time="0.108" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestBuildSmsBody" name="test_body_singular_count" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails.TestBuildSmsBody" name="test_body_no_amount_no_when" time="0.000" /><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_prefs_get_returns_sms_shape" time="40.033"><failure message="requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='athlete-expense-hub.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/notifications/preferences (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='athlete-expense-hub.preview.emergentagent.com', port=443) at 0xfb9756f2aa10&gt;, 'Connection to athlete-expense-hub.preview.emergentagent.com timed out. (connect timeout=20)'))">/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:204: in _new_conn
+    sock = connection.create_connection(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/connection.py:85: in create_connection
+    raise err
+/root/.venv/lib/python3.11/site-packages/urllib3/util/connection.py:73: in create_connection
+    sock.connect(sa)
+E   TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:788: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:488: in _make_request
+    raise new_e
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:464: in _make_request
+    self._validate_conn(conn)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1106: in _validate_conn
+    conn.connect()
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:759: in connect
+    self.sock = sock = self._new_conn()
+                       ^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:213: in _new_conn
+    raise ConnectTimeoutError(
+E   urllib3.exceptions.ConnectTimeoutError: (&lt;HTTPSConnection(host='athlete-expense-hub.preview.emergentagent.com', port=443) at 0xfb9756f2aa10&gt;, 'Connection to athlete-expense-hub.preview.emergentagent.com timed out. (connect timeout=20)')
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:696: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:842: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:543: in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='athlete-expense-hub.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/notifications/preferences (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='athlete-expense-hub.preview.emergentagent.com', port=443) at 0xfb9756f2aa10&gt;, 'Connection to athlete-expense-hub.preview.emergentagent.com timed out. (connect timeout=20)'))
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_v24_sms_test_guardrails.py:148: in test_prefs_get_returns_sms_shape
+    r = requests.get(f"{BASE_URL}/api/notifications/preferences", headers=headers, timeout=20)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:87: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:71: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:651: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:784: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:717: in send
+    raise ConnectTimeout(e, request=request)
+E   requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='athlete-expense-hub.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/notifications/preferences (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='athlete-expense-hub.preview.emergentagent.com', port=443) at 0xfb9756f2aa10&gt;, 'Connection to athlete-expense-hub.preview.emergentagent.com timed out. (connect timeout=20)'))</failure></testcase><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_prefs_patch_phone_without_opt_in_roundtrip" time="0.369" /><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_prefs_patch_consent_at_roundtrip" time="0.106" /><testcase classname="backend.tests.test_v24_sms_test_guardrails" name="test_zzz_cleanup_reset_sms" time="0.094" /></testsuite></testsuites>

@@ -25,6 +25,7 @@ from apscheduler.triggers.cron import CronTrigger
 from core.db import db
 from core.email import send_email, make_unsubscribe_token
 from core.email_templates import render_digest
+from core.sms import send_sms
 from core.config import WEB_FALLBACK_URL
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,43 @@ async def _send_digest_for_user(
             "sent_at": datetime.utcnow().isoformat() + "Z",
             "item_count": total,
         })
+
+    # SMS reminder (v2.4) — separate opt-in + dedupe so it's independent of email.
+    if prefs.get("sms_enabled") and prefs.get("sms_phone"):
+        sms_key = f"{user_id}:{local_today.isoformat()}:sms:{freq}"
+        sms_already = await db.sent_notifications.find_one({"key": sms_key}, {"_id": 0})
+        if not sms_already:
+            sms_ok = send_sms(prefs["sms_phone"], _build_sms_body(sections, total))
+            if sms_ok:
+                await db.sent_notifications.insert_one({
+                    "key": sms_key,
+                    "user_id": user_id,
+                    "kind": f"digest_sms:{freq}",
+                    "date": local_today.isoformat(),
+                    "sent_at": datetime.utcnow().isoformat() + "Z",
+                    "item_count": total,
+                })
     return ok
+
+
+def _build_sms_body(sections: List[Dict[str, Any]], total: int) -> str:
+    """Compact reminder text: count + up to 3 items + STOP notice."""
+    lines = [f"CheerPlanner: {total} upcoming reminder{'s' if total != 1 else ''}."]
+    shown = 0
+    for s in sections:
+        for it in s.get("items", []):
+            if shown >= 3:
+                break
+            amt = f" {it['amount']}" if it.get("amount") else ""
+            when = it.get("when") or ""
+            lines.append(f"- {it.get('title', '')}{amt}" + (f" ({when})" if when else ""))
+            shown += 1
+        if shown >= 3:
+            break
+    if total > shown:
+        lines.append(f"...and {total - shown} more. Open the app for details.")
+    lines.append("Reply STOP to opt out.")
+    return "\n".join(lines)
 
 
 # ============================================================

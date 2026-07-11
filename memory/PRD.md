@@ -97,10 +97,10 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 9. Offline support (phased)
 10. Companion website (shared DB) — hardest
 
-## Twilio SMS — deferred (creds stored)
+## Twilio SMS — LIVE (v2.4, toll-free approved)
 - Stored in backend/.env: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER=+18446977111 (toll-free).
-- Toll-free verification IN PROGRESS — SMS delivery unreliable until approved.
-- Plan when resumed: self-managed OTP (no Verify Service SID needed) using the toll-free number; store phone_number/phone_verified/sms_reminders_enabled on notification prefs; hook into hourly digest scheduler; respect STOP/opt-out.
+- Toll-free verification APPROVED (Jun 2026). SMS sending is now enabled.
+- Implemented: `core/sms.py` (send_sms/normalize_us_phone/is_configured via twilio==9.10.9); hourly digest scheduler sends an SMS alongside the email when prefs.sms_enabled + sms_phone (own dedupe key `{user}:{date}:sms:{freq}`); POST /api/notifications/sms-test one-off confirmation text; Settings "Send me a test text" button. STOP/HELP handled by Twilio at carrier level for the toll-free number (no custom webhook needed).
 
 ## Session update
 - DONE: #5 Calendar Day/Week/Month toggle (segmented Month/Week/Day, prev/next nav, reuses /api/calendar range).

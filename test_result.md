@@ -294,3 +294,18 @@ No production code modified by testing agent.
 - Schedule tab (app/(tabs)/schedule.tsx): row stripe color + Type filter row now include custom types.
 
 **Credentials:** applereview@cheerplanner.app / Review2026!. Custom types are HOUSEHOLD-WIDE.
+
+---
+
+## Iteration 49 — Twilio SMS reminder SENDING enabled (toll-free approved)
+
+**Feature (backend + frontend):**
+- New `/app/backend/core/sms.py`: send_sms(to, body) via Twilio SDK (twilio==9.10.9), is_configured(), normalize_us_phone() → E.164. Never raises; no-op if Twilio env missing. Reads TWILIO_ACCOUNT_SID/AUTH_TOKEN/PHONE_NUMBER from backend/.env (already set).
+- Digest scheduler (core/scheduler.py): after the email digest, if prefs.sms_enabled + prefs.sms_phone, sends a compact SMS (_build_sms_body: count + up to 3 items + "Reply STOP to opt out") with its OWN dedupe key (`{user}:{date}:sms:{freq}`), independent of email. Only sends when the digest has items and the master switch/frequency/send-hour gating passes.
+- New endpoint POST /api/notifications/sms-test — sends a one-off confirmation text to the user's saved number. Guardrails: 503 if Twilio not configured, 400 if not opted in / invalid number, 502 if Twilio send fails.
+- Frontend settings/notifications.tsx: added a "Send me a test text" button (testID notif-sms-test) shown only when sms_enabled is on; calls the test endpoint and alerts success/failure.
+
+**Test focus (DO NOT send to random real phone numbers — Twilio will attempt real delivery):**
+- Backend: POST /api/notifications/sms-test WITHOUT opting in → 400 "Turn on SMS reminders first." Verify is_configured() true (server has creds). Verify normalize_us_phone via unit-style checks. Do NOT opt in a fake number and trigger a real send.
+- Frontend: opting in shows the "Send me a test text" button; the SMS section/consent renders. (Do not actually submit a real send during automated test.)
+- Credentials: applereview@cheerplanner.app / Review2026!.

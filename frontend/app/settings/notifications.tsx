@@ -50,6 +50,7 @@ export default function NotificationsSettingsScreen() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [smsPhone, setSmsPhone] = useState("");
+  const [sendingTest, setSendingTest] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -108,6 +109,18 @@ export default function NotificationsSettingsScreen() {
       });
     } else {
       await patch({ sms_enabled: false });
+    }
+  };
+
+  const sendTestSms = async () => {
+    setSendingTest(true);
+    try {
+      await api.post("/notifications/sms-test");
+      Alert.alert("Test text sent", "Check your phone — a confirmation text is on its way.");
+    } catch (e: any) {
+      Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again shortly.");
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -243,6 +256,23 @@ export default function NotificationsSettingsScreen() {
               thumbColor={Platform.OS === "android" ? "#fff" : undefined}
             />
           </View>
+          {prefs.sms_enabled && (
+            <TouchableOpacity
+              style={styles.testSmsBtn}
+              onPress={sendTestSms}
+              disabled={sendingTest}
+              testID="notif-sms-test"
+            >
+              {sendingTest ? (
+                <ActivityIndicator color={colors.accent} />
+              ) : (
+                <>
+                  <Ionicons name="paper-plane-outline" size={16} color={colors.accent} />
+                  <Text style={styles.testSmsText}>Send me a test text</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.consentBox}>
@@ -314,6 +344,8 @@ const makeStyles = () => ({
   },
   smsIntroText: { ...typography.caption, color: colors.textSecondary, flex: 1, lineHeight: 18 },
   smsFieldWrap: { padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  testSmsBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: spacing.md, marginBottom: spacing.md, paddingVertical: 11, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.accentSubtle },
+  testSmsText: { ...typography.bodyMedium, color: colors.accent, fontWeight: "700" },
   smsFieldLabel: { ...typography.micro, color: colors.textTertiary, marginBottom: spacing.xs, textTransform: "uppercase", letterSpacing: 0.5 },
   smsInput: {
     ...typography.body, color: colors.textPrimary, backgroundColor: colors.bg,

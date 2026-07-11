@@ -12,6 +12,7 @@ from core.db import db
 from core.models import NotificationPreferences, NotificationPreferencesUpdate
 from core.security import get_current_user
 from core.email import verify_unsubscribe_token
+from core.sms import send_sms, normalize_us_phone, is_configured
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -64,6 +65,26 @@ async def update_preferences(payload: NotificationPreferencesUpdate, current_use
         {"$set": {"notification_preferences": merged}},
     )
     return NotificationPreferences(**merged)
+
+
+@router.post("/notifications/sms-test")
+async def send_test_sms(current_user=Depends(get_current_user)):
+    """Send a one-off test SMS to the user's saved mobile number to confirm
+    Twilio delivery. Requires the user to have opted in (sms_enabled) with a
+    saved sms_phone."""
+    if not is_configured():
+        raise HTTPException(status_code=503, detail="SMS is not configured on the server.")
+    user_doc = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "notification_preferences": 1})
+    prefs = (user_doc or {}).get("notification_preferences") or {}
+    if not prefs.get("sms_enabled"):
+        raise HTTPException(status_code=400, detail="Turn on SMS reminders first.")
+    phone = prefs.get("sms_phone")
+    if not normalize_us_phone(phone):
+        raise HTTPException(status_code=400, detail="Add a valid US mobile number first.")
+    ok = send_sms(phone, "CheerPlanner: your SMS reminders are set up correctly. Reply STOP to opt out.")
+    if not ok:
+        raise HTTPException(status_code=502, detail="Couldn't send the test text. Please try again shortly.")
+    return {"sent": True}
 
 
 # ---------------------------------------------------------------

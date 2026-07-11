@@ -1,0 +1,21 @@
+{
+  "summary": "Tested v2.4 Twilio SMS send helpers + /notifications/sms-test guardrails (backend) and Settings > Notifications SMS UI (frontend). Wrote /app/backend/tests/test_v24_sms_test_guardrails.py with 17 tests — all pass. Verified: (a) POST /api/notifications/sms-test returns 400 with detail 'Turn on SMS reminders first.' for the applereview account which is NOT opted in (proving is_configured() is True — not 503); (b) endpoint requires auth (401 without token); (c) normalize_us_phone: '(844) 697-7111'->'+18446977111', '8446977111'->'+18446977111', '+18446977111'->'+18446977111', '18446977111'->'+18446977111', 'bad'/None/'' -> None; (d) _build_sms_body produces 'CheerPlanner: N upcoming reminder(s).' + up to 3 '- ' item lines + optional '...and N more.' + 'Reply STOP to opt out.'; (e) GET/PATCH /api/notifications/preferences round-trip sms_enabled/sms_phone/sms_consent_at without opting in. Frontend on /settings/notifications: SMS section renders, notif-sms-phone + notif-sms-consent visible, notif-sms-test button correctly hidden when SMS OFF and appears when consent toggled ON (button was NOT tapped — no real SMS sent). Toggled consent back OFF, then cleanup PATCH cleared sms_phone/sms_consent_at so the applereview account remains not-opted-in and clean. No red screen; no page errors; email frequency + category toggles still work.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_v24_sms_test_guardrails.py",
+    "/app/test_reports/pytest/v24_sms_guardrails.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "notifications.tsx normalizePhone(): 'Send me a test text' will show even if the user typed an invalid phone earlier, because backend accepts any string in sms_phone via PATCH (no server-side normalize_us_phone validation on save). The sms-test endpoint does validate with normalize_us_phone (returns 400 'Add a valid US mobile number first.'), so functionally safe, but consider server-side normalization on PATCH for a cleaner stored value.",
+    "core/sms.py normalize_us_phone: for '+' inputs it only checks len(digits) >= 11 — a very long garbage string like '+abc12345678901' would still normalize. Minor; acceptable for a helper that gates on downstream Twilio validation."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (17/17 after re-run; 1 flaky network timeout on first attempt)", "frontend": "100% (all UI assertions passed, no real SMS sent)"},
+  "seed_data_creation": "None. Applereview account left in the same not-opted-in state (sms_enabled=false, sms_phone=null, sms_consent_at=null) via test_zzz_cleanup_reset_sms.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Twilio live creds are configured in /app/backend/.env (TWILIO_ACCOUNT_SID/AUTH_TOKEN/PHONE_NUMBER=+18446977111). Never POST /api/notifications/sms-test while the user is opted in — it will send a real text. The v2.4 test file (test_v24_sms_test_guardrails.py) exercises only the 400 (not opted in) path and unit helpers. If you need to reset applereview mid-test, PATCH /api/notifications/preferences with {sms_enabled:false, sms_phone:null, sms_consent_at:null}.",
+  "rca_of_issue": "N/A — feature works as designed. One transient network timeout on the preview URL caused a single test to fail on first attempt; re-run passed. No product bug."
+}
