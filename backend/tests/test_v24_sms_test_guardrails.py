@@ -17,7 +17,7 @@ sys.path.insert(0, "/app/backend")
 
 BASE_URL = os.environ.get("EXPO_PUBLIC_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
-    BASE_URL = "https://athlete-expense-hub.preview.emergentagent.com"
+    BASE_URL = "https://event-planner-394.preview.emergentagent.com"
 
 EMAIL = "applereview@cheerplanner.app"
 PASSWORD = "Review2026!"

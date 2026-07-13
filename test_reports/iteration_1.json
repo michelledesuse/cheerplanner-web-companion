@@ -39,6 +39,6 @@
   "seed_data_creation": "Tests create their own ephemeral users (prefix TEST_*@mailinator.com) and TEST_-prefixed athletes/expenses/competitions/etc. No production seed data modified. Some test data is left in Mongo (no global teardown) – safe due to unique UUIDs and TEST_ prefix.",
   "retest_needed": false,
   "should_main_agent_self_test": true,
-  "context_for_next_testing_agent": "Backend is fully green (22/22) at https://athlete-expense-hub.preview.emergentagent.com/api. Reusable test file: /app/backend/tests/test_cheertrack_backend.py. Note that Pydantic EmailStr rejects reserved TLDs (.test/.example) so use @mailinator.com (or similar) for signup payloads. Backend lowercases email on signup/login – assert lowercase in responses. HTTPBearer returns 403 (not 401) when Authorization header is missing.",
+  "context_for_next_testing_agent": "Backend is fully green (22/22) at https://event-planner-394.preview.emergentagent.com/api. Reusable test file: /app/backend/tests/test_cheertrack_backend.py. Note that Pydantic EmailStr rejects reserved TLDs (.test/.example) so use @mailinator.com (or similar) for signup payloads. Backend lowercases email on signup/login – assert lowercase in responses. HTTPBearer returns 403 (not 401) when Authorization header is missing.",
   "rca_of_issue": "N/A – no functional bugs found. Initial test failures were test-side issues: (1) used .test TLD which email-validator rejects, and (2) compared response email against the original mixed-case input rather than the lowercased value backend stores. Both fixed in tests."
 }
