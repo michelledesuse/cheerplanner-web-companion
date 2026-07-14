@@ -109,6 +109,9 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Companion WEBSITE that shares the SAME backend/database so users can use CheerPlanner on desktop or phone. Ranked HARDEST/largest: reuses existing FastAPI API + JWT auth, but is effectively a full second frontend (all screens, auth, responsive web UI). Bigger than offline support. Do as a dedicated multi-phase project.
 - **REAL-TIME SYNC (user request, for website phase):** When building the companion website, implement real-time listeners so the website AND the mobile app feel like ONE fluid experience — a change on either surface reflects instantly on the other. Approach options: WebSockets (FastAPI `WebSocket` endpoints broadcasting per-household updates) and/or MongoDB Change Streams (watch collections filtered by household, push diffs to connected clients). Scope: both web and mobile subscribe to household-scoped update channels; on create/update/delete, broadcast the changed resource so all clients (web + phones in the same household) live-update without manual refresh. Bundle this into the companion-website multi-phase project.
 
+## Backlog — Calendar (user request, FOR LATER)
+- CAL-1: **Chronological day event ordering.** Events listed at the bottom of the Calendar (the selected-day list, and per-day lists in Week view) must be sorted chronologically by time-of-day, not by kind/insertion order. Requires backend `/api/calendar` feed to expose a sortable time (e.g. `sort_time`/24h `HH:MM`) per event — many events only carry a date + a human-readable time inside `subtitle`, so add a normalized time and sort the day list by it on the frontend (all-day/no-time items first or last — confirm with user).
+
 ## Difficulty order (easiest -> hardest), pending
 1. Fundraiser as schedule event type  [DONE]
 2. Teams-to-Watch "create missing competitions" toggle  [DONE]
