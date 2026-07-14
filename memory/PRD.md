@@ -111,6 +111,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 
 ## Backlog — Calendar (user request, FOR LATER)
 - CAL-1: **Chronological day event ordering.** Events listed at the bottom of the Calendar (the selected-day list, and per-day lists in Week view) must be sorted chronologically by time-of-day, not by kind/insertion order. Requires backend `/api/calendar` feed to expose a sortable time (e.g. `sort_time`/24h `HH:MM`) per event — many events only carry a date + a human-readable time inside `subtitle`, so add a normalized time and sort the day list by it on the frontend (all-day/no-time items first or last — confirm with user).
+- CAL-2: **Add competition / schedule event from the Calendar tab.** Let the user create a new Competition or Schedule Event directly from the Calendar. Trigger via either a double-tap on a date, or (preferred) a "+" icon in the header that opens a small chooser asking "Add Competition" vs "Add Event", then navigates to the respective create form. Prefill the create form's date with the currently-selected calendar day.
 
 ## Difficulty order (easiest -> hardest), pending
 1. Fundraiser as schedule event type  [DONE]
