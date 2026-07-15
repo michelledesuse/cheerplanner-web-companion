@@ -8,6 +8,16 @@ from typing import List, Dict, Any
 
 THEME_PRESETS: List[Dict[str, Any]] = [
     {
+        "id": "cheerplanner",
+        "name": "CheerPlanner",
+        "accent": "#2563EB",
+        "accentSubtle": "#DBEAFE",
+        "bg": "#F8FAFC",
+        "card": "#FFFFFF",
+        "textPrimary": "#0F172A",
+        "tabActive": "#2563EB",
+    },
+    {
         "id": "red_white",
         "name": "Red & White",
         "accent": "#E11D48",
