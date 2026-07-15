@@ -55,14 +55,14 @@ function dowFromISO(iso: string): number {
 export default function ScheduleForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const isEdit = !!params.id;
 
   const [eventType, setEventType] = useState<string>("practice");
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(params.date || todayISO());
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [notes, setNotes] = useState("");

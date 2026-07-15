@@ -30,7 +30,8 @@ async def dashboard(current_user=Depends(get_current_user)):
     async for d in db.bookings.find({"user_id": user_id}, {"_id": 0, "cost": 1, "amount_paid": 1, "balance_due_date": 1}).limit(5000):
         bal = float(d.get("cost") or 0) - float(d.get("amount_paid") or 0)
         booking_balance += bal
-        if bal > 0 and str(d.get("balance_due_date") or "")[:10] == today_iso:
+        _bdd = str(d.get("balance_due_date") or "")[:10]
+        if bal > 0 and _bdd and _bdd <= today_iso:
             due_today += bal
 
     # Unpaid expense balance + total paid YTD — derived from canonical paid_map.
@@ -48,7 +49,8 @@ async def dashboard(current_user=Depends(get_current_user)):
         paid_from_expenses += min(paid, amt)
         bal = max(0.0, amt - paid)
         unpaid_expense_balance += bal
-        if bal > 0 and str(d.get("due_date") or "")[:10] == today_iso:
+        _dd = str(d.get("due_date") or "")[:10]
+        if bal > 0 and _dd and _dd <= today_iso:
             due_today += bal
 
     # Next competition

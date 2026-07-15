@@ -318,6 +318,7 @@ async def calendar_feed(
                     "kind": "schedule",
                     "date": ds,
                     "title": s.get("title", "Event") + (f" (day {i + 1}/{total})" if multi else ""),
+                    "time": s.get("start_time"),
                     "subtitle": subtitle,
                     "color": colors_by_type.get(et) or custom_event_colors.get(et) or "#64748B",
                     "link": f"/schedule/new?id={s['id']}",
@@ -329,6 +330,7 @@ async def calendar_feed(
                 "kind": "schedule",
                 "date": day,
                 "title": s.get("title", "Event"),
+                "time": s.get("start_time"),
                 "subtitle": subtitle,
                 "color": colors_by_type.get(et) or custom_event_colors.get(et) or "#64748B",
                 "link": f"/schedule/new?id={s['id']}",
@@ -423,5 +425,10 @@ async def calendar_feed(
                 "link": comp_link,
             })
 
-    items.sort(key=lambda x: x["date"])
+    def _sort_key(x: dict):
+        # Chronological within a day: all-day items (no time) first, then by 24h time.
+        t = _extract_hhmm(x.get("time")) or ""
+        return (x["date"], t)
+
+    items.sort(key=_sort_key)
     return {"items": items}

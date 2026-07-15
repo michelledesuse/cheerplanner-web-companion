@@ -151,10 +151,20 @@ export default function ExpensesTab() {
     //   2. Expenses created with the "Already paid" flag count toward Paid YTD
     //      the same as a logged payment would (the backend forces
     //      paid_amount=amount whenever paid=true).
-    const totalDue = expenses.reduce((s, e) => s + Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0))), 0);
-    const totalPaid = expenses.reduce((s, e) => s + Number(e.paid_amount || 0), 0);
-    return { totalDue, totalPaid };
-  }, [expenses, payments]);
+    // F1: totals honor the active SCOPE filters (athlete / team / category) so
+    //     they reflect only the items in view — but NOT the all/open/paid view
+    //     toggle (that's just a status filter within the same scope).
+    const athById = new Map(athletes.map((a) => [a.id, a]));
+    let scope = athleteFilter ? expenses.filter((e) => e.athlete_id === athleteFilter) : expenses;
+    if (tab === "expenses") {
+      if (teamFilter) scope = scope.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).includes(teamFilter));
+      if (categoryFilter) scope = scope.filter((e) => e.category === categoryFilter);
+    }
+    const totalDue = scope.reduce((s, e) => s + Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0))), 0);
+    const totalPaid = scope.reduce((s, e) => s + Number(e.paid_amount || 0), 0);
+    const scopeFiltered = !!athleteFilter || (tab === "expenses" && (!!teamFilter || !!categoryFilter));
+    return { totalDue, totalPaid, scopeFiltered };
+  }, [expenses, athletes, athleteFilter, teamFilter, categoryFilter, tab]);
 
   // Items currently visible in the active tab — used for "Select all"
   const visibleIds = useMemo(() => {
@@ -277,12 +287,12 @@ export default function ExpensesTab() {
         ) : (
           <>
             <View style={styles.sumItem}>
-              <Text style={styles.sumLabel}>Open balance</Text>
+              <Text style={styles.sumLabel}>{totals.scopeFiltered ? "Open balance (filtered)" : "Open balance"}</Text>
               <Text style={[styles.sumValue, { color: colors.textPrimary }]}>{formatCurrency(totals.totalDue)}</Text>
             </View>
             <View style={styles.divider} />
             <View style={styles.sumItem}>
-              <Text style={styles.sumLabel}>Paid YTD</Text>
+              <Text style={styles.sumLabel}>{totals.scopeFiltered ? "Paid YTD (filtered)" : "Paid YTD"}</Text>
               <Text style={[styles.sumValue, { color: colors.successText }]}>{formatCurrency(totals.totalPaid)}</Text>
             </View>
           </>

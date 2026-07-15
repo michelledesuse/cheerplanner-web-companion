@@ -171,7 +171,7 @@ export default function DashboardScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.dueTodayLabel}>Total due today</Text>
-              <Text style={styles.dueTodaySub}>Expenses + travel costs</Text>
+              <Text style={styles.dueTodaySub}>Due today + overdue · expenses & travel</Text>
             </View>
             <Text style={styles.dueTodayValue}>{formatCurrency(data?.due_today || 0)}</Text>
           </TouchableOpacity>

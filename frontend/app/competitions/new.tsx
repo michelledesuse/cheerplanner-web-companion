@@ -16,14 +16,14 @@ import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/Lin
 export default function CompetitionForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const params = useLocalSearchParams<{ id?: string }>();
+  const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [address, setAddress] = useState("");
-  const [eventDate, setEventDate] = useState("");
+  const [eventDate, setEventDate] = useState(params.date || "");
   const [eventTime, setEventTime] = useState("");
   const [endDate, setEndDate] = useState("");
   const [housingRequired, setHousingRequired] = useState(false);

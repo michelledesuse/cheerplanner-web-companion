@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 51 backlog items (CAL-1, CAL-2, F2, F1) all verified end-to-end. Backend pytest: 4/4 passed. Frontend Playwright confirmed: due-today-card shows $1,122.50 with subtitle 'Due today + overdue · expenses & travel'; calendar '+' opens bottom sheet with all 4 testIDs and cancel/backdrop both close it; tapping Competition navigates to /competitions/new?date=<selected> with comp-date-input prefilled ('2026-07-15'); /schedule/new?date=2026-08-20 prefills schedule-date; expenses/payments summary labels flip to '(filtered)' when an athlete chip is active and Paid YTD scopes correctly (household $380 → Ava $180 → cleared $380).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter51_calendar_and_dashboard.py",
+    "/app/test_reports/pytest/pytest_iter51.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "calendar.py _sort_key uses (date, time_or_empty_string) — empty string sorts before any HH:MM which correctly places all-day items first. Sort is stable in Python so items with identical (date, time) preserve insertion order.",
+    "dashboard.py correctly uses <= today_iso for both bookings and expenses, capturing 'due today + overdue'. Backend invariant paid_amount==amount when paid=true is enforced before subtraction.",
+    "Calendar bottom sheet uses selected date fallback to todayISO() — matches spec. cal-add-cancel and Pressable backdrop both close via setAddOpen(false).",
+    "expenses.tsx totals memo depends on athleteFilter/teamFilter/categoryFilter and honors tab (team/category only when on expenses tab), so payments tab respects athleteFilter only — matches spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter51_calendar_and_dashboard.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None. Used seeded applereview account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 51 features all verified. due_today for review account = $1122.50. Ava Johnson athlete id = 40b0c66e-3643-42e0-b411-4a2162d698fc; Coach Maria athlete id = ab4c1610-e849-49bd-aa99-c2b90b690b4f. Ava has $180 in payments YTD; Coach Maria $200; household $380.",
+  "rca_of_issue": "N/A — feature verification, no bugs found."
+}

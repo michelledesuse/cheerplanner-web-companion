@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  RefreshControl, Linking,
+  RefreshControl, Linking, Modal, Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -67,6 +67,14 @@ export default function CalendarTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [jumpOpen, setJumpOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+
+  const startAdd = (kind: "competition" | "event") => {
+    setAddOpen(false);
+    const d = selected || todayISO();
+    if (kind === "competition") router.push(`/competitions/new?date=${d}` as any);
+    else router.push(`/schedule/new?date=${d}` as any);
+  };
 
   const applyJump = (iso: string) => {
     if (!iso) return;
@@ -186,6 +194,9 @@ export default function CalendarTab() {
           <TouchableOpacity onPress={() => setJumpOpen(true)} style={styles.jumpBtn} testID="cal-jump" accessibilityLabel="Jump to date">
             <Ionicons name="calendar-clear-outline" size={18} color={colors.accent} />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addBtn} testID="cal-add" accessibilityLabel="Add to calendar">
+            <Ionicons name="add" size={22} color="white" />
+          </TouchableOpacity>
           <View style={styles.viewToggle}>
             {(["month", "week", "day"] as const).map((v) => (
               <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`calview-${v}`}>
@@ -202,6 +213,37 @@ export default function CalendarTab() {
         onJump={applyJump}
         onClose={() => setJumpOpen(false)}
       />
+
+      <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setAddOpen(false)} testID="cal-add-backdrop">
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Add to {formatDateLong(selected)}</Text>
+            <TouchableOpacity style={styles.sheetRow} onPress={() => startAdd("competition")} testID="cal-add-competition">
+              <View style={[styles.sheetIcon, { backgroundColor: "#007CFF22" }]}>
+                <Ionicons name="trophy" size={20} color="#007CFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetRowTitle}>Competition</Text>
+                <Text style={styles.sheetRowSub}>Add a competition or event day</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sheetRow} onPress={() => startAdd("event")} testID="cal-add-event">
+              <View style={[styles.sheetIcon, { backgroundColor: "#EA580C22" }]}>
+                <Ionicons name="calendar" size={20} color="#EA580C" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetRowTitle}>Event</Text>
+                <Text style={styles.sheetRowSub}>Practice, lesson, bonding & more</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.sheetCancel} onPress={() => setAddOpen(false)} testID="cal-add-cancel">
+              <Text style={styles.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <ScrollView
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -283,6 +325,16 @@ const makeStyles = (c: ThemePalette) => ({
   headerTitle: { ...typography.h1, color: c.textPrimary },
   viewToggle: { flexDirection: "row", backgroundColor: c.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: c.border },
   jumpBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
+  sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl, gap: spacing.sm },
+  sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
+  sheetRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border },
+  sheetIcon: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  sheetRowTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  sheetRowSub: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  sheetCancel: { alignItems: "center", paddingVertical: spacing.md, marginTop: spacing.xs },
+  sheetCancelText: { ...typography.bodyMedium, fontWeight: "700", color: c.textSecondary },
   todayBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 38, paddingHorizontal: 12, borderRadius: 999, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
   todayText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   viewChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },

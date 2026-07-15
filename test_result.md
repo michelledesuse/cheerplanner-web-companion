@@ -297,6 +297,35 @@ No production code modified by testing agent.
 
 ---
 
+## Iteration 51 — CAL-1, CAL-2, F2, F1 (main agent implementation, needs testing)
+
+**Four backlog items implemented:**
+
+### CAL-1 — Chronological day-event ordering (backend)
+- `routers/calendar.py`: added `time` field to schedule-event calendar items (from `start_time`), and changed the final feed sort from `date`-only to `(date, HH:MM)` via `_extract_hhmm`. All-day items (no time) sort FIRST within a day, then timed items ascending. Verified via curl: 07-08 → hotel_stay(all-day), team_meet 01:00, competition 14:00, team_performance 14:30. The day/week lists on the Calendar tab consume the feed order, so they're now chronological everywhere.
+
+### CAL-2 — Add Competition/Event from the Calendar tab (frontend)
+- `app/(tabs)/calendar.tsx`: new header "+" button (testID `cal-add`) opens a bottom-sheet chooser (testIDs `cal-add-competition`, `cal-add-event`, `cal-add-cancel`, `cal-add-backdrop`) titled "Add to <selected date>". Picking Competition → `/competitions/new?date=<selected>`; Event → `/schedule/new?date=<selected>`.
+- `app/competitions/new.tsx` + `app/schedule/new.tsx`: accept a `date` query param and prefill the event/start date with it.
+
+### F2 — Home "Total due today" now includes overdue (backend + frontend)
+- `routers/dashboard.py`: `due_today` changed from due-date `== today` to `<= today` (unpaid expenses + positive booking balances), so it now sums "due today + overdue". Verified via curl (due_today jumped to 1122.5 for the review account).
+- `app/(tabs)/dashboard.tsx`: card subtitle updated to "Due today + overdue · expenses & travel".
+
+### F1 — Filter-aware Open Balance / Paid YTD (frontend)
+- `app/(tabs)/expenses.tsx`: `totals` now recompute from an athlete/team/category-SCOPED expense list (NOT the all/open/paid view toggle). When any scope filter is active, labels read "Open balance (filtered)" / "Paid YTD (filtered)". On the Payments tab only the athlete filter applies (team/category chips aren't shown there).
+
+**Credentials:** applereview@cheerplanner.app / Review2026!
+
+**Test focus:**
+1. Calendar: day event list is in chronological order (all-day first, then by time) in Month/Week/Day views.
+2. Calendar: tap "+" → chooser appears → "Competition" opens comp form with selected date prefilled; "Event" opens schedule form with selected date prefilled.
+3. Home: "Total due today" card sums due-today + overdue unpaid expenses & travel; subtitle updated.
+4. Expenses tab: applying athlete/team/category filter recalculates Open balance + Paid YTD to the filtered scope and shows "(filtered)" labels; clearing filters restores household totals. Payments tab: athlete filter also scopes the totals.
+
+---
+
+
 ## Iteration 49 — Twilio SMS reminder SENDING enabled (toll-free approved)
 
 **Feature (backend + frontend):**
