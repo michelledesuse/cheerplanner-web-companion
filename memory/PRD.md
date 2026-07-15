@@ -82,8 +82,8 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 
 
 ## Backlog — Filters & Home totals (user request, future)
-- F1: **Filter-aware summary totals on Expenses/Payments.** When the user applies filters (athlete/team/category) on the Expenses or Payments tab, the "Open balance" and "Paid YTD" summary figures should recalculate to reflect ONLY the currently-filtered items shown — not the household-wide totals. (Verify whether these totals are computed client-side from the visible list or fetched from a separate summary endpoint; if backend, pass the active filters so the summary matches the filtered view.)
-- F2: **Home "Total Due Today" card.** On the Home page, add a "Total Due Today" figure = sum of all expenses that are UNPAID and due on or before the current date (i.e. due today + overdue). Clarify with user later whether to keep the label "Total Due Today" even though it includes overdue items, or split into "Due today" vs "Overdue." (NOTE: PRD earlier listed a "Total Due Today" as done — re-verify current Home behavior against this definition.)
+- F1: [DONE — iteration_51] **Filter-aware summary totals on Expenses/Payments.** Open balance + Paid YTD now recompute from the active athlete/team/category SCOPE (not the all/open/paid status toggle); labels show "(filtered)" when a scope filter is active. Payments tab scopes by athlete.
+- F2: [DONE — iteration_51] **Home "Total Due Today" card.** `/api/dashboard.due_today` now = unpaid expenses + positive booking balances with due date ≤ today (due today + overdue). Card subtitle updated to "Due today + overdue · expenses & travel". (Label kept as "Total due today" per user.)
 
 
 ## Backlog — Roles & Team Hub (user request, future)
@@ -109,9 +109,9 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Companion WEBSITE that shares the SAME backend/database so users can use CheerPlanner on desktop or phone. Ranked HARDEST/largest: reuses existing FastAPI API + JWT auth, but is effectively a full second frontend (all screens, auth, responsive web UI). Bigger than offline support. Do as a dedicated multi-phase project.
 - **REAL-TIME SYNC (user request, for website phase):** When building the companion website, implement real-time listeners so the website AND the mobile app feel like ONE fluid experience — a change on either surface reflects instantly on the other. Approach options: WebSockets (FastAPI `WebSocket` endpoints broadcasting per-household updates) and/or MongoDB Change Streams (watch collections filtered by household, push diffs to connected clients). Scope: both web and mobile subscribe to household-scoped update channels; on create/update/delete, broadcast the changed resource so all clients (web + phones in the same household) live-update without manual refresh. Bundle this into the companion-website multi-phase project.
 
-## Backlog — Calendar (user request, FOR LATER)
-- CAL-1: **Chronological day event ordering.** Events listed at the bottom of the Calendar (the selected-day list, and per-day lists in Week view) must be sorted chronologically by time-of-day, not by kind/insertion order. Requires backend `/api/calendar` feed to expose a sortable time (e.g. `sort_time`/24h `HH:MM`) per event — many events only carry a date + a human-readable time inside `subtitle`, so add a normalized time and sort the day list by it on the frontend (all-day/no-time items first or last — confirm with user).
-- CAL-2: **Add competition / schedule event from the Calendar tab.** Let the user create a new Competition or Schedule Event directly from the Calendar. Trigger via either a double-tap on a date, or (preferred) a "+" icon in the header that opens a small chooser asking "Add Competition" vs "Add Event", then navigates to the respective create form. Prefill the create form's date with the currently-selected calendar day.
+## Backlog — Calendar (user request)
+- CAL-1: [DONE — iteration_51] Chronological day event ordering. `/api/calendar` now sorts by `(date, HH:MM)`; schedule items carry `time` from `start_time`; all-day (no-time) items sort first, then timed ascending. Day/Week lists consume the sorted feed.
+- CAL-2: [DONE — iteration_51] Add Competition / Schedule event from the Calendar tab. Header "+" (testID cal-add) opens a chooser sheet → routes to `/competitions/new?date=<sel>` or `/schedule/new?date=<sel>`, both prefilling the selected day.
 
 ## Difficulty order (easiest -> hardest), pending
 1. Fundraiser as schedule event type  [DONE]
