@@ -167,7 +167,7 @@ export default function DashboardScreen() {
             testID="due-today-card"
           >
             <View style={styles.dueTodayIcon}>
-              <Ionicons name="alarm" size={20} color="white" />
+              <Ionicons name="alarm-outline" size={16} color={colors.textSecondary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.dueTodayLabel}>Total due today</Text>
@@ -342,14 +342,14 @@ const makeStyles = (c: ThemePalette) => ({
   },
   miniBalanceItem: { flex: 1, alignItems: "center" },
   dueTodayCard: {
-    marginTop: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md,
-    backgroundColor: c.dangerBg, borderRadius: radius.lg, borderWidth: 1, borderColor: c.dangerText + "33",
-    paddingVertical: spacing.md, paddingHorizontal: spacing.lg,
+    marginTop: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.sm,
+    backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border,
+    paddingVertical: spacing.sm, paddingHorizontal: spacing.md,
   },
-  dueTodayIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.dangerText, alignItems: "center", justifyContent: "center" },
-  dueTodayLabel: { ...typography.bodyMedium, color: c.dangerText, fontWeight: "800" },
-  dueTodaySub: { ...typography.micro, color: c.dangerText, opacity: 0.8, marginTop: 1 },
-  dueTodayValue: { fontSize: 20, fontWeight: "800", color: c.dangerText, letterSpacing: -0.3 },
+  dueTodayIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: c.divider, alignItems: "center", justifyContent: "center" },
+  dueTodayLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
+  dueTodaySub: { ...typography.micro, color: c.textTertiary, marginTop: 1 },
+  dueTodayValue: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
   miniBalanceLabel: { ...typography.micro, color: c.textSecondary, marginBottom: 4 },
   miniBalanceValue: { fontSize: 17, fontWeight: "800", color: c.textPrimary, letterSpacing: -0.2 },
   miniBalanceValueSm: { fontSize: 14, fontWeight: "700", color: c.textPrimary },
