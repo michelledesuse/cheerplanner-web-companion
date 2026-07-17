@@ -116,7 +116,6 @@ export default function CompetitionForm() {
           <Text style={styles.label}>Competition name</Text>
           <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. NCA Senior Nationals" placeholderTextColor={colors.textTertiary} testID="comp-name-input" />
 
-          <Text style={styles.label}>Location</Text>
           <Text style={styles.label}>Location / venue name</Text>
           <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="e.g. Houston Convention Center" placeholderTextColor={colors.textTertiary} testID="comp-location-input" />
 
