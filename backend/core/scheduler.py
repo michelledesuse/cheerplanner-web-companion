@@ -34,6 +34,9 @@ _scheduler: AsyncIOScheduler | None = None
 # Default if a user hasn't set a timezone or has a bad value.
 DEFAULT_TZ = "America/New_York"
 DEFAULT_SEND_HOUR_LOCAL = 8  # 8 AM in user's tz
+# S1: allowed lead-time offsets (minutes before the target moment).
+ALLOWED_SMS_OFFSETS = {60, 30, 15, 1}
+CHECKIN_LEAD_MINUTES = 24 * 60  # flight check-in opens 24h before departure
 
 
 def start_scheduler() -> AsyncIOScheduler:
@@ -49,8 +52,17 @@ def start_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=600,
     )
+    # S1: every minute — precise lead-time SMS reminders for booking openings
+    # and flight check-in windows (per-event offsets).
+    _scheduler.add_job(
+        send_timed_sms_tick,
+        CronTrigger(second=0),
+        id="timed_sms_tick",
+        replace_existing=True,
+        misfire_grace_time=120,
+    )
     _scheduler.start()
-    logger.info("Scheduler started \u2014 digest tick runs every hour at :05 UTC")
+    logger.info("Scheduler started \u2014 digest tick hourly at :05 UTC, timed-SMS tick every minute")
     return _scheduler
 
 
@@ -62,6 +74,145 @@ def stop_scheduler() -> None:
         except Exception:
             pass
         _scheduler = None
+
+
+# ============================================================
+# S1 — Timed lead-time SMS reminders (runs every minute)
+# ============================================================
+def _valid_offsets(raw: Any) -> List[int]:
+    """Keep only recognized offsets, deduped, descending (60,30,15,1)."""
+    out: List[int] = []
+    for x in (raw or []):
+        try:
+            v = int(x)
+        except Exception:
+            continue
+        if v in ALLOWED_SMS_OFFSETS and v not in out:
+            out.append(v)
+    return sorted(out, reverse=True)
+
+
+def _fmt_offset(off: int) -> str:
+    return "1 hour" if off == 60 else f"{off} min"
+
+
+async def _already_sent(key: str) -> bool:
+    return bool(await db.sent_notifications.find_one({"key": key}, {"_id": 0}))
+
+
+async def _record_sent(key: str, user_id: str, kind: str) -> None:
+    await db.sent_notifications.insert_one({
+        "key": key,
+        "user_id": user_id,
+        "kind": kind,
+        "sent_at": datetime.utcnow().isoformat() + "Z",
+    })
+
+
+def _booking_open_sms(comp: Dict[str, Any], off: int) -> str:
+    name = comp.get("name") or "your competition"
+    return (
+        f"CheerPlanner: Hotel booking for {name} opens in {_fmt_offset(off)}. "
+        f"Be ready to grab your stay-to-play room.\nReply STOP to opt out."
+    )
+
+
+def _checkin_sms(leg_id: str, dep_ap: Any, arr_ap: Any, off: int) -> str:
+    route = " \u2192 ".join([x for x in [dep_ap, arr_ap] if x]) or "your flight"
+    leg = "return " if leg_id == "ret" else ""
+    return (
+        f"CheerPlanner: Check-in for your {leg}flight {route} opens in {_fmt_offset(off)}. "
+        f"Get ready to check in.\nReply STOP to opt out."
+    )
+
+
+async def send_timed_sms_tick() -> None:
+    """Every minute: fire precise SMS reminders for stay-to-play booking
+    openings and flight check-in windows, per-event offsets, per-offset dedupe.
+    Only for users who opted into SMS with a valid number.
+    """
+    from core.helpers import _household_user_ids, parse_local_datetime
+    from core.sms import normalize_us_phone
+
+    now_utc = datetime.utcnow().replace(tzinfo=ZoneInfo("UTC"))
+    sent = 0
+
+    def _due(now_naive: datetime, fire_at: datetime) -> bool:
+        # Tolerant window (dedupe prevents duplicates across ticks/misfires).
+        delta = (now_naive - fire_at).total_seconds()
+        return 0 <= delta < 120
+
+    cursor = db.users.find({}, {"_id": 0, "id": 1, "notification_preferences": 1})
+    async for u in cursor:
+        try:
+            prefs = u.get("notification_preferences") or {}
+            if not prefs.get("enabled", True):
+                continue
+            if not prefs.get("sms_enabled") or not prefs.get("sms_phone"):
+                continue
+            phone = normalize_us_phone(prefs.get("sms_phone"))
+            if not phone:
+                continue
+            tz_name = prefs.get("timezone") or DEFAULT_TZ
+            try:
+                tz = ZoneInfo(tz_name)
+            except ZoneInfoNotFoundError:
+                tz = ZoneInfo(DEFAULT_TZ)
+            local_now = now_utc.astimezone(tz).replace(tzinfo=None)
+            user_id = u["id"]
+            member_ids = await _household_user_ids(user_id)
+
+            # --- Stay-to-play booking openings ---
+            async for c in db.competitions.find(
+                {"user_id": {"$in": member_ids},
+                 "sms_reminder_offsets": {"$exists": True, "$ne": []}},
+                {"_id": 0},
+            ):
+                offsets = _valid_offsets(c.get("sms_reminder_offsets"))
+                target_dt = parse_local_datetime(c.get("booking_release_at"))
+                if not offsets or not target_dt:
+                    continue
+                for off in offsets:
+                    if not _due(local_now, target_dt - timedelta(minutes=off)):
+                        continue
+                    key = f"{user_id}:comp:{c['id']}:booking_open:{off}"
+                    if await _already_sent(key):
+                        continue
+                    if send_sms(phone, _booking_open_sms(c, off)):
+                        await _record_sent(key, user_id, "sms_booking_open")
+                        sent += 1
+
+            # --- Flight check-in windows (24h before each leg's departure) ---
+            async for b in db.bookings.find(
+                {"user_id": {"$in": member_ids}, "type": "flight",
+                 "sms_reminder_offsets": {"$exists": True, "$ne": []}},
+                {"_id": 0},
+            ):
+                offsets = _valid_offsets(b.get("sms_reminder_offsets"))
+                if not offsets:
+                    continue
+                legs = [
+                    ("out", b.get("depart_time"), b.get("depart_airport"), b.get("arrive_airport")),
+                    ("ret", b.get("return_depart_time"), b.get("return_depart_airport"), b.get("return_arrive_airport")),
+                ]
+                for leg_id, dep_raw, dep_ap, arr_ap in legs:
+                    dep_dt = parse_local_datetime(dep_raw)
+                    if not dep_dt:
+                        continue
+                    checkin_open = dep_dt - timedelta(minutes=CHECKIN_LEAD_MINUTES)
+                    for off in offsets:
+                        if not _due(local_now, checkin_open - timedelta(minutes=off)):
+                            continue
+                        key = f"{user_id}:booking:{b['id']}:checkin_{leg_id}:{off}"
+                        if await _already_sent(key):
+                            continue
+                        if send_sms(phone, _checkin_sms(leg_id, dep_ap, arr_ap, off)):
+                            await _record_sent(key, user_id, "sms_checkin")
+                            sent += 1
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("timed sms tick failure for user %s: %s", u.get("id"), exc)
+    if sent:
+        logger.info("Timed SMS tick: sent=%d", sent)
 
 
 # ============================================================

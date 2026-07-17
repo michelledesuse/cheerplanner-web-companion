@@ -12,6 +12,7 @@ import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
 import TimeField from "@/src/components/TimeField";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 
 export default function CompetitionForm() {
   const styles = useThemedStyles(makeStyles);
@@ -29,6 +30,7 @@ export default function CompetitionForm() {
   const [housingRequired, setHousingRequired] = useState(false);
   const [bookingLink, setBookingLink] = useState("");
   const [bookingReleaseAt, setBookingReleaseAt] = useState("");
+  const [smsOffsets, setSmsOffsets] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [saving, setSaving] = useState(false);
@@ -49,6 +51,7 @@ export default function CompetitionForm() {
         setHousingRequired(!!c.housing_required);
         setBookingLink(c.booking_link || "");
         setBookingReleaseAt(c.booking_release_at || "");
+        setSmsOffsets(Array.isArray(c.sms_reminder_offsets) ? c.sms_reminder_offsets : []);
         setNotes(c.notes || "");
         setLinks(Array.isArray(c.links) ? c.links : []);
       } catch (_e) {
@@ -73,6 +76,7 @@ export default function CompetitionForm() {
         housing_required: housingRequired,
         booking_link: bookingLink.trim() || null,
         booking_release_at: bookingReleaseAt || null,
+        sms_reminder_offsets: bookingReleaseAt ? smsOffsets : [],
         notes: notes.trim() || null,
         links: cleanLinks(links),
       };
@@ -152,6 +156,14 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Booking release (date &amp; time)</Text>
           <DateTimeField value={bookingReleaseAt} onChange={setBookingReleaseAt} testID="comp-booking-release-input" />
+          {!!bookingReleaseAt && (
+            <SmsReminderPicker
+              value={smsOffsets}
+              onChange={setSmsOffsets}
+              title="Text me before booking opens"
+              testIDPrefix="comp-sms-offset"
+            />
+          )}
 
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />

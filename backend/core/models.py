@@ -364,6 +364,8 @@ class Competition(BaseModel):
     team_meet_times: List[TeamMeetTime] = Field(default_factory=list)
     teams_to_watch: List[TeamToWatch] = Field(default_factory=list)
     links: List[ExternalLink] = Field(default_factory=list)
+    # S1: minutes-before offsets for SMS reminders on the stay-to-play booking opening.
+    sms_reminder_offsets: List[int] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -382,6 +384,7 @@ class CompetitionCreate(BaseModel):
     team_meet_times: Optional[List[TeamMeetTime]] = None
     teams_to_watch: Optional[List[TeamToWatch]] = None
     links: Optional[List[ExternalLink]] = None
+    sms_reminder_offsets: Optional[List[int]] = None
 
 
 class CompetitionUpdate(BaseModel):
@@ -399,6 +402,7 @@ class CompetitionUpdate(BaseModel):
     team_meet_times: Optional[List[TeamMeetTime]] = None
     teams_to_watch: Optional[List[TeamToWatch]] = None
     links: Optional[List[ExternalLink]] = None
+    sms_reminder_offsets: Optional[List[int]] = None
 
 
 # ============================================================
@@ -448,6 +452,10 @@ class Booking(BaseModel):
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
 
+    # S1: minutes-before offsets for SMS check-in reminders (fires relative to
+    # the check-in-open time, which is 24h before each flight leg's departure).
+    sms_reminder_offsets: List[int] = Field(default_factory=list)
+
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -484,6 +492,7 @@ class BookingCreate(BaseModel):
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
+    sms_reminder_offsets: Optional[List[int]] = None
 
 
 class BookingUpdate(BaseModel):
@@ -517,6 +526,7 @@ class BookingUpdate(BaseModel):
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
+    sms_reminder_offsets: Optional[List[int]] = None
 
 
 # ============================================================

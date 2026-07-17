@@ -1,0 +1,36 @@
+{
+  "summary": "S1 (per-event SMS lead-time reminders) verified end-to-end. Backend pytest 8/8 passed: (a) persistence round-trip for competition booking_release_at + sms_reminder_offsets and flight booking sms_reminder_offsets, plus hotel/car default to []; (b) core.helpers.parse_local_datetime handles ISO (T/space/date-only), freeform DD-MM-YYYY & DD/MM/YYYY, returns None for garbage; (c) core.scheduler._valid_offsets keeps only {60,30,15,1} deduped desc; (d) send_timed_sms_tick fires ONE SMS when local now equals (booking_release_at - 60min), records dedupe row, and is a NO-OP on second run; the flight check-in path (depart_time - 24h - 15min) also fires+dedupes. send_sms was MONKEYPATCHED on both core.sms and core.scheduler — no real Twilio delivery occurred. Frontend Playwright verified: /competitions/new hides comp-sms-offset-* chips until booking_release_at is set (count=0), edit mode with stored [60,15] renders all 4 chips with 60 & 15 highlighted (bg=rgb(37,99,235)) and 30 & 1 unselected (bg=white); toggling 30 on then saving persists [60,30,15] on GET. /bookings/new shows flight-sms-offset-* only for type=flight (4 chips) and hides them for hotel & car (0 chips each). Original applereview notification_preferences restored after scheduler test.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/competitions/new", "issues": ["Duplicate 'Location' labels rendered: line 120 shows 'Location' and immediately after line 121 shows 'Location / venue name' above the same input. Cosmetic only — the input still works. Reference: /app/frontend/app/competitions/new.tsx:119-121"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_s1_sms_reminders.py",
+    "/app/test_reports/pytest/pytest_iter52_s1.xml"
+  ],
+  "action_items": [
+    "(minor/cosmetic) Remove duplicate 'Location' <Text> label at /app/frontend/app/competitions/new.tsx line 119; the following 'Location / venue name' label on line 120 already describes the field."
+  ],
+  "critical_code_review_comments": [
+    "core/scheduler.py:129-215 correctly computes local-now per user tz, walks booking + flight legs, uses a 0..120s tolerant window, and dedupes via sent_notifications keys `user:comp:{id}:booking_open:{off}` and `user:booking:{id}:checkin_{leg}:{off}` — verified idempotent across ticks.",
+    "core/scheduler.py:145-153 short-circuits when prefs.enabled=false OR sms_enabled=false OR sms_phone is missing/invalid — safe default.",
+    "routers/competitions.py:25 uses exclude_none=True so unset sms_reminder_offsets falls back to default_factory=list (default []) — GET always returns a list.",
+    "routers/bookings.py:30-31 explicitly coerces sms_reminder_offsets None→[] on create — hotel/car stay [] even if the client sends null.",
+    "core/helpers.parse_local_datetime is tolerant: ISO T/space/date-only, DD-MM-YYYY (with 4-digit last part) and DD/MM/YYYY via slash→dash normalization. Returns None on malformed months/days (verified via '2026-13-40').",
+    "SmsReminderPicker.tsx uses testID prefix pattern and Set-based toggle with descending sort — matches allowed offset order (60,30,15,1)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_s1_sms_reminders.py (new — 8 tests)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100%"},
+  "seed_data_creation": "None persisted. Temp competitions/bookings and sent_notifications rows created & cleaned up by tests; scheduler test saves+restores applereview notification_preferences.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "S1 backend+frontend green. Token in localStorage key `ct_auth_token` is stored JSON-quoted (needs JSON.parse before use in fetch calls). SmsReminderPicker highlights selected chips via backgroundColor=rgb(37,99,235) (theme accent) and unselected via card bg; checkmark Ionicon renders as SVG. localStorage keys: `ct_auth_token`, `cheerplanner:theme_palette_v1`.",
+  "rca_of_issue": "N/A — feature verification, no bugs found."
+}

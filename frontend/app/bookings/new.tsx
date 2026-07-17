@@ -9,6 +9,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
+import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 import TimeField from "@/src/components/TimeField";
 
 export default function BookingForm() {
@@ -55,6 +56,7 @@ export default function BookingForm() {
   const [returnDepartTime, setReturnDepartTime] = useState("");
   const [returnArriveTime, setReturnArriveTime] = useState("");
   const [returnCost, setReturnCost] = useState("");
+  const [smsOffsets, setSmsOffsets] = useState<number[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
@@ -106,6 +108,7 @@ export default function BookingForm() {
         setReturnDepartTime(b.return_depart_time || "");
         setReturnArriveTime(b.return_arrive_time || "");
         setReturnCost(b.return_cost != null ? String(b.return_cost) : "");
+        setSmsOffsets(Array.isArray(b.sms_reminder_offsets) ? b.sms_reminder_offsets : []);
       } catch (_e) {
         Alert.alert("Error", "Could not load booking");
       } finally {
@@ -155,6 +158,7 @@ export default function BookingForm() {
         return_depart_time: type === "flight" ? (returnDepartTime.trim() || null) : null,
         return_arrive_time: type === "flight" ? (returnArriveTime.trim() || null) : null,
         return_cost: type === "flight" ? (returnCost === "" ? null : flightRt) : null,
+        sms_reminder_offsets: type === "flight" ? smsOffsets : [],
       };
 
       if (isEdit) {
@@ -303,6 +307,15 @@ export default function BookingForm() {
           )}
           {type === "flight" && (
             <Text style={styles.helperText}>Total flight cost is calculated from the outbound + return amounts above.</Text>
+          )}
+          {type === "flight" && (
+            <SmsReminderPicker
+              value={smsOffsets}
+              onChange={setSmsOffsets}
+              title="Text me before check-in opens"
+              note="Check-in opens 24h before each flight. SMS-only — turn on SMS reminders in Settings → Notifications."
+              testIDPrefix="flight-sms-offset"
+            />
           )}
           <Text style={styles.label}>Amount already paid (USD)</Text>
           <TextInput style={styles.input} value={amountPaid} onChangeText={setAmountPaid} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-paid-input" />

@@ -47,6 +47,53 @@ def parse_date(s: Optional[str]) -> Optional[date]:
         return None
 
 
+def parse_local_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Parse a freeform date/datetime string into a NAIVE local datetime.
+
+    Accepts ISO ('2026-07-08T14:30', '2026-07-08 14:30', '2026-07-08'),
+    or freeform 'DD-MM-YYYY HH:MM' / 'DD/MM/YYYY HH:MM' (as flight times are
+    stored). Time defaults to 00:00 when absent. Any tz info is dropped so the
+    scheduler can compare against the user's local wall-clock time. Returns
+    None if the date part is unparseable.
+    """
+    if not value:
+        return None
+    v = str(value).strip()
+    if not v:
+        return None
+    # Extract HH:MM (24h) if present.
+    hh, mm = 0, 0
+    import re as _re
+    tm = _re.search(r"(\d{1,2}):(\d{2})", v)
+    if tm:
+        h_, m_ = int(tm.group(1)), int(tm.group(2))
+        if 0 <= h_ <= 23 and 0 <= m_ <= 59:
+            hh, mm = h_, m_
+    # Normalize the date part to a `date`.
+    d: Optional[date] = None
+    first10 = v[:10]
+    if len(first10) == 10 and first10[4] == "-" and first10[7] == "-":
+        try:
+            d = date.fromisoformat(first10)
+        except Exception:
+            d = None
+    if d is None:
+        head = v.split(" ")[0].split("T")[0].replace("/", "-")
+        parts = head.split("-")
+        if len(parts) == 3:
+            a, b, c = parts
+            try:
+                if len(c) == 4 and len(a) <= 2 and len(b) <= 2:  # DD-MM-YYYY
+                    d = date(int(c), int(b), int(a))
+                elif len(a) == 4:  # YYYY-MM-DD
+                    d = date(int(a), int(b), int(c))
+            except Exception:
+                d = None
+    if d is None:
+        return None
+    return datetime(d.year, d.month, d.day, hh, mm)
+
+
 def _fmt_time_12h(value: Optional[str]) -> str:
     """Convert 24h 'HH:MM' (or a free-form datetime string containing HH:MM) to 12h 'h:MM AM/PM'."""
     if not value:

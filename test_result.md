@@ -297,7 +297,30 @@ No production code modified by testing agent.
 
 ---
 
-## Iteration 51 — CAL-1, CAL-2, F2, F1 (main agent implementation, needs testing)
+## Iteration 52 — S1 Timed SMS lead-time reminders (per-event offsets)
+
+**Feature (backend + frontend, needs testing):**
+
+### Backend
+- Models (`core/models.py`): added `sms_reminder_offsets: List[int]` to `Competition`/`CompetitionCreate`/`CompetitionUpdate` (minutes before `booking_release_at`) and to flight `Booking`/`BookingCreate`/`BookingUpdate` (minutes before the check-in-open moment = 24h before each leg's departure). Allowed values 60/30/15/1.
+- New helper `parse_local_datetime()` (`core/helpers.py`) — parses ISO and freeform `DD-MM-YYYY HH:MM` / `DD/MM/YYYY` flight times into a naive local datetime.
+- Scheduler (`core/scheduler.py`): added a SECOND job `send_timed_sms_tick` running every minute (CronTrigger second=0). Existing hourly digest unchanged. The tick: for each user opted into SMS (sms_enabled + valid sms_phone), in their tz, checks household competitions (booking openings) and flight bookings (both legs' check-in windows) with non-empty offsets, and fires an SMS when `now` is within a tolerant 120s window of each `target - offset`. Per-offset dedupe via `sent_notifications` keys `{user}:comp:{id}:booking_open:{off}` and `{user}:booking:{id}:checkin_{out|ret}:{off}`. SMS-only.
+- `routers/bookings.py`: coerce `sms_reminder_offsets` None→[] on create.
+
+### Frontend
+- New reusable `src/components/SmsReminderPicker.tsx` — multi-select chips (1 hr / 30 / 15 / 1 min before). testIDs `<prefix>-<value>`.
+- Competition form (`app/competitions/new.tsx`): picker shown only when a Booking release datetime is set (testIDPrefix `comp-sms-offset`). Saved as `sms_reminder_offsets` (forced [] if no release datetime).
+- Flight booking form (`app/bookings/new.tsx`): picker shown for flight type (testIDPrefix `flight-sms-offset`), saved on the booking.
+
+**Test focus (DO NOT trigger real SMS to random numbers):**
+1. Backend: create a competition with `booking_release_at` + `sms_reminder_offsets:[60,30,15,1]` → persists & round-trips on GET. Same for a flight booking. Verify non-flight bookings store []. Verify `parse_local_datetime` handles ISO + `DD-MM-YYYY HH:MM`. Verify offsets validation keeps only 60/30/15/1.
+2. Backend scheduler unit-ish: `_valid_offsets`, `_due` window, dedupe key behavior (calling the tick twice doesn't double-record). You may monkeypatch `send_sms` to avoid real Twilio delivery and set a user's booking_release_at to (now + offset) in their tz to confirm a send is attempted + a `sent_notifications` row is written; second tick is a no-op.
+3. Frontend: competition form — set a booking release datetime → picker appears → select chips → save → reopen shows them selected. Flight booking form — picker appears for flight type, hidden for hotel/car.
+
+**Credentials:** applereview@cheerplanner.app / Review2026!
+
+---
+
 
 **Four backlog items implemented:**
 

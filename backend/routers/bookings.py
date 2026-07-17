@@ -27,6 +27,8 @@ async def create_booking(payload: BookingCreate, current_user=Depends(get_curren
     if payload.type not in ("hotel", "car", "flight"):
         raise HTTPException(status_code=400, detail="Invalid booking type")
     data = payload.model_dump()
+    if data.get("sms_reminder_offsets") is None:
+        data["sms_reminder_offsets"] = []
     # For flights: if leg-level costs are provided and total `cost` is missing/zero,
     # derive the total automatically so balance-due calculations stay accurate.
     if payload.type == "flight":
