@@ -94,6 +94,12 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
     - (extensible — more team-management tools over time)
   NOTE: this is a larger multi-phase effort; scope each tool separately when picked up. Likely household/team-scoped and gated by role (rep/mgr/coach/staff).
 
+  DECISIONS (confirmed by user):
+    - A "Team" is NOT the existing household — it's a separate shared group. For NOW, the Hub is a private workspace for coaches/mgr/rep/staff to track info they need handy. FUTURE: grant parents/athletes read-only access to view items the staff update.
+    - Access: parents/athletes are READ-ONLY (future); for now Hub is staff-only.
+    - Gifts & Meals ledger is TRACKING ONLY — no real payments are sent/received in-app. FUTURE: when the TripIt-style email/receipt lookup (B7) lands, the hub manager can forward Venmo/other payment receipts into the app to be auto-tracked.
+  BUILD PLAN: Phase A (roles R1) + Phase B (nav R2+R3) together first (low-risk, visible); then Phase C (R4) tool-by-tool starting with Roster (foundation for ledger + waivers).
+
 - Offline support (user question, phased): Phase 1 = local read-cache (AsyncStorage/expo-sqlite) so screens render with no connection; Phase 2 = offline write queue + sync engine with conflict resolution (multi-member households). Larger effort — do in phases.
 - 1. Schedule Event: add an explicit start/end date range (multi-day event, e.g. Choreography Jul 1–Jul 5), offered IN ADDITION to the existing recurring-event option.
 - 2. Add "Fundraiser" as a selectable schedule Event type.
