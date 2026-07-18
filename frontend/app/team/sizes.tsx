@@ -32,6 +32,7 @@ export default function SizesScreen() {
 
   const [colMenu, setColMenu] = useState<Column | null>(null);
   const [renameLabel, setRenameLabel] = useState("");
+  const [tallyOpen, setTallyOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -66,6 +67,22 @@ export default function SizesScreen() {
   }, [members, teamFilter]);
 
   const valueOf = (mid: string, cid: string) => sheet?.values?.[mid]?.[cid] ?? "";
+
+  // Per-item tally: for each column, count how many visible members chose each
+  // size (plus how many are still blank). Respects the active team filter.
+  const tally = useMemo(() => {
+    return columns.map((c) => {
+      const counts: Record<string, number> = {};
+      let notSet = 0;
+      visible.forEach((m) => {
+        const v = (sheet?.values?.[m.id]?.[c.id] ?? "").trim();
+        if (!v) { notSet += 1; return; }
+        counts[v] = (counts[v] || 0) + 1;
+      });
+      const rows = Object.entries(counts).sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
+      return { column: c, rows, notSet, filled: visible.length - notSet };
+    });
+  }, [columns, visible, sheet]);
 
   const setLocalValue = (mid: string, cid: string, val: string) => {
     setSheet((prev) => {
@@ -126,6 +143,9 @@ export default function SizesScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sizes</Text>
+        <TouchableOpacity onPress={() => setTallyOpen(true)} style={styles.iconBtn} testID="sizes-tally-open" hitSlop={8}>
+          <Ionicons name="stats-chart-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => { setNewLabel(""); setAddOpen(true); }} style={styles.addBtn} testID="sizes-add-column">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
@@ -202,6 +222,46 @@ export default function SizesScreen() {
         </ScrollView>
       )}
 
+      {/* Size tally by item */}
+      <Modal visible={tallyOpen} transparent animationType="slide" onRequestClose={() => setTallyOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setTallyOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <View style={styles.tallyHeader}>
+              <Text style={styles.sheetTitle}>Size tally</Text>
+              <Text style={styles.tallySub}>{visible.length} {visible.length === 1 ? "person" : "people"}{teamFilter && teamFilter !== "none" ? " · this team" : ""}</Text>
+            </View>
+            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: spacing.md }} testID="sizes-tally">
+              {tally.map(({ column, rows, notSet, filled }) => (
+                <View key={column.id} style={styles.tallyBlock}>
+                  <View style={styles.tallyTitleRow}>
+                    <Text style={styles.tallyItem}>{column.label}</Text>
+                    <Text style={styles.tallyMeta}>{filled}/{visible.length} set</Text>
+                  </View>
+                  {rows.length === 0 ? (
+                    <Text style={styles.tallyEmpty}>No sizes entered yet</Text>
+                  ) : (
+                    <View style={styles.tallyChips}>
+                      {rows.map(([size, count]) => (
+                        <View key={size} style={styles.tallyChip}>
+                          <Text style={styles.tallyChipSize}>{size}</Text>
+                          <View style={styles.tallyCountPill}><Text style={styles.tallyCountText}>{count}</Text></View>
+                        </View>
+                      ))}
+                      {notSet > 0 && (
+                        <View style={[styles.tallyChip, styles.tallyChipMuted]}>
+                          <Text style={styles.tallyChipMutedText}>Not set</Text>
+                          <View style={[styles.tallyCountPill, styles.tallyCountPillMuted]}><Text style={styles.tallyCountText}>{notSet}</Text></View>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Add column */}
       <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
@@ -268,4 +328,19 @@ const makeStyles = (c: ThemePalette) => ({
   confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
   deleteText: { color: c.danger, fontWeight: "700" },
+  tallyHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm },
+  tallySub: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
+  tallyBlock: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: c.border },
+  tallyTitleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  tallyItem: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  tallyMeta: { ...typography.caption, color: c.textSecondary },
+  tallyEmpty: { ...typography.caption, color: c.textTertiary },
+  tallyChips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  tallyChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.accentSubtle, borderRadius: 999, paddingLeft: 12, paddingRight: 4, paddingVertical: 4, borderWidth: 1, borderColor: c.accent + "33" },
+  tallyChipSize: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
+  tallyCountPill: { minWidth: 20, height: 20, borderRadius: 999, backgroundColor: c.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  tallyCountText: { color: "white", fontSize: 11, fontWeight: "800" },
+  tallyChipMuted: { backgroundColor: c.card, borderColor: c.border },
+  tallyChipMutedText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
+  tallyCountPillMuted: { backgroundColor: c.textTertiary },
 });
