@@ -20,9 +20,9 @@ const FAQ: Section[] = [
           "Unlimited. Add as many athletes (and coaches) as your household needs. Each one is tracked individually for expenses, payments, schedule events, and packing lists.",
       },
       {
-        q: "What's the difference between an athlete and a coach?",
+        q: "What roles can a person have?",
         a:
-          "Athletes are competitors; coaches are the adults running practices. Both can be added under Settings → Athletes, just pick the role. Coaches show a COACH badge throughout the app and can join unlimited teams. The data fields are otherwise the same.",
+          "Four roles: Athlete, Coach, Team Rep/Mgr, and Staff. Add anyone under Settings → Athletes and pick their role. Coaches, reps and staff are treated as team \"personnel\" — they unlock the Team Hub and are listed separately from athletes in Team Hub tools. Everyone can belong to more than one team.",
       },
       {
         q: "How do I share with a co-parent?",
@@ -30,9 +30,14 @@ const FAQ: Section[] = [
           "Open Settings → Household (sharing). Invite your co-parent by email. Once they accept, both phones see the same athletes, competitions, payments, and schedule in real time. Either parent can add or edit anything.",
       },
       {
-        q: "Can I have a coach on multiple teams?",
+        q: "Can a coach or athlete be on multiple teams?",
         a:
-          "Yes — coaches and athletes can both belong to as many teams as you want. Set this up in the athlete's edit screen by tapping the team chips you want to include.",
+          "Yes — coaches, staff, reps and athletes can all belong to as many teams as you want. Set this up in the person's edit screen by tapping the team chips you want to include.",
+      },
+      {
+        q: "Can CheerPlanner text me reminders?",
+        a:
+          "Yes. Open Settings → Notifications to turn on SMS reminders and confirm your mobile number. When you add a competition or booking you can choose how far ahead to be reminded, and a background scheduler sends the text at the right time. Reminders are opt-in.",
       },
     ],
   },

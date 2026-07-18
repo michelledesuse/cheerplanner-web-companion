@@ -17,9 +17,9 @@ type Step = {
 const STEPS: Step[] = [
   {
     num: 1,
-    title: "Add your athletes (and coaches)",
+    title: "Add your people (athletes, coaches & staff)",
     body:
-      "Open Settings → Athletes → tap + to add each child. For each one, set a name, optional gym/team, a custom avatar color, and choose the role: Athlete or Coach. Coaches show a COACH badge throughout the app and can join unlimited teams.",
+      "Open Settings → Athletes → tap + to add each person. Set a name, optional gym/team, an avatar color, and choose a role: Athlete, Coach, Team Rep/Mgr, or Staff. Coaches, reps and staff are treated as team \"personnel\" and unlock the Team Hub. Everyone can belong to more than one team.",
     tip: "If you have multiple children at the same gym, add them now — every expense, payment, and schedule entry is tracked per athlete.",
   },
   {
@@ -32,7 +32,7 @@ const STEPS: Step[] = [
     num: 3,
     title: "Add the season's competitions",
     body:
-      "Open the Competitions tab → tap + Competition. Enter the name, venue (e.g. ESPN Wide World of Sports), full address, event date and time, and turn on Housing required if you need a hotel. Save, then tap the new card to open the details screen where you'll add Travel, Performance Schedule, and Packing List.",
+      "Open the Competitions tab → tap + Competition. Enter the name, venue (e.g. ESPN Wide World of Sports), full address, event date and time, and turn on Housing required if you need a hotel. Save, then tap the new card to open the details screen where you'll add Travel, Performance Schedule, and Packing List. You can also add a competition straight from the Calendar tab's + button.",
     tip: "Tap any address anywhere in the app to open Apple Maps for directions.",
   },
   {
@@ -52,7 +52,7 @@ const STEPS: Step[] = [
     title: "Track expenses and payments",
     body:
       "Open the Money tab. Tap + Expense to log a charge (tuition, registration, uniform, etc.) for a specific athlete with an optional due date. When you pay something, tap + Payment, enter the amount, and pick which expenses it covers. The app automatically applies the payment in due-date order — oldest bill first, paid in full before moving to the next.",
-    tip: "If you receive an invoice you haven't paid yet, leave the expense as Open. The Dashboard tile will surface it as part of your Open Balance.",
+    tip: "The Home screen's Total Due Today card adds up what's due today plus anything overdue.",
   },
   {
     num: 7,
@@ -62,33 +62,59 @@ const STEPS: Step[] = [
   },
   {
     num: 8,
+    title: "Turn on text (SMS) reminders",
+    body:
+      "Open Settings → Notifications to enable reminders and confirm your mobile number. CheerPlanner can text you ahead of competitions and travel (like hotel free-cancel deadlines). When adding a competition or booking, choose how far ahead you want to be reminded — a background scheduler sends each text at the right time.",
+    tip: "Reminders are opt-in and only sent to the number you confirm.",
+  },
+  {
+    num: 9,
     title: "Build a packing list",
     body:
       "On any competition detail page, open the Packing List section. You can apply a saved template from Settings → Packing list templates, or add items one at a time. Each item is checkable per athlete so you can confirm nothing was left behind.",
   },
   {
-    num: 9,
+    num: 10,
     title: "Share with a co-parent",
     body:
       "Go to Settings → Household (sharing) and invite your co-parent's email. Once they accept, both phones see the same athletes, competitions, expenses, and schedule live. Either parent can add or edit anything.",
   },
   {
-    num: 10,
+    num: 11,
     title: "Use the Calendar and export to Apple Calendar",
     body:
       "The Calendar tab pulls together competition days, meet times and performance times for each of your teams, hotel check-ins and check-outs, flights, expense due dates, fundraisers, and practices. Open Settings → Export → Calendar (ICS) to download a file you can subscribe to from Apple Calendar, Google Calendar, or Outlook.",
   },
   {
-    num: 11,
+    num: 12,
+    title: "Open the Team Hub (coaches, reps & staff)",
+    body:
+      "Tap the Team tab. The Team Hub unlocks automatically once your household has someone marked Coach, Team Rep/Mgr, or Staff. It's a private workspace for team personnel with a Roster and tracking tools. Start with Roster → add people manually or pull in your athletes with one tap. Athletes store a parent's contact info; personnel store their own. People can be on multiple teams, and every list separates Personnel from Athletes.",
+  },
+  {
+    num: 13,
+    title: "Track payments, sizes & paperwork",
+    body:
+      "Inside the Team Hub: Payment Tracking is a manual ledger — set an optional expected amount, then record each person's actual amount, method (Cash, Venmo, etc.) and date paid. Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) you can extend; tap the chart icon for a size tally. Paperwork / Other is one or more named check-off sheets (waivers, forms) with a checkbox and note per person.",
+    tip: "Grids keep the member's name frozen on the left while you scroll across columns. Personnel don't get a Sports bra size.",
+  },
+  {
+    num: 14,
+    title: "Sign-up sheets & custom exports",
+    body:
+      "Sign-Up Sheet lets you create slots (e.g. \"Water ×12\", \"Chaperone\") that families claim with a quantity and note — optionally tied to a competition. Custom Roster Export lets you pick exactly which columns to include (contact info, sizes, paperwork status, payment status), filter by team, and download the combined sheet as a CSV.",
+  },
+  {
+    num: 15,
     title: "Import from a spreadsheet (optional)",
     body:
       "Already track expenses in Excel or Google Sheets? Open Settings → Import. Download the CSV template, paste your data, and import in one tap. The same flow works for athletes, competitions, payments, and schedule events.",
   },
   {
-    num: 12,
+    num: 16,
     title: "Personalize your theme",
     body:
-      "Open Settings → Appearance to recolor the whole app for your household. Pick one of the 12 ready-made presets (Red & White, Royal Blue, Green & Black and more — including dark themes), or scroll to Build your own to create a custom theme. The custom builder gives you a full color picker and up to 4 colors — Accent, Background, Surface, and Text — so you can match your gym's colors exactly. Changes apply instantly across every screen.",
+      "Open Settings → Appearance to recolor the whole app for your household. Pick one of the ready-made presets (Red & White, Royal Blue, Green & Black and more — including dark themes), or scroll to Build your own to create a custom theme. The custom builder gives you a full color picker and up to 4 colors — Accent, Background, Surface, and Text — so you can match your gym's colors exactly. Changes apply instantly across every screen.",
     tip: "Themes are shared household-wide and sync to every member's phone, so pick something everyone likes.",
   },
 ];
