@@ -7,14 +7,15 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import TrackerGrid from "@/src/components/TrackerGrid";
+import { buildGridRows, filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
 
 type Column = { id: string; label: string; is_default: boolean; order: number };
 type Sheet = { id: string; columns: Column[]; values: Record<string, Record<string, string>> };
-type Member = { id: string; name: string; role: string; last_name?: string | null; first_name?: string | null; team_ids?: string[] | null };
+type Member = GridMember & { role: string };
 type Team = { id: string; name: string };
 
-const NAME_W = 132;
-const CELL_W = 104;
+const isSportsBra = (label: string) => label.trim().toLowerCase() === "sports bra";
 
 export default function SizesScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -50,39 +51,27 @@ export default function SizesScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const columns = useMemo(() => (sheet?.columns || []).slice().sort((a, b) => a.order - b.order), [sheet]);
-
-  const visible = useMemo(() => {
-    const list = members.filter((m) => {
-      const tids = m.team_ids || [];
-      if (teamFilter === null) return true;
-      if (teamFilter === "none") return tids.length === 0;
-      return tids.includes(teamFilter);
-    });
-    return list.sort((a, b) => {
-      const al = (a.last_name || a.name || "").toLowerCase();
-      const bl = (b.last_name || b.name || "").toLowerCase();
-      if (al !== bl) return al.localeCompare(bl);
-      return (a.first_name || "").toLowerCase().localeCompare((b.first_name || "").toLowerCase());
-    });
-  }, [members, teamFilter]);
+  const { rows, total } = useMemo(() => buildGridRows(members, teamFilter), [members, teamFilter]);
+  const visibleAll = useMemo(() => filterAndSplit(members, teamFilter).all, [members, teamFilter]);
 
   const valueOf = (mid: string, cid: string) => sheet?.values?.[mid]?.[cid] ?? "";
 
-  // Per-item tally: for each column, count how many visible members chose each
-  // size (plus how many are still blank). Respects the active team filter.
+  // Per-item tally. Personnel are excluded from the Sports bra column (they
+  // don't get one) but are included in every other column's tally.
   const tally = useMemo(() => {
     return columns.map((c) => {
+      const eligible = isSportsBra(c.label) ? visibleAll.filter((m) => !isPersonnel(m.role)) : visibleAll;
       const counts: Record<string, number> = {};
       let notSet = 0;
-      visible.forEach((m) => {
+      eligible.forEach((m) => {
         const v = (sheet?.values?.[m.id]?.[c.id] ?? "").trim();
         if (!v) { notSet += 1; return; }
         counts[v] = (counts[v] || 0) + 1;
       });
-      const rows = Object.entries(counts).sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
-      return { column: c, rows, notSet, filled: visible.length - notSet };
+      const tallyRows = Object.entries(counts).sort((a, b) => (b[1] - a[1]) || a[0].localeCompare(b[0]));
+      return { column: c, rows: tallyRows, notSet, filled: eligible.length - notSet, eligible: eligible.length };
     });
-  }, [columns, visible, sheet]);
+  }, [columns, visibleAll, sheet]);
 
   const setLocalValue = (mid: string, cid: string, val: string) => {
     setSheet((prev) => {
@@ -113,7 +102,10 @@ export default function SizesScreen() {
     } finally { setSaving(false); }
   };
 
-  const openColMenu = (c: Column) => { setColMenu(c); setRenameLabel(c.label); };
+  const openColMenu = (c: { id: string; label: string }) => {
+    const full = columns.find((x) => x.id === c.id) || null;
+    setColMenu(full); setRenameLabel(c.label);
+  };
 
   const renameColumn = async () => {
     if (!colMenu || !renameLabel.trim()) return;
@@ -134,6 +126,25 @@ export default function SizesScreen() {
         } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not delete."); }
       } },
     ]);
+  };
+
+  const renderCell = (m: GridMember, c: { id: string; label: string }) => {
+    if (isSportsBra(c.label) && isPersonnel((m as Member).role)) {
+      return <Text style={styles.naText}>N/A</Text>;
+    }
+    return (
+      <TextInput
+        style={styles.cellInput}
+        value={valueOf(m.id, c.id)}
+        onChangeText={(v) => setLocalValue(m.id, c.id, v)}
+        onEndEditing={() => commitValue(m.id, c.id)}
+        placeholder="—"
+        placeholderTextColor={colors.textTertiary}
+        autoCapitalize="characters"
+        returnKeyType="done"
+        testID={`sizes-cell-${m.id}-${c.id}`}
+      />
+    );
   };
 
   return (
@@ -166,7 +177,7 @@ export default function SizesScreen() {
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
-      ) : visible.length === 0 ? (
+      ) : total === 0 ? (
         <ScrollView refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />} contentContainerStyle={{ flexGrow: 1 }}>
           <View style={styles.emptyBlock}>
             <Ionicons name="shirt-outline" size={40} color={colors.textTertiary} />
@@ -175,51 +186,16 @@ export default function SizesScreen() {
           </View>
         </ScrollView>
       ) : (
-        <ScrollView
-          style={{ flex: 1 }}
+        <TrackerGrid
+          rows={rows}
+          columns={columns.map((c) => ({ id: c.id, label: c.label }))}
+          renderCell={renderCell}
+          onColumnPress={openColMenu}
+          nameWidth={132}
+          cellWidth={104}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
           testID="sizes-grid"
-        >
-          <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: 40 }}>
-            <View>
-              {/* Header row */}
-              <View style={styles.row}>
-                <View style={[styles.headCell, { width: NAME_W }]}>
-                  <Text style={styles.headText}>Member</Text>
-                </View>
-                {columns.map((c) => (
-                  <TouchableOpacity key={c.id} style={[styles.headCell, { width: CELL_W }]} onPress={() => openColMenu(c)} testID={`sizes-col-${c.id}`}>
-                    <Text style={styles.headText} numberOfLines={1}>{c.label}</Text>
-                    <Ionicons name="ellipsis-horizontal" size={12} color={colors.textTertiary} />
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {/* Member rows */}
-              {visible.map((m, idx) => (
-                <View key={m.id} style={[styles.row, idx % 2 === 1 && styles.rowAlt]}>
-                  <View style={[styles.nameCell, { width: NAME_W }]}>
-                    <Text style={styles.nameText} numberOfLines={2}>{m.name}</Text>
-                  </View>
-                  {columns.map((c) => (
-                    <View key={c.id} style={[styles.cell, { width: CELL_W }]}>
-                      <TextInput
-                        style={styles.cellInput}
-                        value={valueOf(m.id, c.id)}
-                        onChangeText={(v) => setLocalValue(m.id, c.id, v)}
-                        onEndEditing={() => commitValue(m.id, c.id)}
-                        placeholder="—"
-                        placeholderTextColor={colors.textTertiary}
-                        autoCapitalize="characters"
-                        returnKeyType="done"
-                        testID={`sizes-cell-${m.id}-${c.id}`}
-                      />
-                    </View>
-                  ))}
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </ScrollView>
+        />
       )}
 
       {/* Size tally by item */}
@@ -228,20 +204,20 @@ export default function SizesScreen() {
           <Pressable style={styles.sheet} onPress={() => {}}>
             <View style={styles.tallyHeader}>
               <Text style={styles.sheetTitle}>Size tally</Text>
-              <Text style={styles.tallySub}>{visible.length} {visible.length === 1 ? "person" : "people"}{teamFilter && teamFilter !== "none" ? " · this team" : ""}</Text>
+              <Text style={styles.tallySub}>{total} {total === 1 ? "person" : "people"}{teamFilter && teamFilter !== "none" ? " · this team" : ""}</Text>
             </View>
             <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: spacing.md }} testID="sizes-tally">
-              {tally.map(({ column, rows, notSet, filled }) => (
+              {tally.map(({ column, rows: trows, notSet, filled, eligible }) => (
                 <View key={column.id} style={styles.tallyBlock}>
                   <View style={styles.tallyTitleRow}>
                     <Text style={styles.tallyItem}>{column.label}</Text>
-                    <Text style={styles.tallyMeta}>{filled}/{visible.length} set</Text>
+                    <Text style={styles.tallyMeta}>{filled}/{eligible} set</Text>
                   </View>
-                  {rows.length === 0 ? (
+                  {trows.length === 0 ? (
                     <Text style={styles.tallyEmpty}>No sizes entered yet</Text>
                   ) : (
                     <View style={styles.tallyChips}>
-                      {rows.map(([size, count]) => (
+                      {trows.map(([size, count]) => (
                         <View key={size} style={styles.tallyChip}>
                           <Text style={styles.tallyChipSize}>{size}</Text>
                           <View style={styles.tallyCountPill}><Text style={styles.tallyCountText}>{count}</Text></View>
@@ -300,7 +276,7 @@ export default function SizesScreen() {
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
-  headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h1, color: c.textPrimary, flex: 1 },
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
@@ -309,14 +285,8 @@ const makeStyles = (c: ThemePalette) => ({
   teamChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   teamChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
   teamChipTextOn: { color: "white" },
-  row: { flexDirection: "row", alignItems: "stretch", borderBottomWidth: 1, borderBottomColor: c.border },
-  rowAlt: { backgroundColor: c.card },
-  headCell: { paddingVertical: 12, paddingHorizontal: 8, borderRightWidth: 1, borderRightColor: c.border, backgroundColor: c.card, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
-  headText: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
-  nameCell: { paddingVertical: 10, paddingHorizontal: 10, borderRightWidth: 1, borderRightColor: c.border, justifyContent: "center" },
-  nameText: { ...typography.caption, fontWeight: "700", color: c.textPrimary },
-  cell: { borderRightWidth: 1, borderRightColor: c.border, justifyContent: "center" },
-  cellInput: { paddingVertical: 10, paddingHorizontal: 8, ...typography.body, color: c.textPrimary, textAlign: "center" },
+  cellInput: { width: "100%", height: "100%", paddingHorizontal: 6, ...typography.body, color: c.textPrimary, textAlign: "center" },
+  naText: { ...typography.caption, color: c.textTertiary, fontStyle: "italic" },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
   emptyTitle: { ...typography.h3, color: c.textPrimary, marginTop: spacing.sm },
   emptyText: { ...typography.caption, color: c.textSecondary, textAlign: "center" },

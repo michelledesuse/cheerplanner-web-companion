@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
+import { filterAndSplit } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
 type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; summary: { paid_count: number; member_total: number; collected: number } };
@@ -123,6 +124,30 @@ export default function PaymentDetail() {
   const { paid_count, member_total, collected } = tracker.summary;
   const pct = member_total > 0 ? Math.round((paid_count / member_total) * 100) : 0;
   const alreadyPaid = mMember ? !!entryFor(mMember.id)?.paid : false;
+  const groups = filterAndSplit(roster, null);
+
+  const renderRow = (m: Member) => {
+    const e = entryFor(m.id);
+    const paid = !!e?.paid;
+    return (
+      <TouchableOpacity key={m.id} style={styles.memberRow} onPress={() => openMember(m)} testID={`payment-member-${m.id}`}>
+        <View style={[styles.check, paid && styles.checkOn]}>
+          {paid ? <Ionicons name="checkmark" size={16} color="white" /> : null}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.memberName, paid && styles.memberNamePaid]}>{m.name}</Text>
+          {paid && (
+            <Text style={styles.memberDetail} numberOfLines={1}>
+              {e?.amount_paid != null ? formatCurrency(e.amount_paid) : ""}
+              {e?.method ? `${e?.amount_paid != null ? " · " : ""}${e.method}` : ""}
+              {e?.paid_at ? ` · ${formatDate(e.paid_at)}` : ""}
+            </Text>
+          )}
+        </View>
+        <Text style={[styles.statusText, { color: paid ? colors.successText : colors.textTertiary }]}>{paid ? "Paid" : "Record"}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -150,28 +175,22 @@ export default function PaymentDetail() {
           <View style={styles.emptyBlock}>
             <Text style={styles.emptyText}>Add people to your Roster first &mdash; they&apos;ll appear here to record payments.</Text>
           </View>
-        ) : roster.map((m) => {
-          const e = entryFor(m.id);
-          const paid = !!e?.paid;
-          return (
-            <TouchableOpacity key={m.id} style={styles.memberRow} onPress={() => openMember(m)} testID={`payment-member-${m.id}`}>
-              <View style={[styles.check, paid && styles.checkOn]}>
-                {paid ? <Ionicons name="checkmark" size={16} color="white" /> : null}
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.memberName, paid && styles.memberNamePaid]}>{m.name}</Text>
-                {paid && (
-                  <Text style={styles.memberDetail} numberOfLines={1}>
-                    {e?.amount_paid != null ? formatCurrency(e.amount_paid) : ""}
-                    {e?.method ? `${e?.amount_paid != null ? " · " : ""}${e.method}` : ""}
-                    {e?.paid_at ? ` · ${formatDate(e.paid_at)}` : ""}
-                  </Text>
-                )}
-              </View>
-              <Text style={[styles.statusText, { color: paid ? colors.successText : colors.textTertiary }]}>{paid ? "Paid" : "Record"}</Text>
-            </TouchableOpacity>
-          );
-        })}
+        ) : (
+          <>
+            {groups.personnel.length > 0 && (
+              <>
+                <Text style={styles.groupHeader}>Personnel</Text>
+                {groups.personnel.map(renderRow)}
+              </>
+            )}
+            {groups.athletes.length > 0 && (
+              <>
+                <Text style={styles.groupHeader}>Athletes</Text>
+                {groups.athletes.map(renderRow)}
+              </>
+            )}
+          </>
+        )}
       </ScrollView>
 
       <TouchableOpacity style={styles.deleteBtn} onPress={remove} testID="payment-delete">
@@ -246,6 +265,7 @@ const makeStyles = (c: ThemePalette) => ({
   summaryCard: { backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.md },
   summaryAmount: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, marginBottom: 8 },
   summaryMeta: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
+  groupHeader: { ...typography.micro, color: c.textSecondary, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", marginTop: spacing.md, marginBottom: 4 },
   progressTrack: { height: 10, borderRadius: 999, backgroundColor: c.divider, overflow: "hidden" },
   progressFill: { height: 10, borderRadius: 999, backgroundColor: c.accent },
   memberRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },

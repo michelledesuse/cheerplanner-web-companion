@@ -7,15 +7,14 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import TrackerGrid from "@/src/components/TrackerGrid";
+import { buildGridRows, filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Item = { id: string; label: string; order: number };
 type Cell = { done?: boolean; note?: string | null };
 type Sheet = { id: string; name: string; items: Item[]; values: Record<string, Record<string, Cell>> };
-type Member = { id: string; name: string; role: string; last_name?: string | null; first_name?: string | null; team_ids?: string[] | null };
+type Member = GridMember & { role: string };
 type Team = { id: string; name: string };
-
-const NAME_W = 140;
-const CELL_W = 92;
 
 export default function PaperworkSheetScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -58,28 +57,16 @@ export default function PaperworkSheetScreen() {
 
   const items = useMemo(() => (sheet?.items || []).slice().sort((a, b) => a.order - b.order), [sheet]);
 
-  const visible = useMemo(() => {
-    const list = members.filter((m) => {
-      const tids = m.team_ids || [];
-      if (teamFilter === null) return true;
-      if (teamFilter === "none") return tids.length === 0;
-      return tids.includes(teamFilter);
-    });
-    return list.sort((a, b) => {
-      const al = (a.last_name || a.name || "").toLowerCase();
-      const bl = (b.last_name || b.name || "").toLowerCase();
-      if (al !== bl) return al.localeCompare(bl);
-      return (a.first_name || "").toLowerCase().localeCompare((b.first_name || "").toLowerCase());
-    });
-  }, [members, teamFilter]);
+  const { rows, total } = useMemo(() => buildGridRows(members, teamFilter), [members, teamFilter]);
+  const visibleAll = useMemo(() => filterAndSplit(members, teamFilter).all, [members, teamFilter]);
 
   const cell = (mid: string, iid: string): Cell => sheet?.values?.[mid]?.[iid] || {};
 
   const tally = useMemo(() => items.map((it) => {
     let done = 0;
-    visible.forEach((m) => { if (sheet?.values?.[m.id]?.[it.id]?.done) done += 1; });
-    return { item: it, done, total: visible.length };
-  }), [items, visible, sheet]);
+    visibleAll.forEach((m) => { if (sheet?.values?.[m.id]?.[it.id]?.done) done += 1; });
+    return { item: it, done, total: visibleAll.length };
+  }), [items, visibleAll, sheet]);
 
   const toggleDone = async (mid: string, iid: string) => {
     if (!sheet) return;
@@ -119,7 +106,10 @@ export default function PaperworkSheetScreen() {
     finally { setSavingItem(false); }
   };
 
-  const openItemMenu = (it: Item) => { setItemMenu(it); setRenameLabel(it.label); };
+  const openItemMenu = (it: { id: string; label: string }) => {
+    const full = items.find((x) => x.id === it.id) || null;
+    setItemMenu(full); setRenameLabel(it.label);
+  };
 
   const renameItem = async () => {
     if (!sheet || !itemMenu || !renameLabel.trim()) return;
@@ -204,49 +194,35 @@ export default function PaperworkSheetScreen() {
             <Text style={styles.emptyBtnText}>Add item</Text>
           </TouchableOpacity>
         </View>
-      ) : visible.length === 0 ? (
+      ) : total === 0 ? (
         <View style={styles.emptyBlock}>
           <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No one on this team</Text>
           <Text style={styles.emptyText}>Add people to your Roster to start checking off items.</Text>
         </View>
       ) : (
-        <ScrollView
-          style={{ flex: 1 }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
-          testID="paperwork-grid"
-        >
+        <>
           <Text style={styles.hint}>Tap a name to add notes. Tap a box to check off.</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator contentContainerStyle={{ paddingBottom: 40 }}>
-            <View>
-              <View style={styles.row}>
-                <View style={[styles.headCell, { width: NAME_W }]}><Text style={styles.headText}>Member</Text></View>
-                {items.map((it) => (
-                  <TouchableOpacity key={it.id} style={[styles.headCell, { width: CELL_W }]} onPress={() => openItemMenu(it)} testID={`paperwork-item-${it.id}`}>
-                    <Text style={styles.headText} numberOfLines={2}>{it.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {visible.map((m, idx) => (
-                <View key={m.id} style={[styles.row, idx % 2 === 1 && styles.rowAlt]}>
-                  <TouchableOpacity style={[styles.nameCell, { width: NAME_W }]} onPress={() => setMemberModal(m)} testID={`paperwork-name-${m.id}`}>
-                    <Text style={styles.nameText} numberOfLines={2}>{m.name}</Text>
-                    <Ionicons name="chevron-forward" size={13} color={colors.textTertiary} />
-                  </TouchableOpacity>
-                  {items.map((it) => {
-                    const cv = cell(m.id, it.id);
-                    return (
-                      <TouchableOpacity key={it.id} style={[styles.checkCell, { width: CELL_W }]} onPress={() => toggleDone(m.id, it.id)} testID={`paperwork-cell-${m.id}-${it.id}`}>
-                        <View style={[styles.box, cv.done && styles.boxOn]}>{cv.done && <Ionicons name="checkmark" size={16} color="white" />}</View>
-                        {!!cv.note && <View style={styles.noteDot} />}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </ScrollView>
+          <TrackerGrid
+            rows={rows}
+            columns={items.map((it) => ({ id: it.id, label: it.label }))}
+            onNamePress={(m) => setMemberModal(m as Member)}
+            onColumnPress={openItemMenu}
+            nameWidth={140}
+            cellWidth={92}
+            renderCell={(m, c) => {
+              const cv = cell(m.id, c.id);
+              return (
+                <TouchableOpacity style={styles.checkCell} onPress={() => toggleDone(m.id, c.id)} testID={`paperwork-cell-${m.id}-${c.id}`}>
+                  <View style={[styles.box, cv.done && styles.boxOn]}>{cv.done && <Ionicons name="checkmark" size={16} color="white" />}</View>
+                  {!!cv.note && <View style={styles.noteDot} />}
+                </TouchableOpacity>
+              );
+            }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+            testID="paperwork-grid"
+          />
+        </>
       )}
 
       {/* Member detail: check-offs + notes */}
@@ -378,7 +354,7 @@ const makeStyles = (c: ThemePalette) => ({
   headText: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
   nameCell: { paddingVertical: 10, paddingHorizontal: 10, borderRightWidth: 1, borderRightColor: c.border, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 4 },
   nameText: { ...typography.caption, fontWeight: "700", color: c.textPrimary, flex: 1 },
-  checkCell: { borderRightWidth: 1, borderRightColor: c.border, alignItems: "center", justifyContent: "center", paddingVertical: 12 },
+  checkCell: { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" },
   box: { width: 26, height: 26, borderRadius: 7, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
   boxOn: { backgroundColor: c.accent, borderColor: c.accent },
   noteDot: { position: "absolute", top: 8, right: 18, width: 7, height: 7, borderRadius: 999, backgroundColor: c.warningText || c.accent },
