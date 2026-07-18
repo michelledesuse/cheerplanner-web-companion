@@ -918,3 +918,46 @@ class SizeValueUpdate(BaseModel):
     member_id: str
     column_id: str
     value: str = ""
+
+
+# ============================================================
+# Team Hub — Paperwork / Other (multiple named sheets; checkbox + note per member)
+# ============================================================
+class PaperworkItem(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    order: int = 0
+
+
+class PaperworkSheet(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    items: List[PaperworkItem] = Field(default_factory=list)
+    # member_id -> item_id -> {"done": bool, "note": Optional[str]}
+    values: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class PaperworkSheetCreate(BaseModel):
+    name: str
+
+
+class PaperworkSheetUpdate(BaseModel):
+    name: str
+
+
+class PaperworkItemCreate(BaseModel):
+    label: str
+
+
+class PaperworkItemUpdate(BaseModel):
+    label: str
+
+
+class PaperworkValueUpdate(BaseModel):
+    member_id: str
+    item_id: str
+    done: Optional[bool] = None
+    note: Optional[str] = None
+

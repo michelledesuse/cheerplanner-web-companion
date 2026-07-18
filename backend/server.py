@@ -38,6 +38,7 @@ from routers import (
     roster,
     team_payments,
     sizes,
+    paperwork,
 )
 
 
@@ -83,6 +84,7 @@ for r in (
     roster.router,
     team_payments.router,
     sizes.router,
+    paperwork.router,
 ):
     app.include_router(r)
 
