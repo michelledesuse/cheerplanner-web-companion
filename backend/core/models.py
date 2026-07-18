@@ -961,3 +961,58 @@ class PaperworkValueUpdate(BaseModel):
     done: Optional[bool] = None
     note: Optional[str] = None
 
+
+
+# ============================================================
+# Team Hub — Sign-Up Sheet (personnel create custom slots; people claim them)
+# ============================================================
+class SignupClaim(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    member_id: str
+    qty: int = 1
+    note: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class SignupSlot(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    qty_needed: int = 1
+    order: int = 0
+    claims: List[SignupClaim] = Field(default_factory=list)
+
+
+class SignupSheet(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    competition_id: Optional[str] = None
+    slots: List[SignupSlot] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class SignupSheetCreate(BaseModel):
+    name: str
+    competition_id: Optional[str] = None
+
+
+class SignupSheetUpdate(BaseModel):
+    name: Optional[str] = None
+    competition_id: Optional[str] = None
+
+
+class SignupSlotCreate(BaseModel):
+    label: str
+    qty_needed: int = 1
+
+
+class SignupSlotUpdate(BaseModel):
+    label: Optional[str] = None
+    qty_needed: Optional[int] = None
+
+
+class SignupClaimCreate(BaseModel):
+    member_id: str
+    qty: int = 1
+    note: Optional[str] = None
+

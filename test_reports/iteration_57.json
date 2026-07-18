@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 57 \u2014 Sign-Up Sheet + Personnel/Athletes grouping + Custom Roster Export. Backend: 13/13 pytest passed in test_iter57_signups.py covering sheet CRUD (blank name 400, unknown 404, PATCH rename+blank 400, DELETE), slot CRUD (empty label 400, PATCH/DELETE, unknown 404), claim create with roster-member validation (unknown member 404, unknown slot 404), claim persistence, summary math (slot_count/needed_total/claimed_total/filled_slots), claim delete, Sizes 'Sports bra' default column regression, and unauth 401. Frontend (mobile 390x844): login \u2192 /team/signups loads empty state \u2192 create UI_TEST_SignupSheet_v2 \u2192 add slot 'UI_TEST_Slot_v2' qty 3 \u2192 slot rendered with 'Sign up' button \u2192 claim modal opens with roster picker + qty + note. Sizes screen renders frozen Member column, PERSONNEL section header, and 'N/A' exactly once for the Coach in the Sports bra column (verified via DOM query). Paperwork detail shows PERSONNEL section header + frozen Member column + working checkbox toggles. Custom Roster Export renders team-filter chips, competition chips (None/comp names), grouped column chips (Contact/Sizes/Paperwork/Payments), preview grid with frozen name and PERSONNEL section, and Export CSV button. Deprecated 'props.pointerEvents' console warning still surfaces once at boot from RN internals (framework-level, not from feature screens).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "team/signup-sheet.tsx claim modal", "issue": "On mobile viewport (390x844), the 'Sign up' submit button (data-testid=signup-claim-submit) sits below the visible fold once a roster member is picked (the modal grows with the picker list). Playwright reports 'Element outside viewport' even after scroll_into_view. Real users on iOS/Android can scroll the modal, but consider wrapping the modal body in a ScrollView so keyboard + long roster stay reachable without gesture friction.", "testID": "signup-claim-submit", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "team/signups list (empty state)", "issues": ["Empty-state illustration hand emoji is visible; consistent 8pt spacing; passes."]}
+    ],
+    "react_native_issues": [
+      {"component": "react-native-web (framework-level)", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Emitted once at boot from RN internals or a dependency; not from feature screens. Non-blocking, informational."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter57_signups.py",
+    "/app/test_reports/pytest/pytest_iter57_signups.xml"
+  ],
+  "action_items": [
+    "Optional UX polish: wrap /app/frontend/app/team/signup-sheet.tsx claim modal body in a ScrollView so the 'Sign up' submit stays reachable with an open keyboard on smaller phones (currently only visible after scrolling the modal manually)."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/signups.py is clean: uses `{_id: 0}` projections, household scoping via _household_user_ids, proper 400 for blank name/label, 404 for missing sheet/slot/roster-member, and computes summary (needed_total, claimed_total, filled_slots) correctly from slot.qty_needed / claim.qty.",
+    "Frontend testIDs cover every actionable element on signups/signup-sheet/sizes/paperwork/export screens \u2014 excellent testability.",
+    "Roster-member gate in add_claim (routers/signups.py:131) correctly enforces household-scoped membership before touching the sheet; free-text claimants are impossible."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter57_signups.py (new)",
+    "/app/test_reports/pytest/pytest_iter57_signups.xml (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "~95%"},
+  "seed_data_creation": "None persisted. Test fixtures create + delete their own sheets/slots/claims. A roster athlete named 'TEST_Signup_*' is created and deleted per module. Prior iteration's TEST_pp Coach and UI_TEST_Sheet paperwork remain in the seeded household from iter55/56.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "EXPO_PUBLIC_BACKEND_URL is read from /app/frontend/.env via python-dotenv (EXPO_BACKEND_URL not exported in shell). Household roster currently has only one non-parent member (a Coach), so the 'ATHLETES' section header only shows when athlete-role roster members exist \u2014 add an athlete via /api/roster to see the second section header. Team Hub gate: requires at least one coach/team_rep/staff athlete on the household; applereview qualifies.",
+  "rca_of_issue": "N/A \u2014 feature works end-to-end per spec."
+}

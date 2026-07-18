@@ -1,0 +1,383 @@
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+
+import { api } from "@/src/api/client";
+import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
+
+type Claim = { id: string; member_id: string; qty: number; note?: string | null };
+type Slot = { id: string; label: string; qty_needed: number; order: number; claims: Claim[] };
+type Sheet = { id: string; name: string; competition_id?: string | null; slots: Slot[] };
+type Member = GridMember & { role: string };
+type Comp = { id: string; name: string };
+
+export default function SignupSheetScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string }>();
+  const [sheet, setSheet] = useState<Sheet | null>(null);
+  const [roster, setRoster] = useState<Member[]>([]);
+  const [comps, setComps] = useState<Comp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [addSlotOpen, setAddSlotOpen] = useState(false);
+  const [slotLabel, setSlotLabel] = useState("");
+  const [slotQty, setSlotQty] = useState("1");
+  const [savingSlot, setSavingSlot] = useState(false);
+
+  const [slotMenu, setSlotMenu] = useState<Slot | null>(null);
+  const [editSlotLabel, setEditSlotLabel] = useState("");
+  const [editSlotQty, setEditSlotQty] = useState("1");
+
+  const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editCompId, setEditCompId] = useState<string | null>(null);
+
+  const [claimSlot, setClaimSlot] = useState<Slot | null>(null);
+  const [claimMemberId, setClaimMemberId] = useState<string | null>(null);
+  const [claimQty, setClaimQty] = useState("1");
+  const [claimNote, setClaimNote] = useState("");
+  const [claimSearch, setClaimSearch] = useState("");
+  const [savingClaim, setSavingClaim] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const [s, r] = await Promise.all([
+        api.get<Sheet>(`/team/signups/${params.id}`),
+        api.get<Member[]>("/roster"),
+      ]);
+      setSheet(s.data);
+      setRoster(r.data.filter((m) => m.role !== "parent"));
+    } finally { setLoading(false); setRefreshing(false); }
+  }, [params.id]);
+
+  useEffect(() => { api.get<Comp[]>("/competitions").then((r) => setComps(r.data)).catch(() => {}); }, []);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const slots = useMemo(() => (sheet?.slots || []).slice().sort((a, b) => a.order - b.order), [sheet]);
+  const memberName = (id: string) => roster.find((m) => m.id === id)?.name || "Unknown";
+  const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
+  const claimedQty = (slot: Slot) => (slot.claims || []).reduce((s, c) => s + (c.qty || 0), 0);
+
+  const pickerGroups = useMemo(() => {
+    const q = claimSearch.trim().toLowerCase();
+    const list = q ? roster.filter((m) => m.name.toLowerCase().includes(q)) : roster;
+    return filterAndSplit(list, null);
+  }, [roster, claimSearch]);
+
+  const addSlot = async () => {
+    if (!sheet || !slotLabel.trim()) return;
+    setSavingSlot(true);
+    try {
+      const r = await api.post<Sheet>(`/team/signups/${sheet.id}/slots`, { label: slotLabel.trim(), qty_needed: Math.max(1, Number(slotQty) || 1) });
+      setSheet(r.data); setSlotLabel(""); setSlotQty("1"); setAddSlotOpen(false);
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not add slot."); }
+    finally { setSavingSlot(false); }
+  };
+
+  const openSlotMenu = (slot: Slot) => { setSlotMenu(slot); setEditSlotLabel(slot.label); setEditSlotQty(String(slot.qty_needed)); };
+
+  const saveSlot = async () => {
+    if (!sheet || !slotMenu || !editSlotLabel.trim()) return;
+    try {
+      const r = await api.patch<Sheet>(`/team/signups/${sheet.id}/slots/${slotMenu.id}`, { label: editSlotLabel.trim(), qty_needed: Math.max(1, Number(editSlotQty) || 1) });
+      setSheet(r.data); setSlotMenu(null);
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
+  };
+
+  const deleteSlot = () => {
+    if (!sheet || !slotMenu) return;
+    Alert.alert("Delete slot?", `"${slotMenu.label}" and its sign-ups will be removed.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try { const r = await api.delete<Sheet>(`/team/signups/${sheet.id}/slots/${slotMenu.id}`); setSheet(r.data); setSlotMenu(null); }
+        catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not delete."); }
+      } },
+    ]);
+  };
+
+  const openClaim = (slot: Slot) => { setClaimSlot(slot); setClaimMemberId(null); setClaimQty("1"); setClaimNote(""); setClaimSearch(""); };
+
+  const submitClaim = async () => {
+    if (!sheet || !claimSlot || !claimMemberId) { Alert.alert("Pick a person", "Choose who's signing up."); return; }
+    setSavingClaim(true);
+    try {
+      const r = await api.post<Sheet>(`/team/signups/${sheet.id}/slots/${claimSlot.id}/claims`, { member_id: claimMemberId, qty: Math.max(1, Number(claimQty) || 1), note: claimNote.trim() || null });
+      setSheet(r.data); setClaimSlot(null);
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not sign up."); }
+    finally { setSavingClaim(false); }
+  };
+
+  const removeClaim = async (slot: Slot, claim: Claim) => {
+    if (!sheet) return;
+    try {
+      const r = await api.delete<Sheet>(`/team/signups/${sheet.id}/slots/${slot.id}/claims/${claim.id}`);
+      setSheet(r.data);
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not remove."); }
+  };
+
+  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setEditCompId(sheet.competition_id || null); setSheetMenuOpen(true); } };
+
+  const saveSheet = async () => {
+    if (!sheet || !editName.trim()) return;
+    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim(), competition_id: editCompId }); setSheetMenuOpen(false); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
+  };
+
+  const deleteSheet = () => {
+    if (!sheet) return;
+    Alert.alert("Delete sheet?", "This removes the sheet and all sign-ups.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try { await api.delete(`/team/signups/${sheet.id}`); router.back(); }
+        catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not delete."); }
+      } },
+    ]);
+  };
+
+  if (loading || !sheet) {
+    return <SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator color={colors.accent} /></View></SafeAreaView>;
+  }
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <View style={styles.headerBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} testID="signup-detail-back" hitSlop={8}>
+          <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
+          {!!compName(sheet.competition_id) && <Text style={styles.headerSub} numberOfLines={1}>{compName(sheet.competition_id)}</Text>}
+        </View>
+        <TouchableOpacity onPress={openSheetMenu} style={styles.iconBtn} testID="signup-sheet-edit" hitSlop={8}>
+          <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => { setSlotLabel(""); setSlotQty("1"); setAddSlotOpen(true); }} style={styles.addBtn} testID="signup-add-slot">
+          <Ionicons name="add" size={20} color="white" />
+        </TouchableOpacity>
+      </View>
+
+      {slots.length === 0 ? (
+        <View style={styles.emptyBlock}>
+          <Ionicons name="add-circle-outline" size={40} color={colors.textTertiary} />
+          <Text style={styles.emptyTitle}>Add your first slot</Text>
+          <Text style={styles.emptyText}>Add things people can sign up for &mdash; like &ldquo;Water ×12&rdquo; or &ldquo;Chaperone.&rdquo;</Text>
+          <TouchableOpacity style={styles.emptyBtn} onPress={() => setAddSlotOpen(true)} testID="signup-empty-add">
+            <Ionicons name="add" size={16} color="white" />
+            <Text style={styles.emptyBtnText}>Add slot</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
+          testID="signup-detail"
+        >
+          {slots.map((slot) => {
+            const claimed = claimedQty(slot);
+            const remaining = Math.max(0, slot.qty_needed - claimed);
+            const full = remaining === 0;
+            return (
+              <View key={slot.id} style={styles.slotCard}>
+                <View style={styles.slotHead}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.slotLabel}>{slot.label}</Text>
+                    <Text style={[styles.slotMeta, full && { color: colors.successText }]}>{claimed}/{slot.qty_needed} filled{remaining > 0 ? ` · ${remaining} needed` : " · complete"}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => openSlotMenu(slot)} style={styles.slotEdit} testID={`signup-slot-edit-${slot.id}`} hitSlop={8}>
+                    <Ionicons name="ellipsis-horizontal" size={18} color={colors.textSecondary} />
+                  </TouchableOpacity>
+                </View>
+
+                {(slot.claims || []).map((cl) => (
+                  <View key={cl.id} style={styles.claimRow}>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
+                    <Text style={styles.claimName} numberOfLines={1}>{memberName(cl.member_id)}{cl.qty > 1 ? ` ×${cl.qty}` : ""}{cl.note ? ` — ${cl.note}` : ""}</Text>
+                    <TouchableOpacity onPress={() => removeClaim(slot, cl)} testID={`signup-claim-remove-${cl.id}`} hitSlop={8}>
+                      <Ionicons name="close" size={16} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+
+                <TouchableOpacity style={[styles.signupBtn, full && styles.signupBtnFull]} onPress={() => openClaim(slot)} testID={`signup-claim-add-${slot.id}`}>
+                  <Ionicons name="add" size={15} color={full ? colors.textSecondary : colors.accent} />
+                  <Text style={[styles.signupBtnText, full && { color: colors.textSecondary }]}>{full ? "Add another" : "Sign up"}</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+
+      <TouchableOpacity style={styles.deleteBar} onPress={deleteSheet} testID="signup-sheet-delete-bar">
+        <Ionicons name="trash-outline" size={16} color={colors.danger} />
+        <Text style={styles.deleteText}>Delete sheet</Text>
+      </TouchableOpacity>
+
+      {/* Claim (sign up) */}
+      <Modal visible={!!claimSlot} transparent animationType="slide" onRequestClose={() => setClaimSlot(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setClaimSlot(null)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>Sign up · {claimSlot?.label}</Text>
+              <Text style={styles.label}>Who&apos;s signing up?</Text>
+              <TextInput style={styles.input} value={claimSearch} onChangeText={setClaimSearch} placeholder="Search roster" placeholderTextColor={colors.textTertiary} testID="signup-claim-search" />
+              <ScrollView style={{ maxHeight: 200 }} keyboardShouldPersistTaps="handled">
+                {(["Personnel", "Athletes"] as const).map((title) => {
+                  const list = title === "Personnel" ? pickerGroups.personnel : pickerGroups.athletes;
+                  if (list.length === 0) return null;
+                  return (
+                    <View key={title}>
+                      <Text style={styles.pickerGroup}>{title}</Text>
+                      {list.map((m) => (
+                        <TouchableOpacity key={m.id} style={styles.pickerRow} onPress={() => setClaimMemberId(m.id)} testID={`signup-pick-${m.id}`}>
+                          <View style={[styles.radio, claimMemberId === m.id && styles.radioOn]}>{claimMemberId === m.id && <View style={styles.radioDot} />}</View>
+                          <Text style={styles.pickerName}>{m.name}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+              <View style={{ flexDirection: "row", gap: spacing.md }}>
+                <View style={{ width: 100 }}>
+                  <Text style={styles.label}>Quantity</Text>
+                  <TextInput style={styles.input} value={claimQty} onChangeText={setClaimQty} keyboardType="number-pad" testID="signup-claim-qty" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Note (optional)</Text>
+                  <TextInput style={styles.input} value={claimNote} onChangeText={setClaimNote} placeholder="e.g. bringing Gatorade" placeholderTextColor={colors.textTertiary} testID="signup-claim-note" />
+                </View>
+              </View>
+              <TouchableOpacity style={[styles.confirm, savingClaim && { opacity: 0.6 }]} onPress={submitClaim} disabled={savingClaim} testID="signup-claim-submit">
+                {savingClaim ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Sign up</Text>}
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      {/* Add slot */}
+      <Modal visible={addSlotOpen} transparent animationType="slide" onRequestClose={() => setAddSlotOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setAddSlotOpen(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>Add a slot</Text>
+              <Text style={styles.label}>What to sign up for</Text>
+              <TextInput style={styles.input} value={slotLabel} onChangeText={setSlotLabel} placeholder="e.g. Water bottles" placeholderTextColor={colors.textTertiary} testID="signup-slot-label" autoFocus />
+              <Text style={styles.label}>How many needed</Text>
+              <TextInput style={styles.input} value={slotQty} onChangeText={setSlotQty} keyboardType="number-pad" testID="signup-slot-qty" />
+              <TouchableOpacity style={[styles.confirm, savingSlot && { opacity: 0.6 }]} onPress={addSlot} disabled={savingSlot} testID="signup-slot-save">
+                {savingSlot ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add slot</Text>}
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      {/* Slot menu */}
+      <Modal visible={!!slotMenu} transparent animationType="slide" onRequestClose={() => setSlotMenu(null)}>
+        <Pressable style={styles.backdrop} onPress={() => setSlotMenu(null)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>Edit slot</Text>
+              <Text style={styles.label}>Name</Text>
+              <TextInput style={styles.input} value={editSlotLabel} onChangeText={setEditSlotLabel} placeholderTextColor={colors.textTertiary} testID="signup-slot-edit-label" />
+              <Text style={styles.label}>How many needed</Text>
+              <TextInput style={styles.input} value={editSlotQty} onChangeText={setEditSlotQty} keyboardType="number-pad" testID="signup-slot-edit-qty" />
+              <TouchableOpacity style={styles.confirm} onPress={saveSlot} testID="signup-slot-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.deleteBtn} onPress={deleteSlot} testID="signup-slot-delete">
+                <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                <Text style={styles.deleteText}>Delete slot</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+
+      {/* Sheet menu */}
+      <Modal visible={sheetMenuOpen} transparent animationType="slide" onRequestClose={() => setSheetMenuOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setSheetMenuOpen(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>Edit sheet</Text>
+              <Text style={styles.label}>Name</Text>
+              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="signup-edit-name" />
+              {comps.length > 0 && (
+                <>
+                  <Text style={styles.label}>Competition</Text>
+                  <View style={styles.compRow}>
+                    <TouchableOpacity onPress={() => setEditCompId(null)} style={[styles.compChip, editCompId === null && styles.compChipOn]}>
+                      <Text style={[styles.compChipText, editCompId === null && styles.compChipTextOn]}>None</Text>
+                    </TouchableOpacity>
+                    {comps.map((cp) => (
+                      <TouchableOpacity key={cp.id} onPress={() => setEditCompId(cp.id)} style={[styles.compChip, editCompId === cp.id && styles.compChipOn]}>
+                        <Text style={[styles.compChipText, editCompId === cp.id && styles.compChipTextOn]} numberOfLines={1}>{cp.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+              <TouchableOpacity style={styles.confirm} onPress={saveSheet} testID="signup-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.deleteBtn} onPress={deleteSheet} testID="signup-sheet-delete">
+                <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                <Text style={styles.deleteText}>Delete sheet</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  headerTitle: { ...typography.h2, color: c.textPrimary },
+  headerSub: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
+  slotCard: { backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.md },
+  slotHead: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  slotLabel: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  slotMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2, fontWeight: "700" },
+  slotEdit: { padding: 4 },
+  claimRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  claimName: { ...typography.caption, color: c.textPrimary, flex: 1 },
+  signupBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, paddingVertical: 10, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
+  signupBtnFull: { backgroundColor: c.card, borderColor: c.border },
+  signupBtnText: { ...typography.caption, fontWeight: "800", color: c.accent },
+  emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
+  emptyTitle: { ...typography.h3, color: c.textPrimary, marginTop: spacing.sm },
+  emptyText: { ...typography.caption, color: c.textSecondary, textAlign: "center" },
+  emptyBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 18, marginTop: spacing.md },
+  emptyBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
+  deleteBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: spacing.md, borderTopWidth: 1, borderTopColor: c.border },
+  deleteText: { color: c.danger, fontWeight: "700" },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  sheetModal: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
+  sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
+  label: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.md, marginBottom: 6 },
+  input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
+  pickerGroup: { ...typography.micro, color: c.textSecondary, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase", marginTop: spacing.md, marginBottom: 4 },
+  pickerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: 9 },
+  radio: { width: 22, height: 22, borderRadius: 999, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  radioOn: { borderColor: c.accent },
+  radioDot: { width: 11, height: 11, borderRadius: 999, backgroundColor: c.accent },
+  pickerName: { ...typography.bodyMedium, color: c.textPrimary },
+  compRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  compChip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, maxWidth: 220 },
+  compChipOn: { backgroundColor: c.accent, borderColor: c.accent },
+  compChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
+  compChipTextOn: { color: "white" },
+  confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
+  confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
+  deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
+});
