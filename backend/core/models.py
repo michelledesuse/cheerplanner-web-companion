@@ -880,3 +880,41 @@ class PaymentEntryUpdate(BaseModel):
     method: Optional[str] = None
     note: Optional[str] = None
     paid_at: Optional[str] = None
+
+
+
+# ============================================================
+# Team Hub — Sizes (shared spreadsheet-style sheet over the roster)
+# ============================================================
+DEFAULT_SIZE_COLUMNS: List[str] = [
+    "Shirt", "Tank", "Sports bra", "Shorts", "Shoes", "Sweatshirt", "Jacket", "Ring",
+]
+
+
+class SizeColumn(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    label: str
+    is_default: bool = False
+    order: int = 0
+
+
+class SizeSheet(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    columns: List[SizeColumn] = Field(default_factory=list)
+    values: Dict[str, Dict[str, str]] = Field(default_factory=dict)  # member_id -> {col_id: value}
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class SizeColumnCreate(BaseModel):
+    label: str
+
+
+class SizeColumnUpdate(BaseModel):
+    label: str
+
+
+class SizeValueUpdate(BaseModel):
+    member_id: str
+    column_id: str
+    value: str = ""
