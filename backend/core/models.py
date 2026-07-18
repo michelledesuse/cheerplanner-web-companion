@@ -847,6 +847,7 @@ class PaymentEntry(BaseModel):
     member_id: str
     paid: bool = False
     amount_paid: Optional[float] = None
+    method: Optional[str] = None
     note: Optional[str] = None
     paid_at: Optional[str] = None
 
@@ -876,4 +877,6 @@ class PaymentTrackerUpdate(BaseModel):
 class PaymentEntryUpdate(BaseModel):
     paid: Optional[bool] = None
     amount_paid: Optional[float] = None
+    method: Optional[str] = None
     note: Optional[str] = None
+    paid_at: Optional[str] = None

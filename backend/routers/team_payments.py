@@ -33,7 +33,7 @@ def _summary(tracker: dict, roster_total: int) -> dict:
 
 
 async def _roster_total(member_ids: List[str]) -> int:
-    return await db.roster.count_documents({"user_id": {"$in": member_ids}})
+    return await db.roster.count_documents({"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}})
 
 
 @router.get("/payments")
@@ -105,15 +105,22 @@ async def set_member_status(tracker_id: str, member_id: str, payload: PaymentEnt
     entries = doc.get("entries") or []
     entry = next((e for e in entries if e.get("member_id") == member_id), None)
     if entry is None:
-        entry = {"member_id": member_id, "paid": False, "amount_paid": None, "note": None, "paid_at": None}
+        entry = {"member_id": member_id, "paid": False, "amount_paid": None, "method": None, "note": None, "paid_at": None}
         entries.append(entry)
 
     data = payload.model_dump(exclude_unset=True)
     if "paid" in data:
         entry["paid"] = bool(data["paid"])
+        # Default the paid date to now when marking paid; clear it when unpaid.
         entry["paid_at"] = utcnow_iso() if data["paid"] else None
+        if not data["paid"]:
+            entry["method"] = None
+    if "paid_at" in data and data["paid_at"] is not None:
+        entry["paid_at"] = data["paid_at"]
     if "amount_paid" in data:
         entry["amount_paid"] = data["amount_paid"]
+    if "method" in data:
+        entry["method"] = data["method"]
     if "note" in data:
         entry["note"] = data["note"]
 

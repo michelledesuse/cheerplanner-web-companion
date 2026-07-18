@@ -178,24 +178,32 @@ export default function RosterScreen() {
                       <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{(ROLE_LABEL[m.role] || m.role).toUpperCase()}</Text></View>
                       {!!teamName(teamId) && <Text style={styles.teamTag}>{teamName(teamId)}</Text>}
                     </View>
-                    {(m.parent_first_name || m.parent_last_name) ? (
-                      <Text style={styles.parentLine}>Parent: {`${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim()}</Text>
-                    ) : null}
-                    <View style={styles.contactRow}>
-                      {(() => { const ph = m.parent_phone || m.phone; return !!ph && (
-                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
-                          <Ionicons name="call-outline" size={12} color={colors.accent} />
-                          <Text style={styles.contactText}>{ph}</Text>
-                        </TouchableOpacity>
-                      ); })()}
-                      {(() => { const em = m.parent_email || m.email; return !!em && (
-                        <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
-                          <Ionicons name="mail-outline" size={12} color={colors.accent} />
-                          <Text style={styles.contactText} numberOfLines={1}>{em}</Text>
-                        </TouchableOpacity>
-                      ); })()}
-                      {!(m.parent_phone || m.phone) && !(m.parent_email || m.email) && <Text style={styles.noContact}>No contact info</Text>}
-                    </View>
+                    {(() => {
+                      const isAthlete = m.role === "athlete";
+                      const ph = isAthlete ? (m.parent_phone || m.phone) : (m.phone || m.parent_phone);
+                      const em = isAthlete ? (m.parent_email || m.email) : (m.email || m.parent_email);
+                      const parentName = `${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim();
+                      return (
+                        <>
+                          {isAthlete && !!parentName && <Text style={styles.parentLine}>Parent: {parentName}</Text>}
+                          <View style={styles.contactRow}>
+                            {!!ph && (
+                              <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
+                                <Ionicons name="call-outline" size={12} color={colors.accent} />
+                                <Text style={styles.contactText}>{ph}</Text>
+                              </TouchableOpacity>
+                            )}
+                            {!!em && (
+                              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
+                                <Ionicons name="mail-outline" size={12} color={colors.accent} />
+                                <Text style={styles.contactText} numberOfLines={1}>{em}</Text>
+                              </TouchableOpacity>
+                            )}
+                            {!ph && !em && <Text style={styles.noContact}>No contact info</Text>}
+                          </View>
+                        </>
+                      );
+                    })()}
                   </View>
                   <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
                 </TouchableOpacity>

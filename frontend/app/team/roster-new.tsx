@@ -30,6 +30,8 @@ export default function RosterMemberForm() {
   const [parentLast, setParentLast] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
@@ -51,8 +53,10 @@ export default function RosterMemberForm() {
           setTeamIds(m.team_ids || (m.team_id ? [m.team_id] : []));
           setParentFirst(m.parent_first_name || "");
           setParentLast(m.parent_last_name || "");
-          setParentPhone(m.parent_phone || m.phone || "");
-          setParentEmail(m.parent_email || m.email || "");
+          setParentPhone(m.parent_phone || "");
+          setParentEmail(m.parent_email || "");
+          setPhone(m.phone || "");
+          setEmail(m.email || "");
           setNotes(m.notes || "");
         }
       } finally { setLoading(false); }
@@ -63,15 +67,18 @@ export default function RosterMemberForm() {
     if (!firstName.trim() && !lastName.trim()) { Alert.alert("Name required", "Please enter a first or last name."); return; }
     setSaving(true);
     try {
+      const isAthlete = role === "athlete";
       const payload = {
         first_name: firstName.trim() || null,
         last_name: lastName.trim() || null,
         role,
         team_ids: teamIds,
-        parent_first_name: parentFirst.trim() || null,
-        parent_last_name: parentLast.trim() || null,
-        parent_phone: parentPhone.trim() || null,
-        parent_email: parentEmail.trim() || null,
+        parent_first_name: isAthlete ? (parentFirst.trim() || null) : null,
+        parent_last_name: isAthlete ? (parentLast.trim() || null) : null,
+        parent_phone: isAthlete ? (parentPhone.trim() || null) : null,
+        parent_email: isAthlete ? (parentEmail.trim() || null) : null,
+        phone: isAthlete ? null : (phone.trim() || null),
+        email: isAthlete ? null : (email.trim() || null),
         notes: notes.trim() || null,
       };
       if (isEdit) await api.patch(`/roster/${params.id}`, payload);
@@ -148,23 +155,36 @@ export default function RosterMemberForm() {
             })}
           </View>
 
-          <Text style={styles.sectionLabel}>Parent / guardian</Text>
-          <View style={styles.nameRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>First name</Text>
-              <TextInput style={styles.input} value={parentFirst} onChangeText={setParentFirst} placeholder="First" placeholderTextColor={colors.textTertiary} testID="roster-parent-first-input" />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Last name</Text>
-              <TextInput style={styles.input} value={parentLast} onChangeText={setParentLast} placeholder="Last" placeholderTextColor={colors.textTertiary} testID="roster-parent-last-input" />
-            </View>
-          </View>
+          {role === "athlete" ? (
+            <>
+              <Text style={styles.sectionLabel}>Parent / guardian</Text>
+              <View style={styles.nameRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>First name</Text>
+                  <TextInput style={styles.input} value={parentFirst} onChangeText={setParentFirst} placeholder="First" placeholderTextColor={colors.textTertiary} testID="roster-parent-first-input" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Last name</Text>
+                  <TextInput style={styles.input} value={parentLast} onChangeText={setParentLast} placeholder="Last" placeholderTextColor={colors.textTertiary} testID="roster-parent-last-input" />
+                </View>
+              </View>
 
-          <Text style={styles.label}>Parent phone</Text>
-          <TextInput style={styles.input} value={parentPhone} onChangeText={setParentPhone} placeholder="e.g. 555-123-4567" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" testID="roster-parent-phone-input" />
+              <Text style={styles.label}>Parent phone</Text>
+              <TextInput style={styles.input} value={parentPhone} onChangeText={setParentPhone} placeholder="e.g. 555-123-4567" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" testID="roster-parent-phone-input" />
 
-          <Text style={styles.label}>Parent email</Text>
-          <TextInput style={styles.input} value={parentEmail} onChangeText={setParentEmail} placeholder="e.g. jen@example.com" placeholderTextColor={colors.textTertiary} keyboardType="email-address" autoCapitalize="none" testID="roster-parent-email-input" />
+              <Text style={styles.label}>Parent email</Text>
+              <TextInput style={styles.input} value={parentEmail} onChangeText={setParentEmail} placeholder="e.g. jen@example.com" placeholderTextColor={colors.textTertiary} keyboardType="email-address" autoCapitalize="none" testID="roster-parent-email-input" />
+            </>
+          ) : (
+            <>
+              <Text style={styles.sectionLabel}>Contact</Text>
+              <Text style={styles.label}>Phone</Text>
+              <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="e.g. 555-123-4567" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" testID="roster-phone-input" />
+
+              <Text style={styles.label}>Email</Text>
+              <TextInput style={styles.input} value={email} onChangeText={setEmail} placeholder="e.g. coach@example.com" placeholderTextColor={colors.textTertiary} keyboardType="email-address" autoCapitalize="none" testID="roster-email-input" />
+            </>
+          )}
 
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { height: 90, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} placeholder="Anything handy to remember" placeholderTextColor={colors.textTertiary} multiline testID="roster-notes-input" />
