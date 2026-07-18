@@ -34,6 +34,11 @@ class UserPublic(BaseModel):
     email: EmailStr
     name: Optional[str] = None
     created_at: str
+    team_access: bool = False
+
+
+class TeamAccessPayload(BaseModel):
+    enabled: bool
 
 
 class TokenResponse(BaseModel):
@@ -843,7 +848,7 @@ class RosterImportPayload(BaseModel):
 # ============================================================
 # Team Hub — Payment Tracking (Phase C, tracking-only)
 # ============================================================
-class PaymentEntry(BaseModel):
+class TeamPaymentEntry(BaseModel):
     member_id: str
     paid: bool = False
     amount_paid: Optional[float] = None
@@ -858,7 +863,7 @@ class PaymentTracker(BaseModel):
     name: str
     amount: Optional[float] = None  # expected amount per person (optional)
     note: Optional[str] = None
-    entries: List[PaymentEntry] = Field(default_factory=list)
+    entries: List[TeamPaymentEntry] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 

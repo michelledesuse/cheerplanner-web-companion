@@ -162,6 +162,51 @@ const FAQ: Section[] = [
     ],
   },
   {
+    title: "Team Hub (coaches, reps & staff)",
+    items: [
+      {
+        q: "What is the Team Hub?",
+        a:
+          "A private workspace on the Team tab for team personnel. It centers on a team Roster with tracking tools built on top: Payment Tracking, Sizes, Paperwork / Other, a Sign-Up Sheet, and a Custom Roster Export.",
+      },
+      {
+        q: "Who can see the Team Hub?",
+        a:
+          "Only logins that turn on 'I'm team personnel' in Settings → Team Hub. This is per-login, so if a couple shares one household, the Hub only appears for the coach/rep/staff member — the other family member won't see it (and can't reach the data even via the app). Turn it off any time to hide it again.",
+      },
+      {
+        q: "How is the Roster different from my athletes?",
+        a:
+          "The Roster is the team's people — coaches, staff, reps and athletes — and a person can be on multiple teams. Every list separates Personnel from Athletes but still counts everyone in totals. For athletes the contact info is the parent's; for personnel it's their own.",
+      },
+      {
+        q: "How does Payment Tracking work?",
+        a:
+          "It's a manual ledger — no real payments. Set an optional expected amount per person, then record each person's actual amount, method (Cash, Check, Venmo, Zelle, etc. or a custom one) and the date paid. Great for team bonding, gifts, meals and dues.",
+      },
+      {
+        q: "How do Sizes work — and why no Sports bra for coaches?",
+        a:
+          "Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) that you can extend with your own. Values are free text (AL, YM, 7…). Personnel don't get a Sports bra size, so that cell shows N/A for them. Tap the chart icon for a size tally by item.",
+      },
+      {
+        q: "What's Paperwork / Other for?",
+        a:
+          "Named check-off sheets for waivers, forms or anything else. Add your own items, then check each person off with an optional note (e.g. 'expires 6/1'). Each sheet shows a completion tally.",
+      },
+      {
+        q: "How does the Sign-Up Sheet work?",
+        a:
+          "Create slots people can claim — like 'Water ×12' or 'Chaperone' — optionally linked to a competition. Each claim records who signed up, a quantity, and an optional note, and the slot shows how many spots are still needed.",
+      },
+      {
+        q: "What can I do with Custom Roster Export?",
+        a:
+          "Pick exactly which columns to include — contact info, any Sizes column, any Paperwork item, any Payment tracker's status — filter by team, optionally label it with a competition, preview it on screen, and download the whole thing as a CSV you can open in Excel or Google Sheets.",
+      },
+    ],
+  },
+  {
     title: "Account & privacy",
     items: [
       {

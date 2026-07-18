@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.db import db
 from core.models import (
-    UserSignup, UserLogin, UserPublic, TokenResponse, DeleteAccountPayload,
+    UserSignup, UserLogin, UserPublic, TokenResponse, DeleteAccountPayload, TeamAccessPayload,
 )
 from core.security import (
     hash_password, verify_password, create_access_token, get_current_user, limiter,
@@ -54,7 +54,8 @@ async def login(request: Request, payload: UserLogin):
     return TokenResponse(
         access_token=token,
         user=UserPublic(
-            id=user_doc["id"], email=email, name=user_doc.get("name"), created_at=user_doc["created_at"]
+            id=user_doc["id"], email=email, name=user_doc.get("name"), created_at=user_doc["created_at"],
+            team_access=bool(user_doc.get("team_access")),
         ),
     )
 
@@ -66,6 +67,19 @@ async def me(current_user=Depends(get_current_user)):
         email=current_user["email"],
         name=current_user.get("name"),
         created_at=current_user["created_at"],
+        team_access=bool(current_user.get("team_access")),
+    )
+
+
+@router.patch("/auth/team-access", response_model=UserPublic)
+async def set_team_access(payload: TeamAccessPayload, current_user=Depends(get_current_user)):
+    await db.users.update_one({"id": current_user["id"]}, {"$set": {"team_access": payload.enabled}})
+    return UserPublic(
+        id=current_user["id"],
+        email=current_user["email"],
+        name=current_user.get("name"),
+        created_at=current_user["created_at"],
+        team_access=payload.enabled,
     )
 
 

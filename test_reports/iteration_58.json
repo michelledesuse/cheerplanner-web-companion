@@ -1,0 +1,31 @@
+{
+  "summary": "Iter58 fix verification — PaymentEntry class-name collision in core/models.py resolved. Backend pytest 11/11 passed in test_iter58_payment_model_collision_fix.py covering: (1) GET /api/payments now returns 200 with money PaymentEntry shape (athlete_id present, member_id absent) — previously 500; (2) GET /api/expenses & /api/fundraisers 200; (3) POST /api/payments waterfall-allocates to expenses and marks expense.paid=true when covered in full, partial payment leaves it unpaid; (4) Long-form and wide-form expense imports both attach the correct category (row.category respected) and expenses appear in GET /api/expenses; (5) Team Hub /api/team/payments list + create + PUT set-member-paid + delete all work after model rename to TeamPaymentEntry (entries carry member_id, not athlete_id; summary math correct); (6) GET /api/dashboard totals intact. Frontend (390x844): login → Home (dashboard totals render) → Money tab loads all 4 endpoints (athletes/expenses/payments/fundraisers) in Promise.all, all 200. Expenses subtab shows 9 rows including newly-imported TEST_LongCat/TEST_WideCat and TEST_PayApply/TEST_Partial. Payments subtab shows 2 payments each with 'Applied to: <category>' badge (allocations working). Fundraisers subtab shows Spring Car Wash with 'Apply to expense'. Team tab loads Team Hub landing (Roster, Payment Tracking, Sizes, Paperwork, Sign-Up Sheet, Custom Roster Export) without the locked gate for the personnel account. AuthContext.loadMe transient-error handling verified by inspection: only status===401 clears TOKEN_KEY + user (5xx/network no longer wipe session).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter58_payment_model_collision_fix.py",
+    "/app/test_reports/pytest/pytest_iter58_payment_fix.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core/models.py — PaymentTracker.entries: List[TeamPaymentEntry] (line 866) correctly references the renamed Team Hub model; money PaymentEntry at line 256 keeps athlete_id/amount/paid_on/allocations. No lingering 'class PaymentEntry' duplicate.",
+    "routers/team_payments.py imports TeamPaymentEntry-backed PaymentTracker + PaymentEntryUpdate — /api/team/payments serializes with member_id, unaffected by the rename.",
+    "AuthContext.tsx loadMe (lines 34-45) narrows the sign-out branch to `if (status === 401)` — transient failures no longer clear TOKEN_KEY. Good.",
+    "app/(tabs)/expenses.tsx Promise.all (lines 92-96) now succeeds because /api/payments no longer 500s — no defensive per-fetch try/catch needed but could be added for future resilience."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter58_payment_model_collision_fix.py (new)",
+    "/app/test_reports/pytest/pytest_iter58_payment_fix.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% for Money hub + Team hub visual + regression flows"},
+  "seed_data_creation": "None persisted — all test fixtures create + delete their own expenses/payments/team-trackers. Note: two prior TEST_ expenses (TEST_PayApply, TEST_Partial dated 2026-01-10) are present in the seeded household from an earlier partial run and remained visible in the Money hub screenshot; they can be deleted via the UI or /api/expenses/{id}. They do NOT affect any assertions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "EXPO_PUBLIC_BACKEND_URL comes from /app/frontend/.env via python-dotenv (EXPO_BACKEND_URL is NOT exported in the shell — any test file that does os.environ['EXPO_BACKEND_URL'] will KeyError). Login testIDs on the auth screen are login-email-input, login-password-input, login-submit-button. Money tab bottom-nav uses the label 'Expenses' (not 'Money') even though the screen header reads 'Money'. Money subtab testIDs are tab-expenses / tab-payments / tab-fundraisers. Expenses POST /api/expenses returns a LIST[ExpenseEntry] (supports recurrence expansion), not a single object — use r.json()[0] when reading id.",
+  "rca_of_issue": "Root cause: duplicate `class PaymentEntry` in core/models.py. The Team Hub PaymentEntry (member_id, paid, amount_paid, method, note, paid_at) was defined AFTER the money PaymentEntry (athlete_id, amount, paid_on, allocations, applied_expense_ids) and shadowed it at import time. When routers/payments.py imported PaymentEntry it got the Team Hub variant. GET /api/payments loaded payment docs (which have athlete_id) and tried to validate them as the Team Hub model → 'member_id: field required' → pydantic ValidationError → HTTP 500. Frontend Money hub used Promise.all([/athletes,/expenses,/payments,/fundraisers]) so a single failed leg rejected the whole batch, blanking Expenses+Payments+Fundraisers tabs. Home dashboard used aggregated /api/dashboard so it kept working (visible totals). Fix: money PaymentEntry restored + Team Hub model renamed to TeamPaymentEntry (models.py:851) and PaymentTracker.entries typed as List[TeamPaymentEntry] (models.py:866). Verified end-to-end: /api/payments 200, Money hub renders all three tabs with rows, Team Hub /api/team/payments list+CRUD+set-paid all functional."
+}

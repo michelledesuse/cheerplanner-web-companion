@@ -52,3 +52,11 @@ async def get_current_user(
     if not user_doc:
         raise HTTPException(status_code=401, detail="User not found")
     return user_doc
+
+
+async def require_team_access(current_user=Depends(get_current_user)) -> dict:
+    """Gate Team Hub endpoints to logins that have self-identified as personnel
+    (coach / team rep / staff). Keeps the hub private within a shared household."""
+    if not current_user.get("team_access"):
+        raise HTTPException(status_code=403, detail="Team Hub access is limited to team personnel")
+    return current_user

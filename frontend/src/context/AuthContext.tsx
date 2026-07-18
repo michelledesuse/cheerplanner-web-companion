@@ -7,6 +7,7 @@ export type UserPublic = {
   email: string;
   name?: string | null;
   created_at: string;
+  team_access?: boolean;
 };
 
 type AuthContextValue = {
@@ -15,6 +16,7 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -24,17 +26,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const loadMe = useCallback(async () => {
+    const token = await storage.secureGet<string>(TOKEN_KEY, "");
+    if (!token) {
+      setUser(null);
+      return;
+    }
     try {
-      const token = await storage.secureGet<string>(TOKEN_KEY, "");
-      if (!token) {
-        setUser(null);
-        return;
-      }
       const res = await api.get("/auth/me");
       setUser(res.data as UserPublic);
-    } catch (_e) {
-      await storage.secureRemove(TOKEN_KEY);
-      setUser(null);
+    } catch (e: any) {
+      // Only sign the user out when the token is genuinely rejected (401).
+      // Transient errors (network blips, 5xx) must NOT wipe the session.
+      const status = e?.response?.status;
+      if (status === 401) {
+        await storage.secureRemove(TOKEN_KEY);
+        setUser(null);
+      }
     }
   }, []);
 
@@ -63,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, refreshUser: loadMe }}>
       {children}
     </AuthContext.Provider>
   );

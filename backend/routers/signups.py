@@ -11,10 +11,10 @@ from core.models import (
     SignupSlotUpdate,
     SignupClaimCreate,
 )
-from core.security import get_current_user
+from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
 
-router = APIRouter(prefix="/api/team")
+router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
 
 def _summary(sheet: dict) -> dict:

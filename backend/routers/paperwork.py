@@ -12,10 +12,10 @@ from core.models import (
     PaperworkItemUpdate,
     PaperworkValueUpdate,
 )
-from core.security import get_current_user
+from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
 
-router = APIRouter(prefix="/api/team")
+router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
 
 async def _roster_total(member_ids: List[str]) -> int:

@@ -7,8 +7,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import HomeButton from "@/src/components/HomeButton";
 import { useFocusEffect, useRouter } from "expo-router";
-import { api } from "@/src/api/client";
-import { STAFF_ROLES } from "@/src/utils/roles";
+import { useAuth } from "@/src/context/AuthContext";
 
 type Tool = {
   key: string;
@@ -34,26 +33,20 @@ const TOOLS: Tool[] = [
 export default function TeamScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [unlocked, setUnlocked] = useState(false);
+  const unlocked = !!user?.team_access;
 
-  // Gate: the Hub tools are for team staff. Unlock when the household has at
-  // least one person marked Coach / Team Rep-Mgr / Staff.
+  // Access is per-login: only members who marked themselves as team personnel
+  // (Settings → team access) can open the Hub, even in a shared household.
   useFocusEffect(
     useCallback(() => {
       let active = true;
       (async () => {
-        try {
-          const r = await api.get<{ role?: string }[]>("/athletes");
-          if (active) setUnlocked(r.data.some((a) => STAFF_ROLES.includes((a.role || "") as any)));
-        } catch {
-          if (active) setUnlocked(false);
-        } finally {
-          if (active) setLoading(false);
-        }
+        try { await refreshUser(); } finally { if (active) setLoading(false); }
       })();
       return () => { active = false; };
-    }, [])
+    }, [refreshUser])
   );
 
   return (
@@ -74,13 +67,13 @@ export default function TeamScreen() {
             <View style={styles.lockedIcon}>
               <Ionicons name="lock-closed-outline" size={26} color={colors.accent} />
             </View>
-            <Text style={styles.lockedTitle}>Team Hub is for team staff</Text>
+            <Text style={styles.lockedTitle}>Team Hub is for team personnel</Text>
             <Text style={styles.lockedText}>
-              These tools unlock once your household has someone marked as a Coach, Team Rep/Mgr, or Staff. Add or edit a person and set their role to get started.
+              These tools are private to coaches, team reps &amp; staff. If that&apos;s you, turn on team access for your login in Settings — other family members sharing this account won&apos;t see the Hub.
             </Text>
-            <TouchableOpacity style={styles.lockedBtn} onPress={() => router.push("/athletes/new")} testID="team-add-staff">
-              <Ionicons name="add" size={18} color="white" />
-              <Text style={styles.lockedBtnText}>Add a coach / rep / staff</Text>
+            <TouchableOpacity style={styles.lockedBtn} onPress={() => router.push("/(tabs)/settings")} testID="team-add-staff">
+              <Ionicons name="settings-outline" size={18} color="white" />
+              <Text style={styles.lockedBtnText}>Open Settings</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -89,7 +82,7 @@ export default function TeamScreen() {
           <View style={styles.introCard}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
             <Text style={styles.introText}>
-              A private space for team staff to keep everything they need handy. Parents &amp; athletes will get read-only access to shared items in a later update.
+              A private space for you as team personnel. Access is tied to your login — other family members sharing this account won&apos;t see the Hub unless they enable team access on their own login.
             </Text>
           </View>
 

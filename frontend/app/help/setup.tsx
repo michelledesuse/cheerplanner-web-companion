@@ -156,7 +156,7 @@ export default function SetupGuideScreen() {
 
         <View style={[styles.card, styles.endNote]}>
           <Ionicons name="checkmark-circle" size={28} color={colors.successText} />
-          <Text style={styles.endTitle}>You're all set</Text>
+          <Text style={styles.endTitle}>You&apos;re all set</Text>
           <Text style={styles.endBody}>
             Need more help? Tap the FAQ row in Settings for answers to common questions, or contact us from the
             same screen.

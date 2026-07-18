@@ -9,10 +9,10 @@ from core.models import (
     RosterMemberUpdate,
     RosterImportPayload,
 )
-from core.security import get_current_user
+from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api", dependencies=[Depends(require_team_access)])
 
 
 def _split_name(full: str) -> tuple:

@@ -59,7 +59,7 @@ async def run() -> None:
         # Reset the password every run in case it was changed.
         await db.users.update_one(
             {"id": user_id},
-            {"$set": {"password_hash": hash_password(REVIEW_PASSWORD), "name": REVIEW_NAME}},
+            {"$set": {"password_hash": hash_password(REVIEW_PASSWORD), "name": REVIEW_NAME, "team_access": True}},
         )
     else:
         user_id = await db.users.insert_one(
@@ -68,6 +68,7 @@ async def run() -> None:
                 "email": REVIEW_EMAIL,
                 "name": REVIEW_NAME,
                 "password_hash": hash_password(REVIEW_PASSWORD),
+                "team_access": True,
                 "created_at": iso(datetime.now(timezone.utc)),
             }
         )
