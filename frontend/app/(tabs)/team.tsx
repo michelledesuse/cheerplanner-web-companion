@@ -1,12 +1,14 @@
-import React from "react";
-import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import React, { useCallback, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import HomeButton from "@/src/components/HomeButton";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { api } from "@/src/api/client";
+import { STAFF_ROLES } from "@/src/utils/roles";
 
 type Tool = {
   key: string;
@@ -31,6 +33,28 @@ const TOOLS: Tool[] = [
 export default function TeamScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [unlocked, setUnlocked] = useState(false);
+
+  // Gate: the Hub tools are for team staff. Unlock when the household has at
+  // least one person marked Coach / Team Rep-Mgr / Staff.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        try {
+          const r = await api.get<{ role?: string }[]>("/athletes");
+          if (active) setUnlocked(r.data.some((a) => STAFF_ROLES.includes((a.role || "") as any)));
+        } catch {
+          if (active) setUnlocked(false);
+        } finally {
+          if (active) setLoading(false);
+        }
+      })();
+      return () => { active = false; };
+    }, [])
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
@@ -41,41 +65,61 @@ export default function TeamScreen() {
         <HomeButton />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="team-screen">
-        <View style={styles.introCard}>
-          <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
-          <Text style={styles.introText}>
-            A private space for team staff to keep everything they need handy. Parents &amp; athletes will get read-only access to shared items in a later update.
-          </Text>
-        </View>
+      {loading ? (
+        <View style={styles.center} testID="team-screen"><ActivityIndicator color={colors.accent} /></View>
+      ) : !unlocked ? (
+        <ScrollView contentContainerStyle={styles.content} testID="team-screen">
+          <View style={styles.lockedCard}>
+            <View style={styles.lockedIcon}>
+              <Ionicons name="lock-closed-outline" size={26} color={colors.accent} />
+            </View>
+            <Text style={styles.lockedTitle}>Team Hub is for team staff</Text>
+            <Text style={styles.lockedText}>
+              These tools unlock once your household has someone marked as a Coach, Team Rep/Mgr, or Staff. Add or edit a person and set their role to get started.
+            </Text>
+            <TouchableOpacity style={styles.lockedBtn} onPress={() => router.push("/athletes/new")} testID="team-add-staff">
+              <Ionicons name="add" size={18} color="white" />
+              <Text style={styles.lockedBtnText}>Add a coach / rep / staff</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="team-screen">
+          <View style={styles.introCard}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
+            <Text style={styles.introText}>
+              A private space for team staff to keep everything they need handy. Parents &amp; athletes will get read-only access to shared items in a later update.
+            </Text>
+          </View>
 
-        {TOOLS.map((t) => (
-          <TouchableOpacity
-            key={t.key}
-            style={styles.toolCard}
-            testID={`team-tool-${t.key}`}
-            activeOpacity={t.route ? 0.7 : 1}
-            disabled={!t.route}
-            onPress={() => t.route && router.push(t.route as any)}
-          >
-            <View style={styles.toolIcon}>
-              <Ionicons name={t.icon} size={22} color={colors.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.toolTitleRow}>
-                <Text style={styles.toolTitle}>{t.title}</Text>
-                {!t.route && (
-                  <View style={styles.soonBadge}>
-                    <Text style={styles.soonText}>COMING SOON</Text>
-                  </View>
-                )}
+          {TOOLS.map((t) => (
+            <TouchableOpacity
+              key={t.key}
+              style={styles.toolCard}
+              testID={`team-tool-${t.key}`}
+              activeOpacity={t.route ? 0.7 : 1}
+              disabled={!t.route}
+              onPress={() => t.route && router.push(t.route as any)}
+            >
+              <View style={styles.toolIcon}>
+                <Ionicons name={t.icon} size={22} color={colors.accent} />
               </View>
-              <Text style={styles.toolDesc}>{t.desc}</Text>
-            </View>
-            {t.route && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+              <View style={{ flex: 1 }}>
+                <View style={styles.toolTitleRow}>
+                  <Text style={styles.toolTitle}>{t.title}</Text>
+                  {!t.route && (
+                    <View style={styles.soonBadge}>
+                      <Text style={styles.soonText}>COMING SOON</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.toolDesc}>{t.desc}</Text>
+              </View>
+              {t.route && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -106,4 +150,11 @@ const makeStyles = (c: ThemePalette) => ({
   soonBadge: { backgroundColor: c.divider, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   soonText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, color: c.textSecondary },
   toolDesc: { ...typography.caption, color: c.textSecondary, marginTop: 3 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  lockedCard: { alignItems: "center", backgroundColor: c.card, borderRadius: radius.xl, borderWidth: 1, borderColor: c.border, padding: spacing.xl, gap: spacing.sm, marginTop: spacing.md },
+  lockedIcon: { width: 56, height: 56, borderRadius: 28, backgroundColor: c.accentSubtle, alignItems: "center", justifyContent: "center", marginBottom: spacing.xs },
+  lockedTitle: { ...typography.h3, color: c.textPrimary, textAlign: "center" },
+  lockedText: { ...typography.caption, color: c.textSecondary, textAlign: "center", lineHeight: 19 },
+  lockedBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 18, marginTop: spacing.md },
+  lockedBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
 });
