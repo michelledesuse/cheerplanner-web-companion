@@ -87,7 +87,13 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - R1: [DONE — iteration_53] Added roles **Team Rep/Mgr** + **Staff** to the per-athlete role selector (now Athlete/Coach/Team Rep/Mgr/Staff). Backend `Athlete.role` Literal extended + validated (422 on invalid). Shared `src/utils/roles.ts` (labels/icons/STAFF_ROLES). Role badges show in the athletes list.
 - R2: [DONE — iteration_53] **Home moved off the bottom tab bar** → a header **Home button** (`HomeButton`, testID `home-btn`) on every tab screen; routes to dashboard. Dashboard route kept (href:null) and remains the login/signup landing.
 - R3: [DONE — iteration_53] **Team tab added** to the bottom bar (Athletes/Expenses/Comps/Schedule/Calendar/Team).
-- R4: [TODO — Phase C] **Team Hub tools.** Landing shipped (`app/(tabs)/team.tsx`) with Roster / Gifts & Meals / Waivers as "coming soon" cards. Build tool-by-tool starting with Roster. Team = separate group (not household); staff-only now (parents read-only future); gifts/meals = tracking-only.
+- R4: [IN PROGRESS — Phase C] **Team Hub tools.** Landing shipped (`app/(tabs)/team.tsx`). Roster = **DONE (iteration_54)**: household-scoped CRUD + one-tap "Add from my household" import of athletes & members (`routers/roster.py`, `app/team/roster.tsx` + `roster-new.tsx`). Remaining tools: Gifts & Meals (tracking-only ledger), Waivers, and R5 below. Team = separate group (not household); staff-only now (parents read-only future); gifts/meals = tracking-only.
+- R5: [TODO — Team Hub] **Custom tracking lists (spreadsheet-style checklists over the roster).** Let coaches/reps/staff create their own tracking lists to manage things like stay-to-play, event/practice/competition attendance, uniform/apparel sizes, and task/paperwork completion. Requirements:
+    - **Rows = the team roster** (pull people from the existing Roster tool).
+    - **User-defined columns**: the creator decides which columns appear for check-off. Support at least: checkbox/done, short text (e.g. a size), and maybe date. Columns are added/renamed/removed per list.
+    - **Named list + list "type"**: user gives the list a name (e.g. "Fall Nationals stay-to-play") and picks/creates a type/category (e.g. Attendance, Stay-to-Play, Sizes, Paperwork) so lists are organized/filterable.
+    - Editable grid: tap a cell to toggle a checkbox or enter a value; per-list progress summary (e.g. "12/18 complete").
+    - Household/team-scoped, staff-only for now (future read-only for parents). Data model: TrackingList {name, type, column defs} + per-roster-member cell values.
   NOTE: this is a larger multi-phase effort; scope each tool separately when picked up. Likely household/team-scoped and gated by role (rep/mgr/coach/staff).
 
   DECISIONS (confirmed by user):
