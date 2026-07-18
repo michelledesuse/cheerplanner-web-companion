@@ -213,8 +213,7 @@ export default function ExpensesTab() {
               testID="enter-select-mode"
               accessibilityLabel="Select multiple"
             >
-              <Ionicons name="checkmark-done" size={16} color={colors.accent} />
-              <Text style={styles.selectBtnText}>Select</Text>
+              <Ionicons name="checkmark-done" size={18} color={colors.accent} />
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -559,7 +558,7 @@ const makeStyles = (c: ThemePalette) => ({
   headerTitle: { ...typography.h1, color: c.textPrimary },
   addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: c.accent, borderRadius: 999 },
   addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: c.accent },
+  selectBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
   selectBtnText: { color: c.accent, fontWeight: "700", fontSize: 13 },
   tabs: { flexDirection: "row", marginHorizontal: spacing.lg, backgroundColor: c.card, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: c.border },
   tab: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: "center" },

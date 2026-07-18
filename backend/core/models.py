@@ -775,3 +775,47 @@ class ForgotPasswordPayload(BaseModel):
 class ResetPasswordPayload(BaseModel):
     token: str
     new_password: str = Field(min_length=6)
+
+
+
+# ============================================================
+# Team Hub — Roster (Phase C)
+# ============================================================
+ROSTER_ROLES = ("athlete", "parent", "coach", "team_rep", "staff")
+
+
+class RosterMember(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # creator (household-scoped visibility)
+    name: str
+    role: Literal["athlete", "parent", "coach", "team_rep", "staff"] = "parent"
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    team_id: Optional[str] = None
+    notes: Optional[str] = None
+    source: Literal["manual", "athlete", "household"] = "manual"
+    linked_id: Optional[str] = None  # source athlete id / household user id
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class RosterMemberCreate(BaseModel):
+    name: str
+    role: Optional[Literal["athlete", "parent", "coach", "team_rep", "staff"]] = "parent"
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    team_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class RosterMemberUpdate(BaseModel):
+    name: Optional[str] = None
+    role: Optional[Literal["athlete", "parent", "coach", "team_rep", "staff"]] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    team_id: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class RosterImportPayload(BaseModel):
+    athlete_ids: List[str] = Field(default_factory=list)
+    member_user_ids: List[str] = Field(default_factory=list)

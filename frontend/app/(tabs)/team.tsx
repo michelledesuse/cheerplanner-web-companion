@@ -1,31 +1,34 @@
 import React from "react";
-import { View, Text, ScrollView } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import HomeButton from "@/src/components/HomeButton";
+import { useRouter } from "expo-router";
 
 type Tool = {
   key: string;
   title: string;
   desc: string;
   icon: keyof typeof Ionicons.glyphMap;
+  route?: string; // set = live; unset = coming soon
 };
 
 const TOOLS: Tool[] = [
-  { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline" },
+  { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
   { key: "gifts", title: "Gifts & Meals", desc: "Track who's paid the team rep for gifts, meals & shared items.", icon: "gift-outline" },
   { key: "waivers", title: "Waivers", desc: "Collect and track signed waivers for the team.", icon: "document-text-outline" },
 ];
 
 /**
  * Team Hub — a private workspace for coaches, team reps/managers & staff.
- * Phase B ships the tab + landing; the individual tools arrive in Phase C.
+ * Phase C: Roster is live; Gifts & Meals and Waivers arrive next.
  */
 export default function TeamScreen() {
   const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
@@ -45,20 +48,30 @@ export default function TeamScreen() {
         </View>
 
         {TOOLS.map((t) => (
-          <View key={t.key} style={styles.toolCard} testID={`team-tool-${t.key}`}>
+          <TouchableOpacity
+            key={t.key}
+            style={styles.toolCard}
+            testID={`team-tool-${t.key}`}
+            activeOpacity={t.route ? 0.7 : 1}
+            disabled={!t.route}
+            onPress={() => t.route && router.push(t.route as any)}
+          >
             <View style={styles.toolIcon}>
               <Ionicons name={t.icon} size={22} color={colors.accent} />
             </View>
             <View style={{ flex: 1 }}>
               <View style={styles.toolTitleRow}>
                 <Text style={styles.toolTitle}>{t.title}</Text>
-                <View style={styles.soonBadge}>
-                  <Text style={styles.soonText}>COMING SOON</Text>
-                </View>
+                {!t.route && (
+                  <View style={styles.soonBadge}>
+                    <Text style={styles.soonText}>COMING SOON</Text>
+                  </View>
+                )}
               </View>
               <Text style={styles.toolDesc}>{t.desc}</Text>
             </View>
-          </View>
+            {t.route && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+          </TouchableOpacity>
         ))}
       </ScrollView>
     </SafeAreaView>
