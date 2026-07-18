@@ -30,13 +30,6 @@ export default function TabsLayout() {
       }}
     >
       <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="athletes"
         options={{
           title: "Athletes",
@@ -71,6 +64,14 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="team"
+        options={{
+          title: "Team",
+          tabBarIcon: ({ color, size }) => <Ionicons name="ribbon" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="reminders" options={{ href: null }} />
       <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>

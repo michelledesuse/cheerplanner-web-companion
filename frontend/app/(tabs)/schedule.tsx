@@ -15,6 +15,7 @@ import MapLink from "@/src/components/MapLink";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import FilterChipRow, { type FilterOption } from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
+import HomeButton from "@/src/components/HomeButton";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -168,6 +169,7 @@ export default function ScheduleTab() {
           <>
             <Text style={styles.headerTitle}>Schedule</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <HomeButton />
               {events.length > 0 && (
                 <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="sched-enter-select">
                   <Ionicons name="checkmark-done" size={16} color={colors.accent} />

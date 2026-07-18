@@ -10,13 +10,14 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
 import TeamAvatar from "@/src/components/TeamAvatar";
+import { ROLES, type AthleteRole } from "@/src/utils/roles";
 
 const DEFAULT_COLOR = "#0EA5E9";
 
 type Athlete = {
   id: string;
   name: string;
-  role?: "athlete" | "coach";
+  role?: AthleteRole;
   team?: string;
   gym?: string;
   avatar_color?: string;
@@ -34,7 +35,7 @@ export default function AthleteForm() {
   const isEdit = !!editingId;
 
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"athlete" | "coach">("athlete");
+  const [role, setRole] = useState<AthleteRole>("athlete");
   const [team, setTeam] = useState("");
   const [gym, setGym] = useState("");
   const [color, setColor] = useState(DEFAULT_COLOR);
@@ -197,20 +198,20 @@ export default function AthleteForm() {
 
           <Text style={styles.label}>Role</Text>
           <View style={styles.roleRow}>
-            {(["athlete", "coach"] as const).map((r) => (
+            {ROLES.map((r) => (
               <TouchableOpacity
-                key={r}
-                onPress={() => setRole(r)}
-                style={[styles.roleChip, role === r && styles.roleChipOn]}
-                testID={`role-${r}`}
+                key={r.value}
+                onPress={() => setRole(r.value)}
+                style={[styles.roleChip, role === r.value && styles.roleChipOn]}
+                testID={`role-${r.value}`}
               >
                 <Ionicons
-                  name={r === "athlete" ? "barbell-outline" : "megaphone-outline"}
+                  name={r.icon}
                   size={14}
-                  color={role === r ? "white" : colors.textSecondary}
+                  color={role === r.value ? "white" : colors.textSecondary}
                 />
-                <Text style={[styles.roleChipText, role === r && styles.roleChipTextOn]}>
-                  {r === "athlete" ? "Athlete" : "Coach"}
+                <Text style={[styles.roleChipText, role === r.value && styles.roleChipTextOn]}>
+                  {r.label}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -292,8 +293,8 @@ const makeStyles = () => ({
   colorDotActive: { borderColor: colors.textPrimary },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
-  roleRow: { flexDirection: "row", gap: 8 },
-  roleChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  roleChip: { flexBasis: "48%", flexGrow: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, paddingHorizontal: 6, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   roleChipOn: { backgroundColor: colors.primary, borderColor: colors.primary },
   roleChipText: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700", fontSize: 14 },
   roleChipTextOn: { color: "white" },

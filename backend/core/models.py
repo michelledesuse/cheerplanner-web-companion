@@ -141,7 +141,7 @@ class Athlete(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
-    role: Literal["athlete", "coach"] = "athlete"
+    role: Literal["athlete", "coach", "team_rep", "staff"] = "athlete"
     team: Optional[str] = None  # legacy single-team text field (kept for backwards-compat)
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
@@ -153,7 +153,7 @@ class Athlete(BaseModel):
 
 class AthleteCreate(BaseModel):
     name: str
-    role: Optional[Literal["athlete", "coach"]] = "athlete"
+    role: Optional[Literal["athlete", "coach", "team_rep", "staff"]] = "athlete"
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = "#E11D48"
@@ -164,7 +164,7 @@ class AthleteCreate(BaseModel):
 
 class AthleteUpdate(BaseModel):
     name: Optional[str] = None
-    role: Optional[Literal["athlete", "coach"]] = None
+    role: Optional[Literal["athlete", "coach", "team_rep", "staff"]] = None
     team: Optional[str] = None
     gym: Optional[str] = None
     avatar_color: Optional[str] = None

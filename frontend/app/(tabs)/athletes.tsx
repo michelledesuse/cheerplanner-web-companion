@@ -17,12 +17,14 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency } from "@/src/utils/format";
 import TeamAvatar from "@/src/components/TeamAvatar";
+import { roleMeta, roleShort, type AthleteRole } from "@/src/utils/roles";
+import HomeButton from "@/src/components/HomeButton";
 
 type Team = { id: string; name: string; color?: string | null; logo_image?: string | null };
 type Athlete = {
   id: string;
   name: string;
-  role?: "athlete" | "coach";
+  role?: AthleteRole;
   team?: string | null;
   gym?: string | null;
   team_ids?: string[] | null;
@@ -68,13 +70,16 @@ export default function AthletesScreen() {
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <Text style={styles.title}>Athletes</Text>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => router.push("/athletes/new")}
-          testID="add-athlete-btn"
-        >
-          <Ionicons name="add" size={20} color="white" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <HomeButton />
+          <TouchableOpacity
+            style={styles.addBtn}
+            onPress={() => router.push("/athletes/new")}
+            testID="add-athlete-btn"
+          >
+            <Ionicons name="add" size={20} color="white" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading ? (
@@ -129,16 +134,16 @@ export default function AthletesScreen() {
                 <View style={{ flex: 1, marginLeft: spacing.md }}>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                     <Text style={styles.name}>{a.name}</Text>
-                    {a.role === "coach" && (
+                    {a.role && a.role !== "athlete" && (
                       <View style={styles.coachBadge}>
-                        <Ionicons name="megaphone-outline" size={10} color={colors.accent} />
-                        <Text style={styles.coachBadgeText}>COACH</Text>
+                        <Ionicons name={roleMeta(a.role).icon} size={10} color={colors.accent} />
+                        <Text style={styles.coachBadgeText}>{roleShort(a.role).toUpperCase()}</Text>
                       </View>
                     )}
                   </View>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
                     {athleteTeam ? <TeamAvatar logoImage={athleteTeam.logo_image} color={athleteTeam.color} size={16} /> : null}
-                    <Text style={styles.meta}>{athleteTeam?.name || a.team || a.gym || (a.role === "coach" ? "Coach" : "Cheer athlete")}</Text>
+                    <Text style={styles.meta}>{athleteTeam?.name || a.team || a.gym || (a.role && a.role !== "athlete" ? roleMeta(a.role).label : "Cheer athlete")}</Text>
                   </View>
                   <View style={styles.statsRow}>
                     <Text style={styles.stat}>Season Total <Text style={styles.statValue}>{formatCurrency(t.spent)}</Text></Text>

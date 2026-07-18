@@ -14,6 +14,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { formatCurrency, formatDateLong, todayISO } from "@/src/utils/format";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import DateJumpDropdown from "@/src/components/DateJumpDropdown";
+import HomeButton from "@/src/components/HomeButton";
 
 type CalEvent = {
   id: string;
@@ -185,6 +186,7 @@ export default function CalendarTab() {
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Calendar</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <HomeButton />
           {selected !== todayISO() && (
             <TouchableOpacity onPress={() => applyJump(todayISO())} style={styles.todayBtn} testID="cal-today">
               <Ionicons name="today-outline" size={14} color={colors.accent} />
@@ -197,13 +199,15 @@ export default function CalendarTab() {
           <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addBtn} testID="cal-add" accessibilityLabel="Add to calendar">
             <Ionicons name="add" size={22} color="white" />
           </TouchableOpacity>
-          <View style={styles.viewToggle}>
-            {(["month", "week", "day"] as const).map((v) => (
-              <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`calview-${v}`}>
-                <Text style={[styles.viewChipText, view === v && styles.viewChipTextOn]}>{v[0].toUpperCase() + v.slice(1)}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        </View>
+      </View>
+      <View style={styles.viewToggleRow}>
+        <View style={styles.viewToggle}>
+          {(["month", "week", "day"] as const).map((v) => (
+            <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`calview-${v}`}>
+              <Text style={[styles.viewChipText, view === v && styles.viewChipTextOn]}>{v[0].toUpperCase() + v.slice(1)}</Text>
+            </TouchableOpacity>
+          ))}
         </View>
       </View>
 
@@ -324,6 +328,7 @@ const makeStyles = (c: ThemePalette) => ({
   headerBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   headerTitle: { ...typography.h1, color: c.textPrimary },
   viewToggle: { flexDirection: "row", backgroundColor: c.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: c.border },
+  viewToggleRow: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   jumpBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },

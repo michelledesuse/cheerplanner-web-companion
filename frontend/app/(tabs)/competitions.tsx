@@ -20,6 +20,7 @@ import { formatDateLong, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
+import HomeButton from "@/src/components/HomeButton";
 
 type Competition = {
   id: string;
@@ -153,6 +154,7 @@ export default function CompetitionsScreen() {
           <View style={styles.headerStack}>
             <Text style={styles.title}>Competitions</Text>
             <View style={styles.headerActions}>
+              <HomeButton />
               {items.length > 0 && (
                 <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="comp-enter-select">
                   <Ionicons name="checkmark-done" size={16} color={colors.accent} />

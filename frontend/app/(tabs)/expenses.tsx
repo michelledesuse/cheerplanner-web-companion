@@ -15,6 +15,7 @@ import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
+import HomeButton from "@/src/components/HomeButton";
 
 type Athlete = { id: string; name: string; avatar_color?: string; team_ids?: string[] };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -204,6 +205,7 @@ export default function ExpensesTab() {
       <View style={styles.headerBar}>
         <Text style={styles.headerTitle}>Money</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <HomeButton />
           {!selectMode && visibleIds.length > 0 && (
             <TouchableOpacity
               onPress={enterSelectMode}
