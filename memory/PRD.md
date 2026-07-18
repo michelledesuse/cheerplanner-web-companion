@@ -84,14 +84,10 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 
 
 ## Backlog — Roles & Team Hub (user request, future)
-- R1: **Add roles "Team Rep/Mgr" and "Staff"** to the account/athlete type selector — currently only "Athlete" or "Coach". So options become: Athlete, Coach, Team Rep/Mgr, Staff. (Check where account "type" is chosen — signup/onboarding and/or profile — and where it drives UI. May unlock the Team Hub features below for reps/mgrs/coaches.)
-- R2: **Move "Home" from bottom tab bar to a top-of-screen button**, replacing the current user-initial avatar in the header. (The header initial becomes/links to Home; remove Home from the bottom tabs.)
-- R3: **Add a "Team" button to the bottom tab bar** (freed up by moving Home to the top).
-- R4: **Team Hub — resources for team moms / managers / reps & coaches.** A dedicated area with tools such as:
-    - Roster (team members + contacts)
-    - Team tracking for gifts & meals — track who has PAID the team mom/rep for team gifts, meals, and other shared items (per-person paid/owed ledger, totals, mark-paid).
-    - Waivers (collect/track signed waivers)
-    - (extensible — more team-management tools over time)
+- R1: [DONE — iteration_53] Added roles **Team Rep/Mgr** + **Staff** to the per-athlete role selector (now Athlete/Coach/Team Rep/Mgr/Staff). Backend `Athlete.role` Literal extended + validated (422 on invalid). Shared `src/utils/roles.ts` (labels/icons/STAFF_ROLES). Role badges show in the athletes list.
+- R2: [DONE — iteration_53] **Home moved off the bottom tab bar** → a header **Home button** (`HomeButton`, testID `home-btn`) on every tab screen; routes to dashboard. Dashboard route kept (href:null) and remains the login/signup landing.
+- R3: [DONE — iteration_53] **Team tab added** to the bottom bar (Athletes/Expenses/Comps/Schedule/Calendar/Team).
+- R4: [TODO — Phase C] **Team Hub tools.** Landing shipped (`app/(tabs)/team.tsx`) with Roster / Gifts & Meals / Waivers as "coming soon" cards. Build tool-by-tool starting with Roster. Team = separate group (not household); staff-only now (parents read-only future); gifts/meals = tracking-only.
   NOTE: this is a larger multi-phase effort; scope each tool separately when picked up. Likely household/team-scoped and gated by role (rep/mgr/coach/staff).
 
   DECISIONS (confirmed by user):
