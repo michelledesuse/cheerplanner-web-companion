@@ -19,17 +19,47 @@ router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access
 def _summary(tracker: dict, roster_total: int) -> dict:
     entries = tracker.get("entries") or []
     paid_entries = [e for e in entries if e.get("paid")]
+    expected = tracker.get("amount")
     collected = 0.0
     for e in paid_entries:
         amt = e.get("amount_paid")
         if amt is None:
-            amt = tracker.get("amount") or 0
+            amt = expected or 0
         collected += float(amt or 0)
-    return {
+
+    unpaid_count = max(0, roster_total - len(paid_entries))
+    summary = {
         "paid_count": len(paid_entries),
         "member_total": roster_total,
         "collected": round(collected, 2),
+        "expected_per_person": expected,
+        "unpaid_count": unpaid_count,
     }
+
+    if expected is not None:
+        exp = float(expected or 0)
+        # Per-person shortfall: recorded people who paid less than expected,
+        # plus everyone not yet recorded (they owe the full expected amount).
+        covered = 0
+        entry_shortfall = 0.0
+        for e in paid_entries:
+            amt = e.get("amount_paid")
+            paid_amt = float(amt if amt is not None else exp)
+            if paid_amt >= exp:
+                covered += 1
+            else:
+                entry_shortfall += (exp - paid_amt)
+        outstanding = entry_shortfall + exp * unpaid_count
+        summary["short_count"] = max(0, roster_total - covered)
+        summary["outstanding"] = round(outstanding, 2)
+        summary["expected_total"] = round(exp * roster_total, 2)
+    else:
+        # No expected amount set — "owing" just means not yet marked paid.
+        summary["short_count"] = unpaid_count
+        summary["outstanding"] = None
+        summary["expected_total"] = None
+
+    return summary
 
 
 async def _roster_total(member_ids: List[str]) -> int:

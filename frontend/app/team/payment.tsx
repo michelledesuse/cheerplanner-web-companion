@@ -9,11 +9,11 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
-import { filterAndSplit } from "@/src/utils/rosterGroups";
+import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; summary: { paid_count: number; member_total: number; collected: number } };
-type Member = { id: string; name: string; role: string };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Member = GridMember & { role: string };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
 
@@ -121,14 +121,18 @@ export default function PaymentDetail() {
     return <SafeAreaView style={styles.safe}><View style={styles.center}><ActivityIndicator color={colors.accent} /></View></SafeAreaView>;
   }
 
-  const { paid_count, member_total, collected } = tracker.summary;
+  const { paid_count, member_total, collected, outstanding, short_count } = tracker.summary;
   const pct = member_total > 0 ? Math.round((paid_count / member_total) * 100) : 0;
   const alreadyPaid = mMember ? !!entryFor(mMember.id)?.paid : false;
   const groups = filterAndSplit(roster, null);
+  const expected = tracker.amount;
 
   const renderRow = (m: Member) => {
     const e = entryFor(m.id);
     const paid = !!e?.paid;
+    const paidAmt = paid ? (e?.amount_paid != null ? e.amount_paid : (expected ?? 0)) : 0;
+    const owed = expected != null ? Math.max(0, expected - paidAmt) : 0;
+    const isShort = owed > 0;
     return (
       <TouchableOpacity key={m.id} style={styles.memberRow} onPress={() => openMember(m)} testID={`payment-member-${m.id}`}>
         <View style={[styles.check, paid && styles.checkOn]}>
@@ -144,7 +148,11 @@ export default function PaymentDetail() {
             </Text>
           )}
         </View>
-        <Text style={[styles.statusText, { color: paid ? colors.successText : colors.textTertiary }]}>{paid ? "Paid" : "Record"}</Text>
+        {isShort ? (
+          <Text style={styles.oweTag}>owes {formatCurrency(owed)}</Text>
+        ) : (
+          <Text style={[styles.statusText, { color: paid ? colors.successText : colors.textTertiary }]}>{paid ? "Paid" : "Record"}</Text>
+        )}
       </TouchableOpacity>
     );
   };
@@ -169,6 +177,14 @@ export default function PaymentDetail() {
             <Text style={styles.summaryMeta}>{paid_count}/{member_total} paid</Text>
             <Text style={styles.summaryMeta}>{formatCurrency(collected)} collected</Text>
           </View>
+          {short_count > 0 && (
+            <View style={styles.oweBanner} testID="payment-owe-banner">
+              <Ionicons name="alert-circle" size={15} color={colors.warningText} />
+              <Text style={styles.oweBannerText}>
+                {short_count} {short_count === 1 ? "person owes" : "people owe"}{outstanding != null ? ` · ${formatCurrency(outstanding)} outstanding` : ""}
+              </Text>
+            </View>
+          )}
         </View>
 
         {roster.length === 0 ? (
@@ -266,6 +282,9 @@ const makeStyles = (c: ThemePalette) => ({
   summaryAmount: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, marginBottom: 8 },
   summaryMeta: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
   groupHeader: { ...typography.micro, color: c.textSecondary, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", marginTop: spacing.md, marginBottom: 4 },
+  oweBanner: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, backgroundColor: (c.warningText || c.accent) + "1A", borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8 },
+  oweBannerText: { ...typography.caption, color: c.warningText || c.accent, fontWeight: "800" },
+  oweTag: { ...typography.caption, color: c.warningText || c.accent, fontWeight: "800" },
   progressTrack: { height: 10, borderRadius: 999, backgroundColor: c.divider, overflow: "hidden" },
   progressFill: { height: 10, borderRadius: 999, backgroundColor: c.accent },
   memberRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },

@@ -11,7 +11,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 
 type Tracker = {
   id: string; name: string; amount?: number | null; note?: string | null;
-  summary: { paid_count: number; member_total: number; collected: number };
+  summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number };
 };
 
 export default function PaymentsScreen() {
@@ -73,7 +73,7 @@ export default function PaymentsScreen() {
               <Text style={styles.emptyText}>Create one for team bonding, gifts, meals or dues — then check off who&apos;s paid.</Text>
             </View>
           ) : items.map((t) => {
-            const { paid_count, member_total, collected } = t.summary;
+            const { paid_count, member_total, collected, outstanding, short_count } = t.summary;
             const pct = member_total > 0 ? Math.round((paid_count / member_total) * 100) : 0;
             return (
               <TouchableOpacity key={t.id} style={styles.card} onPress={() => router.push({ pathname: "/team/payment", params: { id: t.id } })} testID={`payment-row-${t.id}`}>
@@ -86,6 +86,14 @@ export default function PaymentsScreen() {
                   <Text style={styles.cardMeta}>{paid_count}/{member_total} paid</Text>
                   <Text style={styles.cardMeta}>{formatCurrency(collected)} collected</Text>
                 </View>
+                {short_count > 0 && (
+                  <View style={styles.owePill} testID={`payment-owe-${t.id}`}>
+                    <Ionicons name="alert-circle" size={13} color={colors.warningText} />
+                    <Text style={styles.oweText}>
+                      {short_count} {short_count === 1 ? "owes" : "owe"}{outstanding != null ? ` · ${formatCurrency(outstanding)} short` : ""}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -121,6 +129,8 @@ const makeStyles = (c: ThemePalette) => ({
   cardName: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, flex: 1 },
   cardAmount: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
   cardMeta: { ...typography.caption, color: c.textSecondary },
+  owePill: { flexDirection: "row", alignItems: "center", gap: 5, alignSelf: "flex-start", marginTop: 10, backgroundColor: (c.warningText || c.accent) + "1A", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  oweText: { ...typography.micro, color: c.warningText || c.accent, fontWeight: "800" },
   progressTrack: { height: 8, borderRadius: 999, backgroundColor: c.divider, marginTop: 10, overflow: "hidden" },
   progressFill: { height: 8, borderRadius: 999, backgroundColor: c.accent },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },

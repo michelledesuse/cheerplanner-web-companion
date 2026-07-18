@@ -1,0 +1,31 @@
+{
+  "summary": "Iter59 Team Payment Tracking 'owes/short' indicator verified — backend 9/9 pytest passed, frontend flows all green on mobile viewport 390x844. Backend: GET /api/team/payments and /api/team/payments/{id} summary now correctly include outstanding, short_count, unpaid_count, expected_total, expected_per_person alongside existing paid_count/member_total/collected. Owes math validated against the exact review script — expected=50 tracker with 3 roster members, member#0 paid $50 → not short; member#1 paid partial $20 → short with $30 outstanding on that entry; member#2 unrecorded → adds full $50 to outstanding and short_count. Verified short_count = roster_total - covered (never negative even when someone overpays $200), outstanding = per-entry shortfalls + expected*unrecorded. Null-expected tracker: outstanding=None, short_count==unpaid_count. PUT /api/team/payments/{id}/member/{member_id} recomputes correctly on both mark-paid and mark-unpaid. Regression: GET /api/payments (money hub) still 200; team payment record round-trip (amount/method/date/note) persists and reappears in detail GET. Frontend: /team/payments list card shows amber pill '1 owes · $50.00 short' (testID payment-owe-{id}); /team/payment detail shows amber banner '1 person owes · $50.00 outstanding' (testID payment-owe-banner) and each short member row shows 'owes $50.00' tag instead of Paid/Record. After recording a partial $20 payment on that member via the modal (Cash method), the banner recomputes to '1 person owes · $30.00 outstanding' and the row tag becomes 'owes $30.00' with '1/1 paid · $20.00 collected' in the header — recompute path is live.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter59_team_payments_owes.py",
+    "/app/test_reports/pytest/pytest_iter59_owes.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routers/team_payments.py _summary() (lines 19-62) correctly gates the outstanding/expected_total on `expected is not None` and always returns short_count/unpaid_count. Uses max(0, ...) so short_count never negative when someone overpays. Good.",
+    "routers/team_payments.py _roster_total() (line 66) excludes role=='parent' as spec requires — matches frontend which also filters parents in payment.tsx line 47.",
+    "frontend/app/team/payments.tsx computes pill only when short_count>0 and gracefully omits the '· $X short' segment when outstanding is null (no-expected trackers), matching backend contract.",
+    "frontend/app/team/payment.tsx renderRow computes `owed = max(0, expected - paidAmt)` client-side so partial payments render the exact per-row owed amount without a round-trip. Consistent with backend entry_shortfall math."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter59_team_payments_owes.py (new)",
+    "/app/test_reports/pytest/pytest_iter59_owes.xml (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (list pill + detail banner + row owe tag + recompute-on-partial-record + cleanup)"},
+  "seed_data_creation": "The backend test fixture auto-seeded up to 2 TEST_iter59_athlete_N roster members when the household had fewer than 3 non-parent members; all seeded athletes are deleted in fixture teardown. UI test also created and deleted 'UI_TEST_owes_50' tracker. Verified clean via /api/roster and /api/team/payments after the run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Base URL is EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env (dotenv_values). Auth: applereview@cheerplanner.app / Review2026! has team_access=true. Team payment tracker summary schema: {paid_count:int, member_total:int, collected:float, expected_per_person:float|null, unpaid_count:int, short_count:int, outstanding:float|null, expected_total:float|null}. Roster/team_payments only count non-parent members. TestIDs used: payment-add, payment-name-input, payment-amount-input, payment-create-btn, payment-owe-{trackerId} (list pill), payment-owe-banner (detail banner), payment-member-{memberId} (row), payment-member-amount, payment-method-{Cash|Venmo|...}, payment-member-save, payment-member-unpaid, payment-delete. The 'owes $X' tag is rendered inline via Text (no dedicated testID) but selectable via /^owes \\$/ regex.",
+  "rca_of_issue": "Not a bug fix — new feature verification. No issues found in the summary math, API surface, or UI wiring. Behaviors match the spec across all 6 review scenarios."
+}
