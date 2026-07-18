@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -9,11 +9,11 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
-import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
+import { filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
 type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
-type Member = GridMember & { role: string };
+type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
 
@@ -127,11 +127,41 @@ export default function PaymentDetail() {
   const groups = filterAndSplit(roster, null);
   const expected = tracker.amount;
 
-  const renderRow = (m: Member) => {
+  const owedFor = (m: Member) => {
     const e = entryFor(m.id);
     const paid = !!e?.paid;
     const paidAmt = paid ? (e?.amount_paid != null ? e.amount_paid : (expected ?? 0)) : 0;
-    const owed = expected != null ? Math.max(0, expected - paidAmt) : 0;
+    return expected != null ? Math.max(0, expected - paidAmt) : (paid ? 0 : -1); // -1 = owing but no $ target
+  };
+  const phoneFor = (m: Member) => (isPersonnel(m.role) ? (m.phone || m.parent_phone) : (m.parent_phone || m.phone)) || "";
+
+  const nudgeOwing = async () => {
+    const owing = (groups.all as Member[]).filter((m) => owedFor(m) !== 0);
+    const phones = Array.from(new Set(owing.map(phoneFor).filter(Boolean)));
+    if (owing.length === 0) { Alert.alert("All caught up", "Everyone has paid in full."); return; }
+    if (phones.length === 0) {
+      Alert.alert("No phone numbers", "None of the people who still owe have a phone number saved on the roster. Add one on their roster entry to text them.");
+      return;
+    }
+    const amountPart = expected != null ? ` (${formatCurrency(expected)} per person)` : "";
+    const body = `Hi! Friendly reminder about "${tracker.name}"${amountPart}. Our records show a balance is still outstanding — please submit your payment when you can. Thank you!`;
+    const sep = Platform.OS === "ios" ? "&" : "?";
+    const url = `sms:${phones.join(",")}${sep}body=${encodeURIComponent(body)}`;
+    try {
+      const ok = await Linking.canOpenURL(url);
+      if (!ok) throw new Error("unsupported");
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Can't open Messages", "Texting isn't available on this device. On your phone, this opens a pre-filled message to everyone who owes.");
+    }
+  };
+
+  const owingCount = (groups.all as Member[]).filter((m) => owedFor(m) !== 0).length;
+
+  const renderRow = (m: Member) => {
+    const e = entryFor(m.id);
+    const paid = !!e?.paid;
+    const owed = owedFor(m);
     const isShort = owed > 0;
     return (
       <TouchableOpacity key={m.id} style={styles.memberRow} onPress={() => openMember(m)} testID={`payment-member-${m.id}`}>
@@ -184,6 +214,12 @@ export default function PaymentDetail() {
                 {short_count} {short_count === 1 ? "person owes" : "people owe"}{outstanding != null ? ` · ${formatCurrency(outstanding)} outstanding` : ""}
               </Text>
             </View>
+          )}
+          {owingCount > 0 && (
+            <TouchableOpacity style={styles.nudgeBtn} onPress={nudgeOwing} testID="payment-nudge">
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color="white" />
+              <Text style={styles.nudgeText}>Text who owes ({owingCount})</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -285,6 +321,8 @@ const makeStyles = (c: ThemePalette) => ({
   oweBanner: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 12, backgroundColor: (c.warningText || c.accent) + "1A", borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8 },
   oweBannerText: { ...typography.caption, color: c.warningText || c.accent, fontWeight: "800" },
   oweTag: { ...typography.caption, color: c.warningText || c.accent, fontWeight: "800" },
+  nudgeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12 },
+  nudgeText: { color: "white", fontWeight: "800", fontSize: 14 },
   progressTrack: { height: 10, borderRadius: 999, backgroundColor: c.divider, overflow: "hidden" },
   progressFill: { height: 10, borderRadius: 999, backgroundColor: c.accent },
   memberRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },
