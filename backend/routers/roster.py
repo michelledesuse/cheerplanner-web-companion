@@ -28,9 +28,16 @@ def _split_name(full: str) -> tuple:
 async def list_roster(team_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     query: dict = {"user_id": {"$in": member_ids}}
-    if team_id:
-        query["team_id"] = None if team_id == "none" else team_id
     docs = await db.roster.find(query, {"_id": 0}).to_list(1000)
+    # Migrate legacy single team_id -> team_ids list for older documents.
+    for d in docs:
+        if not d.get("team_ids"):
+            d["team_ids"] = [d["team_id"]] if d.get("team_id") else []
+    if team_id:
+        if team_id == "none":
+            docs = [d for d in docs if not d.get("team_ids")]
+        else:
+            docs = [d for d in docs if team_id in (d.get("team_ids") or [])]
     docs.sort(key=lambda d: ((d.get("last_name") or d.get("name") or "").lower(), (d.get("first_name") or "").lower()))
     return [RosterMember(**d) for d in docs]
 
@@ -136,7 +143,7 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
             m = RosterMember(
                 user_id=current_user["id"], name=a.get("name") or "Athlete", role=role,
                 first_name=fn, last_name=ln,
-                team_id=team_ids[0] if team_ids else None, source="athlete", linked_id=a["id"],
+                team_ids=team_ids, source="athlete", linked_id=a["id"],
             )
             created.append(m)
 

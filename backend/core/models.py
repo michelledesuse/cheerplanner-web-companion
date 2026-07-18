@@ -797,7 +797,7 @@ class RosterMember(BaseModel):
     parent_last_name: Optional[str] = None
     parent_phone: Optional[str] = None
     parent_email: Optional[str] = None
-    team_id: Optional[str] = None
+    team_ids: List[str] = Field(default_factory=list)  # a person can be on multiple teams
     notes: Optional[str] = None
     source: Literal["manual", "athlete", "household"] = "manual"
     linked_id: Optional[str] = None  # source athlete id / household user id
@@ -815,7 +815,7 @@ class RosterMemberCreate(BaseModel):
     parent_last_name: Optional[str] = None
     parent_phone: Optional[str] = None
     parent_email: Optional[str] = None
-    team_id: Optional[str] = None
+    team_ids: Optional[List[str]] = None
     notes: Optional[str] = None
 
 
@@ -830,7 +830,7 @@ class RosterMemberUpdate(BaseModel):
     parent_last_name: Optional[str] = None
     parent_phone: Optional[str] = None
     parent_email: Optional[str] = None
-    team_id: Optional[str] = None
+    team_ids: Optional[List[str]] = None
     notes: Optional[str] = None
 
 

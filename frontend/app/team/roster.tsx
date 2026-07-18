@@ -14,13 +14,21 @@ type RosterMember = {
   phone?: string | null; email?: string | null;
   parent_first_name?: string | null; parent_last_name?: string | null;
   parent_phone?: string | null; parent_email?: string | null;
-  team_id?: string | null; notes?: string | null; source?: string; linked_id?: string | null;
+  team_ids?: string[] | null; notes?: string | null; source?: string; linked_id?: string | null;
 };
 type Candidate = { id: string; name: string; role?: string; email?: string | null; team_id?: string | null };
 
 const ROLE_LABEL: Record<string, string> = {
   athlete: "Athlete", parent: "Parent", coach: "Coach", team_rep: "Team Rep", staff: "Staff",
 };
+
+// Grouping: 1) Coaches, 2) Staff & Reps, 3) Athletes. Parents are not listed.
+const ROLE_GROUP: Record<string, number> = { coach: 1, staff: 2, team_rep: 2, athlete: 3 };
+const GROUP_TITLES: { g: number; title: string }[] = [
+  { g: 1, title: "Coaches" },
+  { g: 2, title: "Staff & Reps" },
+  { g: 3, title: "Athletes" },
+];
 
 export default function RosterScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -48,10 +56,37 @@ export default function RosterScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const visible = members.filter((m) =>
-    teamFilter === null ? true : teamFilter === "none" ? !m.team_id : m.team_id === teamFilter
-  );
   const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name;
+
+  // Exclude parents, expand each person once per team, then filter by the
+  // selected team chip. "All teams" shows a person once per team they're on.
+  type Row = { member: RosterMember; teamId: string | null };
+  const expanded: Row[] = [];
+  members
+    .filter((m) => m.role !== "parent")
+    .forEach((m) => {
+      const tids = m.team_ids && m.team_ids.length ? m.team_ids : [null];
+      tids.forEach((tid) => {
+        if (teamFilter === null) expanded.push({ member: m, teamId: tid });
+        else if (teamFilter === "none") { if (tid === null) expanded.push({ member: m, teamId: null }); }
+        else if (tid === teamFilter) expanded.push({ member: m, teamId: tid });
+      });
+    });
+
+  const sortRows = (rows: Row[]) =>
+    rows.sort((a, b) => {
+      const al = (a.member.last_name || a.member.name || "").toLowerCase();
+      const bl = (b.member.last_name || b.member.name || "").toLowerCase();
+      if (al !== bl) return al.localeCompare(bl);
+      return (a.member.first_name || "").toLowerCase().localeCompare((b.member.first_name || "").toLowerCase());
+    });
+
+  const sections = GROUP_TITLES.map(({ g, title }) => ({
+    title,
+    rows: sortRows(expanded.filter((r) => (ROLE_GROUP[r.member.role] || 3) === g)),
+  })).filter((s) => s.rows.length > 0);
+
+  const totalVisible = expanded.length;
 
   const openImport = async () => {
     setPicked({ ath: new Set(), mem: new Set() });
@@ -85,7 +120,6 @@ export default function RosterScreen() {
     } finally { setImporting(false); }
   };
 
-  const candCount = cands.athletes.length + cands.members.length;
   const pickedCount = picked.ath.size + picked.mem.size;
 
   return (
@@ -126,42 +160,47 @@ export default function RosterScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
           testID="roster-list"
         >
-          {visible.length === 0 ? (
+          {totalVisible === 0 ? (
             <View style={styles.emptyBlock}>
               <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
-              <Text style={styles.emptyTitle}>{members.length === 0 ? "No one on the roster yet" : "No one on this team yet"}</Text>
-              <Text style={styles.emptyText}>Add people manually, or pull in your athletes &amp; household members.</Text>
+              <Text style={styles.emptyTitle}>{members.filter((m) => m.role !== "parent").length === 0 ? "No one on the roster yet" : "No one on this team yet"}</Text>
+              <Text style={styles.emptyText}>Add coaches, staff &amp; athletes manually, or pull in your athletes.</Text>
             </View>
-          ) : visible.map((m) => (
-            <TouchableOpacity key={m.id} style={styles.card} onPress={() => router.push({ pathname: "/team/roster-new", params: { id: m.id } })} testID={`roster-row-${m.id}`}>
-              <View style={styles.avatar}><Text style={styles.avatarText}>{(m.name || "?")[0]?.toUpperCase()}</Text></View>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <Text style={styles.name}>{m.name}</Text>
-                  <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{(ROLE_LABEL[m.role] || m.role).toUpperCase()}</Text></View>
-                  {!!teamName(m.team_id) && <Text style={styles.teamTag}>{teamName(m.team_id)}</Text>}
-                </View>
-                {(m.parent_first_name || m.parent_last_name) ? (
-                  <Text style={styles.parentLine}>Parent: {`${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim()}</Text>
-                ) : null}
-                <View style={styles.contactRow}>
-                  {(() => { const ph = m.parent_phone || m.phone; return !!ph && (
-                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
-                      <Ionicons name="call-outline" size={12} color={colors.accent} />
-                      <Text style={styles.contactText}>{ph}</Text>
-                    </TouchableOpacity>
-                  ); })()}
-                  {(() => { const em = m.parent_email || m.email; return !!em && (
-                    <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
-                      <Ionicons name="mail-outline" size={12} color={colors.accent} />
-                      <Text style={styles.contactText} numberOfLines={1}>{em}</Text>
-                    </TouchableOpacity>
-                  ); })()}
-                  {!(m.parent_phone || m.phone) && !(m.parent_email || m.email) && <Text style={styles.noContact}>No contact info</Text>}
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-            </TouchableOpacity>
+          ) : sections.map((section) => (
+            <View key={section.title}>
+              <Text style={styles.sectionHeader}>{section.title}</Text>
+              {section.rows.map(({ member: m, teamId }) => (
+                <TouchableOpacity key={`${m.id}-${teamId ?? "none"}`} style={styles.card} onPress={() => router.push({ pathname: "/team/roster-new", params: { id: m.id } })} testID={`roster-row-${m.id}`}>
+                  <View style={styles.avatar}><Text style={styles.avatarText}>{(m.name || "?")[0]?.toUpperCase()}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <Text style={styles.name}>{m.name}</Text>
+                      <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{(ROLE_LABEL[m.role] || m.role).toUpperCase()}</Text></View>
+                      {!!teamName(teamId) && <Text style={styles.teamTag}>{teamName(teamId)}</Text>}
+                    </View>
+                    {(m.parent_first_name || m.parent_last_name) ? (
+                      <Text style={styles.parentLine}>Parent: {`${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim()}</Text>
+                    ) : null}
+                    <View style={styles.contactRow}>
+                      {(() => { const ph = m.parent_phone || m.phone; return !!ph && (
+                        <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
+                          <Ionicons name="call-outline" size={12} color={colors.accent} />
+                          <Text style={styles.contactText}>{ph}</Text>
+                        </TouchableOpacity>
+                      ); })()}
+                      {(() => { const em = m.parent_email || m.email; return !!em && (
+                        <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
+                          <Ionicons name="mail-outline" size={12} color={colors.accent} />
+                          <Text style={styles.contactText} numberOfLines={1}>{em}</Text>
+                        </TouchableOpacity>
+                      ); })()}
+                      {!(m.parent_phone || m.phone) && !(m.parent_email || m.email) && <Text style={styles.noContact}>No contact info</Text>}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+              ))}
+            </View>
           ))}
         </ScrollView>
       )}
@@ -171,24 +210,15 @@ export default function RosterScreen() {
           <Pressable style={styles.sheet} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Add from my household</Text>
             <ScrollView style={{ maxHeight: 380 }} contentContainerStyle={{ paddingBottom: spacing.md }}>
-              {candCount === 0 ? (
-                <Text style={styles.noContact}>Everyone is already on the roster.</Text>
+              {cands.athletes.length === 0 ? (
+                <Text style={styles.noContact}>All your athletes are already on the roster.</Text>
               ) : (
                 <>
-                  {cands.athletes.length > 0 && <Text style={styles.groupLabel}>Athletes</Text>}
                   {cands.athletes.map((a) => (
                     <TouchableOpacity key={a.id} style={styles.candRow} onPress={() => toggle("ath", a.id)} testID={`cand-ath-${a.id}`}>
                       <View style={[styles.check, picked.ath.has(a.id) && styles.checkOn]}>{picked.ath.has(a.id) && <Ionicons name="checkmark" size={13} color="white" />}</View>
                       <Text style={styles.candName}>{a.name}</Text>
                       <Text style={styles.candMeta}>{ROLE_LABEL[a.role || "athlete"] || a.role}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {cands.members.length > 0 && <Text style={styles.groupLabel}>Household members</Text>}
-                  {cands.members.map((u) => (
-                    <TouchableOpacity key={u.id} style={styles.candRow} onPress={() => toggle("mem", u.id)} testID={`cand-mem-${u.id}`}>
-                      <View style={[styles.check, picked.mem.has(u.id) && styles.checkOn]}>{picked.mem.has(u.id) && <Ionicons name="checkmark" size={13} color="white" />}</View>
-                      <Text style={styles.candName}>{u.name}</Text>
-                      <Text style={styles.candMeta} numberOfLines={1}>{u.email}</Text>
                     </TouchableOpacity>
                   ))}
                 </>
@@ -218,6 +248,7 @@ const makeStyles = (c: ThemePalette) => ({
   teamChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   teamChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
   teamChipTextOn: { color: "white" },
+  sectionHeader: { ...typography.micro, color: c.textSecondary, fontWeight: "800", letterSpacing: 0.6, textTransform: "uppercase", marginTop: spacing.lg, marginBottom: 2 },
   card: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginTop: spacing.md },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },

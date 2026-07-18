@@ -9,7 +9,6 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 const ROLES: { value: string; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { value: "parent", label: "Parent", icon: "person-outline" },
   { value: "athlete", label: "Athlete", icon: "barbell-outline" },
   { value: "coach", label: "Coach", icon: "megaphone-outline" },
   { value: "team_rep", label: "Team Rep/Mgr", icon: "clipboard-outline" },
@@ -24,8 +23,8 @@ export default function RosterMemberForm() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [role, setRole] = useState("parent");
-  const [teamId, setTeamId] = useState<string | null>(params.team_id || null);
+  const [role, setRole] = useState("athlete");
+  const [teamIds, setTeamIds] = useState<string[]>(params.team_id ? [params.team_id] : []);
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [parentFirst, setParentFirst] = useState("");
   const [parentLast, setParentLast] = useState("");
@@ -48,8 +47,8 @@ export default function RosterMemberForm() {
         if (m) {
           setFirstName(m.first_name || (m.name || "").split(" ")[0] || "");
           setLastName(m.last_name || (m.name || "").split(" ").slice(1).join(" ") || "");
-          setRole(m.role || "parent");
-          setTeamId(m.team_id || null);
+          setRole(m.role && m.role !== "parent" ? m.role : "athlete");
+          setTeamIds(m.team_ids || (m.team_id ? [m.team_id] : []));
           setParentFirst(m.parent_first_name || "");
           setParentLast(m.parent_last_name || "");
           setParentPhone(m.parent_phone || m.phone || "");
@@ -68,7 +67,7 @@ export default function RosterMemberForm() {
         first_name: firstName.trim() || null,
         last_name: lastName.trim() || null,
         role,
-        team_id: teamId,
+        team_ids: teamIds,
         parent_first_name: parentFirst.trim() || null,
         parent_last_name: parentLast.trim() || null,
         parent_phone: parentPhone.trim() || null,
@@ -128,16 +127,25 @@ export default function RosterMemberForm() {
             ))}
           </View>
 
-          <Text style={styles.label}>Team</Text>
+          <Text style={styles.label}>Teams <Text style={styles.labelHint}>(select all that apply)</Text></Text>
           <View style={styles.roleRow}>
-            <TouchableOpacity onPress={() => setTeamId(null)} style={[styles.roleChip, teamId === null && styles.roleChipOn]} testID="roster-team-none">
-              <Text style={[styles.roleChipText, teamId === null && styles.roleChipTextOn]}>No team</Text>
+            <TouchableOpacity onPress={() => setTeamIds([])} style={[styles.roleChip, teamIds.length === 0 && styles.roleChipOn]} testID="roster-team-none">
+              <Text style={[styles.roleChipText, teamIds.length === 0 && styles.roleChipTextOn]}>No team</Text>
             </TouchableOpacity>
-            {teams.map((t) => (
-              <TouchableOpacity key={t.id} onPress={() => setTeamId(t.id)} style={[styles.roleChip, teamId === t.id && styles.roleChipOn]} testID={`roster-team-${t.id}`}>
-                <Text style={[styles.roleChipText, teamId === t.id && styles.roleChipTextOn]} numberOfLines={1}>{t.name}</Text>
-              </TouchableOpacity>
-            ))}
+            {teams.map((t) => {
+              const on = teamIds.includes(t.id);
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  onPress={() => setTeamIds((prev) => (prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id]))}
+                  style={[styles.roleChip, on && styles.roleChipOn]}
+                  testID={`roster-team-${t.id}`}
+                >
+                  {on && <Ionicons name="checkmark" size={14} color="white" />}
+                  <Text style={[styles.roleChipText, on && styles.roleChipTextOn]} numberOfLines={1}>{t.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
           <Text style={styles.sectionLabel}>Parent / guardian</Text>
@@ -184,6 +192,7 @@ const makeStyles = (c: ThemePalette) => ({
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
   label: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.lg, marginBottom: 6 },
+  labelHint: { ...typography.caption, color: c.textTertiary, fontWeight: "500" },
   sectionLabel: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800", marginTop: spacing.xl },
   nameRow: { flexDirection: "row", gap: spacing.md },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
