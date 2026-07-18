@@ -18,8 +18,10 @@ type Tool = {
 
 const TOOLS: Tool[] = [
   { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
-  { key: "gifts", title: "Gifts & Meals", desc: "Track who's paid the team rep for gifts, meals & shared items.", icon: "gift-outline" },
-  { key: "waivers", title: "Waivers", desc: "Collect and track signed waivers for the team.", icon: "document-text-outline" },
+  { key: "payments", title: "Payment Tracking", desc: "Team bonding, gifts, meals & dues — track who's paid.", icon: "cash-outline" },
+  { key: "sizes", title: "Sizes", desc: "Uniform, apparel & shoe sizes for each member.", icon: "shirt-outline" },
+  { key: "paperwork", title: "Paperwork / Other", desc: "Waivers, forms & any other check-off items.", icon: "document-text-outline" },
+  { key: "export", title: "Custom Roster Export", desc: "Pick columns (sizes, paperwork, payments) into one downloadable view for a competition.", icon: "download-outline" },
 ];
 
 /**
