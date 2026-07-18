@@ -15,23 +15,35 @@ from core.helpers import _household_user_ids
 router = APIRouter(prefix="/api")
 
 
+def _split_name(full: str) -> tuple:
+    parts = (full or "").strip().split()
+    if not parts:
+        return None, None
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[0], " ".join(parts[1:])
+
+
 @router.get("/roster", response_model=List[RosterMember])
-async def list_roster(current_user=Depends(get_current_user)):
+async def list_roster(team_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    docs = await db.roster.find(
-        {"user_id": {"$in": member_ids}}, {"_id": 0}
-    ).to_list(1000)
-    docs.sort(key=lambda d: (d.get("name") or "").lower())
+    query: dict = {"user_id": {"$in": member_ids}}
+    if team_id:
+        query["team_id"] = None if team_id == "none" else team_id
+    docs = await db.roster.find(query, {"_id": 0}).to_list(1000)
+    docs.sort(key=lambda d: ((d.get("last_name") or d.get("name") or "").lower(), (d.get("first_name") or "").lower()))
     return [RosterMember(**d) for d in docs]
 
 
 @router.post("/roster", response_model=RosterMember)
 async def create_roster_member(payload: RosterMemberCreate, current_user=Depends(get_current_user)):
-    name = (payload.name or "").strip()
+    data = payload.model_dump(exclude_none=True)
+    derived = f"{(payload.first_name or '').strip()} {(payload.last_name or '').strip()}".strip()
+    name = (payload.name or derived or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
-    member = RosterMember(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
-    member.name = name
+    data.pop("name", None)
+    member = RosterMember(user_id=current_user["id"], name=name, **data)
     await db.roster.insert_one(member.model_dump())
     return member
 
@@ -42,11 +54,17 @@ async def update_roster_member(member_id: str, payload: RosterMemberUpdate, curr
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     member_ids = await _household_user_ids(current_user["id"])
-    res = await db.roster.update_one(
-        {"id": member_id, "user_id": {"$in": member_ids}}, {"$set": updates}
-    )
-    if res.matched_count == 0:
+    existing = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not existing:
         raise HTTPException(status_code=404, detail="Roster member not found")
+    # Keep the display name in sync when first/last change and no explicit name given.
+    if ("first_name" in updates or "last_name" in updates) and "name" not in updates:
+        fn = updates.get("first_name", existing.get("first_name") or "")
+        ln = updates.get("last_name", existing.get("last_name") or "")
+        derived = f"{(fn or '').strip()} {(ln or '').strip()}".strip()
+        if derived:
+            updates["name"] = derived
+    await db.roster.update_one({"id": member_id, "user_id": {"$in": member_ids}}, {"$set": updates})
     doc = await db.roster.find_one({"id": member_id}, {"_id": 0})
     return RosterMember(**doc)
 
@@ -114,8 +132,10 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
                 continue
             role = a.get("role") if a.get("role") in ("athlete", "coach", "team_rep", "staff") else "athlete"
             team_ids = a.get("team_ids") or []
+            fn, ln = _split_name(a.get("name") or "Athlete")
             m = RosterMember(
                 user_id=current_user["id"], name=a.get("name") or "Athlete", role=role,
+                first_name=fn, last_name=ln,
                 team_id=team_ids[0] if team_ids else None, source="athlete", linked_id=a["id"],
             )
             created.append(m)
@@ -126,9 +146,12 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
         ):
             if u["id"] in linked:
                 continue
+            uname = u.get("name") or (u.get("email") or "Member").split("@")[0]
+            fn, ln = _split_name(uname)
             m = RosterMember(
                 user_id=current_user["id"],
-                name=u.get("name") or (u.get("email") or "Member").split("@")[0],
+                name=uname,
+                first_name=fn, last_name=ln,
                 role="parent", email=u.get("email"), source="household", linked_id=u["id"],
             )
             created.append(m)

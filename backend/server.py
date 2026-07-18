@@ -36,6 +36,7 @@ from routers import (
     notifications,
     password_reset,
     roster,
+    team_payments,
 )
 
 
@@ -79,6 +80,7 @@ for r in (
     notifications.router,
     password_reset.router,
     roster.router,
+    team_payments.router,
 ):
     app.include_router(r)
 

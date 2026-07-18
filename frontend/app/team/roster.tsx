@@ -10,8 +10,11 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 
 type RosterMember = {
   id: string; name: string; role: string;
-  phone?: string | null; email?: string | null; team_id?: string | null;
-  notes?: string | null; source?: string; linked_id?: string | null;
+  first_name?: string | null; last_name?: string | null;
+  phone?: string | null; email?: string | null;
+  parent_first_name?: string | null; parent_last_name?: string | null;
+  parent_phone?: string | null; parent_email?: string | null;
+  team_id?: string | null; notes?: string | null; source?: string; linked_id?: string | null;
 };
 type Candidate = { id: string; name: string; role?: string; email?: string | null; team_id?: string | null };
 
@@ -23,6 +26,8 @@ export default function RosterScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [members, setMembers] = useState<RosterMember[]>([]);
+  const [teams, setTeams] = useState<{ id: string; name: string; color?: string | null }[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string | null>(null); // null=all, "none"=unassigned
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -32,12 +37,21 @@ export default function RosterScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<RosterMember[]>("/roster");
+      const [r, tr] = await Promise.all([
+        api.get<RosterMember[]>("/roster"),
+        api.get<{ id: string; name: string; color?: string | null }[]>("/teams").catch(() => ({ data: [] as any })),
+      ]);
       setMembers(r.data);
+      setTeams(tr.data || []);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const visible = members.filter((m) =>
+    teamFilter === null ? true : teamFilter === "none" ? !m.team_id : m.team_id === teamFilter
+  );
+  const teamName = (id?: string | null) => teams.find((t) => t.id === id)?.name;
 
   const openImport = async () => {
     setPicked({ ath: new Set(), mem: new Set() });
@@ -81,7 +95,7 @@ export default function RosterScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Roster</Text>
-        <TouchableOpacity onPress={() => router.push("/team/roster-new")} style={styles.addBtn} testID="roster-add">
+        <TouchableOpacity onPress={() => router.push({ pathname: "/team/roster-new", params: teamFilter && teamFilter !== "none" ? { team_id: teamFilter } : {} })} style={styles.addBtn} testID="roster-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
@@ -91,6 +105,19 @@ export default function RosterScreen() {
         <Text style={styles.importBtnText}>Add from my household</Text>
       </TouchableOpacity>
 
+      {teams.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.teamChips}>
+          {[{ id: null as any, name: "All teams" }, ...teams, { id: "none", name: "No team" }].map((t) => {
+            const active = teamFilter === t.id;
+            return (
+              <TouchableOpacity key={String(t.id)} onPress={() => setTeamFilter(t.id)} style={[styles.teamChip, active && styles.teamChipOn]} testID={`roster-team-${t.id ?? "all"}`}>
+                <Text style={[styles.teamChipText, active && styles.teamChipTextOn]}>{t.name}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
       ) : (
@@ -99,34 +126,38 @@ export default function RosterScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
           testID="roster-list"
         >
-          {members.length === 0 ? (
+          {visible.length === 0 ? (
             <View style={styles.emptyBlock}>
               <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
-              <Text style={styles.emptyTitle}>No one on the roster yet</Text>
+              <Text style={styles.emptyTitle}>{members.length === 0 ? "No one on the roster yet" : "No one on this team yet"}</Text>
               <Text style={styles.emptyText}>Add people manually, or pull in your athletes &amp; household members.</Text>
             </View>
-          ) : members.map((m) => (
+          ) : visible.map((m) => (
             <TouchableOpacity key={m.id} style={styles.card} onPress={() => router.push({ pathname: "/team/roster-new", params: { id: m.id } })} testID={`roster-row-${m.id}`}>
               <View style={styles.avatar}><Text style={styles.avatarText}>{(m.name || "?")[0]?.toUpperCase()}</Text></View>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                   <Text style={styles.name}>{m.name}</Text>
                   <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{(ROLE_LABEL[m.role] || m.role).toUpperCase()}</Text></View>
+                  {!!teamName(m.team_id) && <Text style={styles.teamTag}>{teamName(m.team_id)}</Text>}
                 </View>
+                {(m.parent_first_name || m.parent_last_name) ? (
+                  <Text style={styles.parentLine}>Parent: {`${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim()}</Text>
+                ) : null}
                 <View style={styles.contactRow}>
-                  {!!m.phone && (
-                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${m.phone}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
+                  {(() => { const ph = m.parent_phone || m.phone; return !!ph && (
+                    <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
                       <Ionicons name="call-outline" size={12} color={colors.accent} />
-                      <Text style={styles.contactText}>{m.phone}</Text>
+                      <Text style={styles.contactText}>{ph}</Text>
                     </TouchableOpacity>
-                  )}
-                  {!!m.email && (
-                    <TouchableOpacity onPress={() => Linking.openURL(`mailto:${m.email}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
+                  ); })()}
+                  {(() => { const em = m.parent_email || m.email; return !!em && (
+                    <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
                       <Ionicons name="mail-outline" size={12} color={colors.accent} />
-                      <Text style={styles.contactText} numberOfLines={1}>{m.email}</Text>
+                      <Text style={styles.contactText} numberOfLines={1}>{em}</Text>
                     </TouchableOpacity>
-                  )}
-                  {!m.phone && !m.email && <Text style={styles.noContact}>No contact info</Text>}
+                  ); })()}
+                  {!(m.parent_phone || m.phone) && !(m.parent_email || m.email) && <Text style={styles.noContact}>No contact info</Text>}
                 </View>
               </View>
               <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
@@ -182,12 +213,19 @@ const makeStyles = (c: ThemePalette) => ({
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: spacing.lg, paddingVertical: 11, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
   importBtnText: { ...typography.bodyMedium, color: c.accent, fontWeight: "700" },
+  teamChips: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8 },
+  teamChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  teamChipOn: { backgroundColor: c.accent, borderColor: c.accent },
+  teamChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
+  teamChipTextOn: { color: "white" },
   card: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginTop: spacing.md },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },
   name: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   roleBadge: { backgroundColor: c.accentSubtle, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   roleBadgeText: { color: c.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
+  parentLine: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  teamTag: { ...typography.micro, color: c.textSecondary, fontWeight: "700" },
   contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
   contactChip: { flexDirection: "row", alignItems: "center", gap: 4, maxWidth: 200 },
   contactText: { ...typography.caption, color: c.accent },

@@ -788,9 +788,15 @@ class RosterMember(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str  # creator (household-scoped visibility)
     name: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     role: Literal["athlete", "parent", "coach", "team_rep", "staff"] = "parent"
     phone: Optional[str] = None
     email: Optional[str] = None
+    parent_first_name: Optional[str] = None
+    parent_last_name: Optional[str] = None
+    parent_phone: Optional[str] = None
+    parent_email: Optional[str] = None
     team_id: Optional[str] = None
     notes: Optional[str] = None
     source: Literal["manual", "athlete", "household"] = "manual"
@@ -799,19 +805,31 @@ class RosterMember(BaseModel):
 
 
 class RosterMemberCreate(BaseModel):
-    name: str
+    name: Optional[str] = None  # derived from first/last if omitted
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     role: Optional[Literal["athlete", "parent", "coach", "team_rep", "staff"]] = "parent"
     phone: Optional[str] = None
     email: Optional[str] = None
+    parent_first_name: Optional[str] = None
+    parent_last_name: Optional[str] = None
+    parent_phone: Optional[str] = None
+    parent_email: Optional[str] = None
     team_id: Optional[str] = None
     notes: Optional[str] = None
 
 
 class RosterMemberUpdate(BaseModel):
     name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     role: Optional[Literal["athlete", "parent", "coach", "team_rep", "staff"]] = None
     phone: Optional[str] = None
     email: Optional[str] = None
+    parent_first_name: Optional[str] = None
+    parent_last_name: Optional[str] = None
+    parent_phone: Optional[str] = None
+    parent_email: Optional[str] = None
     team_id: Optional[str] = None
     notes: Optional[str] = None
 
@@ -819,3 +837,43 @@ class RosterMemberUpdate(BaseModel):
 class RosterImportPayload(BaseModel):
     athlete_ids: List[str] = Field(default_factory=list)
     member_user_ids: List[str] = Field(default_factory=list)
+
+
+
+# ============================================================
+# Team Hub — Payment Tracking (Phase C, tracking-only)
+# ============================================================
+class PaymentEntry(BaseModel):
+    member_id: str
+    paid: bool = False
+    amount_paid: Optional[float] = None
+    note: Optional[str] = None
+    paid_at: Optional[str] = None
+
+
+class PaymentTracker(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str
+    amount: Optional[float] = None  # expected amount per person (optional)
+    note: Optional[str] = None
+    entries: List[PaymentEntry] = Field(default_factory=list)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class PaymentTrackerCreate(BaseModel):
+    name: str
+    amount: Optional[float] = None
+    note: Optional[str] = None
+
+
+class PaymentTrackerUpdate(BaseModel):
+    name: Optional[str] = None
+    amount: Optional[float] = None
+    note: Optional[str] = None
+
+
+class PaymentEntryUpdate(BaseModel):
+    paid: Optional[bool] = None
+    amount_paid: Optional[float] = None
+    note: Optional[str] = None
