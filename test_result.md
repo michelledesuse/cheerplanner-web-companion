@@ -362,3 +362,6 @@ No production code modified by testing agent.
 - Backend: POST /api/notifications/sms-test WITHOUT opting in → 400 "Turn on SMS reminders first." Verify is_configured() true (server has creds). Verify normalize_us_phone via unit-style checks. Do NOT opt in a fake number and trigger a real send.
 - Frontend: opting in shows the "Send me a test text" button; the SMS section/consent renders. (Do not actually submit a real send during automated test.)
 - Credentials: applereview@cheerplanner.app / Review2026!.
+
+## Iteration 61 — Sign-Up slot kinds (item/duty/time) + time_label. Backend 7/7, frontend all flows PASS.
+## Iteration 62 — Owner-controlled Team Hub access delegation (replaces self-toggle). Backend 12/12, frontend PASS. Owner=household.owner_user_id (backfilled to first member). New: /api/team-access GET, PATCH /members/{id}, POST /invite, DELETE /invite/{id}. /household/join honors grant_team_access. New screen /app/frontend/app/team-access.tsx; Settings row settings-team-access -> /team-access.
