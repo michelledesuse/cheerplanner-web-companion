@@ -296,9 +296,24 @@ export default function SignupSheetScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
               <Text style={styles.sheetTitle}>Add a slot</Text>
-              <Text style={styles.label}>What to sign up for</Text>
-              <TextInput style={styles.input} value={slotLabel} onChangeText={setSlotLabel} placeholder="e.g. Water bottles" placeholderTextColor={colors.textTertiary} testID="signup-slot-label" autoFocus />
-              <Text style={styles.label}>How many needed</Text>
+              <Text style={styles.label}>Type</Text>
+              <View style={styles.kindRow}>
+                {KINDS.map((k) => (
+                  <TouchableOpacity key={k.value} onPress={() => setSlotKind(k.value)} style={[styles.kindChip, slotKind === k.value && styles.kindChipOn]} testID={`signup-slot-kind-${k.value}`}>
+                    <Ionicons name={k.icon} size={15} color={slotKind === k.value ? "white" : colors.textSecondary} />
+                    <Text style={[styles.kindChipText, slotKind === k.value && styles.kindChipTextOn]}>{k.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.label}>{slotKind === "duty" ? "Duty name" : slotKind === "time" ? "Slot name" : "What to sign up for"}</Text>
+              <TextInput style={styles.input} value={slotLabel} onChangeText={setSlotLabel} placeholder={slotKind === "duty" ? "e.g. Chaperone" : slotKind === "time" ? "e.g. Front desk" : "e.g. Water bottles"} placeholderTextColor={colors.textTertiary} testID="signup-slot-label" autoFocus />
+              {slotKind === "time" && (
+                <>
+                  <Text style={styles.label}>Time (optional)</Text>
+                  <TextInput style={styles.input} value={slotTime} onChangeText={setSlotTime} placeholder="e.g. 9:00–10:00 AM" placeholderTextColor={colors.textTertiary} testID="signup-slot-time" />
+                </>
+              )}
+              <Text style={styles.label}>{slotKind === "item" ? "How many needed" : "How many people needed"}</Text>
               <TextInput style={styles.input} value={slotQty} onChangeText={setSlotQty} keyboardType="number-pad" testID="signup-slot-qty" />
               <TouchableOpacity style={[styles.confirm, savingSlot && { opacity: 0.6 }]} onPress={addSlot} disabled={savingSlot} testID="signup-slot-save">
                 {savingSlot ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add slot</Text>}
@@ -314,9 +329,24 @@ export default function SignupSheetScreen() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
               <Text style={styles.sheetTitle}>Edit slot</Text>
+              <Text style={styles.label}>Type</Text>
+              <View style={styles.kindRow}>
+                {KINDS.map((k) => (
+                  <TouchableOpacity key={k.value} onPress={() => setEditSlotKind(k.value)} style={[styles.kindChip, editSlotKind === k.value && styles.kindChipOn]} testID={`signup-slot-edit-kind-${k.value}`}>
+                    <Ionicons name={k.icon} size={15} color={editSlotKind === k.value ? "white" : colors.textSecondary} />
+                    <Text style={[styles.kindChipText, editSlotKind === k.value && styles.kindChipTextOn]}>{k.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={editSlotLabel} onChangeText={setEditSlotLabel} placeholderTextColor={colors.textTertiary} testID="signup-slot-edit-label" />
-              <Text style={styles.label}>How many needed</Text>
+              {editSlotKind === "time" && (
+                <>
+                  <Text style={styles.label}>Time (optional)</Text>
+                  <TextInput style={styles.input} value={editSlotTime} onChangeText={setEditSlotTime} placeholder="e.g. 9:00–10:00 AM" placeholderTextColor={colors.textTertiary} testID="signup-slot-edit-time" />
+                </>
+              )}
+              <Text style={styles.label}>{editSlotKind === "item" ? "How many needed" : "How many people needed"}</Text>
               <TextInput style={styles.input} value={editSlotQty} onChangeText={setEditSlotQty} keyboardType="number-pad" testID="signup-slot-edit-qty" />
               <TouchableOpacity style={styles.confirm} onPress={saveSlot} testID="signup-slot-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={deleteSlot} testID="signup-slot-delete">
@@ -374,9 +404,16 @@ const makeStyles = (c: ThemePalette) => ({
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
   slotCard: { backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.md },
   slotHead: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  slotKindIcon: { width: 30, height: 30, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle },
   slotLabel: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  slotTime: { ...typography.caption, color: c.accent, fontWeight: "700", marginTop: 1 },
   slotMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2, fontWeight: "700" },
   slotEdit: { padding: 4 },
+  kindRow: { flexDirection: "row", gap: 8 },
+  kindChip: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  kindChipOn: { backgroundColor: c.accent, borderColor: c.accent },
+  kindChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
+  kindChipTextOn: { color: "white" },
   claimRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
   claimName: { ...typography.caption, color: c.textPrimary, flex: 1 },
   signupBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 12, paddingVertical: 10, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
