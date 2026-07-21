@@ -154,6 +154,9 @@ export default function SizesScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sizes</Text>
+        <TouchableOpacity onPress={() => router.push("/import/team_sizes" as any)} style={styles.iconBtn} testID="sizes-import" hitSlop={8}>
+          <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => setTallyOpen(true)} style={styles.iconBtn} testID="sizes-tally-open" hitSlop={8}>
           <Ionicons name="stats-chart-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>

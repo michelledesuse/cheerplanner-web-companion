@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
-const LAST_UPDATED = "July 3, 2026";
+const LAST_UPDATED = "July 21, 2026";
 const SUPPORT_EMAIL = "info@cheer-planner.com";
 const WEBSITE = "https://cheer-planner.com/privacy";
 
@@ -30,9 +30,9 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.updated}>Last updated: {LAST_UPDATED}</Text>
 
         <Text style={styles.p}>
-          This Privacy Policy explains how CheerPlanner ("we", "us", or "our") collects, uses, and
+          This Privacy Policy explains how CheerPlanner (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) collects, uses, and
           protects your information when you use the CheerPlanner mobile application and related
-          services (the "Service").
+          services (the &quot;Service&quot;).
         </Text>
 
         <Text style={styles.h}>Information we collect</Text>
@@ -41,6 +41,34 @@ export default function PrivacyPolicyScreen() {
           phone number (if you opt in to SMS), and the household, athlete, competition, expense,
           payment, travel, and schedule details you enter into the app. We also collect basic
           technical data such as device type and app usage needed to operate the Service.
+        </Text>
+        <Text style={styles.p}>
+          If you use Team Hub (see below), you may also provide information about other people —
+          such as team members, athletes, and their parents/guardians — including names, contact
+          details, uniform/apparel sizes, paperwork completion status, and payment tracking notes.
+          You may enter this manually or upload it by importing a spreadsheet (CSV or Excel) file.
+        </Text>
+
+        <Text style={styles.h}>Team Hub (for coaches &amp; team staff)</Text>
+        <Text style={styles.p}>
+          Team Hub is an optional workspace for coaches, team reps, and staff to organize a team
+          roster, sizes, paperwork, payment tracking, and volunteer sign-ups. Access is controlled
+          by the account owner, who grants Team Hub access to specific people and can invite others
+          by email.
+        </Text>
+        <Text style={styles.p}>
+          If you enter or upload information about other individuals, you are responsible for having
+          the appropriate authority or consent to do so, and for using that information solely for
+          legitimate team-management purposes. This data is visible only to household logins you
+          have granted Team Hub access. If a person listed in your roster asks you to remove their
+          information, you can delete it within the app.
+        </Text>
+
+        <Text style={styles.h}>Uploaded files</Text>
+        <Text style={styles.p}>
+          When you import a spreadsheet, we process the file only to extract the rows you choose to
+          import and to create the corresponding records in your account. We do not use uploaded
+          files for any other purpose.
         </Text>
 
         <Text style={styles.h}>How we use your information</Text>
@@ -72,7 +100,8 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.p}>
           We do not sell your personal information. We share data only with service providers that
           help us operate the Service (such as cloud hosting, email delivery, and SMS delivery),
-          with household members you explicitly invite, or when required by law.
+          with household members you explicitly invite or people you grant Team Hub access, or when
+          required by law.
         </Text>
 
         <Text style={styles.h}>Data retention & security</Text>
@@ -90,7 +119,7 @@ export default function PrivacyPolicyScreen() {
           details below.
         </Text>
 
-        <Text style={styles.h}>Children's privacy</Text>
+        <Text style={styles.h}>Children&apos;s privacy</Text>
         <Text style={styles.p}>
           CheerPlanner is intended for use by parents and guardians. It is not directed to children
           under 13, and we do not knowingly collect personal information directly from children.
@@ -99,7 +128,7 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.h}>Changes to this policy</Text>
         <Text style={styles.p}>
           We may update this Privacy Policy from time to time. Material changes will be reflected by
-          updating the "Last updated" date above.
+          updating the &quot;Last updated&quot; date above.
         </Text>
 
         <Text style={styles.h}>Contact us</Text>

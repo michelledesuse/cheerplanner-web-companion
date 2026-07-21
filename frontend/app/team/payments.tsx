@@ -53,6 +53,9 @@ export default function PaymentsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payment Tracking</Text>
+        <TouchableOpacity onPress={() => router.push("/import/team_payments" as any)} style={styles.iconBtn} testID="payments-import" hitSlop={8}>
+          <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addBtn} testID="payment-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>

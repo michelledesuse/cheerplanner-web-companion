@@ -710,7 +710,12 @@ class FundraiserUpdate(BaseModel):
 # ============================================================
 # Imports
 # ============================================================
-ALLOWED_IMPORT_KINDS = {"competitions", "travel", "expenses", "schedule", "teams_to_watch"}
+ALLOWED_IMPORT_KINDS = {
+    "competitions", "travel", "expenses", "schedule", "teams_to_watch",
+    "roster", "team_sizes", "team_paperwork", "team_payments",
+}
+
+TEAM_IMPORT_KINDS = {"roster", "team_sizes", "team_paperwork", "team_payments"}
 
 
 class ImportCommitPayload(BaseModel):
@@ -722,6 +727,10 @@ class ImportCommitPayload(BaseModel):
     competition_map: Optional[Dict[str, str]] = None
     # toggle: create competitions that are missing (travel)
     create_missing_competitions: bool = True
+    # Team Hub imports:
+    columns: Optional[List[str]] = None       # sizes/paperwork column order
+    sheet_name: Optional[str] = None          # name for the new paperwork/payments sheet
+    tracker_amount: Optional[float] = None     # expected per-person amount (payments)
 
 
 # ============================================================

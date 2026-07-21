@@ -11,13 +11,49 @@ import import_helpers
 from core.db import db
 from core.models import (
     Athlete, Competition, Booking, ExpenseEntry, ScheduleEvent, RecurrenceRule,
-    TeamToWatch, ImportCommitPayload, ALLOWED_IMPORT_KINDS,
+    TeamToWatch, ImportCommitPayload, ALLOWED_IMPORT_KINDS, TEAM_IMPORT_KINDS,
+    RosterMember, Team, SizeSheet, SizeColumn, DEFAULT_SIZE_COLUMNS,
+    PaperworkSheet, PaperworkItem, PaymentTracker, TeamPaymentEntry,
 )
 from core.security import get_current_user
 from core.helpers import _household_user_ids, _expand_recurrence
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
+
+
+def _norm_name(s) -> str:
+    return " ".join(str(s or "").strip().lower().split())
+
+
+async def _build_roster_index(member_ids) -> dict:
+    """Map of normalized roster-member name -> member id for a household."""
+    idx = {}
+    async for m in db.roster.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1}):
+        idx[_norm_name(m.get("name"))] = m["id"]
+    return idx
+
+
+def _split_name(full: str):
+    parts = (full or "").strip().split()
+    if not parts:
+        return None, None
+    if len(parts) == 1:
+        return parts[0], None
+    return parts[0], " ".join(parts[1:])
+
+
+async def _resolve_member(name, user_id, member_ids, index, created_names, default_role="athlete"):
+    """Return an existing roster member id by name, or create one and return its id."""
+    key = _norm_name(name)
+    if key in index:
+        return index[key]
+    fn, ln = _split_name(name)
+    m = RosterMember(user_id=user_id, name=name.strip(), first_name=fn, last_name=ln, role=default_role)
+    await db.roster.insert_one(m.model_dump())
+    index[key] = m.id
+    created_names.append(name.strip())
+    return m.id
 
 
 @router.get("/import/template/{kind}")
@@ -47,6 +83,8 @@ async def import_preview(
 ):
     if kind not in ALLOWED_IMPORT_KINDS:
         raise HTTPException(status_code=400, detail="Unknown import kind")
+    if kind in TEAM_IMPORT_KINDS and not current_user.get("team_access"):
+        raise HTTPException(status_code=403, detail="Team Hub access is limited to team personnel")
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -89,6 +127,28 @@ async def import_preview(
                 {"_id": 0, "id": 1, "name": 1},
             ).to_list(500)
             return {"kind": kind, "rows": rows, "count": len(rows), "existing_competitions": existing}
+        if kind == "roster":
+            rows = import_helpers.parse_roster(file.filename or "upload", content)
+            teams = await db.teams.find(
+                {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+                {"_id": 0, "id": 1, "name": 1},
+            ).to_list(500)
+            return {"kind": kind, "rows": rows, "count": len(rows), "existing_teams": teams}
+        if kind in ("team_sizes", "team_paperwork"):
+            data = import_helpers.parse_named_grid(file.filename or "upload", content)
+            members = await db.roster.find(
+                {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+                {"_id": 0, "id": 1, "name": 1},
+            ).to_list(1000)
+            return {"kind": kind, "columns": data["columns"], "rows": data["rows"],
+                    "count": len(data["rows"]), "existing_members": members}
+        if kind == "team_payments":
+            rows = import_helpers.parse_team_payments(file.filename or "upload", content)
+            members = await db.roster.find(
+                {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+                {"_id": 0, "id": 1, "name": 1},
+            ).to_list(1000)
+            return {"kind": kind, "rows": rows, "count": len(rows), "existing_members": members}
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
@@ -100,6 +160,8 @@ async def import_preview(
 async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_current_user)):
     if payload.kind not in ALLOWED_IMPORT_KINDS:
         raise HTTPException(status_code=400, detail="Unknown import kind")
+    if payload.kind in TEAM_IMPORT_KINDS and not current_user.get("team_access"):
+        raise HTTPException(status_code=403, detail="Team Hub access is limited to team personnel")
     user_id = current_user["id"]
 
     created = 0
@@ -360,3 +422,165 @@ async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_c
                 created += 1
 
         return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    # ------------------------------------------------------------------
+    # Team Hub imports
+    # ------------------------------------------------------------------
+    member_ids = await _household_user_ids(user_id)
+
+    if payload.kind == "roster":
+        # Resolve/create teams by name.
+        team_name_to_id = {}
+        async for t in db.teams.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1}):
+            team_name_to_id[_norm_name(t.get("name"))] = t["id"]
+        existing = await _build_roster_index(member_ids)
+        for row in payload.rows:
+            name = (row.get("name") or "").strip()
+            if not name:
+                skipped += 1
+                continue
+            team_ids = []
+            for tn in (row.get("team_names") or []):
+                key = _norm_name(tn)
+                tid = team_name_to_id.get(key)
+                if not tid:
+                    t = Team(user_id=user_id, name=str(tn).strip())
+                    await db.teams.insert_one(t.model_dump())
+                    tid = t.id
+                    team_name_to_id[key] = tid
+                    warnings.append(f"Created team '{str(tn).strip()}'.")
+                team_ids.append(tid)
+            fields = {
+                "first_name": row.get("first_name"),
+                "last_name": row.get("last_name"),
+                "role": row.get("role") or "athlete",
+                "phone": row.get("phone"),
+                "email": row.get("email"),
+                "parent_first_name": row.get("parent_first_name"),
+                "parent_last_name": row.get("parent_last_name"),
+                "parent_phone": row.get("parent_phone"),
+                "parent_email": row.get("parent_email"),
+                "notes": row.get("notes"),
+            }
+            key = _norm_name(name)
+            if key in existing:  # update existing person
+                mid = existing[key]
+                upd = {k: v for k, v in fields.items() if v}
+                if team_ids:
+                    upd["team_ids"] = team_ids
+                if upd:
+                    await db.roster.update_one({"id": mid}, {"$set": upd})
+                created += 1
+            else:
+                m = RosterMember(user_id=user_id, name=name, team_ids=team_ids,
+                                 **{k: v for k, v in fields.items() if v is not None})
+                await db.roster.insert_one(m.model_dump())
+                existing[key] = m.id
+                created += 1
+        return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    if payload.kind == "team_sizes":
+        index = await _build_roster_index(member_ids)
+        created_names = []
+        sheet = await db.size_sheets.find_one({"user_id": {"$in": member_ids}}, {"_id": 0})
+        if not sheet:
+            cols = [SizeColumn(label=l, is_default=True, order=i).model_dump() for i, l in enumerate(DEFAULT_SIZE_COLUMNS)]
+            sheet = SizeSheet(user_id=user_id, columns=cols).model_dump()
+            await db.size_sheets.insert_one(sheet)
+        columns = sheet.get("columns") or []
+        label_to_col = {_norm_name(c["label"]): c["id"] for c in columns}
+        order_start = max([c.get("order", 0) for c in columns], default=-1) + 1
+        for label in (payload.columns or []):
+            if _norm_name(label) not in label_to_col:
+                col = SizeColumn(label=label, is_default=False, order=order_start)
+                order_start += 1
+                columns.append(col.model_dump())
+                label_to_col[_norm_name(label)] = col.id
+        values = sheet.get("values") or {}
+        for row in payload.rows:
+            name = (row.get("name") or "").strip()
+            if not name:
+                skipped += 1
+                continue
+            mid = await _resolve_member(name, user_id, member_ids, index, created_names)
+            mv = values.get(mid) or {}
+            for label, val in (row.get("cells") or {}).items():
+                cid = label_to_col.get(_norm_name(label))
+                if not cid:
+                    col = SizeColumn(label=label, is_default=False, order=order_start)
+                    order_start += 1
+                    columns.append(col.model_dump())
+                    label_to_col[_norm_name(label)] = col.id
+                    cid = col.id
+                if str(val).strip():
+                    mv[cid] = str(val).strip()
+            values[mid] = mv
+            created += 1
+        await db.size_sheets.update_one({"id": sheet["id"]}, {"$set": {"columns": columns, "values": values}})
+        if created_names:
+            warnings.append(f"Added {len(created_names)} new roster member(s): {', '.join(created_names[:8])}{'…' if len(created_names) > 8 else ''}")
+        return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    if payload.kind == "team_paperwork":
+        index = await _build_roster_index(member_ids)
+        created_names = []
+        items = [PaperworkItem(label=l, order=i).model_dump() for i, l in enumerate(payload.columns or [])]
+        label_to_item = {_norm_name(it["label"]): it["id"] for it in items}
+        sheet = PaperworkSheet(user_id=user_id, name=(payload.sheet_name or "Imported Paperwork").strip(), items=items)
+        sheet_doc = sheet.model_dump()
+        values = {}
+        for row in payload.rows:
+            name = (row.get("name") or "").strip()
+            if not name:
+                skipped += 1
+                continue
+            mid = await _resolve_member(name, user_id, member_ids, index, created_names)
+            per_item = {}
+            for label, val in (row.get("cells") or {}).items():
+                iid = label_to_item.get(_norm_name(label))
+                if not iid:
+                    it = PaperworkItem(label=label, order=len(items))
+                    items.append(it.model_dump())
+                    label_to_item[_norm_name(label)] = it.id
+                    iid = it.id
+                done = import_helpers._bool_from(val)
+                per_item[iid] = {"done": bool(done), "note": None}
+            values[mid] = per_item
+            created += 1
+        sheet_doc["items"] = items
+        sheet_doc["values"] = values
+        await db.paperwork_sheets.insert_one(sheet_doc)
+        if created_names:
+            warnings.append(f"Added {len(created_names)} new roster member(s): {', '.join(created_names[:8])}{'…' if len(created_names) > 8 else ''}")
+        return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    if payload.kind == "team_payments":
+        index = await _build_roster_index(member_ids)
+        created_names = []
+        entries = []
+        for row in payload.rows:
+            name = (row.get("name") or "").strip()
+            if not name:
+                skipped += 1
+                continue
+            mid = await _resolve_member(name, user_id, member_ids, index, created_names)
+            entries.append(TeamPaymentEntry(
+                member_id=mid,
+                paid=bool(row.get("paid")),
+                amount_paid=row.get("amount_paid"),
+                method=row.get("method"),
+                paid_at=row.get("paid_on"),
+            ).model_dump())
+            created += 1
+        tracker = PaymentTracker(
+            user_id=user_id,
+            name=(payload.sheet_name or "Imported Payments").strip(),
+            amount=payload.tracker_amount,
+            entries=entries,
+        )
+        await db.payment_trackers.insert_one(tracker.model_dump())
+        if created_names:
+            warnings.append(f"Added {len(created_names)} new roster member(s): {', '.join(created_names[:8])}{'…' if len(created_names) > 8 else ''}")
+        return {"created": created, "skipped": skipped, "warnings": warnings}
+
+    return {"created": created, "skipped": skipped, "warnings": warnings}

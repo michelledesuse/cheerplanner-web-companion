@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator,
-  Alert, Platform,
+  Alert, Platform, TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,7 @@ import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate } from "@/src/utils/format";
+import { exportCsvString } from "@/src/utils/exportFile";
 
 type Athlete = { id: string; name: string };
 
@@ -22,7 +23,13 @@ const TITLES: Record<string, string> = {
   expenses: "Expenses",
   schedule: "Schedule",
   teams_to_watch: "Teams to watch",
+  roster: "Roster",
+  team_sizes: "Sizes",
+  team_paperwork: "Paperwork",
+  team_payments: "Payments",
 };
+
+const TEAM_KINDS = ["roster", "team_sizes", "team_paperwork", "team_payments"];
 
 export default function ImportRunner() {
   const styles = useThemedStyles(makeStyles);
@@ -40,8 +47,29 @@ export default function ImportRunner() {
   const [resultCreated, setResultCreated] = useState<number>(0);
   const [resultSkipped, setResultSkipped] = useState<number>(0);
   const [committing, setCommitting] = useState(false);
+  const [teamColumns, setTeamColumns] = useState<string[]>([]);
+  const [sheetName, setSheetName] = useState("");
+  const [trackerAmount, setTrackerAmount] = useState("");
+  const [downloadingTpl, setDownloadingTpl] = useState(false);
 
   const title = TITLES[kind || ""] || "Import";
+
+  const downloadTemplate = async () => {
+    setDownloadingTpl(true);
+    try {
+      const token = await storage.secureGet<string>(TOKEN_KEY, "");
+      const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/import/template/${kind}?fmt=csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Couldn't fetch template (${res.status})`);
+      const csv = await res.text();
+      await exportCsvString(`cheerplanner-${kind}-template`, csv, "csv");
+    } catch (e: any) {
+      Alert.alert("Template download failed", e?.message || "Please try again.");
+    } finally {
+      setDownloadingTpl(false);
+    }
+  };
 
   const pickAndUpload = async () => {
     try {
@@ -85,6 +113,9 @@ export default function ImportRunner() {
       setFormat(data.format || "");
       setAthleteColumns(data.athlete_columns || []);
       setExistingAthletes(data.existing_athletes || []);
+      setTeamColumns(data.columns || []);
+      if (kind === "team_paperwork") setSheetName("Imported Paperwork");
+      if (kind === "team_payments") setSheetName("Imported Payments");
       const initSel: Record<number, boolean> = {};
       (data.rows || []).forEach((_: any, i: number) => { initSel[i] = true; });
       setSelected(initSel);
@@ -115,6 +146,9 @@ export default function ImportRunner() {
       const payload: any = { kind, rows: toSend };
       if (kind === "expenses" && format === "wide") payload.athlete_map = athleteMap;
       if (kind === "travel" || kind === "teams_to_watch") payload.create_missing_competitions = createMissingComps;
+      if (kind === "team_sizes" || kind === "team_paperwork") payload.columns = teamColumns;
+      if (kind === "team_paperwork" || kind === "team_payments") payload.sheet_name = sheetName.trim() || undefined;
+      if (kind === "team_payments" && trackerAmount.trim()) payload.tracker_amount = Number(trackerAmount) || undefined;
       const res = await api.post("/import/commit", payload);
       setResultCreated(res.data.created || 0);
       setResultSkipped(res.data.skipped || 0);
@@ -176,6 +210,26 @@ export default function ImportRunner() {
         row.performance_time ? fmt12(row.performance_time) : null,
       ].filter(Boolean);
       sub = bits.join(" • ");
+    } else if (kind === "roster") {
+      title = row.name || "(unnamed)";
+      const roleLabel: Record<string, string> = { athlete: "Athlete", coach: "Coach", team_rep: "Team Rep", staff: "Staff", parent: "Parent" };
+      const bits = [
+        roleLabel[row.role] || row.role,
+        (row.team_names || []).join(", ") || null,
+        row.parent_phone || row.phone || null,
+      ].filter(Boolean);
+      sub = bits.join(" • ");
+    } else if (kind === "team_sizes" || kind === "team_paperwork") {
+      title = row.name || "(unnamed)";
+      sub = Object.entries(row.cells || {}).map(([k, v]) => `${k}: ${v}`).join("  •  ") || "no values";
+    } else if (kind === "team_payments") {
+      title = row.name || "(unnamed)";
+      const bits = [
+        row.paid ? "Paid" : "Unpaid",
+        row.amount_paid != null ? formatCurrency(row.amount_paid) : null,
+        row.method || null,
+      ].filter(Boolean);
+      sub = bits.join(" • ");
     }
     return (
       <TouchableOpacity
@@ -208,6 +262,14 @@ export default function ImportRunner() {
             <Text style={styles.dropzoneText}>.csv or .xlsx</Text>
             <TouchableOpacity style={styles.primaryBtn} onPress={pickAndUpload} testID="pick-file-btn">
               <Text style={styles.primaryBtnText}>Pick file</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.tplBtn} onPress={downloadTemplate} disabled={downloadingTpl} testID="download-template-btn">
+              {downloadingTpl ? <ActivityIndicator color={colors.accent} /> : (
+                <>
+                  <Ionicons name="download-outline" size={16} color={colors.accent} />
+                  <Text style={styles.tplBtnText}>Download blank template</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -304,6 +366,34 @@ export default function ImportRunner() {
           </TouchableOpacity>
         )}
 
+        {(kind === "team_paperwork" || kind === "team_payments") && (
+          <View style={styles.mapCard}>
+            <Text style={styles.mapTitle}>{kind === "team_paperwork" ? "Paperwork sheet name" : "Payment tracker name"}</Text>
+            <TextInput
+              style={styles.nameInput}
+              value={sheetName}
+              onChangeText={setSheetName}
+              placeholder={kind === "team_paperwork" ? "e.g. 2026 Season Forms" : "e.g. Season Dues"}
+              placeholderTextColor={colors.textTertiary}
+              testID="import-sheet-name"
+            />
+            {kind === "team_payments" && (
+              <>
+                <Text style={[styles.mapTitle, { marginTop: spacing.md }]}>Expected amount per person (optional)</Text>
+                <TextInput
+                  style={styles.nameInput}
+                  value={trackerAmount}
+                  onChangeText={setTrackerAmount}
+                  placeholder="e.g. 150"
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={colors.textTertiary}
+                  testID="import-tracker-amount"
+                />
+              </>
+            )}
+          </View>
+        )}
+
         <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
           {rows.map((r, i) => renderRow(r, i))}
         </View>
@@ -357,6 +447,9 @@ const makeStyles = () => ({
   dropzoneText: { ...typography.caption, color: colors.textSecondary, marginTop: 4, marginBottom: spacing.lg },
   primaryBtn: { backgroundColor: colors.primary, paddingHorizontal: 22, paddingVertical: 12, borderRadius: radius.md, alignItems: "center", flexDirection: "row", justifyContent: "center", gap: 6 },
   primaryBtnText: { color: "white", fontWeight: "700", fontSize: 15 },
+  tplBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 10, paddingHorizontal: 16, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder },
+  tplBtnText: { color: colors.accent, fontWeight: "700", fontSize: 14 },
+  nameInput: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: colors.textPrimary, marginTop: 6 },
   previewHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md },
   previewTitle: { ...typography.h2, color: colors.textPrimary },
   linkText: { ...typography.bodyMedium, color: colors.accent, fontWeight: "700" },

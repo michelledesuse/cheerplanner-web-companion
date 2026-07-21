@@ -139,6 +139,11 @@ export default function RosterScreen() {
         <Text style={styles.importBtnText}>Add from my household</Text>
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.importBtn} onPress={() => router.push("/import/roster" as any)} testID="roster-import-spreadsheet">
+        <Ionicons name="grid-outline" size={16} color={colors.accent} />
+        <Text style={styles.importBtnText}>Import from spreadsheet (CSV / Excel)</Text>
+      </TouchableOpacity>
+
       {teams.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.teamChips}>
           {[{ id: null as any, name: "All teams" }, ...teams, { id: "none", name: "No team" }].map((t) => {

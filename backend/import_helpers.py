@@ -706,6 +706,176 @@ def parse_teams_to_watch(filename: str, content: bytes) -> List[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
+# Team Hub — Roster / Sizes / Paperwork / Payments
+# ---------------------------------------------------------------------------
+ROSTER_HEADERS = {
+    "first name": "first_name", "first": "first_name",
+    "last name": "last_name", "last": "last_name",
+    "name": "name", "full name": "name", "member": "name", "athlete": "name", "athlete name": "name",
+    "role": "role", "type": "role", "position": "role",
+    "phone": "phone", "cell": "phone", "mobile": "phone", "phone number": "phone", "cell phone": "phone",
+    "email": "email", "email address": "email", "e mail": "email",
+    "parent first name": "parent_first_name", "parent first": "parent_first_name", "guardian first name": "parent_first_name",
+    "parent last name": "parent_last_name", "parent last": "parent_last_name", "guardian last name": "parent_last_name",
+    "parent name": "parent_name", "guardian name": "parent_name", "parent guardian": "parent_name",
+    "parent phone": "parent_phone", "guardian phone": "parent_phone", "parent cell": "parent_phone", "parent mobile": "parent_phone",
+    "parent email": "parent_email", "guardian email": "parent_email",
+    "team": "teams", "teams": "teams", "team s": "teams", "team name": "teams", "team names": "teams",
+    "notes": "notes", "note": "notes",
+}
+
+TEAM_PAYMENT_HEADERS = {
+    "name": "name", "member": "name", "athlete": "name", "full name": "name",
+    "amount paid": "amount_paid", "amount": "amount_paid", "paid amount": "amount_paid", "amt": "amount_paid",
+    "method": "method", "payment method": "method", "pay method": "method", "how": "method",
+    "date paid": "paid_on", "paid date": "paid_on", "date": "paid_on", "paid on": "paid_on",
+    "paid": "paid", "status": "paid", "paid status": "paid",
+}
+
+_ROLE_MAP = {
+    "athlete": "athlete", "cheerleader": "athlete", "cheer": "athlete", "kid": "athlete",
+    "coach": "coach", "head coach": "coach", "asst coach": "coach", "assistant coach": "coach",
+    "team rep": "team_rep", "rep": "team_rep", "manager": "team_rep", "team manager": "team_rep", "team parent": "team_rep",
+    "staff": "staff", "admin": "staff", "choreographer": "staff",
+    "parent": "parent", "guardian": "parent", "mom": "parent", "dad": "parent",
+}
+
+
+def _norm_role(v: Any) -> str:
+    return _ROLE_MAP.get(_norm(v), "athlete")
+
+
+def parse_roster(filename: str, content: bytes) -> List[Dict[str, Any]]:
+    sheets = read_table(filename, content)
+    out: List[Dict[str, Any]] = []
+    for rows in sheets:
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, ROSTER_HEADERS)
+        headers = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        for r in rows[hdr_idx + 1:]:
+            rec = _row_to_dict(headers, r, ROSTER_HEADERS)
+            first = str(rec.get("first_name") or "").strip()
+            last = str(rec.get("last_name") or "").strip()
+            name = str(rec.get("name") or "").strip() or f"{first} {last}".strip()
+            if not name:
+                continue
+            if not first and not last:
+                parts = name.split()
+                first = parts[0]
+                last = " ".join(parts[1:]) if len(parts) > 1 else ""
+            # split combined parent name if provided
+            pfn = str(rec.get("parent_first_name") or "").strip()
+            pln = str(rec.get("parent_last_name") or "").strip()
+            if not pfn and not pln and rec.get("parent_name"):
+                pp = str(rec["parent_name"]).strip().split()
+                if pp:
+                    pfn = pp[0]
+                    pln = " ".join(pp[1:]) if len(pp) > 1 else ""
+            teams_raw = str(rec.get("teams") or "").strip()
+            team_names = [t.strip() for t in re.split(r"[;,/|]", teams_raw) if t.strip()] if teams_raw else []
+            out.append({
+                "name": name,
+                "first_name": first or None,
+                "last_name": last or None,
+                "role": _norm_role(rec.get("role")),
+                "phone": str(rec["phone"]).strip() if rec.get("phone") else None,
+                "email": str(rec["email"]).strip() if rec.get("email") else None,
+                "parent_first_name": pfn or None,
+                "parent_last_name": pln or None,
+                "parent_phone": str(rec["parent_phone"]).strip() if rec.get("parent_phone") else None,
+                "parent_email": str(rec["parent_email"]).strip() if rec.get("parent_email") else None,
+                "team_names": team_names,
+                "notes": str(rec["notes"]).strip() if rec.get("notes") else None,
+            })
+    return out
+
+
+_GRID_NAME_KEYS = {"name", "member", "athlete", "player", "full name", "athlete name"}
+
+
+def parse_named_grid(filename: str, content: bytes) -> Dict[str, Any]:
+    """Wide sheet: one column is the person's name, the rest become data columns.
+
+    Returns {"columns": [labels], "rows": [{"name": str, "cells": {label: value}}]}.
+    Used by Sizes and Paperwork imports.
+    """
+    sheets = read_table(filename, content)
+    for rows in sheets:
+        if not rows:
+            continue
+        # Header = first row that has >=2 non-empty cells.
+        hdr_idx = 0
+        for i, row in enumerate(rows[:10]):
+            if sum(1 for c in row if c not in (None, "")) >= 2:
+                hdr_idx = i
+                break
+        headers = [str(c).strip() if c is not None else "" for c in rows[hdr_idx]]
+        # Locate the name column.
+        name_idx = None
+        first_idx = last_idx = None
+        for i, h in enumerate(headers):
+            n = _norm(h)
+            if n in _GRID_NAME_KEYS and name_idx is None:
+                name_idx = i
+            if n in ("first name", "first"):
+                first_idx = i
+            if n in ("last name", "last"):
+                last_idx = i
+        if name_idx is None and first_idx is None:
+            name_idx = 0
+        skip = {i for i in (name_idx, first_idx, last_idx) if i is not None}
+        columns = [headers[i] for i in range(len(headers)) if i not in skip and headers[i]]
+        out_rows: List[Dict[str, Any]] = []
+        for r in rows[hdr_idx + 1:]:
+            vals = list(r) + [None] * (len(headers) - len(r))
+            if name_idx is not None:
+                name = str(vals[name_idx]).strip() if vals[name_idx] is not None else ""
+            else:
+                fn = str(vals[first_idx]).strip() if first_idx is not None and vals[first_idx] is not None else ""
+                ln = str(vals[last_idx]).strip() if last_idx is not None and vals[last_idx] is not None else ""
+                name = f"{fn} {ln}".strip()
+            if not name:
+                continue
+            cells: Dict[str, Any] = {}
+            for i, h in enumerate(headers):
+                if i in skip or not h:
+                    continue
+                v = vals[i]
+                if v not in (None, ""):
+                    cells[h] = str(v).strip()
+            out_rows.append({"name": name, "cells": cells})
+        return {"columns": columns, "rows": out_rows}
+    return {"columns": [], "rows": []}
+
+
+def parse_team_payments(filename: str, content: bytes) -> List[Dict[str, Any]]:
+    sheets = read_table(filename, content)
+    out: List[Dict[str, Any]] = []
+    for rows in sheets:
+        if not rows:
+            continue
+        hdr_idx = _find_header_row(rows, TEAM_PAYMENT_HEADERS)
+        headers = [str(c) if c is not None else "" for c in rows[hdr_idx]]
+        for r in rows[hdr_idx + 1:]:
+            rec = _row_to_dict(headers, r, TEAM_PAYMENT_HEADERS)
+            name = str(rec.get("name") or "").strip()
+            if not name:
+                continue
+            amt = _num(rec.get("amount_paid"))
+            paid_flag = _bool_from(rec.get("paid"))
+            paid = bool(paid_flag) if paid_flag is not None else (amt is not None and amt > 0)
+            out.append({
+                "name": name,
+                "amount_paid": amt,
+                "method": str(rec["method"]).strip() if rec.get("method") else None,
+                "paid_on": _date(rec.get("paid_on")),
+                "paid": paid,
+            })
+    return out
+
+
+# ---------------------------------------------------------------------------
 # CSV Templates
 # ---------------------------------------------------------------------------
 TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
@@ -772,6 +942,39 @@ TEMPLATES: Dict[str, Tuple[List[str], List[List[str]]]] = {
             ["Spirit Sports Palm Springs", "California Allstars Smoed", "2025-08-26", "Main Stage", "4:15 PM"],
         ],
     ),
+    "roster": (
+        ["First Name", "Last Name", "Role", "Phone", "Email",
+         "Parent First Name", "Parent Last Name", "Parent Phone", "Parent Email", "Team(s)", "Notes"],
+        [
+            ["Ava", "Johnson", "Athlete", "", "", "Sarah", "Johnson", "(555) 123-4567", "sarah@example.com", "Senior 5", "Flyer"],
+            ["Mia", "Lopez", "Athlete", "", "", "Carlos", "Lopez", "(555) 222-3344", "carlos@example.com", "Senior 5", ""],
+            ["Coach Kim", "Reed", "Coach", "(555) 987-6543", "kim@gym.com", "", "", "", "", "Senior 5, Youth 1", ""],
+        ],
+    ),
+    "team_sizes": (
+        ["Name", "Shirt", "Shorts", "Shoes", "Jacket"],
+        [
+            ["Ava Johnson", "YL", "YM", "3", "AS"],
+            ["Mia Lopez", "AS", "AS", "5", "AS"],
+            ["Coach Kim", "AL", "AM", "8", "AM"],
+        ],
+    ),
+    "team_paperwork": (
+        ["Name", "Physical Form", "Waiver", "Media Release"],
+        [
+            ["Ava Johnson", "Yes", "Yes", "No"],
+            ["Mia Lopez", "Yes", "No", "No"],
+            ["Coach Kim", "Yes", "Yes", "Yes"],
+        ],
+    ),
+    "team_payments": (
+        ["Name", "Amount Paid", "Method", "Date Paid", "Paid"],
+        [
+            ["Ava Johnson", "150.00", "Venmo", "2025-10-05", "Yes"],
+            ["Mia Lopez", "75.00", "Cash", "2025-10-06", "Yes"],
+            ["Coach Kim", "", "", "", "No"],
+        ],
+    ),
 }
 
 
@@ -801,6 +1004,25 @@ TEMPLATE_NOTES: Dict[str, List[str]] = {
     "teams_to_watch": [
         "Competition must match (or will create) a competition by name.",
         "Date uses YYYY-MM-DD. Performance Time accepts 12h (2:30 PM) or 24h.",
+    ],
+    "roster": [
+        "Role values: Athlete, Coach, Team Rep (or Manager), Staff, Parent. Blank = Athlete.",
+        "Team(s): separate multiple teams with commas, e.g. 'Senior 5, Youth 1'. New team names are created automatically.",
+        "Re-importing a person with the same name updates their existing roster entry.",
+    ],
+    "team_sizes": [
+        "First column is the person's Name; every other column becomes a size category.",
+        "Add any columns you like (Shirt, Shorts, Shoes, Bow, Ring…). Values are free text.",
+        "Names are matched to your roster; unmatched names are added as new Athletes.",
+    ],
+    "team_paperwork": [
+        "First column is the person's Name; every other column becomes a check-off item.",
+        "Cell values accept Yes / No (also true/false, x, done, 1/0).",
+        "Each import creates a new paperwork sheet. Unmatched names are added as new Athletes.",
+    ],
+    "team_payments": [
+        "Paid accepts Yes / No. Amount Paid is a number; Date Paid uses YYYY-MM-DD.",
+        "Each import creates a new payment tracker. Unmatched names are added as new Athletes.",
     ],
 }
 

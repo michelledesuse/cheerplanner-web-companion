@@ -51,6 +51,9 @@ export default function PaperworkScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Paperwork / Other</Text>
+        <TouchableOpacity onPress={() => router.push("/import/team_paperwork" as any)} style={styles.iconBtn} testID="paperwork-import" hitSlop={8}>
+          <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addBtn} testID="paperwork-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
