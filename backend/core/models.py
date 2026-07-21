@@ -57,6 +57,8 @@ class DeleteAccountPayload(BaseModel):
 class Household(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     member_user_ids: List[str] = Field(default_factory=list)
+    # The main account holder — controls Team Hub access delegation.
+    owner_user_id: Optional[str] = None
     # v1.0.8 theming — household-scoped so co-parents see the same theme.
     theme: Optional[Dict[str, Any]] = None
     # v2.3 custom types — household-wide, reusable in create forms.
@@ -72,7 +74,19 @@ class HouseholdInvite(BaseModel):
     code: str
     expires_at: str
     used_at: Optional[str] = None
+    # Team Hub delegation: when set, joining via this invite grants the joiner
+    # Team Hub access. `email` is the (optional) address the owner invited.
+    email: Optional[str] = None
+    grant_team_access: bool = False
     created_at: str = Field(default_factory=utcnow_iso)
+
+
+class TeamAccessMemberPayload(BaseModel):
+    enabled: bool
+
+
+class TeamAccessInvitePayload(BaseModel):
+    email: EmailStr
 
 
 class HouseholdJoinRequest(BaseModel):

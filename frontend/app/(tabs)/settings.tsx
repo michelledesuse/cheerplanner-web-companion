@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking, Switch } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -12,26 +12,13 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", off: "Off" };
 
 export default function SettingsScreen() {
-  const { user, signOut, refreshUser } = useAuth();
+  const { user, signOut } = useAuth();
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [notifFreq, setNotifFreq] = useState<string>("");
-  const [teamBusy, setTeamBusy] = useState(false);
-
-  const toggleTeamAccess = async (val: boolean) => {
-    setTeamBusy(true);
-    try {
-      await api.patch("/auth/team-access", { enabled: val });
-      await refreshUser();
-    } catch {
-      Alert.alert("Error", "Could not update team access.");
-    } finally {
-      setTeamBusy(false);
-    }
-  };
 
   // Fetch current notification frequency so the Settings row can show a live
   // "Daily" / "Weekly" / "Off" badge — makes it obvious where to manage email
@@ -187,22 +174,7 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHead}>Team Hub</Text>
         <View style={styles.group}>
-          <View style={styles.switchRow}>
-            <View style={{ flex: 1, paddingRight: spacing.md }}>
-              <Text style={styles.switchLabel}>I&apos;m team personnel</Text>
-              <Text style={styles.switchSub}>Unlocks the Team Hub (roster, sizes, payments, paperwork&hellip;) for this login only. Coaches, reps &amp; staff should turn this on.</Text>
-            </View>
-            {teamBusy ? (
-              <ActivityIndicator color={colors.accent} />
-            ) : (
-              <Switch
-                value={!!user?.team_access}
-                onValueChange={toggleTeamAccess}
-                trackColor={{ true: colors.accent, false: colors.divider }}
-                testID="settings-team-access"
-              />
-            )}
-          </View>
+          <SettingRow label="Team Hub Access" onPress={() => router.push("/team-access" as any)} chevron testID="settings-team-access" />
         </View>
 
         <Text style={styles.sectionHead}>Data</Text>
@@ -339,8 +311,6 @@ const makeStyles = (c: ThemePalette) => ({
   sectionHead: { ...typography.micro, color: c.textTertiary, marginTop: spacing.lg, marginBottom: spacing.sm },
   group: { backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, overflow: "hidden" },
   switchRow: { flexDirection: "row", alignItems: "center", padding: spacing.md },
-  switchLabel: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700" },
-  switchSub: { ...typography.caption, color: c.textTertiary, marginTop: 3, lineHeight: 17 },
   row: { flexDirection: "row", alignItems: "center", padding: spacing.md, gap: spacing.md, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
   rowIcon: { width: 32, height: 32, borderRadius: 10, backgroundColor: c.bg, alignItems: "center", justifyContent: "center" },
   rowLabel: { ...typography.bodyMedium, color: c.textPrimary },

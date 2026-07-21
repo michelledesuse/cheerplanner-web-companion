@@ -227,11 +227,14 @@ async def join_household(payload: HouseholdJoinRequest, current_user=Depends(get
         {"id": invite["household_id"]},
         {"$addToSet": {"member_user_ids": user_id}},
     )
+    # Team Hub delegation: honor an owner's "invite by email" to the Team Hub.
+    if invite.get("grant_team_access"):
+        await db.users.update_one({"id": user_id}, {"$set": {"team_access": True}})
     # Mark invite as used
     await db.household_invites.update_one(
         {"id": invite["id"]}, {"$set": {"used_at": utcnow_iso()}}
     )
-    return {"joined": True, "household_id": invite["household_id"]}
+    return {"joined": True, "household_id": invite["household_id"], "team_access": bool(invite.get("grant_team_access"))}
 
 
 @router.post("/household/leave")

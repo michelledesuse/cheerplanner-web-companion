@@ -69,11 +69,11 @@ export default function TeamScreen() {
             </View>
             <Text style={styles.lockedTitle}>Team Hub is for team personnel</Text>
             <Text style={styles.lockedText}>
-              These tools are private to coaches, team reps &amp; staff. If that&apos;s you, turn on team access for your login in Settings — other family members sharing this account won&apos;t see the Hub.
+              These tools are private to coaches, team reps &amp; staff. The account owner grants Team Hub access — from Settings → Team Hub Access. If you&apos;re the owner, open it to enable access for yourself or invite your staff.
             </Text>
-            <TouchableOpacity style={styles.lockedBtn} onPress={() => router.push("/(tabs)/settings")} testID="team-add-staff">
+            <TouchableOpacity style={styles.lockedBtn} onPress={() => router.push("/team-access" as any)} testID="team-add-staff">
               <Ionicons name="settings-outline" size={18} color="white" />
-              <Text style={styles.lockedBtnText}>Open Settings</Text>
+              <Text style={styles.lockedBtnText}>Manage access</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -82,7 +82,7 @@ export default function TeamScreen() {
           <View style={styles.introCard}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
             <Text style={styles.introText}>
-              A private space for you as team personnel. Access is tied to your login — other family members sharing this account won&apos;t see the Hub unless they enable team access on their own login.
+              A private space for you as team personnel. Access is granted by the account owner — manage who can open the Hub in Settings → Team Hub Access.
             </Text>
           </View>
 

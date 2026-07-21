@@ -20,10 +20,25 @@ async def _get_or_create_household(user_id: str) -> dict:
     """Return the household this user belongs to. Lazy-creates a solo household for legacy users."""
     h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
     if h:
+        # Backfill owner for legacy households (first member becomes owner).
+        if not h.get("owner_user_id"):
+            members = h.get("member_user_ids") or [user_id]
+            owner = members[0] if members else user_id
+            await db.households.update_one({"id": h["id"]}, {"$set": {"owner_user_id": owner}})
+            h["owner_user_id"] = owner
         return h
-    new_h = Household(member_user_ids=[user_id]).model_dump()
+    new_h = Household(member_user_ids=[user_id], owner_user_id=user_id).model_dump()
     await db.households.insert_one(dict(new_h))
     return new_h
+
+
+def _household_owner_id(h: dict) -> Optional[str]:
+    """Owner (main account holder) of a household; falls back to first member."""
+    owner = h.get("owner_user_id")
+    if owner:
+        return owner
+    members = h.get("member_user_ids") or []
+    return members[0] if members else None
 
 
 async def _household_user_ids(user_id: str) -> List[str]:
