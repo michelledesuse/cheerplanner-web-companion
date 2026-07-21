@@ -92,7 +92,13 @@ async def add_slot(sheet_id: str, payload: SignupSlotCreate, current_user=Depend
     doc = await _get_sheet(sheet_id, current_user)
     slots = doc.get("slots") or []
     order = max([s.get("order", 0) for s in slots], default=-1) + 1
-    slots.append(SignupSlot(label=label, qty_needed=max(1, int(payload.qty_needed or 1)), order=order).model_dump())
+    slots.append(SignupSlot(
+        label=label,
+        kind=payload.kind or "item",
+        time_label=(payload.time_label or None),
+        qty_needed=max(1, int(payload.qty_needed or 1)),
+        order=order,
+    ).model_dump())
     await db.signup_sheets.update_one({"id": doc["id"]}, {"$set": {"slots": slots}})
     doc["slots"] = slots
     return SignupSheet(**doc)
@@ -111,6 +117,10 @@ async def update_slot(sheet_id: str, slot_id: str, payload: SignupSlotUpdate, cu
         slot["label"] = payload.label.strip()
     if payload.qty_needed is not None:
         slot["qty_needed"] = max(1, int(payload.qty_needed))
+    if payload.kind is not None:
+        slot["kind"] = payload.kind
+    if payload.time_label is not None:
+        slot["time_label"] = payload.time_label.strip() or None
     await db.signup_sheets.update_one({"id": doc["id"]}, {"$set": {"slots": slots}})
     doc["slots"] = slots
     return SignupSheet(**doc)

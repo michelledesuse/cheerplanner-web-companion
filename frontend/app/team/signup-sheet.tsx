@@ -10,10 +10,17 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Claim = { id: string; member_id: string; qty: number; note?: string | null };
-type Slot = { id: string; label: string; qty_needed: number; order: number; claims: Claim[] };
+type SlotKind = "item" | "duty" | "time";
+type Slot = { id: string; label: string; kind?: SlotKind; time_label?: string | null; qty_needed: number; order: number; claims: Claim[] };
 type Sheet = { id: string; name: string; competition_id?: string | null; slots: Slot[] };
 type Member = GridMember & { role: string };
 type Comp = { id: string; name: string };
+
+const KINDS: { value: SlotKind; label: string; icon: any }[] = [
+  { value: "item", label: "Item", icon: "cube-outline" },
+  { value: "duty", label: "Duty", icon: "people-outline" },
+  { value: "time", label: "Time slot", icon: "time-outline" },
+];
 
 export default function SignupSheetScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -28,11 +35,15 @@ export default function SignupSheetScreen() {
   const [addSlotOpen, setAddSlotOpen] = useState(false);
   const [slotLabel, setSlotLabel] = useState("");
   const [slotQty, setSlotQty] = useState("1");
+  const [slotKind, setSlotKind] = useState<SlotKind>("item");
+  const [slotTime, setSlotTime] = useState("");
   const [savingSlot, setSavingSlot] = useState(false);
 
   const [slotMenu, setSlotMenu] = useState<Slot | null>(null);
   const [editSlotLabel, setEditSlotLabel] = useState("");
   const [editSlotQty, setEditSlotQty] = useState("1");
+  const [editSlotKind, setEditSlotKind] = useState<SlotKind>("item");
+  const [editSlotTime, setEditSlotTime] = useState("");
 
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
   const [editName, setEditName] = useState("");
@@ -74,18 +85,31 @@ export default function SignupSheetScreen() {
     if (!sheet || !slotLabel.trim()) return;
     setSavingSlot(true);
     try {
-      const r = await api.post<Sheet>(`/team/signups/${sheet.id}/slots`, { label: slotLabel.trim(), qty_needed: Math.max(1, Number(slotQty) || 1) });
-      setSheet(r.data); setSlotLabel(""); setSlotQty("1"); setAddSlotOpen(false);
+      const r = await api.post<Sheet>(`/team/signups/${sheet.id}/slots`, {
+        label: slotLabel.trim(),
+        kind: slotKind,
+        time_label: slotKind === "time" ? (slotTime.trim() || null) : null,
+        qty_needed: Math.max(1, Number(slotQty) || 1),
+      });
+      setSheet(r.data); setSlotLabel(""); setSlotQty("1"); setSlotKind("item"); setSlotTime(""); setAddSlotOpen(false);
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not add slot."); }
     finally { setSavingSlot(false); }
   };
 
-  const openSlotMenu = (slot: Slot) => { setSlotMenu(slot); setEditSlotLabel(slot.label); setEditSlotQty(String(slot.qty_needed)); };
+  const openSlotMenu = (slot: Slot) => {
+    setSlotMenu(slot); setEditSlotLabel(slot.label); setEditSlotQty(String(slot.qty_needed));
+    setEditSlotKind(slot.kind || "item"); setEditSlotTime(slot.time_label || "");
+  };
 
   const saveSlot = async () => {
     if (!sheet || !slotMenu || !editSlotLabel.trim()) return;
     try {
-      const r = await api.patch<Sheet>(`/team/signups/${sheet.id}/slots/${slotMenu.id}`, { label: editSlotLabel.trim(), qty_needed: Math.max(1, Number(editSlotQty) || 1) });
+      const r = await api.patch<Sheet>(`/team/signups/${sheet.id}/slots/${slotMenu.id}`, {
+        label: editSlotLabel.trim(),
+        kind: editSlotKind,
+        time_label: editSlotKind === "time" ? (editSlotTime.trim() || null) : null,
+        qty_needed: Math.max(1, Number(editSlotQty) || 1),
+      });
       setSheet(r.data); setSlotMenu(null);
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
   };
@@ -157,7 +181,7 @@ export default function SignupSheetScreen() {
         <TouchableOpacity onPress={openSheetMenu} style={styles.iconBtn} testID="signup-sheet-edit" hitSlop={8}>
           <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => { setSlotLabel(""); setSlotQty("1"); setAddSlotOpen(true); }} style={styles.addBtn} testID="signup-add-slot">
+        <TouchableOpacity onPress={() => { setSlotLabel(""); setSlotQty("1"); setSlotKind("item"); setSlotTime(""); setAddSlotOpen(true); }} style={styles.addBtn} testID="signup-add-slot">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
@@ -185,8 +209,12 @@ export default function SignupSheetScreen() {
             return (
               <View key={slot.id} style={styles.slotCard}>
                 <View style={styles.slotHead}>
+                  <View style={styles.slotKindIcon}>
+                    <Ionicons name={(KINDS.find((k) => k.value === (slot.kind || "item"))?.icon) || "cube-outline"} size={16} color={colors.accent} />
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.slotLabel}>{slot.label}</Text>
+                    {!!slot.time_label && <Text style={styles.slotTime}>{slot.time_label}</Text>}
                     <Text style={[styles.slotMeta, full && { color: colors.successText }]}>{claimed}/{slot.qty_needed} filled{remaining > 0 ? ` · ${remaining} needed` : " · complete"}</Text>
                   </View>
                   <TouchableOpacity onPress={() => openSlotMenu(slot)} style={styles.slotEdit} testID={`signup-slot-edit-${slot.id}`} hitSlop={8}>

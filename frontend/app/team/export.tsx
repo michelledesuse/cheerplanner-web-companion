@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Platform, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -11,6 +11,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
+import { exportAoa, type ExportFormat } from "@/src/utils/exportFile";
 
 type Member = GridMember & { role: string; phone?: string | null; email?: string | null; parent_first_name?: string | null; parent_last_name?: string | null; parent_phone?: string | null; parent_email?: string | null };
 type Team = { id: string; name: string };
@@ -35,6 +36,7 @@ export default function ExportScreen() {
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [compId, setCompId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set(["role", "teams", "phone", "email"]));
+  const [format, setFormat] = useState<ExportFormat>("xlsx");
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
@@ -117,40 +119,21 @@ export default function ExportScreen() {
     return next;
   });
 
-  const csvEscape = (v: string) => {
-    const s = v ?? "";
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-
   const doExport = async () => {
     const groups = filterAndSplit(members, teamFilter);
     const header = ["Group", "Name", ...selectedCols.map((c) => c.label)];
-    const lines = [header.map(csvEscape).join(",")];
+    const aoa: (string | number | null)[][] = [header];
     const pushRows = (label: string, list: Member[]) => list.forEach((m) => {
-      lines.push([label, m.name, ...selectedCols.map((c) => c.get(m))].map(csvEscape).join(","));
+      aoa.push([label, m.name, ...selectedCols.map((c) => c.get(m))]);
     });
     pushRows("Personnel", groups.personnel);
     pushRows("Athletes", groups.athletes);
-    const csv = lines.join("\n");
     const scope = compId ? (comps.find((c) => c.id === compId)?.name || "roster") : "roster";
-    const filename = `${scope.replace(/[^a-z0-9]+/gi, "_")}_export.csv`;
+    const baseName = `${scope.replace(/[^a-z0-9]+/gi, "_")}_export`;
 
     setExporting(true);
     try {
-      if (Platform.OS === "web") {
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      } else {
-        const FS: any = await import("expo-file-system/legacy");
-        const Sharing: any = await import("expo-sharing");
-        const filePath = `${FS.cacheDirectory}${filename}`;
-        await FS.writeAsStringAsync(filePath, csv, { encoding: FS.EncodingType.UTF8 });
-        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(filePath, { mimeType: "text/csv", dialogTitle: "Export roster" });
-        else Alert.alert("Saved", `Export saved to ${filePath}`);
-      }
+      await exportAoa(baseName, aoa, format, "Roster");
     } catch (e: any) {
       Alert.alert("Export failed", e?.message || "Could not generate the export.");
     } finally { setExporting(false); }
@@ -244,6 +227,13 @@ export default function ExportScreen() {
       )}
 
       <View style={styles.footer}>
+        <View style={styles.formatRow}>
+          {(["xlsx", "csv"] as ExportFormat[]).map((f) => (
+            <TouchableOpacity key={f} onPress={() => setFormat(f)} style={[styles.formatChip, format === f && styles.formatChipOn]} testID={`export-format-${f}`}>
+              <Text style={[styles.formatChipText, format === f && styles.formatChipTextOn]}>{f === "xlsx" ? "Excel (.xlsx)" : "CSV (.csv)"}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <TouchableOpacity
           style={[styles.exportBtn, (exporting || total === 0 || selectedCols.length === 0) && { opacity: 0.5 }]}
           onPress={doExport}
@@ -253,7 +243,7 @@ export default function ExportScreen() {
           {exporting ? <ActivityIndicator color="white" /> : (
             <>
               <Ionicons name="download-outline" size={18} color="white" />
-              <Text style={styles.exportBtnText}>Export CSV</Text>
+              <Text style={styles.exportBtnText}>Export {format === "xlsx" ? "Excel" : "CSV"}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -284,6 +274,11 @@ const makeStyles = (c: ThemePalette) => ({
   cellText: { ...typography.caption, color: c.textPrimary, textAlign: "center", paddingHorizontal: 6 },
   emptyText: { ...typography.caption, color: c.textSecondary, paddingHorizontal: spacing.lg },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, padding: spacing.lg, backgroundColor: c.bg, borderTopWidth: 1, borderTopColor: c.border },
+  formatRow: { flexDirection: "row", gap: 8, marginBottom: spacing.sm },
+  formatChip: { flex: 1, alignItems: "center", paddingVertical: 10, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  formatChipOn: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  formatChipText: { ...typography.caption, fontWeight: "800", color: c.textSecondary },
+  formatChipTextOn: { color: c.accent },
   exportBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 15 },
   exportBtnText: { color: "white", fontWeight: "800", fontSize: 15 },
 });

@@ -982,6 +982,8 @@ class SignupClaim(BaseModel):
 class SignupSlot(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     label: str
+    kind: Literal["item", "duty", "time"] = "item"
+    time_label: Optional[str] = None  # for kind="time", e.g. "Sat 2:00–4:00 PM"
     qty_needed: int = 1
     order: int = 0
     claims: List[SignupClaim] = Field(default_factory=list)
@@ -1008,11 +1010,15 @@ class SignupSheetUpdate(BaseModel):
 
 class SignupSlotCreate(BaseModel):
     label: str
+    kind: Literal["item", "duty", "time"] = "item"
+    time_label: Optional[str] = None
     qty_needed: int = 1
 
 
 class SignupSlotUpdate(BaseModel):
     label: Optional[str] = None
+    kind: Optional[Literal["item", "duty", "time"]] = None
+    time_label: Optional[str] = None
     qty_needed: Optional[int] = None
 
 
