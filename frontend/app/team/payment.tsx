@@ -294,14 +294,16 @@ export default function PaymentDetail() {
 
       <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setEditOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <Text style={styles.sheetTitle}>Edit tracker</Text>
-            <Text style={styles.label}>Name</Text>
-            <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="payment-edit-name" />
-            <Text style={styles.label}>Expected amount per person (optional)</Text>
-            <TextInput style={styles.input} value={editAmount} onChangeText={setEditAmount} keyboardType="decimal-pad" placeholderTextColor={colors.textTertiary} testID="payment-edit-amount" />
-            <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="payment-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
-          </Pressable>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <Pressable style={styles.sheet} onPress={() => {}}>
+              <Text style={styles.sheetTitle}>Edit tracker</Text>
+              <Text style={styles.label}>Name</Text>
+              <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="payment-edit-name" />
+              <Text style={styles.label}>Expected amount per person (optional)</Text>
+              <TextInput style={styles.input} value={editAmount} onChangeText={setEditAmount} keyboardType="decimal-pad" placeholderTextColor={colors.textTertiary} testID="payment-edit-amount" returnKeyType="done" />
+              <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="payment-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
         </Pressable>
       </Modal>
     </SafeAreaView>
