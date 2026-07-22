@@ -9,6 +9,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
+import { shareTeamLink } from "@/src/utils/shareLink";
 
 type Column = { id: string; label: string; is_default: boolean; order: number };
 type Sheet = { id: string; columns: Column[]; values: Record<string, Record<string, string>> };
@@ -154,6 +155,9 @@ export default function SizesScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sizes</Text>
+        <TouchableOpacity onPress={() => shareTeamLink("sizes")} style={styles.iconBtn} testID="sizes-share" hitSlop={8}>
+          <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push("/import/team_sizes" as any)} style={styles.iconBtn} testID="sizes-import" hitSlop={8}>
           <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>

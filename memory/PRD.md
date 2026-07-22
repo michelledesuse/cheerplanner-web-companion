@@ -169,3 +169,13 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - DONE: Team Hub access delegation — replaced the per-login "I'm team personnel" self-toggle with OWNER-controlled delegation. Household now has owner_user_id (backfilled to first member for legacy households). Only the owner can grant/revoke team_access per household member and invite people by email (code-based invite with grant_team_access; /household/join honors it). New router routers/team_access.py (GET /api/team-access, PATCH /members/{id}, POST /invite, DELETE /invite/{id}); new screen app/team-access.tsx; Settings row -> /team-access; Team tab copy updated. Verified iteration_62 (12/12 backend, frontend PASS).
 - NOTE (roster data-flow, per user Q): Team Hub rosters are entered by personnel themselves (manual add or CSV/spreadsheet import). Roster members are NOT linked to parent app accounts; parents do NOT need the app.
 - NEXT (P1): Upload spreadsheets into Team Hub tools (import roster/sizes/paperwork from a file).
+
+## Session update 5 (Team Hub spreadsheet import + privacy)
+- DONE: Spreadsheet upload into Team Hub — added 4 import kinds to the existing import framework: roster, team_sizes, team_paperwork, team_payments (CSV + Excel). Reuses /import/[kind] screen (template download -> pick file -> preview -> commit). Team kinds gated by team_access (403 otherwise). Sizes/paperwork/payments match people by name; unmatched -> auto-created roster members (warning). Roster import creates OR updates by name and auto-creates teams. Entry points: Roster 'Import from spreadsheet' button; Sizes/Paperwork/Payments header cloud-upload icons. Verified iter63 (27/27 backend, frontend PASS).
+- DONE: Privacy Policy screen updated (settings/privacy.tsx) with Team Hub, uploaded-files, and sharing sections; last-updated July 21, 2026.
+
+## Backlog — requested, NOT yet built
+- SHARE-LINK (LARGE): Read-only/public shareable web link per sheet so parents fill their own info WITHOUT the app. Sign-ups: everyone sees everyone's entries. Roster & Sizes: each parent sees ONLY their own entry. Submissions AUTO-APPLY (coach can edit later). Confirmed by user.
+- TEAM-MUSIC (later): Upload team music to share with the team.
+- MASS-REMINDERS (later): Automated server-sent reminders to roster parents (needs Twilio + parent phone consent). Today only a manual 1-tap 'Text who owes' SMS composer exists for payments; account-holder SMS/email reminders exist for own deadlines.
+- Access model: kept owner-explicit grant (no sub-roles). Athletes only get Team Hub if owner grants their login.

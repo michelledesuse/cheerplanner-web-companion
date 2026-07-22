@@ -7,6 +7,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { shareTeamLink } from "@/src/utils/shareLink";
 
 type RosterMember = {
   id: string; name: string; role: string;
@@ -142,6 +143,11 @@ export default function RosterScreen() {
       <TouchableOpacity style={styles.importBtn} onPress={() => router.push("/import/roster" as any)} testID="roster-import-spreadsheet">
         <Ionicons name="grid-outline" size={16} color={colors.accent} />
         <Text style={styles.importBtnText}>Import from spreadsheet (CSV / Excel)</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.importBtn} onPress={() => shareTeamLink("roster")} testID="roster-share">
+        <Ionicons name="share-outline" size={16} color={colors.accent} />
+        <Text style={styles.importBtnText}>Share link for parents to add info</Text>
       </TouchableOpacity>
 
       {teams.length > 0 && (

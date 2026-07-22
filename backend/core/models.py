@@ -996,7 +996,8 @@ class PaperworkValueUpdate(BaseModel):
 # ============================================================
 class SignupClaim(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    member_id: str
+    member_id: Optional[str] = None
+    guest_name: Optional[str] = None  # set when claimed via public share link (non-roster)
     qty: int = 1
     note: Optional[str] = None
     created_at: str = Field(default_factory=utcnow_iso)
@@ -1049,4 +1050,22 @@ class SignupClaimCreate(BaseModel):
     member_id: str
     qty: int = 1
     note: Optional[str] = None
+
+
+# ============================================================
+# Team Hub — Public share links (parents fill in without the app)
+# ============================================================
+class ShareLink(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    token: str
+    kind: Literal["signup", "roster", "sizes"]
+    ref_id: Optional[str] = None  # signup sheet id (for kind="signup")
+    user_id: str                   # creator (used to scope the household)
+    active: bool = True
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class ShareLinkCreate(BaseModel):
+    kind: Literal["signup", "roster", "sizes"]
+    ref_id: Optional[str] = None
 

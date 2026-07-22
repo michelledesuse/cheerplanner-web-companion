@@ -8,8 +8,9 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
+import { shareTeamLink } from "@/src/utils/shareLink";
 
-type Claim = { id: string; member_id: string; qty: number; note?: string | null };
+type Claim = { id: string; member_id?: string | null; guest_name?: string | null; qty: number; note?: string | null };
 type SlotKind = "item" | "duty" | "time";
 type Slot = { id: string; label: string; kind?: SlotKind; time_label?: string | null; qty_needed: number; order: number; claims: Claim[] };
 type Sheet = { id: string; name: string; competition_id?: string | null; slots: Slot[] };
@@ -71,7 +72,8 @@ export default function SignupSheetScreen() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const slots = useMemo(() => (sheet?.slots || []).slice().sort((a, b) => a.order - b.order), [sheet]);
-  const memberName = (id: string) => roster.find((m) => m.id === id)?.name || "Unknown";
+  const memberName = (id?: string | null) => roster.find((m) => m.id === id)?.name || "Unknown";
+  const claimName = (cl: Claim) => cl.guest_name || memberName(cl.member_id);
   const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
   const claimedQty = (slot: Slot) => (slot.claims || []).reduce((s, c) => s + (c.qty || 0), 0);
 
@@ -178,6 +180,9 @@ export default function SignupSheetScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
           {!!compName(sheet.competition_id) && <Text style={styles.headerSub} numberOfLines={1}>{compName(sheet.competition_id)}</Text>}
         </View>
+        <TouchableOpacity onPress={() => shareTeamLink("signup", sheet.id)} style={styles.iconBtn} testID="signup-share" hitSlop={8}>
+          <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={openSheetMenu} style={styles.iconBtn} testID="signup-sheet-edit" hitSlop={8}>
           <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -225,7 +230,7 @@ export default function SignupSheetScreen() {
                 {(slot.claims || []).map((cl) => (
                   <View key={cl.id} style={styles.claimRow}>
                     <Ionicons name="checkmark-circle" size={16} color={colors.accent} />
-                    <Text style={styles.claimName} numberOfLines={1}>{memberName(cl.member_id)}{cl.qty > 1 ? ` ×${cl.qty}` : ""}{cl.note ? ` — ${cl.note}` : ""}</Text>
+                    <Text style={styles.claimName} numberOfLines={1}>{claimName(cl)}{cl.qty > 1 ? ` ×${cl.qty}` : ""}{cl.note ? ` — ${cl.note}` : ""}</Text>
                     <TouchableOpacity onPress={() => removeClaim(slot, cl)} testID={`signup-claim-remove-${cl.id}`} hitSlop={8}>
                       <Ionicons name="close" size={16} color={colors.textTertiary} />
                     </TouchableOpacity>
