@@ -1,0 +1,31 @@
+{
+  "summary": "Iter65 (payment exclude + roster bulk-delete + schedule scope + keyboard fix): 4/4 backend tests PASS via /app/backend/tests/test_iter65_features.py. Frontend flows verified end-to-end: (a) Payment tracker 'Not required to pay' Switch (testID payment-member-exclude) toggles member to 'Exempt' — summary went from '0/3 paid · 3 people owe · $150.00 outstanding' to '0/2 paid · 2 people owe · $100.00 outstanding', and the row shows an 'Exempt' tag. (b) 'Edit tracker' pencil modal opens with Save button fully visible (top=775, bottom=820, viewport=844); same for 'New tracker' Create button — KeyboardAvoidingView fix confirmed. (c) Roster Select mode: tapping 'Select' shows per-row checkboxes (roster-check-<id>), tapping rows selects them, bottom bar shows '2 selected' + Delete (roster-bulk-delete). Backend bulk-delete endpoint verified via pytest (deletes 2/3, third preserved). (d) Schedule scope: PATCH /schedule/{id}?scope=future correctly leaves earlier occurrences at 10:00 AM and updates this+future to 2:00 PM (verified via pytest). All TEST_ data cleaned up; applereview team_access still true. NOTE: React Native's Alert.alert() confirmation dialog does not fire on Expo web preview (window.confirm not invoked by RN Web polyfill) — this affected UI walk-through of the destructive 'Delete' confirmation for both roster bulk-delete and schedule delete-scope sheet. Backend flow is verified; this is a known RN Web limitation, not a real-device bug. Deprecated packages: none detected. SafeAreaView: fine.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter65_features.py",
+    "/app/test_reports/pytest/pytest_iter65.xml"
+  ],
+  "action_items": [
+    "No fixes needed — features are working as designed on native mobile.",
+    "(Optional) Consider adding a web-friendly custom confirmation modal instead of Alert.alert() for destructive actions so QA/E2E on web preview can exercise them; today RN Web's Alert.alert does not surface the 'Delete' button on web (Cancel is auto-selected). Backend is protected regardless."
+  ],
+  "critical_code_review_comments": [
+    "team/payment.tsx toggleExclude issues a full PUT but does not close the sheet on success — desired UX since user may want to keep editing. Fine.",
+    "roster.tsx bulkDelete uses api.post('/roster/bulk-delete', {ids}). Backend response returns {deleted: N}; frontend just reloads — good.",
+    "schedule/new.tsx scope modal cleanly reuses runScope() for both save/delete flows via scopeAction state — clean pattern.",
+    "The scope=future PATCH updates all events with same series_id whose date >= existing.date; verified via test that earlier events keep old start_time."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created TEST_UIBulk1, TEST_UIBulk2 roster members, TEST_UITracker65 payment tracker (+exclude entry), and TEST_Series65 recurring schedule during tests — ALL cleaned up via backend at end of run. applereview team_access confirmed still true.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All three iter65 features work correctly end-to-end. Key testIDs: payment-member-exclude (Switch), payment-member-done, payment-edit-save, payment-create-btn (note: it's -btn not -save), roster-select-toggle, roster-select-cancel, roster-check-<id>, roster-bulk-delete, scope-single/future/series/cancel. The 'Not required to pay' toggle instantly hides the amount/method/date/note inputs and shows a 'Done' button — good UX. Regression suite at /app/backend/tests/test_iter65_features.py (4 tests).",
+  "rca_of_issue": "N/A — no bugs found. Both keyboard fixes verified via getBoundingClientRect (Save button remains fully in viewport). Payment exclude decrements member_total correctly (3→2). Bulk-delete backend verified (2 deleted, 1 preserved). Schedule scope=future preserves earlier occurrences (10:00 AM) and updates middle+later ones (2:00 PM)."
+}

@@ -109,6 +109,26 @@ async def update_schedule(
         ).sort("date", 1).to_list(5000)
         return {"updated": len(docs), "scope": "series", "events": [ScheduleEvent(**d).model_dump() for d in docs]}
 
+    if scope == "future" and existing.get("series_id"):
+        # Apply to this occurrence and every later one in the series.
+        future_updates = {k: v for k, v in updates.items() if k != "date"}
+        if future_updates:
+            await db.schedule_events.update_many(
+                {"series_id": existing["series_id"], "user_id": {"$in": member_ids},
+                 "date": {"$gte": existing["date"]}},
+                {"$set": future_updates},
+            )
+        if "date" in updates:
+            await db.schedule_events.update_one(
+                {"id": event_id, "user_id": {"$in": member_ids}},
+                {"$set": {"date": updates["date"]}},
+            )
+        docs = await db.schedule_events.find(
+            {"series_id": existing["series_id"], "user_id": {"$in": member_ids},
+             "date": {"$gte": existing["date"]}}, {"_id": 0}
+        ).sort("date", 1).to_list(5000)
+        return {"updated": len(docs), "scope": "future", "events": [ScheduleEvent(**d).model_dump() for d in docs]}
+
     await db.schedule_events.update_one(
         {"id": event_id, "user_id": {"$in": member_ids}},
         {"$set": updates},
@@ -135,6 +155,13 @@ async def delete_schedule(
             {"series_id": existing["series_id"], "user_id": {"$in": member_ids}}
         )
         return {"deleted": res.deleted_count, "scope": "series"}
+
+    if scope == "future" and existing.get("series_id"):
+        res = await db.schedule_events.delete_many(
+            {"series_id": existing["series_id"], "user_id": {"$in": member_ids},
+             "date": {"$gte": existing["date"]}}
+        )
+        return {"deleted": res.deleted_count, "scope": "future"}
 
     await db.schedule_events.delete_one({"id": event_id, "user_id": {"$in": member_ids}})
     return {"deleted": 1, "scope": "single"}

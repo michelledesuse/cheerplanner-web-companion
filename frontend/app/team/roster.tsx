@@ -43,6 +43,35 @@ export default function RosterScreen() {
   const [cands, setCands] = useState<{ athletes: Candidate[]; members: Candidate[] }>({ athletes: [], members: [] });
   const [picked, setPicked] = useState<{ ath: Set<string>; mem: Set<string> }>({ ath: new Set(), mem: new Set() });
   const [importing, setImporting] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const exitSelect = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+  const bulkDelete = () => {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    Alert.alert("Delete members?", `Remove ${ids.length} ${ids.length === 1 ? "person" : "people"} from the roster? This can't be undone.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          await api.post("/roster/bulk-delete", { ids });
+          exitSelect();
+          await load();
+        } catch (e: any) {
+          Alert.alert("Delete failed", e?.response?.data?.detail || "Could not delete.");
+        }
+      } },
+    ]);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -130,6 +159,15 @@ export default function RosterScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Roster</Text>
+        {selectMode ? (
+          <TouchableOpacity onPress={exitSelect} style={styles.selBtn} testID="roster-select-cancel">
+            <Text style={styles.selBtnText}>Cancel</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity onPress={() => setSelectMode(true)} style={styles.selBtn} testID="roster-select-toggle" disabled={totalVisible === 0}>
+            <Text style={[styles.selBtnText, totalVisible === 0 && { opacity: 0.4 }]}>Select</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={() => router.push({ pathname: "/team/roster-new", params: teamFilter && teamFilter !== "none" ? { team_id: teamFilter } : {} })} style={styles.addBtn} testID="roster-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
@@ -180,8 +218,15 @@ export default function RosterScreen() {
           ) : sections.map((section) => (
             <View key={section.title}>
               <Text style={styles.sectionHeader}>{section.title}</Text>
-              {section.rows.map(({ member: m, teamId }) => (
-                <TouchableOpacity key={`${m.id}-${teamId ?? "none"}`} style={styles.card} onPress={() => router.push({ pathname: "/team/roster-new", params: { id: m.id } })} testID={`roster-row-${m.id}`}>
+              {section.rows.map(({ member: m, teamId }) => {
+                const selected = selectedIds.has(m.id);
+                return (
+                <TouchableOpacity key={`${m.id}-${teamId ?? "none"}`} style={[styles.card, selectMode && selected && styles.cardSelected]} onPress={() => selectMode ? toggleSelect(m.id) : router.push({ pathname: "/team/roster-new", params: { id: m.id } })} testID={`roster-row-${m.id}`}>
+                  {selectMode && (
+                    <View style={[styles.selCheck, selected && styles.selCheckOn]} testID={`roster-check-${m.id}`}>
+                      {selected && <Ionicons name="checkmark" size={14} color="white" />}
+                    </View>
+                  )}
                   <View style={styles.avatar}><Text style={styles.avatarText}>{(m.name || "?")[0]?.toUpperCase()}</Text></View>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -199,13 +244,13 @@ export default function RosterScreen() {
                           {isAthlete && !!parentName && <Text style={styles.parentLine}>Parent: {parentName}</Text>}
                           <View style={styles.contactRow}>
                             {!!ph && (
-                              <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`}>
+                              <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`} disabled={selectMode}>
                                 <Ionicons name="call-outline" size={12} color={colors.accent} />
                                 <Text style={styles.contactText}>{ph}</Text>
                               </TouchableOpacity>
                             )}
                             {!!em && (
-                              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`}>
+                              <TouchableOpacity onPress={() => Linking.openURL(`mailto:${em}`)} style={styles.contactChip} testID={`roster-email-${m.id}`} disabled={selectMode}>
                                 <Ionicons name="mail-outline" size={12} color={colors.accent} />
                                 <Text style={styles.contactText} numberOfLines={1}>{em}</Text>
                               </TouchableOpacity>
@@ -216,12 +261,22 @@ export default function RosterScreen() {
                       );
                     })()}
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                  {!selectMode && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
                 </TouchableOpacity>
-              ))}
+              );})}
             </View>
           ))}
         </ScrollView>
+      )}
+
+      {selectMode && selectedIds.size > 0 && (
+        <View style={styles.deleteBar}>
+          <Text style={styles.deleteBarCount}>{selectedIds.size} selected</Text>
+          <TouchableOpacity style={styles.deleteBarBtn} onPress={bulkDelete} testID="roster-bulk-delete">
+            <Ionicons name="trash-outline" size={16} color="white" />
+            <Text style={styles.deleteBarBtnText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       <Modal visible={importOpen} transparent animationType="slide" onRequestClose={() => setImportOpen(false)}>
@@ -260,6 +315,15 @@ const makeStyles = (c: ThemePalette) => ({
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h1, color: c.textPrimary, flex: 1 },
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
+  selBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  selBtnText: { ...typography.caption, color: c.accent, fontWeight: "800" },
+  cardSelected: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  selCheck: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
+  selCheckOn: { backgroundColor: c.accent, borderColor: c.accent },
+  deleteBar: { position: "absolute", left: spacing.lg, right: spacing.lg, bottom: spacing.lg, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  deleteBarCount: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  deleteBarBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.danger, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10 },
+  deleteBarBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: spacing.lg, paddingVertical: 11, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
   importBtnText: { ...typography.bodyMedium, color: c.accent, fontWeight: "700" },
   teamChips: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8 },

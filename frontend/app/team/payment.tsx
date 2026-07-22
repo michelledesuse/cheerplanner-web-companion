@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Linking } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Linking, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -12,7 +12,7 @@ import DateField from "@/src/components/DateField";
 import { filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; excluded_member_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
@@ -96,6 +96,17 @@ export default function PaymentDetail() {
     } finally { setMSaving(false); }
   };
 
+  const toggleExclude = async (val: boolean) => {
+    if (!tracker || !mMember) return;
+    setMSaving(true);
+    try {
+      const r = await api.put<Tracker>(`/team/payments/${tracker.id}/member/${mMember.id}/exclude`, { excluded: val });
+      setTracker(r.data);
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not update.");
+    } finally { setMSaving(false); }
+  };
+
   const openEdit = () => { if (tracker) { setEditName(tracker.name); setEditAmount(tracker.amount != null ? String(tracker.amount) : ""); setEditOpen(true); } };
 
   const saveEdit = async () => {
@@ -124,10 +135,12 @@ export default function PaymentDetail() {
   const { paid_count, member_total, collected, outstanding, short_count } = tracker.summary;
   const pct = member_total > 0 ? Math.round((paid_count / member_total) * 100) : 0;
   const alreadyPaid = mMember ? !!entryFor(mMember.id)?.paid : false;
+  const mExcluded = mMember ? (tracker.excluded_member_ids || []).includes(mMember.id) : false;
   const groups = filterAndSplit(roster, null);
   const expected = tracker.amount;
 
   const owedFor = (m: Member) => {
+    if ((tracker.excluded_member_ids || []).includes(m.id)) return 0; // exempt — never owes
     const e = entryFor(m.id);
     const paid = !!e?.paid;
     const paidAmt = paid ? (e?.amount_paid != null ? e.amount_paid : (expected ?? 0)) : 0;
@@ -161,16 +174,17 @@ export default function PaymentDetail() {
   const renderRow = (m: Member) => {
     const e = entryFor(m.id);
     const paid = !!e?.paid;
+    const excluded = (tracker.excluded_member_ids || []).includes(m.id);
     const owed = owedFor(m);
     const isShort = owed > 0;
     return (
       <TouchableOpacity key={m.id} style={styles.memberRow} onPress={() => openMember(m)} testID={`payment-member-${m.id}`}>
-        <View style={[styles.check, paid && styles.checkOn]}>
-          {paid ? <Ionicons name="checkmark" size={16} color="white" /> : null}
+        <View style={[styles.check, paid && !excluded && styles.checkOn, excluded && styles.checkExempt]}>
+          {excluded ? <Ionicons name="remove" size={16} color={colors.textTertiary} /> : (paid ? <Ionicons name="checkmark" size={16} color="white" /> : null)}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.memberName, paid && styles.memberNamePaid]}>{m.name}</Text>
-          {paid && (
+          <Text style={[styles.memberName, paid && styles.memberNamePaid, excluded && { color: colors.textTertiary }]}>{m.name}</Text>
+          {paid && !excluded && (
             <Text style={styles.memberDetail} numberOfLines={1}>
               {e?.amount_paid != null ? formatCurrency(e.amount_paid) : ""}
               {e?.method ? `${e?.amount_paid != null ? " · " : ""}${e.method}` : ""}
@@ -178,7 +192,9 @@ export default function PaymentDetail() {
             </Text>
           )}
         </View>
-        {isShort ? (
+        {excluded ? (
+          <Text style={styles.exemptTag}>Exempt</Text>
+        ) : isShort ? (
           <Text style={styles.oweTag}>owes {formatCurrency(owed)}</Text>
         ) : (
           <Text style={[styles.statusText, { color: paid ? colors.successText : colors.textTertiary }]}>{paid ? "Paid" : "Record"}</Text>
@@ -256,7 +272,20 @@ export default function PaymentDetail() {
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheet} onPress={() => {}}>
               <Text style={styles.sheetTitle}>{mMember?.name}</Text>
-              <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 460 }}>
+
+              <View style={styles.exemptRow}>
+                <View style={{ flex: 1, paddingRight: spacing.md }}>
+                  <Text style={styles.exemptLabel}>Not required to pay</Text>
+                  <Text style={styles.exemptSub}>Exclude from totals &amp; the &ldquo;who owes&rdquo; list (e.g. doesn&apos;t need this item).</Text>
+                </View>
+                <Switch value={mExcluded} onValueChange={toggleExclude} disabled={mSaving} trackColor={{ true: colors.accent, false: colors.divider }} testID="payment-member-exclude" />
+              </View>
+
+              {mExcluded ? (
+                <TouchableOpacity style={styles.confirm} onPress={closeMember} testID="payment-member-done"><Text style={styles.confirmText}>Done</Text></TouchableOpacity>
+              ) : (
+              <>
+              <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }}>
                 <Text style={styles.label}>Amount paid</Text>
                 <TextInput style={styles.input} value={mAmount} onChangeText={setMAmount} placeholder={tracker.amount != null ? String(tracker.amount) : "e.g. 25"} placeholderTextColor={colors.textTertiary} keyboardType="decimal-pad" testID="payment-member-amount" />
 
@@ -286,6 +315,8 @@ export default function PaymentDetail() {
                 <TouchableOpacity style={styles.unpaidBtn} onPress={markUnpaid} disabled={mSaving} testID="payment-member-unpaid">
                   <Text style={styles.unpaidText}>Mark unpaid</Text>
                 </TouchableOpacity>
+              )}
+              </>
               )}
             </Pressable>
           </KeyboardAvoidingView>
@@ -330,6 +361,11 @@ const makeStyles = (c: ThemePalette) => ({
   memberRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },
   check: { width: 28, height: 28, borderRadius: 8, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
   checkOn: { backgroundColor: c.accent, borderColor: c.accent },
+  checkExempt: { backgroundColor: c.divider, borderColor: c.border },
+  exemptTag: { ...typography.caption, color: c.textTertiary, fontWeight: "800" },
+  exemptRow: { flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },
+  exemptLabel: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
+  exemptSub: { ...typography.caption, color: c.textTertiary, marginTop: 2, lineHeight: 16 },
   memberName: { ...typography.bodyMedium, color: c.textPrimary },
   memberNamePaid: { color: c.textPrimary, fontWeight: "700" },
   memberDetail: { ...typography.caption, color: c.textSecondary, marginTop: 2 },

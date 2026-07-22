@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Switch } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Switch, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -93,6 +93,7 @@ export default function ScheduleForm() {
   const [loading, setLoading] = useState(isEdit);
 
   const isPartOfSeries = !!seriesId;
+  const [scopeAction, setScopeAction] = useState<null | "save" | "delete">(null);
 
   useEffect(() => {
     (async () => {
@@ -191,7 +192,7 @@ export default function ScheduleForm() {
     } : {}),
   });
 
-  const doSave = async (scope: "single" | "series") => {
+  const doSave = async (scope: "single" | "future" | "series") => {
     setSaving(true);
     try {
       if (isEdit) {
@@ -213,15 +214,7 @@ export default function ScheduleForm() {
     }
 
     if (isEdit && isPartOfSeries) {
-      Alert.alert(
-        "Apply changes to…",
-        "This event is part of a recurring series.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "This event only", onPress: () => doSave("single") },
-          { text: "All events in series", onPress: () => doSave("series") },
-        ],
-      );
+      setScopeAction("save");
       return;
     }
     await doSave("single");
@@ -229,30 +222,30 @@ export default function ScheduleForm() {
 
   const onDelete = () => {
     if (!isEdit) return;
-    const cleanup = async (scope: "single" | "series") => {
-      try {
-        await api.delete(`/schedule/${params.id}?scope=${scope}`);
-        router.back();
-      } catch (e: any) {
-        Alert.alert("Error", e?.response?.data?.detail || "Could not delete");
-      }
-    };
     if (isPartOfSeries) {
-      Alert.alert(
-        "Delete event",
-        "This event is part of a recurring series.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "This event only", style: "destructive", onPress: () => cleanup("single") },
-          { text: "All events in series", style: "destructive", onPress: () => cleanup("series") },
-        ],
-      );
+      setScopeAction("delete");
     } else {
       Alert.alert("Delete event?", "This can't be undone.", [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive", onPress: () => cleanup("single") },
       ]);
     }
+  };
+
+  const cleanup = async (scope: "single" | "future" | "series") => {
+    try {
+      await api.delete(`/schedule/${params.id}?scope=${scope}`);
+      router.back();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not delete");
+    }
+  };
+
+  const runScope = (scope: "single" | "future" | "series") => {
+    const action = scopeAction;
+    setScopeAction(null);
+    if (action === "save") doSave(scope);
+    else if (action === "delete") cleanup(scope);
   };
 
   const dowLabel = useMemo(() => {
@@ -459,6 +452,30 @@ export default function ScheduleForm() {
         onSubmit={(name, color) => addType(name, color)}
         onClose={() => setAddTypeOpen(false)}
       />
+
+      <Modal visible={!!scopeAction} transparent animationType="fade" onRequestClose={() => setScopeAction(null)}>
+        <Pressable style={styles.scopeBackdrop} onPress={() => setScopeAction(null)}>
+          <Pressable style={styles.scopeSheet} onPress={() => {}}>
+            <Text style={styles.scopeTitle}>{scopeAction === "delete" ? "Delete recurring event" : "Apply changes to…"}</Text>
+            <Text style={styles.scopeSub}>This event is part of a recurring series.</Text>
+            <TouchableOpacity style={styles.scopeOpt} onPress={() => runScope("single")} testID="scope-single">
+              <Ionicons name="radio-button-off" size={18} color={colors.accent} />
+              <Text style={styles.scopeOptText}>This event only</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scopeOpt} onPress={() => runScope("future")} testID="scope-future">
+              <Ionicons name="arrow-forward-circle-outline" size={18} color={colors.accent} />
+              <Text style={styles.scopeOptText}>This and all future events</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scopeOpt} onPress={() => runScope("series")} testID="scope-series">
+              <Ionicons name="repeat" size={18} color={colors.accent} />
+              <Text style={styles.scopeOptText}>All events in series</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scopeCancel} onPress={() => setScopeAction(null)} testID="scope-cancel">
+              <Text style={styles.scopeCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -482,6 +499,14 @@ const makeStyles = () => ({
   chipTextActive: { color: "white" },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
+  scopeBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  scopeSheet: { backgroundColor: colors.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
+  scopeTitle: { ...typography.h3, color: colors.textPrimary },
+  scopeSub: { ...typography.caption, color: colors.textSecondary, marginTop: 4, marginBottom: spacing.md },
+  scopeOpt: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, marginBottom: spacing.sm },
+  scopeOptText: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
+  scopeCancel: { alignItems: "center", paddingVertical: 12, marginTop: 2 },
+  scopeCancelText: { ...typography.bodyMedium, color: colors.textSecondary, fontWeight: "700" },
 
   seriesBanner: { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, backgroundColor: colors.accentSubtle, borderRadius: radius.md },
   seriesBannerText: { ...typography.caption, color: colors.accent, fontWeight: "700" },

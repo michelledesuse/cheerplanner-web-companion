@@ -867,6 +867,10 @@ class RosterImportPayload(BaseModel):
     member_user_ids: List[str] = Field(default_factory=list)
 
 
+class RosterBulkDeletePayload(BaseModel):
+    ids: List[str] = Field(default_factory=list)
+
+
 
 # ============================================================
 # Team Hub — Payment Tracking (Phase C, tracking-only)
@@ -887,6 +891,7 @@ class PaymentTracker(BaseModel):
     amount: Optional[float] = None  # expected amount per person (optional)
     note: Optional[str] = None
     entries: List[TeamPaymentEntry] = Field(default_factory=list)
+    excluded_member_ids: List[str] = Field(default_factory=list)  # people not required to pay
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -900,6 +905,10 @@ class PaymentTrackerUpdate(BaseModel):
     name: Optional[str] = None
     amount: Optional[float] = None
     note: Optional[str] = None
+
+
+class PaymentExcludeUpdate(BaseModel):
+    excluded: bool
 
 
 class PaymentEntryUpdate(BaseModel):

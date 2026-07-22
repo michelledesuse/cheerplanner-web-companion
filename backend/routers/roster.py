@@ -8,6 +8,7 @@ from core.models import (
     RosterMemberCreate,
     RosterMemberUpdate,
     RosterImportPayload,
+    RosterBulkDeletePayload,
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
@@ -83,6 +84,15 @@ async def delete_roster_member(member_id: str, current_user=Depends(get_current_
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Roster member not found")
     return {"deleted": True}
+
+
+@router.post("/roster/bulk-delete")
+async def bulk_delete_roster(payload: RosterBulkDeletePayload, current_user=Depends(get_current_user)):
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="No members selected")
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.roster.delete_many({"id": {"$in": payload.ids}, "user_id": {"$in": member_ids}})
+    return {"deleted": res.deleted_count}
 
 
 @router.get("/roster/import-candidates")
