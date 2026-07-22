@@ -179,3 +179,15 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - TEAM-MUSIC (later): Upload team music to share with the team.
 - MASS-REMINDERS (later): Automated server-sent reminders to roster parents (needs Twilio + parent phone consent). Today only a manual 1-tap 'Text who owes' SMS composer exists for payments; account-holder SMS/email reminders exist for own deadlines.
 - Access model: kept owner-explicit grant (no sub-roles). Athletes only get Team Hub if owner grants their login.
+
+## Session update 6 (share links, payments/roster/schedule enhancements + keyboard bug)
+- DONE: Public share links (iter64) — parents fill in Team Hub tools without the app via a server-rendered HTML page at /api/public/s/{token}. Sign-ups public (everyone sees claims, guest name-based); Roster & Sizes private per-parent. Auto-apply. In-app share buttons: signup-share, roster-share, sizes-share. New router share.py; util src/utils/shareLink.ts. SignupClaim gained guest_name. Verified 17/17 backend + browser.
+- DONE: Payment tracker keyboard bug — Edit/New tracker modals wrapped in KeyboardAvoidingView so keypad no longer hides Save. (iter65)
+- DONE: Payment trackers — exempt a member ('Not required to pay'); excluded_member_ids drop out of totals/owes. New PUT /api/team/payments/{id}/member/{mid}/exclude. (iter65)
+- DONE: Roster bulk delete — 'Select' mode + checkboxes + POST /api/roster/bulk-delete. (iter65)
+- DONE: Schedule recurring edit/delete now offers This event only / This and all future events / All events in series (new scope=future). Start/end date & time editable. (iter65)
+
+## Backlog — requested, NOT yet built
+- TEAM-MUSIC (later): Upload team music to share with the team.
+- MASS-REMINDERS (later): Automated server-sent reminders to roster parents (needs Twilio + parent phone consent). Manual 1-tap 'Text who owes' exists for payments.
+- Known RN-Web limitation: Alert.alert confirmations (bulk-delete, non-series schedule delete) don't fire on web preview but work on native iOS/Android.

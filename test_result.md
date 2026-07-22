@@ -367,3 +367,6 @@ No production code modified by testing agent.
 ## Iteration 62 — Owner-controlled Team Hub access delegation (replaces self-toggle). Backend 12/12, frontend PASS. Owner=household.owner_user_id (backfilled to first member). New: /api/team-access GET, PATCH /members/{id}, POST /invite, DELETE /invite/{id}. /household/join honors grant_team_access. New screen /app/frontend/app/team-access.tsx; Settings row settings-team-access -> /team-access.
 
 ## Iteration 63 — Team Hub spreadsheet import (roster/sizes/paperwork/payments, CSV+XLSX). Gated by team_access (403). Roster upserts by name; sizes/paperwork/payments auto-create unmatched members. Reuses /import/[kind]. Backend 27/27, frontend PASS. Privacy policy updated.
+
+## Iteration 64 — Public share links (signup/roster/sizes) via FastAPI HTML page. 17/17 backend + browser PASS.
+## Iteration 65 — Payment exempt member, roster bulk-delete, schedule scope=future, payment keyboard fix. 4/4 backend + frontend PASS.
