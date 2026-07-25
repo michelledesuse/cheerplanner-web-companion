@@ -114,8 +114,13 @@ async def public_data(token: str):
     if link["kind"] == "roster":
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
+        teams = []
+        async for t in db.teams.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1}):
+            teams.append({"id": t["id"], "name": t.get("name")})
+        teams.sort(key=lambda t: (t["name"] or "").lower())
         return {"kind": "roster", "title": "Team Roster",
-                "size_columns": [{"id": c["id"], "label": c["label"]} for c in cols]}
+                "size_columns": [{"id": c["id"], "label": c["label"]} for c in cols],
+                "teams": teams}
     if link["kind"] == "sizes":
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
@@ -166,21 +171,39 @@ async def public_submit(token: str, payload: dict = Body(...)):
                 break
         fields = {
             "first_name": first or None, "last_name": last or None, "role": role,
+            "preferred_name": (payload.get("preferred_name") or "").strip() or None,
             "phone": (payload.get("phone") or "").strip() or None,
             "email": (payload.get("email") or "").strip() or None,
             "parent_first_name": (payload.get("parent_first_name") or "").strip() or None,
             "parent_last_name": (payload.get("parent_last_name") or "").strip() or None,
             "parent_phone": (payload.get("parent_phone") or "").strip() or None,
             "parent_email": (payload.get("parent_email") or "").strip() or None,
+            "food_allergies": (payload.get("food_allergies") or "").strip() or None,
+            "other_allergies": (payload.get("other_allergies") or "").strip() or None,
+            "medical_concerns": (payload.get("medical_concerns") or "").strip() or None,
             "notes": (payload.get("notes") or "").strip() or None,
         }
+        # team_ids (list) and host_bonding_opt_in (bool) don't fit the truthy filter — handle explicitly.
+        extras = {}
+        team_ids = payload.get("team_ids")
+        if isinstance(team_ids, list) and team_ids:
+            valid_team_ids = set()
+            async for t in db.teams.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1}):
+                valid_team_ids.add(t["id"])
+            picked = [t for t in team_ids if t in valid_team_ids]
+            if picked:
+                extras["team_ids"] = picked
+        host = payload.get("host_bonding_opt_in")
+        if isinstance(host, bool):
+            extras["host_bonding_opt_in"] = host
         if match:
             member_id = match["id"]
-            upd = {k: v for k, v in fields.items() if v}
+            upd = {**{k: v for k, v in fields.items() if v}, **extras}
             if upd:
                 await db.roster.update_one({"id": match["id"]}, {"$set": upd})
         else:
-            m = RosterMember(user_id=link["user_id"], name=name, **{k: v for k, v in fields.items() if v is not None})
+            m = RosterMember(user_id=link["user_id"], name=name,
+                             **{k: v for k, v in fields.items() if v is not None}, **extras)
             member_id = m.id
             await db.roster.insert_one(m.model_dump())
         # Apply any sizes submitted alongside the roster info.
@@ -342,12 +365,23 @@ async function claim(id,btn){
 
 _JS_ROSTER = """
 function renderRoster(d){
+  window._teams=d.teams||[];
   let h="<h1>"+esc(d.title)+"</h1><p class='sub'>Add your info</p>";
   h+="<div class='row'><div><label>First name</label><input id='first'/></div><div><label>Last name</label><input id='last'/></div></div>";
+  h+="<label>Preferred name</label><input id='pref'/>";
   h+="<label>Role</label><select id='role'><option value='athlete'>Athlete</option><option value='parent'>Parent</option><option value='coach'>Coach</option><option value='team_rep'>Team Rep</option><option value='staff'>Staff</option></select>";
+  if((d.teams||[]).length){
+    h+="<label>Team(s)</label>";
+    (d.teams||[]).forEach(t=>{h+="<div style='display:flex;align-items:center;gap:8px;margin:6px 0'><input type='checkbox' id='tm_"+t.id+"' style='width:auto'/><span>"+esc(t.name)+"</span></div>";});
+  }
   h+="<label>Phone</label><input id='phone'/><label>Email</label><input id='email'/>";
   h+="<label>Parent/Guardian first name</label><input id='pfirst'/><label>Parent/Guardian last name</label><input id='plast'/>";
   h+="<label>Parent phone</label><input id='pphone'/><label>Parent email</label><input id='pemail'/>";
+  h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Health & extra info</div>";
+  h+="<label>Food allergies</label><input id='food'/>";
+  h+="<label>Other allergies</label><input id='oallergy'/>";
+  h+="<label>Medical concerns</label><input id='medical'/>";
+  h+="<label>Host bonding opt-in</label><select id='host'><option value=''>Not set</option><option value='yes'>Yes</option><option value='no'>No</option></select>";
   window._szcols=(d.size_columns||[]).map(c=>c.id);
   if((d.size_columns||[]).length){
     h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Sizes</div>";
@@ -361,8 +395,12 @@ async function saveRoster(btn){
   const g=id=>document.getElementById(id).value;
   if(!g('first').trim()||!g('last').trim()){alert("Please enter a first and last name.");return;}
   const sizes={}; (window._szcols||[]).forEach(id=>{const el=document.getElementById("sz_"+id); if(el) sizes[id]=el.value;});
-  const ok=await submit({first_name:g('first'),last_name:g('last'),role:g('role'),phone:g('phone'),email:g('email'),
-    parent_first_name:g('pfirst'),parent_last_name:g('plast'),parent_phone:g('pphone'),parent_email:g('pemail'),sizes:sizes},btn);
+  const teamIds=(window._teams||[]).map(t=>t.id).filter(id=>{const el=document.getElementById("tm_"+id);return el&&el.checked;});
+  const hv=g('host'); let host=null; if(hv==='yes')host=true; else if(hv==='no')host=false;
+  const ok=await submit({first_name:g('first'),last_name:g('last'),preferred_name:g('pref'),role:g('role'),
+    team_ids:teamIds,phone:g('phone'),email:g('email'),
+    parent_first_name:g('pfirst'),parent_last_name:g('plast'),parent_phone:g('pphone'),parent_email:g('pemail'),
+    food_allergies:g('food'),other_allergies:g('oallergy'),medical_concerns:g('medical'),host_bonding_opt_in:host,sizes:sizes},btn);
   if(ok){document.getElementById("ok").textContent="Thanks! Your info was submitted.";btn.textContent="Submitted";}
 }
 """
