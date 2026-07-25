@@ -7,6 +7,7 @@ from core.models import (
     SizeColumnCreate,
     SizeColumnUpdate,
     SizeValueUpdate,
+    SizeValuesBulkUpdate,
     DEFAULT_SIZE_COLUMNS,
 )
 from core.security import get_current_user, require_team_access
@@ -102,6 +103,32 @@ async def set_size_value(payload: SizeValueUpdate, current_user=Depends(get_curr
         member_vals[payload.column_id] = val
     else:
         member_vals.pop(payload.column_id, None)
+    values[payload.member_id] = member_vals
+    await db.size_sheets.update_one({"id": doc["id"]}, {"$set": {"values": values}})
+    doc["values"] = values
+    return SizeSheet(**doc)
+
+
+@router.put("/sizes/values", response_model=SizeSheet)
+async def set_size_values_bulk(payload: SizeValuesBulkUpdate, current_user=Depends(get_current_user)):
+    """Set MANY size columns for one member in a single atomic write (avoids the
+    read-modify-write races of firing one PUT per column)."""
+    member_ids = await _household_user_ids(current_user["id"])
+    rm = await db.roster.find_one({"id": payload.member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
+    if not rm:
+        raise HTTPException(status_code=404, detail="Roster member not found")
+    doc = await _get_or_create_sheet(current_user)
+    valid_cols = {c.get("id") for c in (doc.get("columns") or [])}
+    values = doc.get("values") or {}
+    member_vals = values.get(payload.member_id) or {}
+    for col_id, raw in (payload.values or {}).items():
+        if col_id not in valid_cols:
+            continue
+        v = (raw or "").strip()
+        if v:
+            member_vals[col_id] = v
+        else:
+            member_vals.pop(col_id, None)
     values[payload.member_id] = member_vals
     await db.size_sheets.update_one({"id": doc["id"]}, {"$set": {"values": values}})
     doc["values"] = values

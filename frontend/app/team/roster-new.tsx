@@ -122,9 +122,7 @@ export default function RosterMemberForm() {
       if (isEdit) { await api.patch(`/roster/${params.id}`, payload); }
       else { const r = await api.post<{ id: string }>("/roster", payload); memberId = r.data.id; }
       if (memberId && sizeColumns.length) {
-        await Promise.all(sizeColumns.map((col) =>
-          api.put("/team/sizes/value", { member_id: memberId, column_id: col.id, value: sizeValues[col.id] || "" })
-        ));
+        await api.put("/team/sizes/values", { member_id: memberId, values: sizeValues });
       }
       router.back();
     } catch (e: any) {

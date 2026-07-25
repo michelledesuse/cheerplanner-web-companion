@@ -995,6 +995,11 @@ class SizeValueUpdate(BaseModel):
     value: str = ""
 
 
+class SizeValuesBulkUpdate(BaseModel):
+    member_id: str
+    values: Dict[str, str] = Field(default_factory=dict)  # column_id -> value
+
+
 # ============================================================
 # Team Hub — Paperwork / Other (multiple named sheets; checkbox + note per member)
 # ============================================================

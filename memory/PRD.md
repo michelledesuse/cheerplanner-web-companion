@@ -212,5 +212,14 @@ Phase 3:
 - Expanded roster fields (preferred name, sizes, contact, food/other allergies, medical, host-bonding opt-in) + custom columns.
 - Block a granted user from a specific spreadsheet (per-item, per-user hiding).
 
-## Backlog — Monetization (user request, future)
-- FREE vs PREMIUM feature tiers: define a free plan (core household tracking) and a premium plan (Team Hub, spreadsheet import/export, share links, SMS reminders, etc. — exact split TBD with user). Needs entitlement/paywall gating in-app + a billing integration (Stripe / RevenueCat for app-store IAP). Larger effort — scope separately.
+## Session update 8 (Phase 1+2+3 batch + iter68/69)
+- DONE (iter68): To-Do Lists verified (Team Hub /team/todos, Competition + Schedule event scopes). Backend GET/POST/PATCH/DELETE /api/todos.
+- DONE (iter68): Reorder sign-up sheets — swap-vertical toggle + up/down chevrons; POST /api/team/signups/reorder; new sheets float to top (order=min-1); SignupSheet gained order + event_id.
+- DONE (iter68): Attendance tool — /team/attendance (list+create) & /team/attendance-session (roster grid: present/absent/excused, mark-all-present, team filter). Backend routers/attendance.py; AttendanceSession model. iter69: sessions are now EDITABLE (title+date) via PATCH /api/team/attendance/{id}.
+- DONE (iter68): Link schedule events <-> sign-up sheets — EventSignups component on schedule event edit screen; GET /api/team/signups?event_id filters; creates sheets with event_id.
+- DONE (iter68): Expanded roster fields (preferred_name, food_allergies, other_allergies, medical_concerns, host_bonding_opt_in) + custom columns (roster_columns collection; /api/roster/columns CRUD; member.custom map).
+- DONE (iter68): Block a granted user from a specific sheet — routers/blocks.py (GET /api/team/blocks/{resource}/{resource_id}, PUT /api/team/blocks?blocked=). sheet_blocks collection. Filters payment/paperwork/signup/attendance lists + 403 on get. Owner-only UI via SheetAccessButton (hidden for solo owners via useCanManageAccess).
+- DONE (iter69): Sizes on the in-app roster Add/Edit screen (inputs per size column, saved via NEW atomic PUT /api/team/sizes/values) AND on the public roster share link (parents fill roster info + sizes together). Fixed a HIGH race bug where per-column concurrent PUTs dropped values — replaced with a single batched write.
+
+## Backlog — Monetization (added)
+- FREE vs PREMIUM tiers (entitlement/paywall + billing). Scope separately.
