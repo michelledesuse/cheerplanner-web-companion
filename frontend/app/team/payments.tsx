@@ -46,6 +46,11 @@ export default function PaymentsScreen() {
     } finally { setSaving(false); }
   };
 
+  const duplicate = async (id: string) => {
+    try { await api.post(`/team/payments/${id}/duplicate`); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not duplicate."); }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
@@ -82,7 +87,12 @@ export default function PaymentsScreen() {
               <TouchableOpacity key={t.id} style={styles.card} onPress={() => router.push({ pathname: "/team/payment", params: { id: t.id } })} testID={`payment-row-${t.id}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={styles.cardName}>{t.name}</Text>
-                  {t.amount != null && <Text style={styles.cardAmount}>{formatCurrency(t.amount)}/person</Text>}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    {t.amount != null && <Text style={styles.cardAmount}>{formatCurrency(t.amount)}/person</Text>}
+                    <TouchableOpacity onPress={() => duplicate(t.id)} hitSlop={8} testID={`payment-duplicate-${t.id}`}>
+                      <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>

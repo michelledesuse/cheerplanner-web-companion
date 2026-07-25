@@ -9,6 +9,7 @@ from core.models import (
     PaymentTrackerUpdate,
     PaymentEntryUpdate,
     PaymentExcludeUpdate,
+    TeamPaymentEntry,
     utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
@@ -29,7 +30,7 @@ def _summary(tracker: dict, roster_total: int, excluded_in_roster: int = 0) -> d
     for e in paid_entries:
         amt = e.get("amount_paid")
         if amt is None:
-            amt = expected or 0
+            amt = e.get("amount_due") if e.get("amount_due") is not None else (expected or 0)
         collected += float(amt or 0)
 
     unpaid_count = max(0, member_total - len(paid_entries))
@@ -42,19 +43,20 @@ def _summary(tracker: dict, roster_total: int, excluded_in_roster: int = 0) -> d
         "unpaid_count": unpaid_count,
     }
 
-    if expected is not None:
+    if expected is not None or any(e.get("amount_due") is not None for e in entries):
         exp = float(expected or 0)
-        # Per-person shortfall: recorded people who paid less than expected,
-        # plus everyone not yet recorded (they owe the full expected amount).
+        # Per-person shortfall using each member's own amount due when set.
         covered = 0
         entry_shortfall = 0.0
         for e in paid_entries:
+            due = e.get("amount_due")
+            due = float(due) if due is not None else exp
             amt = e.get("amount_paid")
-            paid_amt = float(amt if amt is not None else exp)
-            if paid_amt >= exp:
+            paid_amt = float(amt if amt is not None else due)
+            if due <= 0 or paid_amt >= due:
                 covered += 1
             else:
-                entry_shortfall += (exp - paid_amt)
+                entry_shortfall += (due - paid_amt)
         outstanding = entry_shortfall + exp * unpaid_count
         summary["short_count"] = max(0, member_total - covered)
         summary["outstanding"] = round(outstanding, 2)
@@ -129,13 +131,18 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
             continue
         e = entries.get(m["id"])
         paid = bool(e and e.get("paid"))
+        member_due = None
+        if e and e.get("amount_due") is not None:
+            member_due = float(e["amount_due"])
+        elif expected is not None:
+            member_due = float(expected)
         paid_amt = 0.0
         if paid:
             amt = e.get("amount_paid")
-            paid_amt = float(amt if amt is not None else (expected or 0))
+            paid_amt = float(amt if amt is not None else (member_due or 0))
         owed = None
-        if expected is not None:
-            owed = max(0.0, float(expected) - paid_amt)
+        if member_due is not None:
+            owed = max(0.0, member_due - paid_amt)
             if owed <= 0:
                 continue  # fully covered
         else:
@@ -196,6 +203,28 @@ async def delete_payment_tracker(tracker_id: str, current_user=Depends(get_curre
     return {"deleted": True}
 
 
+@router.post("/payments/{tracker_id}/duplicate")
+async def duplicate_payment_tracker(tracker_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.payment_trackers.find_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+    # Fresh tracker: keep name/amount/exemptions & per-member amounts due, clear who's paid.
+    copy = PaymentTracker(
+        user_id=current_user["id"],
+        name=f"{doc.get('name')} (copy)",
+        amount=doc.get("amount"),
+        note=doc.get("note"),
+        excluded_member_ids=list(doc.get("excluded_member_ids") or []),
+        entries=[TeamPaymentEntry(member_id=e["member_id"], amount_due=e.get("amount_due")).model_dump()
+                 for e in (doc.get("entries") or []) if e.get("amount_due") is not None],
+    )
+    await db.payment_trackers.insert_one(copy.model_dump())
+    roster_total = await _roster_total(member_ids)
+    exc = await _excluded_in_roster(member_ids, copy.excluded_member_ids)
+    return {**copy.model_dump(), "summary": _summary(copy.model_dump(), roster_total, exc)}
+
+
 @router.put("/payments/{tracker_id}/member/{member_id}")
 async def set_member_status(tracker_id: str, member_id: str, payload: PaymentEntryUpdate, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
@@ -224,6 +253,8 @@ async def set_member_status(tracker_id: str, member_id: str, payload: PaymentEnt
         entry["paid_at"] = data["paid_at"]
     if "amount_paid" in data:
         entry["amount_paid"] = data["amount_paid"]
+    if "amount_due" in data:
+        entry["amount_due"] = data["amount_due"]
     if "method" in data:
         entry["method"] = data["method"]
     if "note" in data:

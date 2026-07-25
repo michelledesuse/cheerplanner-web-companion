@@ -84,6 +84,24 @@ async def delete_signup(sheet_id: str, current_user=Depends(get_current_user)):
     return {"deleted": True}
 
 
+@router.post("/signups/{sheet_id}/duplicate", response_model=SignupSheet)
+async def duplicate_signup(sheet_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.signup_sheets.find_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sign-up sheet not found")
+    # Copy the slot structure with fresh ids and NO claims (a clean sheet to fill).
+    slots = [
+        SignupSlot(label=s["label"], kind=s.get("kind", "item"), time_label=s.get("time_label"),
+                   qty_needed=s.get("qty_needed", 1), order=s.get("order", 0))
+        for s in (doc.get("slots") or [])
+    ]
+    copy = SignupSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)",
+                       competition_id=doc.get("competition_id"), slots=slots)
+    await db.signup_sheets.insert_one(copy.model_dump())
+    return copy
+
+
 @router.post("/signups/{sheet_id}/slots", response_model=SignupSheet)
 async def add_slot(sheet_id: str, payload: SignupSlotCreate, current_user=Depends(get_current_user)):
     label = (payload.label or "").strip()

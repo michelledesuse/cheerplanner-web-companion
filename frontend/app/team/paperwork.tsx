@@ -44,6 +44,11 @@ export default function PaperworkScreen() {
     } finally { setSaving(false); }
   };
 
+  const duplicate = async (id: string) => {
+    try { await api.post(`/team/paperwork/${id}/duplicate`); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not duplicate."); }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
@@ -79,7 +84,12 @@ export default function PaperworkScreen() {
               <TouchableOpacity key={s.id} style={styles.card} onPress={() => router.push({ pathname: "/team/paperwork-sheet", params: { id: s.id } })} testID={`paperwork-row-${s.id}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={styles.cardName}>{s.name}</Text>
-                  <Text style={styles.cardMeta}>{item_count} {item_count === 1 ? "item" : "items"}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={styles.cardMeta}>{item_count} {item_count === 1 ? "item" : "items"}</Text>
+                    <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`paperwork-duplicate-${s.id}`}>
+                      <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
                 <Text style={styles.cardMeta}>{pct}% complete · {member_total} {member_total === 1 ? "person" : "people"}</Text>

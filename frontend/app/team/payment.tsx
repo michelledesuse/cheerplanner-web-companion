@@ -11,7 +11,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import DateField from "@/src/components/DateField";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
-type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
+type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; amount_due?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
 type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; excluded_member_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
@@ -32,6 +32,7 @@ export default function PaymentDetail() {
   // Per-member payment sheet
   const [mMember, setMMember] = useState<Member | null>(null);
   const [mAmount, setMAmount] = useState("");
+  const [mDue, setMDue] = useState("");
   const [mMethod, setMMethod] = useState("");
   const [mMethodOther, setMMethodOther] = useState("");
   const [mDate, setMDate] = useState(todayISO());
@@ -56,7 +57,8 @@ export default function PaymentDetail() {
   const openMember = (m: Member) => {
     const e = entryFor(m.id);
     setMMember(m);
-    setMAmount(e?.amount_paid != null ? String(e.amount_paid) : (tracker?.amount != null ? String(tracker.amount) : ""));
+    setMDue(e?.amount_due != null ? String(e.amount_due) : "");
+    setMAmount(e?.amount_paid != null ? String(e.amount_paid) : (e?.amount_due != null ? String(e.amount_due) : (tracker?.amount != null ? String(tracker.amount) : "")));
     if (e?.method && METHODS.includes(e.method)) { setMMethod(e.method); setMMethodOther(""); }
     else if (e?.method) { setMMethod("Other"); setMMethodOther(e.method); }
     else { setMMethod(""); setMMethodOther(""); }
@@ -74,12 +76,26 @@ export default function PaymentDetail() {
       const r = await api.put<Tracker>(`/team/payments/${tracker.id}/member/${mMember.id}`, {
         paid: true,
         amount_paid: mAmount.trim() ? Number(mAmount) : null,
+        amount_due: mDue.trim() ? Number(mDue) : null,
         method: method || null,
         paid_at: mDate || todayISO(),
         note: mNote.trim() || null,
       });
       setTracker(r.data);
       closeMember();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
+    } finally { setMSaving(false); }
+  };
+
+  const saveDueOnly = async () => {
+    if (!tracker || !mMember) return;
+    setMSaving(true);
+    try {
+      const r = await api.put<Tracker>(`/team/payments/${tracker.id}/member/${mMember.id}`, {
+        amount_due: mDue.trim() ? Number(mDue) : null,
+      });
+      setTracker(r.data);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
     } finally { setMSaving(false); }
@@ -140,12 +156,19 @@ export default function PaymentDetail() {
   const groups = filterAndSplit(roster, null);
   const expected = tracker.amount;
 
+  const dueFor = (m: Member): number | null => {
+    const e = entryFor(m.id);
+    if (e?.amount_due != null) return e.amount_due;
+    return expected != null ? expected : null;
+  };
+
   const owedFor = (m: Member) => {
     if ((tracker.excluded_member_ids || []).includes(m.id)) return 0; // exempt — never owes
     const e = entryFor(m.id);
     const paid = !!e?.paid;
-    const paidAmt = paid ? (e?.amount_paid != null ? e.amount_paid : (expected ?? 0)) : 0;
-    return expected != null ? Math.max(0, expected - paidAmt) : (paid ? 0 : -1); // -1 = owing but no $ target
+    const due = dueFor(m);
+    const paidAmt = paid ? (e?.amount_paid != null ? e.amount_paid : (due ?? 0)) : 0;
+    return due != null ? Math.max(0, due - paidAmt) : (paid ? 0 : -1); // -1 = owing but no $ target
   };
   const nudgeOwing = async () => {
     const owing = (groups.all as Member[]).filter((m) => owedFor(m) !== 0);
@@ -289,8 +312,12 @@ export default function PaymentDetail() {
               ) : (
               <>
               <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 420 }}>
+                <Text style={styles.label}>Amount due {tracker.amount != null ? `(default ${formatCurrency(tracker.amount)})` : "(optional)"}</Text>
+                <TextInput style={styles.input} value={mDue} onChangeText={setMDue} placeholder={tracker.amount != null ? String(tracker.amount) : "e.g. 50"} placeholderTextColor={colors.textTertiary} keyboardType="decimal-pad" testID="payment-member-due" />
+                <Text style={styles.dueHint}>Leave blank to use the tracker default. Set a different amount for this person if needed.</Text>
+
                 <Text style={styles.label}>Amount paid</Text>
-                <TextInput style={styles.input} value={mAmount} onChangeText={setMAmount} placeholder={tracker.amount != null ? String(tracker.amount) : "e.g. 25"} placeholderTextColor={colors.textTertiary} keyboardType="decimal-pad" testID="payment-member-amount" />
+                <TextInput style={styles.input} value={mAmount} onChangeText={setMAmount} placeholder={mDue.trim() || (tracker.amount != null ? String(tracker.amount) : "e.g. 25")} placeholderTextColor={colors.textTertiary} keyboardType="decimal-pad" testID="payment-member-amount" />
 
                 <Text style={styles.label}>Payment method</Text>
                 <View style={styles.methodRow}>
@@ -314,9 +341,13 @@ export default function PaymentDetail() {
               <TouchableOpacity style={[styles.confirm, mSaving && { opacity: 0.6 }]} onPress={saveMember} disabled={mSaving} testID="payment-member-save">
                 {mSaving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>{alreadyPaid ? "Update payment" : "Mark paid"}</Text>}
               </TouchableOpacity>
-              {alreadyPaid && (
+              {alreadyPaid ? (
                 <TouchableOpacity style={styles.unpaidBtn} onPress={markUnpaid} disabled={mSaving} testID="payment-member-unpaid">
                   <Text style={styles.unpaidText}>Mark unpaid</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.unpaidBtn} onPress={saveDueOnly} disabled={mSaving} testID="payment-member-savedue">
+                  <Text style={styles.unpaidText}>Save amount due only</Text>
                 </TouchableOpacity>
               )}
               </>
@@ -369,6 +400,7 @@ const makeStyles = (c: ThemePalette) => ({
   exemptRow: { flexDirection: "row", alignItems: "center", backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },
   exemptLabel: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
   exemptSub: { ...typography.caption, color: c.textTertiary, marginTop: 2, lineHeight: 16 },
+  dueHint: { ...typography.caption, color: c.textTertiary, marginTop: 4, marginBottom: 2, lineHeight: 15 },
   memberName: { ...typography.bodyMedium, color: c.textPrimary },
   memberNamePaid: { color: c.textPrimary, fontWeight: "700" },
   memberDetail: { ...typography.caption, color: c.textSecondary, marginTop: 2 },

@@ -1,0 +1,34 @@
+{
+  "summary": "Iter67 duplicate + per-member amount_due batch verified end-to-end. Backend: 7/7 pytest cases pass (test_iter67_duplicate_and_perdue.py). Signup/Paperwork/Payment /duplicate endpoints all return a new resource with '<name> (copy)' suffix, require team_access (401/403 without auth), and clear the volatile parts (signup claims, paperwork checkmarks, payment paid/amount_paid), preserving structure. Payment duplicate correctly preserves amount, excluded_member_ids and per-member amount_due while zeroing paid/amount_paid. PER-MEMBER AMOUNT DUE: PUT /api/team/payments/{id}/member/{mid} with {amount_due:40, paid:true, amount_paid:40} fully covers that member (excluded from short_count / outstanding). PUT {amount_due:60} without paid leaves them owing 60 (verified summary.outstanding >= 60). PUT {amount_due:null} correctly falls back to tracker default 100 (outstanding jumped to include 60 gap for previously-covered member). Frontend: Duplicate icons (signup-duplicate-*, paperwork-duplicate-*, payment-duplicate-*) verified visible and functional — clicking increments list count from 1 to 2 with '(copy)' suffix rendered. Payment member sheet shows Amount due field (testID payment-member-due) with placeholder=tracker default (100), plus Amount paid, Mark paid button, and 'Save amount due only' button (testID payment-member-savedue) for unpaid members. Entering 40 and tapping Save amount due only saved the value; row then renders 'owes $40' correctly. Cleanup done: all TEST_UI67_* / TEST_iter67_* signups, paperwork, trackers, and roster members (including all ' (copy)' entries) removed. applereview team_access=True confirmed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter67_duplicate_and_perdue.py",
+    "/app/test_reports/pytest/pytest_iter67.xml"
+  ],
+  "action_items": [
+    "No fixes required — iter67 duplicate endpoints and per-member amount_due (backend + frontend) verified working."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/team_payments.py duplicate_payment_tracker (L206-225): correctly preserves amount, excluded_member_ids, and per-member amount_due (filters entries by amount_due is not None) while clearing paid/amount_paid — this matches the spec precisely.",
+    "backend/routers/team_payments.py _summary (L46-63): per-member due logic uses e.get('amount_due') when set, else tracker.amount, so short_count and outstanding correctly reflect mixed dues. Verified with 40/40 covered + 60 unpaid + null-fallback scenarios.",
+    "backend/routers/team_payments.py set_member_status (L228-267): uses model_dump(exclude_unset=True) so PUT {amount_due:null} explicitly sets entry.amount_due=None (fallback to tracker default), while omitting the key leaves the existing value. Correct semantics.",
+    "backend/routers/signups.py duplicate_signup (L87-102): creates fresh SignupSlot objects (new uuids) with no claims, name suffixed ' (copy)'. Solid.",
+    "backend/routers/paperwork.py duplicate_paperwork (L92-103): creates fresh PaperworkItem objects (new uuids) and empty values map. Solid.",
+    "frontend/app/team/payment.tsx openMember (L57-67): correctly initialises mDue from entry.amount_due (blank when not set → placeholder shows tracker default). saveDueOnly (L91-102) sends {amount_due: number|null} without touching paid — matches PUT semantics.",
+    "frontend/app/team/{signups,paperwork,payments}.tsx: each list row has correct testID `{signup|paperwork|payment}-duplicate-<id>` wired to POST /duplicate then reload — clean UX with hitSlop=8."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter67_duplicate_and_perdue.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (duplicate flow + payment-member-due/savedue verified)"},
+  "seed_data_creation": "Created and then deleted: 2 TEST_iter67_* roster + TEST_iter67_signup (+copy) + TEST_iter67_pw (+copy) + TEST_iter67_pay (+copy) via pytest fixture teardown. UI test created and cleaned up TEST_UI67_signup(+copy), TEST_UI67_pw(+copy), TEST_UI67_pay(+copy), TEST_UI67_ath, TEST_UI67_ath2. Review account applereview team_access confirmed=true.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Duplicate endpoints for signup/paperwork/payment are stable. Payment tracker per-member amount_due is respected in both PUT semantics and summary math. Frontend duplicate testIDs: `signup-duplicate-<id>`, `paperwork-duplicate-<id>`, `payment-duplicate-<id>`. Member sheet testIDs: payment-member-due (Amount due field, placeholder=tracker default), payment-member-amount (Amount paid), payment-member-save (Mark paid/Update payment), payment-member-savedue (Save amount due only — only visible for UNPAID members), payment-member-unpaid (Mark unpaid — only visible for PAID members). Do NOT call /remind in tests — it sends real Twilio SMS."
+}

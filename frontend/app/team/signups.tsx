@@ -38,6 +38,11 @@ export default function SignupsScreen() {
 
   const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
 
+  const duplicate = async (id: string) => {
+    try { await api.post(`/team/signups/${id}/duplicate`); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not duplicate."); }
+  };
+
   const create = async () => {
     if (!name.trim()) { Alert.alert("Name required", "Give this sheet a name."); return; }
     setSaving(true);
@@ -83,7 +88,12 @@ export default function SignupsScreen() {
               <TouchableOpacity key={s.id} style={styles.card} onPress={() => router.push({ pathname: "/team/signup-sheet", params: { id: s.id } })} testID={`signup-row-${s.id}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={styles.cardName}>{s.name}</Text>
-                  <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                    <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
+                    <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`signup-duplicate-${s.id}`}>
+                      <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
                 {!!compName(s.competition_id) && <Text style={styles.compTag}>{compName(s.competition_id)}</Text>}
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>

@@ -879,6 +879,7 @@ class TeamPaymentEntry(BaseModel):
     member_id: str
     paid: bool = False
     amount_paid: Optional[float] = None
+    amount_due: Optional[float] = None  # per-member override of the tracker default
     method: Optional[str] = None
     note: Optional[str] = None
     paid_at: Optional[str] = None
@@ -914,6 +915,7 @@ class PaymentExcludeUpdate(BaseModel):
 class PaymentEntryUpdate(BaseModel):
     paid: Optional[bool] = None
     amount_paid: Optional[float] = None
+    amount_due: Optional[float] = None
     method: Optional[str] = None
     note: Optional[str] = None
     paid_at: Optional[str] = None

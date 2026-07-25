@@ -89,6 +89,20 @@ async def delete_paperwork(sheet_id: str, current_user=Depends(get_current_user)
     return {"deleted": True}
 
 
+@router.post("/paperwork/{sheet_id}/duplicate", response_model=PaperworkSheet)
+async def duplicate_paperwork(sheet_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.paperwork_sheets.find_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+    # Copy the columns (items) with fresh ids; start with no checkmarks.
+    items = [PaperworkItem(label=it["label"], order=it.get("order", i)).model_dump()
+             for i, it in enumerate(doc.get("items") or [])]
+    copy = PaperworkSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)", items=items)
+    await db.paperwork_sheets.insert_one(copy.model_dump())
+    return copy
+
+
 @router.post("/paperwork/{sheet_id}/items", response_model=PaperworkSheet)
 async def add_item(sheet_id: str, payload: PaperworkItemCreate, current_user=Depends(get_current_user)):
     label = (payload.label or "").strip()
