@@ -196,6 +196,10 @@ async def public_submit(token: str, payload: dict = Body(...)):
         host = payload.get("host_bonding_opt_in")
         if isinstance(host, bool):
             extras["host_bonding_opt_in"] = host
+        # Flag as a fresh parent submission for coaches to review.
+        from core.models import utcnow_iso as _now
+        extras["pending_review"] = True
+        extras["submitted_at"] = _now()
         if match:
             member_id = match["id"]
             upd = {**{k: v for k, v in fields.items() if v}, **extras}

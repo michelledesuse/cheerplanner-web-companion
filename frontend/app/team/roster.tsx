@@ -17,6 +17,7 @@ type RosterMember = {
   parent_first_name?: string | null; parent_last_name?: string | null;
   parent_phone?: string | null; parent_email?: string | null;
   team_ids?: string[] | null; notes?: string | null; source?: string; linked_id?: string | null;
+  pending_review?: boolean;
 };
 type Candidate = { id: string; name: string; role?: string; email?: string | null; team_id?: string | null };
 
@@ -78,6 +79,17 @@ export default function RosterScreen() {
   };
 
   const exitSelect = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+  const pendingCount = new Set(members.filter((m) => m.pending_review).map((m) => m.id)).size;
+
+  const clearAllReviewed = async () => {
+    try { await api.post("/roster/mark-reviewed", {}); await load(); } catch { /* ignore */ }
+  };
+
+  const openMember = (m: RosterMember) => {
+    if (m.pending_review) api.post("/roster/mark-reviewed", { ids: [m.id] }).catch(() => {});
+    router.push({ pathname: "/team/roster-new", params: { id: m.id } });
+  };
 
   const bulkDelete = () => {
     const ids = Array.from(selectedIds);
@@ -222,6 +234,14 @@ export default function RosterScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
           testID="roster-list"
         >
+          {pendingCount > 0 && !selectMode && (
+            <TouchableOpacity style={styles.reviewBanner} onPress={clearAllReviewed} testID="roster-review-banner">
+              <Ionicons name="sparkles-outline" size={18} color={colors.accent} />
+              <Text style={styles.reviewBannerText}>
+                {pendingCount} new parent {pendingCount === 1 ? "submission" : "submissions"} — tap to mark reviewed
+              </Text>
+            </TouchableOpacity>
+          )}
           {totalVisible === 0 ? (
             <View style={styles.emptyBlock}>
               <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
@@ -234,7 +254,7 @@ export default function RosterScreen() {
               {section.rows.map(({ member: m, teamId }) => {
                 const selected = selectedIds.has(m.id);
                 return (
-                <TouchableOpacity key={`${m.id}-${teamId ?? "none"}`} style={[styles.card, selectMode && selected && styles.cardSelected]} onPress={() => selectMode ? toggleSelect(m.id) : router.push({ pathname: "/team/roster-new", params: { id: m.id } })} testID={`roster-row-${m.id}`}>
+                <TouchableOpacity key={`${m.id}-${teamId ?? "none"}`} style={[styles.card, selectMode && selected && styles.cardSelected]} onPress={() => selectMode ? toggleSelect(m.id) : openMember(m)} testID={`roster-row-${m.id}`}>
                   {selectMode && (
                     <View style={[styles.selCheck, selected && styles.selCheckOn]} testID={`roster-check-${m.id}`}>
                       {selected && <Ionicons name="checkmark" size={14} color="white" />}
@@ -245,6 +265,7 @@ export default function RosterScreen() {
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <Text style={styles.name}>{m.name}</Text>
                       <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{(ROLE_LABEL[m.role] || m.role).toUpperCase()}</Text></View>
+                      {m.pending_review && <View style={styles.newBadge}><Text style={styles.newBadgeText}>NEW</Text></View>}
                       {!!teamName(teamId) && <Text style={styles.teamTag}>{teamName(teamId)}</Text>}
                     </View>
                     {(() => {
@@ -384,6 +405,10 @@ const makeStyles = (c: ThemePalette) => ({
   name: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   roleBadge: { backgroundColor: c.accentSubtle, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   roleBadgeText: { color: c.accent, fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
+  newBadge: { backgroundColor: c.success || c.accent, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  newBadgeText: { color: "white", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
+  reviewBanner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "55", borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.md },
+  reviewBannerText: { ...typography.caption, color: c.textPrimary, fontWeight: "700", flex: 1 },
   parentLine: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   teamTag: { ...typography.micro, color: c.textSecondary, fontWeight: "700" },
   contactRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },

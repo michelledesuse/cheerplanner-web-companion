@@ -9,6 +9,7 @@ from core.models import (
     RosterMemberUpdate,
     RosterImportPayload,
     RosterBulkDeletePayload,
+    RosterReviewPayload,
     RosterColumn,
     RosterColumnCreate,
     RosterColumnUpdate,
@@ -96,6 +97,16 @@ async def bulk_delete_roster(payload: RosterBulkDeletePayload, current_user=Depe
     member_ids = await _household_user_ids(current_user["id"])
     res = await db.roster.delete_many({"id": {"$in": payload.ids}, "user_id": {"$in": member_ids}})
     return {"deleted": res.deleted_count}
+
+
+@router.post("/roster/mark-reviewed")
+async def mark_roster_reviewed(payload: RosterReviewPayload, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    q: dict = {"user_id": {"$in": member_ids}, "pending_review": True}
+    if payload.ids:
+        q["id"] = {"$in": payload.ids}
+    res = await db.roster.update_many(q, {"$set": {"pending_review": False}})
+    return {"cleared": res.modified_count}
 
 
 @router.get("/roster/import-candidates")

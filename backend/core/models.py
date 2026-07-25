@@ -827,6 +827,9 @@ class RosterMember(BaseModel):
     parent_email: Optional[str] = None
     team_ids: List[str] = Field(default_factory=list)  # a person can be on multiple teams
     notes: Optional[str] = None
+    # Public-link submissions: flag so coaches see who just filled in their info.
+    pending_review: bool = False
+    submitted_at: Optional[str] = None
     # Phase 3 — expanded roster fields
     preferred_name: Optional[str] = None
     food_allergies: Optional[str] = None
@@ -905,6 +908,10 @@ class RosterImportPayload(BaseModel):
 
 class RosterBulkDeletePayload(BaseModel):
     ids: List[str] = Field(default_factory=list)
+
+
+class RosterReviewPayload(BaseModel):
+    ids: Optional[List[str]] = None  # None = clear all pending in the household
 
 
 
