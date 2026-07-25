@@ -1080,3 +1080,28 @@ class ShareLinkCreate(BaseModel):
     kind: Literal["signup", "roster", "sizes"]
     ref_id: Optional[str] = None
 
+
+# ============================================================
+# To-Do lists (Team Hub + attached to competitions & events)
+# ============================================================
+class Todo(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    text: str
+    done: bool = False
+    scope: Literal["team", "competition", "event"] = "team"
+    ref_id: Optional[str] = None  # competition/event id (None for the Team Hub list)
+    order: int = 0
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class TodoCreate(BaseModel):
+    text: str
+    scope: Literal["team", "competition", "event"] = "team"
+    ref_id: Optional[str] = None
+
+
+class TodoUpdate(BaseModel):
+    text: Optional[str] = None
+    done: Optional[bool] = None
+

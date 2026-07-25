@@ -42,6 +42,7 @@ from routers import (
     signups,
     team_access,
     share,
+    todos,
 )
 
 
@@ -91,6 +92,7 @@ for r in (
     signups.router,
     team_access.router,
     share.router,
+    todos.router,
 ):
     app.include_router(r)
 

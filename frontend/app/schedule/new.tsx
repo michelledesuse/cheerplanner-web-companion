@@ -11,6 +11,7 @@ import { todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import TeamAvatar from "@/src/components/TeamAvatar";
+import TodoList from "@/src/components/TodoList";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import AddTypeModal from "@/src/components/AddTypeModal";
 
@@ -442,6 +443,13 @@ export default function ScheduleForm() {
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="schedule-save">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : (repeat ? "Save series" : "Save event")}</Text>}
           </TouchableOpacity>
+
+          {isEdit && !!params.id && (
+            <View style={{ marginTop: spacing.xl }}>
+              <Text style={styles.todoHead}>To-do list</Text>
+              <TodoList scope="event" refId={String(params.id)} />
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
       <AddTypeModal
@@ -498,6 +506,7 @@ const makeStyles = () => ({
   chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600" },
   chipTextActive: { color: "white" },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
+  todoHead: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.sm },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
   scopeBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   scopeSheet: { backgroundColor: colors.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },

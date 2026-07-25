@@ -10,6 +10,7 @@ import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import PackingListSection from "@/src/components/PackingListSection";
+import TodoList from "@/src/components/TodoList";
 import CompetitionTeamsSection, { TeamMeetTime, TeamToWatch } from "@/src/components/CompetitionTeamsSection";
 
 type Competition = {
@@ -286,6 +287,9 @@ export default function CompetitionDetail() {
 
         <Text style={styles.sectionHead}>Packing list</Text>
         <PackingListSection competitionId={comp.id} athletes={athletes} />
+
+        <Text style={styles.sectionHead}>To-do list</Text>
+        <TodoList scope="competition" refId={comp.id} />
       </ScrollView>
     </SafeAreaView>
   );
