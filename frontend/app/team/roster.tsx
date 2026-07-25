@@ -8,6 +8,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { shareTeamLink } from "@/src/utils/shareLink";
+import { exportAoa } from "@/src/utils/exportFile";
 
 type RosterMember = {
   id: string; name: string; role: string;
@@ -45,6 +46,28 @@ export default function RosterScreen() {
   const [importing, setImporting] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [actionsOpen, setActionsOpen] = useState(false);
+
+  const downloadRoster = async (format: "csv" | "xlsx") => {
+    setActionsOpen(false);
+    const seen = new Set<string>();
+    const unique = members.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
+    const header = ["Name", "Role", "Team(s)", "Phone", "Email", "Parent First", "Parent Last", "Parent Phone", "Parent Email", "Notes"];
+    const roleLabel: Record<string, string> = { athlete: "Athlete", coach: "Coach", team_rep: "Team Rep", staff: "Staff", parent: "Parent" };
+    const rows = unique.map((m) => [
+      m.name,
+      roleLabel[m.role] || m.role,
+      (m.team_ids || []).map((tid) => teamName(tid)).filter(Boolean).join(", "),
+      m.phone || "", m.email || "",
+      m.parent_first_name || "", m.parent_last_name || "", m.parent_phone || "", m.parent_email || "",
+      m.notes || "",
+    ]);
+    try {
+      await exportAoa("cheerplanner-roster", [header, ...rows], format, "Roster");
+    } catch (e: any) {
+      Alert.alert("Export failed", e?.message || "Please try again.");
+    }
+  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -159,6 +182,11 @@ export default function RosterScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Roster</Text>
+        {!selectMode && (
+          <TouchableOpacity onPress={() => setActionsOpen(true)} style={styles.iconBtn} testID="roster-actions" hitSlop={8}>
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+        )}
         {selectMode ? (
           <TouchableOpacity onPress={exitSelect} style={styles.selBtn} testID="roster-select-cancel">
             <Text style={styles.selBtnText}>Cancel</Text>
@@ -172,21 +200,6 @@ export default function RosterScreen() {
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
-
-      <TouchableOpacity style={styles.importBtn} onPress={openImport} testID="roster-import-open">
-        <Ionicons name="download-outline" size={16} color={colors.accent} />
-        <Text style={styles.importBtnText}>Add from my household</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.importBtn} onPress={() => router.push("/import/roster" as any)} testID="roster-import-spreadsheet">
-        <Ionicons name="grid-outline" size={16} color={colors.accent} />
-        <Text style={styles.importBtnText}>Import from spreadsheet (CSV / Excel)</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.importBtn} onPress={() => shareTeamLink("roster")} testID="roster-share">
-        <Ionicons name="share-outline" size={16} color={colors.accent} />
-        <Text style={styles.importBtnText}>Share link for parents to add info</Text>
-      </TouchableOpacity>
 
       {teams.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.teamChips}>
@@ -279,6 +292,34 @@ export default function RosterScreen() {
         </View>
       )}
 
+      <Modal visible={actionsOpen} transparent animationType="fade" onRequestClose={() => setActionsOpen(false)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setActionsOpen(false)}>
+          <Pressable style={styles.menuSheet} onPress={() => {}}>
+            <View style={styles.menuHandle} />
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); openImport(); }} testID="roster-menu-household">
+              <Ionicons name="people-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Add from my household</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); router.push("/import/roster" as any); }} testID="roster-menu-import">
+              <Ionicons name="grid-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Import from spreadsheet (CSV / Excel)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); shareTeamLink("roster"); }} testID="roster-menu-share">
+              <Ionicons name="share-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Share link for parents to add info</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => downloadRoster("xlsx")} testID="roster-menu-download-xlsx">
+              <Ionicons name="download-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Download roster (Excel)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => downloadRoster("csv")} testID="roster-menu-download-csv">
+              <Ionicons name="document-text-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Download roster (CSV)</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <Modal visible={importOpen} transparent animationType="slide" onRequestClose={() => setImportOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setImportOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
@@ -324,10 +365,15 @@ const makeStyles = (c: ThemePalette) => ({
   deleteBarCount: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   deleteBarBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.danger, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 10 },
   deleteBarBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
+  menuBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  menuSheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.md, paddingBottom: spacing.xl },
+  menuHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, alignSelf: "center", marginBottom: spacing.md },
+  menuItem: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 14, borderRadius: radius.md },
+  menuText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "600" },
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: spacing.lg, paddingVertical: 11, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
   importBtnText: { ...typography.bodyMedium, color: c.accent, fontWeight: "700" },
-  teamChips: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: 8 },
-  teamChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  teamChips: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm, gap: 8, alignItems: "center" },
+  teamChip: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, minHeight: 36, justifyContent: "center" },
   teamChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   teamChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
   teamChipTextOn: { color: "white" },

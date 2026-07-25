@@ -108,7 +108,8 @@ async def public_data(token: str):
                 "time_label": s.get("time_label"), "qty_needed": s.get("qty_needed", 1),
                 "claimed": claimed, "claims": claims,
             })
-        return {"kind": "signup", "title": sheet.get("name"), "slots": slots}
+        roster_names = sorted([v for v in rmap.values() if v], key=lambda n: n.lower())
+        return {"kind": "signup", "title": sheet.get("name"), "slots": slots, "roster_names": roster_names}
     if link["kind"] == "roster":
         return {"kind": "roster", "title": "Team Roster"}
     if link["kind"] == "sizes":
@@ -210,17 +211,17 @@ async def public_submit(token: str, payload: dict = Body(...)):
 # ============================================================
 _STYLE = (
     "body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;"
-    "background:#F1F5F9;color:#0F172A;margin:0;padding:24px 14px;}"
+    "background:#FAFAF9;color:#0F172A;margin:0;padding:24px 14px;}"
     ".card{max-width:520px;margin:0 auto 16px;background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:18px 16px;}"
     ".brand{max-width:520px;margin:0 auto 12px;font-weight:800;font-size:20px}"
-    ".brand .c{color:#4169E1}.brand .p{color:#0F172A}"
-    "h1{font-size:20px;margin:0 0 2px}.sub{color:#E11D48;font-weight:700;font-size:13px;margin:0 0 10px}"
+    ".brand .c{color:#007CFF}.brand .p{color:#0F172A}"
+    "h1{font-size:20px;margin:0 0 2px}.sub{color:#007CFF;font-weight:700;font-size:13px;margin:0 0 10px}"
     ".slot{border:1px solid #E2E8F0;border-radius:12px;padding:12px;margin-bottom:12px}"
     ".slot h3{margin:0;font-size:16px}.meta{color:#64748B;font-size:13px;margin:2px 0 8px}"
     ".claim{font-size:13px;color:#334155;padding:3px 0}"
     "label{display:block;font-size:12px;color:#475569;font-weight:600;margin:10px 0 4px}"
-    "input,select{width:100%;box-sizing:border-box;padding:10px;border:1px solid #CBD5E1;border-radius:8px;font-size:15px}"
-    "button{margin-top:12px;width:100%;background:#E11D48;color:#fff;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer}"
+    "input,select{width:100%;box-sizing:border-box;padding:10px;border:1px solid #CBD5E1;border-radius:8px;font-size:15px;background:#fff}"
+    "button{margin-top:12px;width:100%;background:#007CFF;color:#fff;border:0;border-radius:10px;padding:12px;font-size:15px;font-weight:700;cursor:pointer}"
     ".full{opacity:.6}.ok{color:#059669;font-weight:700;font-size:13px;margin-top:8px}"
     ".row{display:flex;gap:8px}.row>div{flex:1}"
 )
@@ -282,6 +283,7 @@ def _shell(title: str, body: str) -> str:
 
 _JS_SIGNUP = """
 function renderSignup(d){
+  window._roster=d.roster_names||[];
   let h="<h1>"+esc(d.title)+"</h1><p class='sub'>Volunteer sign-up</p>";
   (d.slots||[]).forEach(s=>{
     const remaining=Math.max(0,s.qty_needed-s.claimed); const full=remaining===0;
@@ -289,16 +291,26 @@ function renderSignup(d){
     if(s.time_label) h+="<div class='meta'>"+esc(s.time_label)+"</div>";
     h+="<div class='meta'>"+s.claimed+"/"+s.qty_needed+" filled"+(remaining>0?(" · "+remaining+" needed"):" · complete")+"</div>";
     (s.claims||[]).forEach(c=>{h+="<div class='claim'>✔ "+esc(c.name)+(c.qty>1?(" ×"+c.qty):"")+(c.note?(" — "+esc(c.note)):"")+"</div>";});
-    h+="<label>Your name</label><input id='n_"+s.id+"' placeholder='First & last name'/>";
+    h+="<label>Your name</label>";
+    let opts="<option value=''>Choose your name…</option>";
+    (window._roster||[]).forEach(n=>{opts+="<option value='"+esc(n)+"'>"+esc(n)+"</option>";});
+    opts+="<option value='__other__'>Other (type name)…</option>";
+    h+="<select id='sel_"+s.id+"' onchange='onSel(\\""+s.id+"\\")'>"+opts+"</select>";
+    h+="<input id='n_"+s.id+"' style='display:none;margin-top:8px' placeholder='Type your name'/>";
     h+="<div class='row'><div><label>Qty</label><input id='q_"+s.id+"' type='number' value='1' min='1'/></div>";
     h+="<div><label>Note (optional)</label><input id='nt_"+s.id+"' placeholder='e.g. bringing waters'/></div></div>";
     h+="<button onclick='claim(\\""+s.id+"\\",this)'>Sign up</button><div class='ok' id='ok_"+s.id+"'></div></div>";
   });
   document.getElementById("app").innerHTML=h;
 }
+function onSel(id){
+  const v=document.getElementById("sel_"+id).value;
+  document.getElementById("n_"+id).style.display=(v==="__other__")?"block":"none";
+}
 async function claim(id,btn){
-  const name=document.getElementById("n_"+id).value.trim();
-  if(!name){alert("Please enter your name.");return;}
+  const sel=document.getElementById("sel_"+id).value;
+  let name=sel; if(sel==="__other__") name=document.getElementById("n_"+id).value.trim();
+  if(!name||name==="__other__"){alert("Please choose or type your name.");return;}
   const qty=document.getElementById("q_"+id).value; const note=document.getElementById("nt_"+id).value;
   const ok=await submit({slot_id:id,name:name,qty:qty,note:note},btn);
   if(ok){document.getElementById("ok_"+id).textContent="You're signed up!";setTimeout(load,700);}

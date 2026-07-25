@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Linking, Switch } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -9,7 +9,7 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
-import { filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
+import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
 type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; excluded_member_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
@@ -27,6 +27,7 @@ export default function PaymentDetail() {
   const [editOpen, setEditOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
+  const [nudging, setNudging] = useState(false);
 
   // Per-member payment sheet
   const [mMember, setMMember] = useState<Member | null>(null);
@@ -146,27 +147,29 @@ export default function PaymentDetail() {
     const paidAmt = paid ? (e?.amount_paid != null ? e.amount_paid : (expected ?? 0)) : 0;
     return expected != null ? Math.max(0, expected - paidAmt) : (paid ? 0 : -1); // -1 = owing but no $ target
   };
-  const phoneFor = (m: Member) => (isPersonnel(m.role) ? (m.phone || m.parent_phone) : (m.parent_phone || m.phone)) || "";
-
   const nudgeOwing = async () => {
     const owing = (groups.all as Member[]).filter((m) => owedFor(m) !== 0);
-    const phones = Array.from(new Set(owing.map(phoneFor).filter(Boolean)));
     if (owing.length === 0) { Alert.alert("All caught up", "Everyone has paid in full."); return; }
-    if (phones.length === 0) {
-      Alert.alert("No phone numbers", "None of the people who still owe have a phone number saved on the roster. Add one on their roster entry to text them.");
-      return;
-    }
-    const amountPart = expected != null ? ` (${formatCurrency(expected)} per person)` : "";
-    const body = `Hi! Friendly reminder about "${tracker.name}"${amountPart}. Our records show a balance is still outstanding — please submit your payment when you can. Thank you!`;
-    const sep = Platform.OS === "ios" ? "&" : "?";
-    const url = `sms:${phones.join(",")}${sep}body=${encodeURIComponent(body)}`;
-    try {
-      const ok = await Linking.canOpenURL(url);
-      if (!ok) throw new Error("unsupported");
-      await Linking.openURL(url);
-    } catch {
-      Alert.alert("Can't open Messages", "Texting isn't available on this device. On your phone, this opens a pre-filled message to everyone who owes.");
-    }
+    Alert.alert(
+      "Text everyone who owes?",
+      `We'll send a separate, private reminder text to each person who still owes${expected != null ? ` (${formatCurrency(expected)} per person)` : ""}. Athletes' texts go to the parent's number.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Send texts", onPress: async () => {
+          setNudging(true);
+          try {
+            const r = await api.post<{ sent: number; no_phone: string[]; failed: string[] }>(`/team/payments/${tracker.id}/remind`, {});
+            const { sent, no_phone, failed } = r.data;
+            let msg = `Sent ${sent} individual reminder${sent === 1 ? "" : "s"}.`;
+            if (no_phone.length) msg += `\n\nNo phone on file for: ${no_phone.slice(0, 8).join(", ")}${no_phone.length > 8 ? "…" : ""}.`;
+            if (failed.length) msg += `\n\nCouldn't reach: ${failed.slice(0, 8).join(", ")}.`;
+            Alert.alert(sent > 0 ? "Reminders sent" : "Nothing sent", msg);
+          } catch (e: any) {
+            Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
+          } finally { setNudging(false); }
+        } },
+      ],
+    );
   };
 
   const owingCount = (groups.all as Member[]).filter((m) => owedFor(m) !== 0).length;
@@ -232,8 +235,8 @@ export default function PaymentDetail() {
             </View>
           )}
           {owingCount > 0 && (
-            <TouchableOpacity style={styles.nudgeBtn} onPress={nudgeOwing} testID="payment-nudge">
-              <Ionicons name="chatbubble-ellipses-outline" size={16} color="white" />
+            <TouchableOpacity style={[styles.nudgeBtn, nudging && { opacity: 0.6 }]} onPress={nudgeOwing} disabled={nudging} testID="payment-nudge">
+              {nudging ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="chatbubble-ellipses-outline" size={16} color="white" />}
               <Text style={styles.nudgeText}>Text who owes ({owingCount})</Text>
             </TouchableOpacity>
           )}

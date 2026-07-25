@@ -13,6 +13,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
+from core.sms import send_sms, is_configured, normalize_us_phone
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -101,6 +102,61 @@ async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Dep
     tracker.name = payload.name.strip()
     await db.payment_trackers.insert_one(tracker.model_dump())
     return tracker
+
+
+@router.post("/payments/{tracker_id}/remind")
+async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
+    """Text each person who still owes an INDIVIDUAL reminder via Twilio."""
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="SMS isn't configured. Add your Twilio number in settings.")
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.payment_trackers.find_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+
+    excluded = set(doc.get("excluded_member_ids") or [])
+    expected = doc.get("amount")
+    entries = {e.get("member_id"): e for e in (doc.get("entries") or [])}
+    tracker_name = doc.get("name") or "team payment"
+
+    roster = await db.roster.find(
+        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
+    ).to_list(2000)
+
+    sent, no_phone, failed = 0, [], []
+    for m in roster:
+        if m["id"] in excluded:
+            continue
+        e = entries.get(m["id"])
+        paid = bool(e and e.get("paid"))
+        paid_amt = 0.0
+        if paid:
+            amt = e.get("amount_paid")
+            paid_amt = float(amt if amt is not None else (expected or 0))
+        owed = None
+        if expected is not None:
+            owed = max(0.0, float(expected) - paid_amt)
+            if owed <= 0:
+                continue  # fully covered
+        else:
+            if paid:
+                continue  # marked paid
+
+        # Athlete -> use parent phone; personnel -> own phone.
+        phone = (m.get("parent_phone") or m.get("phone")) if m.get("role") == "athlete" else (m.get("phone") or m.get("parent_phone"))
+        if not normalize_us_phone(phone):
+            no_phone.append(m.get("name"))
+            continue
+
+        first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
+        amount_txt = f" of ${owed:,.2f}" if owed and owed > 0 else ""
+        body = f"Hi {first}, friendly reminder about '{tracker_name}': a balance{amount_txt} is still outstanding. Thank you!"
+        if send_sms(phone, body):
+            sent += 1
+        else:
+            failed.append(m.get("name"))
+
+    return {"sent": sent, "no_phone": no_phone, "failed": failed}
 
 
 @router.get("/payments/{tracker_id}")

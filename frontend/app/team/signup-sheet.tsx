@@ -71,7 +71,15 @@ export default function SignupSheetScreen() {
   useEffect(() => { api.get<Comp[]>("/competitions").then((r) => setComps(r.data)).catch(() => {}); }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const slots = useMemo(() => (sheet?.slots || []).slice().sort((a, b) => a.order - b.order), [sheet]);
+  const slots = useMemo(() => {
+    const claimedOf = (s: Slot) => (s.claims || []).reduce((n, c) => n + (c.qty || 1), 0);
+    return (sheet?.slots || []).slice().sort((a, b) => {
+      const af = claimedOf(a) >= a.qty_needed ? 1 : 0;
+      const bf = claimedOf(b) >= b.qty_needed ? 1 : 0;
+      if (af !== bf) return af - bf; // fully-filled slots sink to the bottom
+      return a.order - b.order;
+    });
+  }, [sheet]);
   const memberName = (id?: string | null) => roster.find((m) => m.id === id)?.name || "Unknown";
   const claimName = (cl: Claim) => cl.guest_name || memberName(cl.member_id);
   const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
