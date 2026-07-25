@@ -1,0 +1,36 @@
+{
+  "summary": "Iter68 Team Hub features verified end-to-end. Backend: 11/11 pytest cases pass (test_iter68_team_hub_features.py). P0 To-Dos (team/competition/event scopes) — create/toggle/patch/delete + household-scoped list with done-to-bottom sorting all correct. P1.1 Signup reorder — newly created sheets float to top (order lower than min), POST /api/team/signups/reorder persists new order, list sorts by order asc on reload. P1.2 Attendance — session CRUD, PUT /mark with present/absent/excused/null works, roster_total EXCLUDES role='parent' (verified with 2 athletes + 1 parent seed), summary counts (present/absent/excused/unmarked/member_total) computed correctly, invalid member returns 404. P1.3 Event↔Signup link — GET /api/team/signups?event_id filter restricts correctly, event_id persists on create. P2.4 Roster expanded — preferred_name/food_allergies/other_allergies/medical_concerns/host_bonding_opt_in persist on create + PATCH; RosterColumn CRUD (blank rejected, rename, delete) works; member.custom values save via POST + PATCH; delete column cascades $unset on all members. P2.5 Blocks — solo owner GET /api/team/blocks/signup/{id} returns is_owner=true, members=[], blocked_user_ids=[]; PUT /api/team/blocks with non-household user returns 404. Frontend UI: /team/todos add + toggle + delete works (rows update, 'X left · Y done' counter shows, checked items strike-through and sink); /team/attendance modal creates session and navigates to session screen; mark-all-present sets 4/4 present; per-member att-mark-*-present|absent|excused testIDs render (13 buttons across 4 rows + Mark-all); /team/roster-new form renders First/Last/Preferred name, Role chips, Teams multi-select, Parent/guardian, Food allergies, Other allergies, Medical concerns, Host bonding, Custom fields section with roster-col-new-input + roster-col-add-btn — all present. Signups list correctly hides signups-reorder-toggle when <2 sheets exist. Sheet-access lock controls correctly HIDDEN on /team/signups, /team/payments, /team/paperwork for the solo owner (useCanManageAccess=false). One deprecation console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' — surfaced from a dependency, non-blocking, reported as minor.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "props.pointerEvents", "issue": "React Native Web deprecation warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' logged from multiple screens (todos/attendance/roster-new/signups). Likely from a third-party lib or a component still using the prop form. Non-blocking but should be tracked; grep the codebase for `pointerEvents=` on JSX props and move to `style={{pointerEvents:'none'}}`."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter68_team_hub_features.py",
+    "/app/test_reports/pytest/pytest_iter68.xml"
+  ],
+  "action_items": [
+    "(Optional) migrate remaining `pointerEvents` JSX props to `style.pointerEvents` to silence RN-Web deprecation warning."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/todos.py list_todos (L18-25): scope='team' + ref_id=None correctly filters Team Hub list; sorting done-to-bottom with (done, order, created_at) tuple is correct. `q['ref_id'] = ref_id` explicitly matches None which is exactly what we want for the Team Hub list.",
+    "backend/routers/attendance.py _roster_total (L21-22): parent exclusion via {'role': {'$ne': 'parent'}} is correct. member_total in summary drives 'X/N present' in UI — solid.",
+    "backend/routers/attendance.py mark_attendance (L102-117): validates roster member belongs to household and status=None pops the record (correct clear semantics). PUT idempotent.",
+    "backend/routers/signups.py create_signup (L54-63): order = min(existing_orders) - 1 → new sheet floats to top. list_signups sorts by (order asc, created_at asc). Reorder endpoint L66-73 uses enumerate index as new order — clean.",
+    "backend/routers/roster.py delete_roster_column (L223-233): after DELETE, runs update_many({user_id∈household}, {'$unset': {f'custom.{column_id}': ''}}) — cascade cleanup verified.",
+    "backend/routers/blocks.py get_blocks (L15-43): correctly returns {is_owner:false, members:[], blocked_user_ids:[]} for non-owners so the UI can hide the lock icon without a separate call. For solo owners, member_user_ids excludes owner_id so `members` is [] — matches P2.5 spec exactly.",
+    "backend/core/models.py Todo/AttendanceSession/SheetBlock/RosterColumn: literal enums for scope/status/resource are strict — bad payloads correctly fail validation."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter68_team_hub_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (todos add/toggle/delete, attendance create+mark-all+per-member, roster-new all P2.4 fields+custom cols, signups reorder toggle correctly gated, lock icons correctly hidden for solo owner on signups/payments/paperwork)"},
+  "seed_data_creation": "Backend pytest fixture created and cleaned up: 3 TEST_iter68_ATH/PAR roster members + TEST_iter68_event schedule event + TEST_iter68_comp competition + TEST_iter68_col_* column + TEST_iter68 sheets/todos/attendance. Frontend UI created TEST_UI68_todo1/2 (deleted) and TEST_UI68_att attendance session. Additional cleanup pass removed 6 leftover TEST_iter68/UI68 roster entries + orphaned events + attendance session via /tmp/iter68_cleanup.py.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Team Hub P0/P1/P2 endpoints all stable. Backend testIDs: /api/todos with ?scope=team|competition|event & ref_id; /api/team/attendance CRUD + /mark PUT (member_id, status: present|absent|excused|null); /api/team/signups?event_id= filter; /api/team/signups/reorder {ids:[]}; /api/roster/columns CRUD; /api/team/blocks/{resource}/{resource_id} GET is owner-gated. Frontend testIDs verified: todo-input, todo-add, todo-toggle-<id>, todo-row-<id>, todo-delete-<id>; attendance-add, attendance-title-input, attendance-create-btn, attendance-row-<id>, att-session-list, att-mark-all, att-mark-<memberId>-present|absent|excused, att-session-delete, att-team-<id|all>; roster-col-new-input, roster-col-add-btn, roster-col-delete-<id>; signups-reorder-toggle (only when >=2 sheets), signup-up-<id> / signup-down-<id> (in reorder mode). Solo owner: SheetAccessButton correctly not rendered on team/signups, team/payments, team/paperwork. RN-Web console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' is present but not blocking."
+}

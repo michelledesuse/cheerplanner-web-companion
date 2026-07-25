@@ -10,9 +10,10 @@ from core.models import (
     SignupSlotCreate,
     SignupSlotUpdate,
     SignupClaimCreate,
+    SignupReorderPayload,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, _blocked_resource_ids
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -37,10 +38,15 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 
 
 @router.get("/signups")
-async def list_signups(current_user=Depends(get_current_user)):
+async def list_signups(event_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    docs = await db.signup_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
-    docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
+    query: dict = {"user_id": {"$in": member_ids}}
+    if event_id:
+        query["event_id"] = event_id
+    docs = await db.signup_sheets.find(query, {"_id": 0}).to_list(1000)
+    blocked = await _blocked_resource_ids(current_user["id"], "signup")
+    docs = [d for d in docs if d["id"] not in blocked]
+    docs.sort(key=lambda d: (d.get("order", 0), d.get("created_at") or ""))
     return [{**SignupSheet(**d).model_dump(), "summary": _summary(d)} for d in docs]
 
 
@@ -48,13 +54,29 @@ async def list_signups(current_user=Depends(get_current_user)):
 async def create_signup(payload: SignupSheetCreate, current_user=Depends(get_current_user)):
     if not (payload.name or "").strip():
         raise HTTPException(status_code=400, detail="Name is required")
-    sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(), competition_id=payload.competition_id)
+    member_ids = await _household_user_ids(current_user["id"])
+    existing = await db.signup_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0, "order": 1}).to_list(1000)
+    order = min([s.get("order", 0) for s in existing], default=1) - 1  # new sheet floats to the top
+    sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(),
+                        competition_id=payload.competition_id, event_id=payload.event_id, order=order)
     await db.signup_sheets.insert_one(sheet.model_dump())
     return sheet
 
 
+@router.post("/signups/reorder")
+async def reorder_signups(payload: SignupReorderPayload, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    for idx, sid in enumerate(payload.ids):
+        await db.signup_sheets.update_one(
+            {"id": sid, "user_id": {"$in": member_ids}}, {"$set": {"order": idx}}
+        )
+    return {"ok": True}
+
+
 @router.get("/signups/{sheet_id}")
 async def get_signup(sheet_id: str, current_user=Depends(get_current_user)):
+    if sheet_id in await _blocked_resource_ids(current_user["id"], "signup"):
+        raise HTTPException(status_code=403, detail="You don't have access to this sheet")
     doc = await _get_sheet(sheet_id, current_user)
     return {**SignupSheet(**doc).model_dump(), "summary": _summary(doc)}
 
@@ -69,6 +91,8 @@ async def update_signup(sheet_id: str, payload: SignupSheetUpdate, current_user=
         updates["name"] = payload.name.strip()
     if payload.competition_id is not None:
         updates["competition_id"] = payload.competition_id or None
+    if payload.event_id is not None:
+        updates["event_id"] = payload.event_id or None
     if updates:
         await db.signup_sheets.update_one({"id": doc["id"]}, {"$set": updates})
         doc.update(updates)
@@ -97,7 +121,8 @@ async def duplicate_signup(sheet_id: str, current_user=Depends(get_current_user)
         for s in (doc.get("slots") or [])
     ]
     copy = SignupSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)",
-                       competition_id=doc.get("competition_id"), slots=slots)
+                       competition_id=doc.get("competition_id"), event_id=doc.get("event_id"),
+                       order=doc.get("order", 0) - 1, slots=slots)
     await db.signup_sheets.insert_one(copy.model_dump())
     return copy
 

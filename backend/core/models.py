@@ -827,6 +827,13 @@ class RosterMember(BaseModel):
     parent_email: Optional[str] = None
     team_ids: List[str] = Field(default_factory=list)  # a person can be on multiple teams
     notes: Optional[str] = None
+    # Phase 3 — expanded roster fields
+    preferred_name: Optional[str] = None
+    food_allergies: Optional[str] = None
+    other_allergies: Optional[str] = None
+    medical_concerns: Optional[str] = None
+    host_bonding_opt_in: Optional[bool] = None
+    custom: Dict[str, str] = Field(default_factory=dict)  # custom_column_id -> value
     source: Literal["manual", "athlete", "household"] = "manual"
     linked_id: Optional[str] = None  # source athlete id / household user id
     created_at: str = Field(default_factory=utcnow_iso)
@@ -845,6 +852,12 @@ class RosterMemberCreate(BaseModel):
     parent_email: Optional[str] = None
     team_ids: Optional[List[str]] = None
     notes: Optional[str] = None
+    preferred_name: Optional[str] = None
+    food_allergies: Optional[str] = None
+    other_allergies: Optional[str] = None
+    medical_concerns: Optional[str] = None
+    host_bonding_opt_in: Optional[bool] = None
+    custom: Optional[Dict[str, str]] = None
 
 
 class RosterMemberUpdate(BaseModel):
@@ -860,6 +873,29 @@ class RosterMemberUpdate(BaseModel):
     parent_email: Optional[str] = None
     team_ids: Optional[List[str]] = None
     notes: Optional[str] = None
+    preferred_name: Optional[str] = None
+    food_allergies: Optional[str] = None
+    other_allergies: Optional[str] = None
+    medical_concerns: Optional[str] = None
+    host_bonding_opt_in: Optional[bool] = None
+    custom: Optional[Dict[str, str]] = None
+
+
+# Custom roster columns (household-scoped, user-defined extra fields)
+class RosterColumn(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    label: str
+    order: int = 0
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class RosterColumnCreate(BaseModel):
+    label: str
+
+
+class RosterColumnUpdate(BaseModel):
+    label: str
 
 
 class RosterImportPayload(BaseModel):
@@ -1029,6 +1065,8 @@ class SignupSheet(BaseModel):
     user_id: str
     name: str
     competition_id: Optional[str] = None
+    event_id: Optional[str] = None  # link to a schedule event
+    order: int = 0  # manual sort order (lower = higher in the list)
     slots: List[SignupSlot] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
@@ -1036,11 +1074,17 @@ class SignupSheet(BaseModel):
 class SignupSheetCreate(BaseModel):
     name: str
     competition_id: Optional[str] = None
+    event_id: Optional[str] = None
 
 
 class SignupSheetUpdate(BaseModel):
     name: Optional[str] = None
     competition_id: Optional[str] = None
+    event_id: Optional[str] = None
+
+
+class SignupReorderPayload(BaseModel):
+    ids: List[str] = Field(default_factory=list)
 
 
 class SignupSlotCreate(BaseModel):
@@ -1104,4 +1148,52 @@ class TodoCreate(BaseModel):
 class TodoUpdate(BaseModel):
     text: Optional[str] = None
     done: Optional[bool] = None
+
+
+# ============================================================
+# Team Hub — Attendance (check off roster per session/event)
+# ============================================================
+class AttendanceSession(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    title: str
+    date: Optional[str] = None  # ISO YYYY-MM-DD
+    event_id: Optional[str] = None  # optional link to a schedule event
+    # member_id -> "present" | "absent" | "excused"
+    records: Dict[str, str] = Field(default_factory=dict)
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class AttendanceSessionCreate(BaseModel):
+    title: str
+    date: Optional[str] = None
+    event_id: Optional[str] = None
+
+
+class AttendanceSessionUpdate(BaseModel):
+    title: Optional[str] = None
+    date: Optional[str] = None
+
+
+class AttendanceMarkPayload(BaseModel):
+    member_id: str
+    status: Optional[Literal["present", "absent", "excused"]] = None  # None clears the mark
+
+
+# ============================================================
+# Team Hub — Sheet access blocks (owner hides a sheet from a granted user)
+# ============================================================
+class SheetBlock(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # owner who created the block (household-scoped)
+    blocked_user_id: str
+    resource: Literal["payment", "paperwork", "signup", "sizes", "attendance"]
+    resource_id: str
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class SheetBlockCreate(BaseModel):
+    blocked_user_id: str
+    resource: Literal["payment", "paperwork", "signup", "sizes", "attendance"]
+    resource_id: str
 

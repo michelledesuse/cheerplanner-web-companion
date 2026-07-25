@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import SheetAccessButton from "@/src/components/SheetAccessButton";
+import { useCanManageAccess } from "@/src/hooks/useCanManageAccess";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -25,6 +27,8 @@ export default function SignupsScreen() {
   const [name, setName] = useState("");
   const [compId, setCompId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
+  const canManage = useCanManageAccess();
 
   const load = useCallback(async () => {
     try {
@@ -41,6 +45,16 @@ export default function SignupsScreen() {
   const duplicate = async (id: string) => {
     try { await api.post(`/team/signups/${id}/duplicate`); await load(); }
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not duplicate."); }
+  };
+
+  const move = async (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    setItems(next);
+    try { await api.post("/team/signups/reorder", { ids: next.map((s) => s.id) }); }
+    catch { load(); }
   };
 
   const create = async () => {
@@ -62,6 +76,11 @@ export default function SignupsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sign-Up Sheet</Text>
+        {items.length > 1 && (
+          <TouchableOpacity onPress={() => setReorderMode((v) => !v)} style={[styles.iconBtn, reorderMode && styles.iconBtnOn]} testID="signups-reorder-toggle" hitSlop={8}>
+            <Ionicons name="swap-vertical" size={18} color={reorderMode ? "white" : colors.textPrimary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addBtn} testID="signup-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
@@ -81,18 +100,32 @@ export default function SignupsScreen() {
               <Text style={styles.emptyTitle}>No sign-up sheets yet</Text>
               <Text style={styles.emptyText}>Create one for an event, add slots (snacks, water, chaperones&hellip;) and let families claim them.</Text>
             </View>
-          ) : items.map((s) => {
+          ) : items.map((s, index) => {
             const { needed_total, claimed_total, slot_count } = s.summary;
             const pct = needed_total > 0 ? Math.min(100, Math.round((claimed_total / needed_total) * 100)) : 0;
             return (
-              <TouchableOpacity key={s.id} style={styles.card} onPress={() => router.push({ pathname: "/team/signup-sheet", params: { id: s.id } })} testID={`signup-row-${s.id}`}>
+              <TouchableOpacity key={s.id} style={styles.card} activeOpacity={reorderMode ? 1 : 0.7} onPress={() => { if (!reorderMode) router.push({ pathname: "/team/signup-sheet", params: { id: s.id } }); }} testID={`signup-row-${s.id}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={styles.cardName}>{s.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
-                    <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`signup-duplicate-${s.id}`}>
-                      <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
-                    </TouchableOpacity>
+                    {reorderMode ? (
+                      <>
+                        <TouchableOpacity onPress={() => move(index, -1)} disabled={index === 0} hitSlop={8} testID={`signup-up-${s.id}`}>
+                          <Ionicons name="chevron-up" size={22} color={index === 0 ? colors.textTertiary : colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => move(index, 1)} disabled={index === items.length - 1} hitSlop={8} testID={`signup-down-${s.id}`}>
+                          <Ionicons name="chevron-down" size={22} color={index === items.length - 1 ? colors.textTertiary : colors.accent} />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
+                        {canManage && <SheetAccessButton resource="signup" resourceId={s.id} />}
+                        <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`signup-duplicate-${s.id}`}>
+                          <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 </View>
                 {!!compName(s.competition_id) && <Text style={styles.compTag}>{compName(s.competition_id)}</Text>}
@@ -142,6 +175,7 @@ const makeStyles = (c: ThemePalette) => ({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  iconBtnOn: { backgroundColor: c.accent, borderColor: c.accent },
   headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
   card: { backgroundColor: c.card, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: spacing.md },

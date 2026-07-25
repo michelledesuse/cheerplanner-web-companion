@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import SheetAccessButton from "@/src/components/SheetAccessButton";
+import { useCanManageAccess } from "@/src/hooks/useCanManageAccess";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -22,6 +24,7 @@ export default function PaperworkScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const canManage = useCanManageAccess();
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +89,7 @@ export default function PaperworkScreen() {
                   <Text style={styles.cardName}>{s.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     <Text style={styles.cardMeta}>{item_count} {item_count === 1 ? "item" : "items"}</Text>
+                    {canManage && <SheetAccessButton resource="paperwork" resourceId={s.id} />}
                     <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`paperwork-duplicate-${s.id}`}>
                       <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>

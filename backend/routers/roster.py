@@ -9,6 +9,9 @@ from core.models import (
     RosterMemberUpdate,
     RosterImportPayload,
     RosterBulkDeletePayload,
+    RosterColumn,
+    RosterColumnCreate,
+    RosterColumnUpdate,
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
@@ -176,3 +179,55 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
     if created:
         await db.roster.insert_many([m.model_dump() for m in created])
     return created
+
+
+# ============================================================
+# Custom roster columns (household-scoped)
+# ============================================================
+@router.get("/roster/columns", response_model=List[RosterColumn])
+async def list_roster_columns(current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    docs = await db.roster_columns.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
+    docs.sort(key=lambda d: (d.get("order", 0), d.get("created_at") or ""))
+    return [RosterColumn(**d) for d in docs]
+
+
+@router.post("/roster/columns", response_model=RosterColumn)
+async def create_roster_column(payload: RosterColumnCreate, current_user=Depends(get_current_user)):
+    label = (payload.label or "").strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="Column name is required")
+    member_ids = await _household_user_ids(current_user["id"])
+    existing = await db.roster_columns.find({"user_id": {"$in": member_ids}}, {"_id": 0, "order": 1}).to_list(1000)
+    order = max([c.get("order", 0) for c in existing], default=-1) + 1
+    col = RosterColumn(user_id=current_user["id"], label=label, order=order)
+    await db.roster_columns.insert_one(col.model_dump())
+    return col
+
+
+@router.patch("/roster/columns/{column_id}", response_model=RosterColumn)
+async def rename_roster_column(column_id: str, payload: RosterColumnUpdate, current_user=Depends(get_current_user)):
+    label = (payload.label or "").strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="Column name is required")
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.roster_columns.update_one(
+        {"id": column_id, "user_id": {"$in": member_ids}}, {"$set": {"label": label}}
+    )
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Column not found")
+    doc = await db.roster_columns.find_one({"id": column_id}, {"_id": 0})
+    return RosterColumn(**doc)
+
+
+@router.delete("/roster/columns/{column_id}")
+async def delete_roster_column(column_id: str, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.roster_columns.delete_one({"id": column_id, "user_id": {"$in": member_ids}})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Column not found")
+    # Drop the column's values from every member for cleanliness.
+    await db.roster.update_many(
+        {"user_id": {"$in": member_ids}}, {"$unset": {f"custom.{column_id}": ""}}
+    )
+    return {"deleted": True}

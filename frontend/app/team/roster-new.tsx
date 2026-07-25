@@ -33,8 +33,21 @@ export default function RosterMemberForm() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+  const [preferredName, setPreferredName] = useState("");
+  const [foodAllergies, setFoodAllergies] = useState("");
+  const [otherAllergies, setOtherAllergies] = useState("");
+  const [medicalConcerns, setMedicalConcerns] = useState("");
+  const [hostBonding, setHostBonding] = useState<boolean | null>(null);
+  const [columns, setColumns] = useState<{ id: string; label: string }[]>([]);
+  const [custom, setCustom] = useState<Record<string, string>>({});
+  const [newColLabel, setNewColLabel] = useState("");
+  const [addingCol, setAddingCol] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
+
+  useEffect(() => {
+    api.get<{ id: string; label: string }[]>("/roster/columns").then((r) => setColumns(r.data)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     api.get<{ id: string; name: string }[]>("/teams").then((r) => setTeams(r.data)).catch(() => {});
@@ -58,6 +71,12 @@ export default function RosterMemberForm() {
           setPhone(m.phone || "");
           setEmail(m.email || "");
           setNotes(m.notes || "");
+          setPreferredName(m.preferred_name || "");
+          setFoodAllergies(m.food_allergies || "");
+          setOtherAllergies(m.other_allergies || "");
+          setMedicalConcerns(m.medical_concerns || "");
+          setHostBonding(typeof m.host_bonding_opt_in === "boolean" ? m.host_bonding_opt_in : null);
+          setCustom(m.custom || {});
         }
       } finally { setLoading(false); }
     })();
@@ -80,6 +99,12 @@ export default function RosterMemberForm() {
         phone: isAthlete ? null : (phone.trim() || null),
         email: isAthlete ? null : (email.trim() || null),
         notes: notes.trim() || null,
+        preferred_name: preferredName.trim() || null,
+        food_allergies: foodAllergies.trim() || null,
+        other_allergies: otherAllergies.trim() || null,
+        medical_concerns: medicalConcerns.trim() || null,
+        host_bonding_opt_in: hostBonding,
+        custom,
       };
       if (isEdit) await api.patch(`/roster/${params.id}`, payload);
       else await api.post("/roster", payload);
@@ -95,6 +120,31 @@ export default function RosterMemberForm() {
       { text: "Remove", style: "destructive", onPress: async () => {
         try { await api.delete(`/roster/${params.id}`); router.back(); }
         catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not delete."); }
+      } },
+    ]);
+  };
+
+  const addColumn = async () => {
+    const label = newColLabel.trim();
+    if (!label) return;
+    setAddingCol(true);
+    try {
+      const r = await api.post<{ id: string; label: string }>("/roster/columns", { label });
+      setColumns((prev) => [...prev, r.data]);
+      setNewColLabel("");
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not add field."); }
+    finally { setAddingCol(false); }
+  };
+
+  const removeColumn = (col: { id: string; label: string }) => {
+    Alert.alert("Delete field?", `Remove "${col.label}" from every roster member? This can't be undone.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          await api.delete(`/roster/columns/${col.id}`);
+          setColumns((prev) => prev.filter((c) => c.id !== col.id));
+          setCustom((prev) => { const n = { ...prev }; delete n[col.id]; return n; });
+        } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not delete."); }
       } },
     ]);
   };
@@ -123,6 +173,9 @@ export default function RosterMemberForm() {
               <TextInput style={styles.input} value={lastName} onChangeText={setLastName} placeholder="Last" placeholderTextColor={colors.textTertiary} testID="roster-last-input" />
             </View>
           </View>
+
+          <Text style={styles.label}>Preferred name <Text style={styles.labelHint}>(optional)</Text></Text>
+          <TextInput style={styles.input} value={preferredName} onChangeText={setPreferredName} placeholder="What they go by" placeholderTextColor={colors.textTertiary} testID="roster-preferred-input" />
 
           <Text style={styles.label}>Role</Text>
           <View style={styles.roleRow}>
@@ -186,6 +239,60 @@ export default function RosterMemberForm() {
             </>
           )}
 
+          <Text style={styles.sectionLabel}>Health & extra info</Text>
+          <Text style={styles.label}>Food allergies</Text>
+          <TextInput style={styles.input} value={foodAllergies} onChangeText={setFoodAllergies} placeholder="e.g. Peanuts, dairy" placeholderTextColor={colors.textTertiary} testID="roster-food-input" />
+
+          <Text style={styles.label}>Other allergies</Text>
+          <TextInput style={styles.input} value={otherAllergies} onChangeText={setOtherAllergies} placeholder="e.g. Bee stings, latex" placeholderTextColor={colors.textTertiary} testID="roster-other-allergy-input" />
+
+          <Text style={styles.label}>Medical concerns</Text>
+          <TextInput style={[styles.input, { height: 70, textAlignVertical: "top" }]} value={medicalConcerns} onChangeText={setMedicalConcerns} placeholder="Asthma, medications, etc." placeholderTextColor={colors.textTertiary} multiline testID="roster-medical-input" />
+
+          <Text style={styles.label}>Host bonding opt-in</Text>
+          <View style={styles.roleRow}>
+            {[{ v: true, l: "Yes" }, { v: false, l: "No" }, { v: null, l: "Not set" }].map((o) => {
+              const on = hostBonding === o.v;
+              return (
+                <TouchableOpacity key={o.l} onPress={() => setHostBonding(o.v as boolean | null)} style={[styles.roleChip, on && styles.roleChipOn]} testID={`roster-host-${o.l}`}>
+                  <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{o.l}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {columns.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>Custom fields</Text>
+              {columns.map((col) => (
+                <View key={col.id}>
+                  <View style={styles.colLabelRow}>
+                    <Text style={styles.label}>{col.label}</Text>
+                    <TouchableOpacity onPress={() => removeColumn(col)} hitSlop={8} testID={`roster-col-delete-${col.id}`}>
+                      <Ionicons name="trash-outline" size={15} color={colors.textTertiary} />
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    style={styles.input}
+                    value={custom[col.id] || ""}
+                    onChangeText={(v) => setCustom((prev) => ({ ...prev, [col.id]: v }))}
+                    placeholder={col.label}
+                    placeholderTextColor={colors.textTertiary}
+                    testID={`roster-col-input-${col.id}`}
+                  />
+                </View>
+              ))}
+            </>
+          )}
+
+          <Text style={styles.label}>Add a custom field</Text>
+          <View style={styles.addColRow}>
+            <TextInput style={[styles.input, { flex: 1 }]} value={newColLabel} onChangeText={setNewColLabel} placeholder="e.g. Jersey #, Grade" placeholderTextColor={colors.textTertiary} testID="roster-col-new-input" onSubmitEditing={addColumn} />
+            <TouchableOpacity style={styles.addColBtn} onPress={addColumn} disabled={addingCol || !newColLabel.trim()} testID="roster-col-add-btn">
+              {addingCol ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="add" size={22} color="white" />}
+            </TouchableOpacity>
+          </View>
+
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { height: 90, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} placeholder="Anything handy to remember" placeholderTextColor={colors.textTertiary} multiline testID="roster-notes-input" />
 
@@ -221,6 +328,9 @@ const makeStyles = (c: ThemePalette) => ({
   roleChipOn: { backgroundColor: c.primary, borderColor: c.primary },
   roleChipText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700", fontSize: 14 },
   roleChipTextOn: { color: "white" },
+  colLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  addColRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  addColBtn: { width: 46, height: 46, borderRadius: radius.md, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: c.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.lg, paddingVertical: 12 },

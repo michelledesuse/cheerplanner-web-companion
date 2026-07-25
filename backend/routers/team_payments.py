@@ -13,7 +13,7 @@ from core.models import (
     utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, _blocked_resource_ids
 from core.sms import send_sms, is_configured, normalize_us_phone
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
@@ -87,6 +87,8 @@ async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str]) ->
 async def list_payment_trackers(current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     docs = await db.payment_trackers.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
+    blocked = await _blocked_resource_ids(current_user["id"], "payment")
+    docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
     roster_total = await _roster_total(member_ids)
     out = []
@@ -168,6 +170,8 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
 
 @router.get("/payments/{tracker_id}")
 async def get_payment_tracker(tracker_id: str, current_user=Depends(get_current_user)):
+    if tracker_id in await _blocked_resource_ids(current_user["id"], "payment"):
+        raise HTTPException(status_code=403, detail="You don't have access to this tracker")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await db.payment_trackers.find_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"_id": 0})
     if not doc:

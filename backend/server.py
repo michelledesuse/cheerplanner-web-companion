@@ -43,6 +43,8 @@ from routers import (
     team_access,
     share,
     todos,
+    attendance,
+    blocks,
 )
 
 
@@ -93,6 +95,8 @@ for r in (
     team_access.router,
     share.router,
     todos.router,
+    attendance.router,
+    blocks.router,
 ):
     app.include_router(r)
 

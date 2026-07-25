@@ -47,6 +47,14 @@ async def _household_user_ids(user_id: str) -> List[str]:
     return h.get("member_user_ids", [user_id])
 
 
+async def _blocked_resource_ids(user_id: str, resource: str) -> set:
+    """Set of resource ids of `resource` type that this user is blocked from viewing."""
+    docs = await db.sheet_blocks.find(
+        {"blocked_user_id": user_id, "resource": resource}, {"_id": 0, "resource_id": 1}
+    ).to_list(1000)
+    return {d["resource_id"] for d in docs}
+
+
 # ============================================================
 # Time / date helpers
 # ============================================================

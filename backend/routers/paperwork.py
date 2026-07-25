@@ -13,7 +13,7 @@ from core.models import (
     PaperworkValueUpdate,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, _blocked_resource_ids
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -48,6 +48,8 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 async def list_paperwork(current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     docs = await db.paperwork_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
+    blocked = await _blocked_resource_ids(current_user["id"], "paperwork")
+    docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
     roster_total = await _roster_total(member_ids)
     return [{**PaperworkSheet(**d).model_dump(), "summary": _summary(d, roster_total)} for d in docs]
@@ -64,6 +66,8 @@ async def create_paperwork(payload: PaperworkSheetCreate, current_user=Depends(g
 
 @router.get("/paperwork/{sheet_id}")
 async def get_paperwork(sheet_id: str, current_user=Depends(get_current_user)):
+    if sheet_id in await _blocked_resource_ids(current_user["id"], "paperwork"):
+        raise HTTPException(status_code=403, detail="You don't have access to this sheet")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await _get_sheet(sheet_id, current_user)
     roster_total = await _roster_total(member_ids)

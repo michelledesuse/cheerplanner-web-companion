@@ -211,3 +211,6 @@ Phase 2:
 Phase 3:
 - Expanded roster fields (preferred name, sizes, contact, food/other allergies, medical, host-bonding opt-in) + custom columns.
 - Block a granted user from a specific spreadsheet (per-item, per-user hiding).
+
+## Backlog — Monetization (user request, future)
+- FREE vs PREMIUM feature tiers: define a free plan (core household tracking) and a premium plan (Team Hub, spreadsheet import/export, share links, SMS reminders, etc. — exact split TBD with user). Needs entitlement/paywall gating in-app + a billing integration (Stripe / RevenueCat for app-store IAP). Larger effort — scope separately.

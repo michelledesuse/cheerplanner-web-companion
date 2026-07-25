@@ -6,6 +6,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { formatCurrency } from "@/src/utils/format";
+import SheetAccessButton from "@/src/components/SheetAccessButton";
+import { useCanManageAccess } from "@/src/hooks/useCanManageAccess";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -24,6 +26,7 @@ export default function PaymentsScreen() {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
+  const canManage = useCanManageAccess();
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +92,7 @@ export default function PaymentsScreen() {
                   <Text style={styles.cardName}>{t.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
                     {t.amount != null && <Text style={styles.cardAmount}>{formatCurrency(t.amount)}/person</Text>}
+                    {canManage && <SheetAccessButton resource="payment" resourceId={t.id} />}
                     <TouchableOpacity onPress={() => duplicate(t.id)} hitSlop={8} testID={`payment-duplicate-${t.id}`}>
                       <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
                     </TouchableOpacity>
