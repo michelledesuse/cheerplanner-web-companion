@@ -14,7 +14,8 @@ export async function shareTeamLink(kind: ShareKind, refId?: string): Promise<vo
   try {
     const res = await api.post<{ token: string }>("/team/share", { kind, ref_id: refId ?? null });
     const url = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/public/s/${res.data.token}`;
-    await Share.share({ message: `${MESSAGES[kind]}\n${url}`, url });
+    // Only pass `message` (not `url`) so the link isn't shown twice on iOS.
+    await Share.share({ message: `${MESSAGES[kind]}\n${url}` });
   } catch (e: any) {
     Alert.alert("Couldn't create link", e?.response?.data?.detail || "Please try again.");
   }
