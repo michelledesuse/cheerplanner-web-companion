@@ -1,11 +1,10 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
-import DateField from "@/src/components/DateField";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -27,10 +26,6 @@ export default function AttendanceScreen() {
   const [items, setItems] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [addOpen, setAddOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
-  const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -41,18 +36,6 @@ export default function AttendanceScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  const create = async () => {
-    if (!title.trim()) { Alert.alert("Title required", "Name this session (e.g. Friday practice)."); return; }
-    setSaving(true);
-    try {
-      const r = await api.post<{ id: string }>("/team/attendance", { title: title.trim(), date: date || null });
-      setTitle(""); setDate(""); setAddOpen(false);
-      router.push({ pathname: "/team/attendance-session", params: { id: r.data.id } });
-    } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.detail || "Could not create.");
-    } finally { setSaving(false); }
-  };
-
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
@@ -60,7 +43,7 @@ export default function AttendanceScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Attendance</Text>
-        <TouchableOpacity onPress={() => setAddOpen(true)} style={styles.addBtn} testID="attendance-add">
+        <TouchableOpacity onPress={() => router.push("/team/attendance-new" as any)} style={styles.addBtn} testID="attendance-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
@@ -100,23 +83,6 @@ export default function AttendanceScreen() {
           })}
         </ScrollView>
       )}
-
-      <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
-          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
-            <Pressable style={styles.sheet} onPress={() => {}}>
-              <Text style={styles.sheetTitle}>New attendance session</Text>
-              <Text style={styles.label}>Title</Text>
-              <TextInput style={styles.input} value={title} onChangeText={setTitle} placeholder="e.g. Friday practice" placeholderTextColor={colors.textTertiary} testID="attendance-title-input" autoFocus />
-              <Text style={styles.label}>Date (optional)</Text>
-              <DateField value={date} onChange={setDate} testID="attendance-date-input" />
-              <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="attendance-create-btn">
-                {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create session</Text>}
-              </TouchableOpacity>
-            </Pressable>
-          </KeyboardAvoidingView>
-        </Pressable>
-      </Modal>
     </SafeAreaView>
   );
 }
