@@ -191,3 +191,23 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - TEAM-MUSIC (later): Upload team music to share with the team.
 - MASS-REMINDERS (later): Automated server-sent reminders to roster parents (needs Twilio + parent phone consent). Manual 1-tap 'Text who owes' exists for payments.
 - Known RN-Web limitation: Alert.alert confirmations (bulk-delete, non-series schedule delete) don't fire on web preview but work on native iOS/Android.
+
+## Session update 7 (Phase 1 of big batch + reminder bug fix)
+- BUG FIX: Payment reminder texts now go to EACH owing person individually via Twilio (was only reaching the 1st). New POST /api/team/payments/{id}/remind uses core/sms.send_sms per member (athletes -> parent phone). Twilio already configured in .env. Verified iter66 (no real texts sent in test).
+- DONE: Roster page decluttered — 3 stacked buttons moved into a ⋯ actions menu (roster-actions). Added Roster DOWNLOAD (CSV + Excel) via exportAoa. Fixed squished team-filter chips.
+- DONE: Public share pages restyled to app blue palette (#007CFF).
+- DONE: Public sign-up page 'Your name' is now a dropdown of roster names + 'Other (type name)'.
+- DONE: Fully signed-up slots sink to the bottom (in-app AND public page).
+
+## REMAINING from the big batch (build next, in order)
+Phase 1 leftover:
+- Duplicate sign-up sheets & Team Hub spreadsheets (paperwork, payments).
+- Reorder the sign-up sheets list (manual order).
+Phase 2:
+- Payment 'amount due': tracker-level default + PER-MEMBER custom amount due; show Due / Paid / Balance. (user: enable both)
+- Attendance check-off tool.
+- Link schedule events <-> sign-up sheets.
+- To-do lists (Team Hub + attached to competitions & events).
+Phase 3:
+- Expanded roster fields (preferred name, sizes, contact, food/other allergies, medical, host-bonding opt-in) + custom columns.
+- Block a granted user from a specific spreadsheet (per-item, per-user hiding).

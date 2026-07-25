@@ -109,6 +109,7 @@ async def public_data(token: str):
                 "claimed": claimed, "claims": claims,
             })
         roster_names = sorted([v for v in rmap.values() if v], key=lambda n: n.lower())
+        slots.sort(key=lambda s: (1 if s["claimed"] >= s["qty_needed"] else 0))
         return {"kind": "signup", "title": sheet.get("name"), "slots": slots, "roster_names": roster_names}
     if link["kind"] == "roster":
         return {"kind": "roster", "title": "Team Roster"}

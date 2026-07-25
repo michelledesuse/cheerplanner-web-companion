@@ -370,3 +370,5 @@ No production code modified by testing agent.
 
 ## Iteration 64 — Public share links (signup/roster/sizes) via FastAPI HTML page. 17/17 backend + browser PASS.
 ## Iteration 65 — Payment exempt member, roster bulk-delete, schedule scope=future, payment keyboard fix. 4/4 backend + frontend PASS.
+
+## Iteration 66 — Individual payment reminders (Twilio), roster download+cleanup, public page palette+roster dropdown, full-slots-to-bottom. 7/7 backend + frontend PASS.
