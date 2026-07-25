@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import DateField from "@/src/components/DateField";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -28,6 +29,10 @@ export default function AttendanceSessionScreen() {
   const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
   const [teamFilter, setTeamFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +74,24 @@ export default function AttendanceSessionScreen() {
     } catch { load(); }
   };
 
+  const openEdit = () => {
+    setEditTitle(session?.title || "");
+    setEditDate(session?.date || "");
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    if (!editTitle.trim()) { Alert.alert("Title required", "Give this session a title."); return; }
+    setSavingEdit(true);
+    try {
+      const r = await api.patch<Session>(`/team/attendance/${params.id}`, { title: editTitle.trim(), date: editDate || null });
+      setSession((prev) => (prev ? { ...prev, title: r.data.title, date: r.data.date } : prev));
+      setEditOpen(false);
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
+    } finally { setSavingEdit(false); }
+  };
+
   const remove = () => {
     Alert.alert("Delete session?", "This cannot be undone.", [
       { text: "Cancel", style: "cancel" },
@@ -99,6 +122,9 @@ export default function AttendanceSessionScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{session?.title}</Text>
           <Text style={styles.headerSub}>{present}/{filtered.length} present</Text>
         </View>
+        <TouchableOpacity onPress={openEdit} style={styles.iconBtn} testID="att-session-edit" hitSlop={8}>
+          <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={remove} style={styles.iconBtn} testID="att-session-delete" hitSlop={8}>
           <Ionicons name="trash-outline" size={18} color={colors.danger} />
         </TouchableOpacity>
@@ -152,6 +178,23 @@ export default function AttendanceSessionScreen() {
           </>
         )}
       </ScrollView>
+
+      <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setEditOpen(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <Pressable style={styles.editSheet} onPress={() => {}}>
+              <Text style={styles.editTitle}>Edit session</Text>
+              <Text style={styles.editLabel}>Title</Text>
+              <TextInput style={styles.editInput} value={editTitle} onChangeText={setEditTitle} placeholder="e.g. Friday practice" placeholderTextColor={colors.textTertiary} testID="att-edit-title-input" autoFocus />
+              <Text style={styles.editLabel}>Date (optional)</Text>
+              <DateField value={editDate} onChange={setEditDate} testID="att-edit-date-input" />
+              <TouchableOpacity style={[styles.editSave, savingEdit && { opacity: 0.6 }]} onPress={saveEdit} disabled={savingEdit} testID="att-edit-save">
+                {savingEdit ? <ActivityIndicator color="white" /> : <Text style={styles.editSaveText}>Save changes</Text>}
+              </TouchableOpacity>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -178,4 +221,11 @@ const makeStyles = (c: ThemePalette) => ({
   absentOn: { backgroundColor: c.danger, borderColor: c.danger },
   excusedOn: { backgroundColor: c.warningText, borderColor: c.warningText },
   empty: { ...typography.caption, color: c.textSecondary, textAlign: "center", marginTop: spacing.xl },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
+  editSheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
+  editTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
+  editLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.md, marginBottom: 6 },
+  editInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
+  editSave: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
+  editSaveText: { color: "white", fontWeight: "800", fontSize: 15 },
 });

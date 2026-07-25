@@ -1,0 +1,43 @@
+{
+  "summary": "Tested three iter69 additions on both backend + frontend. (1) Attendance edit modal: PASS — pencil icon opens sheet, PATCH /api/team/attendance/{id} returns 200, header title updates in place, records untouched. (2) Roster form Sizes create+edit: PARTIAL — Sizes section renders 8 columns with correct testIDs (roster-size-<colId>), values pre-fill in edit mode, but saving fires 8 concurrent PUT /api/team/sizes/value calls via Promise.all and 2–3 values are silently dropped every time due to a read-modify-write race on the size_sheets doc in sizes.set_size_value. Reproduced with UI (only 1 of 2 typed values persisted) and directly via a threaded test (3 of 8 values missing). (3) Public roster HTML share link with Sizes: PASS — /api/public/s/{token} renders <input id=sz_...> for all 8 default columns, POST submit persists both the new roster member and their sizes.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "PUT /api/team/sizes/value", "issue": "Non-atomic read-modify-write on size_sheets doc. Concurrent PUTs (as fired by roster-new.tsx Promise.all) race on 'values' dict — later writes overwrite earlier ones and silently drop values (repro: 3/8 lost). See /app/backend/routers/sizes.py:88-108.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "roster-new.tsx save()", "issue": "Uses Promise.all over ALL size columns (even empty ones) to persist sizes. Combined with the backend race above, 20–40% of typed values are lost silently. Fix: send sizes in a single batched request, OR run PUTs sequentially, OR only PUT the columns that actually changed. See /app/frontend/app/team/roster-new.tsx:124-128.", "testID": "roster-save-btn", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Roster create/edit → team sizes", "issue": "8 concurrent PUT /team/sizes/value calls dropped 2 of 2 non-empty size values in the UI test (only Shoes 10 persisted, Shirt AM lost). Root cause is the same race condition.", "affected_testIDs": ["roster-save-btn", "roster-size-*"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter69_sizes_race.py",
+    "/app/test_reports/pytest/pytest_iter69.xml"
+  ],
+  "action_items": [
+    "Fix the Sizes save race. Preferred: add a new backend endpoint like PUT /api/team/sizes/values that accepts {member_id, values:{col_id:val,...}} and updates atomically inside a single find_one/update_one. Then have roster-new.tsx call it ONCE at save time.",
+    "As a stop-gap, in roster-new.tsx swap Promise.all for a sequential await loop AND only PUT columns whose value changed vs the initial load — this alone eliminates the reproducible data loss in the UI.",
+    "Optional hardening on sizes.set_size_value: use $set on the specific dotted path (e.g. {'$set': {f'values.{member_id}.{column_id}': val}}) or $unset for empties, so concurrent writes on different columns never clobber each other.",
+    "No changes needed for attendance edit modal or public roster share — both work end-to-end."
+  ],
+  "critical_code_review_comments": [
+    "sizes.set_size_value performs a full doc read → in-memory mutation → full 'values' write. Any two concurrent writers to the same size sheet will race, no matter which members/columns they touch.",
+    "roster-new.tsx save() fires Promise.all on every column on every save (including untouched empty ones), amplifying the race and generating 8 requests per save.",
+    "DateField at att-edit-date-input is a custom picker (rendered as <div>) — Playwright cannot .fill() it. Not a bug, but automation must click and use the picker widget."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter69_sizes_race.py (new)"
+  ],
+  "success_rate": {"backend": "67% (2/3 pytest)", "frontend": "67% (2/3 features)"},
+  "seed_data_creation": "Test roster members (TESTAthlete*, TESTRace*, TESTPub*) and attendance session TESTPractice_* were created and cleaned up. Nothing left behind.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Repro for the sizes race: run `EXPO_BACKEND_URL=... pytest /app/backend/tests/test_iter69_sizes_race.py::TestSizesRaceCondition -v`. After fix, the same test should pass. Also revalidate roster-new.tsx save with 2+ typed sizes and confirm both persist via GET /api/team/sizes.",
+  "rca_of_issue": "PUT /api/team/sizes/value in /app/backend/routers/sizes.py reads the entire size_sheets doc into memory, mutates doc['values'][member_id][column_id], and writes the whole `values` dict back via update_one({...},{'$set':{'values':values}}). When roster-new.tsx saves a person, it fires Promise.all with one PUT per column (8+). All 8 requests race on the same doc: each reads the (possibly stale) values dict, adds only its own column, and $sets the whole dict — so writes that landed between the read and write of a later-committing request are lost. In the UI test filling 2 values, only the last-committed request's value survived; in a stress test 3 of 8 values were dropped. Mitigation options are listed in action_items."
+}

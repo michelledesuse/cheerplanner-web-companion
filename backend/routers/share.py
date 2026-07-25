@@ -112,7 +112,10 @@ async def public_data(token: str):
         slots.sort(key=lambda s: (1 if s["claimed"] >= s["qty_needed"] else 0))
         return {"kind": "signup", "title": sheet.get("name"), "slots": slots, "roster_names": roster_names}
     if link["kind"] == "roster":
-        return {"kind": "roster", "title": "Team Roster"}
+        doc = await _size_sheet(member_ids)
+        cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
+        return {"kind": "roster", "title": "Team Roster",
+                "size_columns": [{"id": c["id"], "label": c["label"]} for c in cols]}
     if link["kind"] == "sizes":
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
@@ -172,12 +175,31 @@ async def public_submit(token: str, payload: dict = Body(...)):
             "notes": (payload.get("notes") or "").strip() or None,
         }
         if match:
+            member_id = match["id"]
             upd = {k: v for k, v in fields.items() if v}
             if upd:
                 await db.roster.update_one({"id": match["id"]}, {"$set": upd})
         else:
             m = RosterMember(user_id=link["user_id"], name=name, **{k: v for k, v in fields.items() if v is not None})
+            member_id = m.id
             await db.roster.insert_one(m.model_dump())
+        # Apply any sizes submitted alongside the roster info.
+        sizes_in = payload.get("sizes") or {}
+        if sizes_in:
+            doc = await _size_sheet(member_ids)
+            valid_cols = {c["id"] for c in (doc.get("columns") or [])}
+            values = doc.get("values") or {}
+            mv = values.get(member_id) or {}
+            for cid, val in sizes_in.items():
+                if cid not in valid_cols:
+                    continue
+                v = str(val or "").strip()
+                if v:
+                    mv[cid] = v
+                else:
+                    mv.pop(cid, None)
+            values[member_id] = mv
+            await db.size_sheets.update_one({"id": doc["id"]}, {"$set": {"values": values}})
         return {"ok": True}
 
     if link["kind"] == "sizes":
@@ -326,6 +348,11 @@ function renderRoster(d){
   h+="<label>Phone</label><input id='phone'/><label>Email</label><input id='email'/>";
   h+="<label>Parent/Guardian first name</label><input id='pfirst'/><label>Parent/Guardian last name</label><input id='plast'/>";
   h+="<label>Parent phone</label><input id='pphone'/><label>Parent email</label><input id='pemail'/>";
+  window._szcols=(d.size_columns||[]).map(c=>c.id);
+  if((d.size_columns||[]).length){
+    h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Sizes</div>";
+    (d.size_columns||[]).forEach(c=>{h+="<label>"+esc(c.label)+"</label><input id='sz_"+c.id+"'/>";});
+  }
   h+="<button onclick='saveRoster(this)'>Submit</button><div class='ok' id='ok'></div>";
   document.getElementById("app").innerHTML="<div class='card'>"+h+"</div>";
   document.getElementById("app").className="";
@@ -333,8 +360,9 @@ function renderRoster(d){
 async function saveRoster(btn){
   const g=id=>document.getElementById(id).value;
   if(!g('first').trim()||!g('last').trim()){alert("Please enter a first and last name.");return;}
+  const sizes={}; (window._szcols||[]).forEach(id=>{const el=document.getElementById("sz_"+id); if(el) sizes[id]=el.value;});
   const ok=await submit({first_name:g('first'),last_name:g('last'),role:g('role'),phone:g('phone'),email:g('email'),
-    parent_first_name:g('pfirst'),parent_last_name:g('plast'),parent_phone:g('pphone'),parent_email:g('pemail')},btn);
+    parent_first_name:g('pfirst'),parent_last_name:g('plast'),parent_phone:g('pphone'),parent_email:g('pemail'),sizes:sizes},btn);
   if(ok){document.getElementById("ok").textContent="Thanks! Your info was submitted.";btn.textContent="Submitted";}
 }
 """

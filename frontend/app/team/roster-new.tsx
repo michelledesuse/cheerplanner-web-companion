@@ -40,6 +40,8 @@ export default function RosterMemberForm() {
   const [hostBonding, setHostBonding] = useState<boolean | null>(null);
   const [columns, setColumns] = useState<{ id: string; label: string }[]>([]);
   const [custom, setCustom] = useState<Record<string, string>>({});
+  const [sizeColumns, setSizeColumns] = useState<{ id: string; label: string }[]>([]);
+  const [sizeValues, setSizeValues] = useState<Record<string, string>>({});
   const [newColLabel, setNewColLabel] = useState("");
   const [addingCol, setAddingCol] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -48,6 +50,16 @@ export default function RosterMemberForm() {
   useEffect(() => {
     api.get<{ id: string; label: string }[]>("/roster/columns").then((r) => setColumns(r.data)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    api.get<{ columns: { id: string; label: string; order?: number }[]; values?: Record<string, Record<string, string>> }>("/team/sizes")
+      .then((r) => {
+        const cols = [...(r.data.columns || [])].sort((a, b) => (a.order || 0) - (b.order || 0)).map((c) => ({ id: c.id, label: c.label }));
+        setSizeColumns(cols);
+        if (isEdit && params.id) setSizeValues((r.data.values || {})[params.id] || {});
+      })
+      .catch(() => {});
+  }, [isEdit, params.id]);
 
   useEffect(() => {
     api.get<{ id: string; name: string }[]>("/teams").then((r) => setTeams(r.data)).catch(() => {});
@@ -106,8 +118,14 @@ export default function RosterMemberForm() {
         host_bonding_opt_in: hostBonding,
         custom,
       };
-      if (isEdit) await api.patch(`/roster/${params.id}`, payload);
-      else await api.post("/roster", payload);
+      let memberId = params.id as string | undefined;
+      if (isEdit) { await api.patch(`/roster/${params.id}`, payload); }
+      else { const r = await api.post<{ id: string }>("/roster", payload); memberId = r.data.id; }
+      if (memberId && sizeColumns.length) {
+        await Promise.all(sizeColumns.map((col) =>
+          api.put("/team/sizes/value", { member_id: memberId, column_id: col.id, value: sizeValues[col.id] || "" })
+        ));
+      }
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
@@ -260,6 +278,25 @@ export default function RosterMemberForm() {
               );
             })}
           </View>
+
+          {sizeColumns.length > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>Sizes</Text>
+              {sizeColumns.map((col) => (
+                <View key={col.id}>
+                  <Text style={styles.label}>{col.label}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={sizeValues[col.id] || ""}
+                    onChangeText={(v) => setSizeValues((prev) => ({ ...prev, [col.id]: v }))}
+                    placeholder={col.label}
+                    placeholderTextColor={colors.textTertiary}
+                    testID={`roster-size-${col.id}`}
+                  />
+                </View>
+              ))}
+            </>
+          )}
 
           {columns.length > 0 && (
             <>
