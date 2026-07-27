@@ -936,6 +936,8 @@ class PaymentTracker(BaseModel):
     note: Optional[str] = None
     entries: List[TeamPaymentEntry] = Field(default_factory=list)
     excluded_member_ids: List[str] = Field(default_factory=list)  # people not required to pay
+    competition_ids: List[str] = Field(default_factory=list)
+    event_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -943,12 +945,16 @@ class PaymentTrackerCreate(BaseModel):
     name: str
     amount: Optional[float] = None
     note: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class PaymentTrackerUpdate(BaseModel):
     name: Optional[str] = None
     amount: Optional[float] = None
     note: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class PaymentExcludeUpdate(BaseModel):
@@ -1076,8 +1082,8 @@ class SignupSheet(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
-    competition_id: Optional[str] = None
-    event_id: Optional[str] = None  # link to a schedule event
+    competition_ids: List[str] = Field(default_factory=list)
+    event_ids: List[str] = Field(default_factory=list)  # links to schedule events
     order: int = 0  # manual sort order (lower = higher in the list)
     slots: List[SignupSlot] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
@@ -1085,14 +1091,14 @@ class SignupSheet(BaseModel):
 
 class SignupSheetCreate(BaseModel):
     name: str
-    competition_id: Optional[str] = None
-    event_id: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class SignupSheetUpdate(BaseModel):
     name: Optional[str] = None
-    competition_id: Optional[str] = None
-    event_id: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class SignupReorderPayload(BaseModel):
@@ -1170,7 +1176,8 @@ class AttendanceSession(BaseModel):
     user_id: str
     title: str
     date: Optional[str] = None  # ISO YYYY-MM-DD
-    event_id: Optional[str] = None  # optional link to a schedule event
+    competition_ids: List[str] = Field(default_factory=list)
+    event_ids: List[str] = Field(default_factory=list)  # links to schedule events
     # member_id -> "present" | "absent" | "excused"
     records: Dict[str, str] = Field(default_factory=dict)
     created_at: str = Field(default_factory=utcnow_iso)
@@ -1179,12 +1186,15 @@ class AttendanceSession(BaseModel):
 class AttendanceSessionCreate(BaseModel):
     title: str
     date: Optional[str] = None
-    event_id: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class AttendanceSessionUpdate(BaseModel):
     title: Optional[str] = None
     date: Optional[str] = None
+    competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class AttendanceMarkPayload(BaseModel):

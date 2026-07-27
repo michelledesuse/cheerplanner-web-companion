@@ -12,7 +12,7 @@ import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import TodoList from "@/src/components/TodoList";
-import EventSignups from "@/src/components/EventSignups";
+import LinkedTools from "@/src/components/LinkedTools";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import AddTypeModal from "@/src/components/AddTypeModal";
 
@@ -453,7 +453,7 @@ export default function ScheduleForm() {
           )}
 
           {isEdit && !!params.id && (
-            <EventSignups eventId={String(params.id)} eventTitle={title} />
+            <LinkedTools eventId={String(params.id)} />
           )}
         </ScrollView>
       </KeyboardAvoidingView>

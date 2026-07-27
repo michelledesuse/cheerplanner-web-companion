@@ -9,10 +9,11 @@ import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
+import AttachSection from "@/src/components/AttachSection";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; amount_due?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; excluded_member_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
@@ -366,6 +367,7 @@ export default function PaymentDetail() {
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="payment-edit-name" />
               <Text style={styles.label}>Expected amount per person (optional)</Text>
               <TextInput style={styles.input} value={editAmount} onChangeText={setEditAmount} keyboardType="decimal-pad" placeholderTextColor={colors.textTertiary} testID="payment-edit-amount" returnKeyType="done" />
+              {tracker && <AttachSection endpoint={`/team/payments/${tracker.id}`} competitionIds={tracker.competition_ids || []} eventIds={tracker.event_ids || []} onChange={(c, e) => setTracker((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="payment-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
             </Pressable>
           </KeyboardAvoidingView>

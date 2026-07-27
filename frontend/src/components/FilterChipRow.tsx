@@ -21,6 +21,7 @@ type Props = {
   onClear: () => void;
   testIDPrefix: string;
   allLabel?: string;
+  hideAll?: boolean;
 };
 
 /**
@@ -28,10 +29,11 @@ type Props = {
  * one chip per option. MULTI-select within the row — tap several chips to
  * combine them (OR within the row). The "All" chip clears the row. Combine
  * multiple rows (athlete + team + type) for AND filtering across dimensions.
- * Hidden entirely when there are no options to choose from.
+ * Hidden entirely when there are no options to choose from. Set hideAll to use
+ * it as a plain multi-select (e.g. attach targets) without the clear-all chip.
  */
 export default function FilterChipRow({
-  label, options, selectedIds, onToggle, onClear, testIDPrefix, allLabel = "All",
+  label, options, selectedIds, onToggle, onClear, testIDPrefix, allLabel = "All", hideAll = false,
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   if (options.length === 0) return null;
@@ -41,13 +43,15 @@ export default function FilterChipRow({
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        <TouchableOpacity
-          onPress={onClear}
-          style={[styles.chip, allOn && styles.chipOn]}
-          testID={`${testIDPrefix}-all`}
-        >
-          <Text style={[styles.chipText, allOn && styles.chipTextOn]}>{allLabel}</Text>
-        </TouchableOpacity>
+        {!hideAll && (
+          <TouchableOpacity
+            onPress={onClear}
+            style={[styles.chip, allOn && styles.chipOn]}
+            testID={`${testIDPrefix}-all`}
+          >
+            <Text style={[styles.chipText, allOn && styles.chipTextOn]}>{allLabel}</Text>
+          </TouchableOpacity>
+        )}
         {options.map((o) => {
           const on = selectedIds.includes(o.id);
           return (

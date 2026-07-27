@@ -9,14 +9,13 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 import { shareTeamLink } from "@/src/utils/shareLink";
+import AttachSection from "@/src/components/AttachSection";
 
 type Claim = { id: string; member_id?: string | null; guest_name?: string | null; qty: number; note?: string | null };
 type SlotKind = "item" | "duty" | "time";
 type Slot = { id: string; label: string; kind?: SlotKind; time_label?: string | null; qty_needed: number; order: number; claims: Claim[] };
-type Sheet = { id: string; name: string; competition_id?: string | null; event_id?: string | null; slots: Slot[] };
+type Sheet = { id: string; name: string; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
 type Member = GridMember & { role: string };
-type Comp = { id: string; name: string };
-type Ev = { id: string; title: string; date?: string | null };
 
 const KINDS: { value: SlotKind; label: string; icon: any }[] = [
   { value: "item", label: "Item", icon: "cube-outline" },
@@ -30,8 +29,6 @@ export default function SignupSheetScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [roster, setRoster] = useState<Member[]>([]);
-  const [comps, setComps] = useState<Comp[]>([]);
-  const [events, setEvents] = useState<Ev[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -50,8 +47,6 @@ export default function SignupSheetScreen() {
 
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editCompId, setEditCompId] = useState<string | null>(null);
-  const [editEventId, setEditEventId] = useState<string | null>(null);
 
   const [claimSlot, setClaimSlot] = useState<Slot | null>(null);
   const [claimMemberId, setClaimMemberId] = useState<string | null>(null);
@@ -71,8 +66,6 @@ export default function SignupSheetScreen() {
     } finally { setLoading(false); setRefreshing(false); }
   }, [params.id]);
 
-  useEffect(() => { api.get<Comp[]>("/competitions").then((r) => setComps(r.data)).catch(() => {}); }, []);
-  useEffect(() => { api.get<Ev[]>("/schedule").then((r) => setEvents(r.data)).catch(() => {}); }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const slots = useMemo(() => {
@@ -86,9 +79,6 @@ export default function SignupSheetScreen() {
   }, [sheet]);
   const memberName = (id?: string | null) => roster.find((m) => m.id === id)?.name || "Unknown";
   const claimName = (cl: Claim) => cl.guest_name || memberName(cl.member_id);
-  const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
-  const eventLabel = (e: Ev) => e.date ? `${e.title} · ${new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}` : e.title;
-  const eventName = (id?: string | null) => { const e = events.find((x) => x.id === id); return e ? eventLabel(e) : null; };
   const claimedQty = (slot: Slot) => (slot.claims || []).reduce((s, c) => s + (c.qty || 0), 0);
 
   const pickerGroups = useMemo(() => {
@@ -161,11 +151,11 @@ export default function SignupSheetScreen() {
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not remove."); }
   };
 
-  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setEditCompId(sheet.competition_id || null); setEditEventId(sheet.event_id || null); setSheetMenuOpen(true); } };
+  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setSheetMenuOpen(true); } };
 
   const saveSheet = async () => {
     if (!sheet || !editName.trim()) return;
-    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim(), competition_id: editCompId, event_id: editEventId ?? "" }); setSheetMenuOpen(false); await load(); }
+    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim() }); setSheetMenuOpen(false); await load(); }
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
   };
 
@@ -192,8 +182,11 @@ export default function SignupSheetScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
-          {!!compName(sheet.competition_id) && <Text style={styles.headerSub} numberOfLines={1}>{compName(sheet.competition_id)}</Text>}
-          {!!eventName(sheet.event_id) && <Text style={styles.headerSub} numberOfLines={1}>📅 {eventName(sheet.event_id)}</Text>}
+          {((sheet.event_ids?.length || 0) + (sheet.competition_ids?.length || 0)) > 0 && (
+            <Text style={styles.headerSub} numberOfLines={1}>
+              🔗 Attached to {(sheet.event_ids?.length || 0) + (sheet.competition_ids?.length || 0)} item(s)
+            </Text>
+          )}
         </View>
         <TouchableOpacity onPress={() => shareTeamLink("signup", sheet.id)} style={styles.iconBtn} testID="signup-share" hitSlop={8}>
           <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
@@ -386,38 +379,7 @@ export default function SignupSheetScreen() {
               <Text style={styles.sheetTitle}>Edit sheet</Text>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="signup-edit-name" />
-              {comps.length > 0 && (
-                <>
-                  <Text style={styles.label}>Competition</Text>
-                  <View style={styles.compRow}>
-                    <TouchableOpacity onPress={() => setEditCompId(null)} style={[styles.compChip, editCompId === null && styles.compChipOn]}>
-                      <Text style={[styles.compChipText, editCompId === null && styles.compChipTextOn]}>None</Text>
-                    </TouchableOpacity>
-                    {comps.map((cp) => (
-                      <TouchableOpacity key={cp.id} onPress={() => setEditCompId(cp.id)} style={[styles.compChip, editCompId === cp.id && styles.compChipOn]}>
-                        <Text style={[styles.compChipText, editCompId === cp.id && styles.compChipTextOn]} numberOfLines={1}>{cp.name}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              )}
-              {events.length > 0 && (
-                <>
-                  <Text style={styles.label}>Linked event</Text>
-                  <ScrollView style={{ maxHeight: 160 }} keyboardShouldPersistTaps="handled">
-                    <View style={styles.compRow}>
-                      <TouchableOpacity onPress={() => setEditEventId(null)} style={[styles.compChip, editEventId === null && styles.compChipOn]} testID="signup-event-none">
-                        <Text style={[styles.compChipText, editEventId === null && styles.compChipTextOn]}>None</Text>
-                      </TouchableOpacity>
-                      {events.map((ev) => (
-                        <TouchableOpacity key={ev.id} onPress={() => setEditEventId(ev.id)} style={[styles.compChip, editEventId === ev.id && styles.compChipOn]} testID={`signup-event-${ev.id}`}>
-                          <Text style={[styles.compChipText, editEventId === ev.id && styles.compChipTextOn]} numberOfLines={1}>{eventLabel(ev)}</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </>
-              )}
+              {sheet && <AttachSection endpoint={`/team/signups/${sheet.id}`} competitionIds={sheet.competition_ids || []} eventIds={sheet.event_ids || []} onChange={(c, e) => setSheet((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveSheet} testID="signup-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={deleteSheet} testID="signup-sheet-delete">
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />

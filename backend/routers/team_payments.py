@@ -84,9 +84,14 @@ async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str]) ->
 
 
 @router.get("/payments")
-async def list_payment_trackers(current_user=Depends(get_current_user)):
+async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    docs = await db.payment_trackers.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
+    query: dict = {"user_id": {"$in": member_ids}}
+    if event_id:
+        query["event_ids"] = event_id
+    if competition_id:
+        query["competition_ids"] = competition_id
+    docs = await db.payment_trackers.find(query, {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "payment")
     docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)

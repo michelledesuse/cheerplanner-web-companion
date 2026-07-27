@@ -42,9 +42,14 @@ async def _get_session(session_id: str, current_user) -> dict:
 
 
 @router.get("/attendance")
-async def list_attendance(current_user=Depends(get_current_user)):
+async def list_attendance(event_id: str | None = None, competition_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    docs = await db.attendance_sessions.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
+    query: dict = {"user_id": {"$in": member_ids}}
+    if event_id:
+        query["event_ids"] = event_id
+    if competition_id:
+        query["competition_ids"] = competition_id
+    docs = await db.attendance_sessions.find(query, {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "attendance")
     docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: (d.get("date") or "", d.get("created_at") or ""), reverse=True)
@@ -57,8 +62,8 @@ async def create_attendance(payload: AttendanceSessionCreate, current_user=Depen
     if not (payload.title or "").strip():
         raise HTTPException(status_code=400, detail="Title is required")
     sess = AttendanceSession(
-        user_id=current_user["id"], title=payload.title.strip(),
-        date=payload.date, event_id=payload.event_id,
+        user_id=current_user["id"], title=payload.title.strip(), date=payload.date,
+        competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [],
     )
     await db.attendance_sessions.insert_one(sess.model_dump())
     return sess
@@ -84,6 +89,10 @@ async def update_attendance(session_id: str, payload: AttendanceSessionUpdate, c
         updates["title"] = payload.title.strip()
     if payload.date is not None:
         updates["date"] = payload.date or None
+    if payload.competition_ids is not None:
+        updates["competition_ids"] = payload.competition_ids
+    if payload.event_ids is not None:
+        updates["event_ids"] = payload.event_ids
     if updates:
         await db.attendance_sessions.update_one({"id": doc["id"]}, {"$set": updates})
         doc.update(updates)

@@ -1,0 +1,33 @@
+{
+  "summary": "Iter71 multi-attach (competitions ↔ team-hub tools, both directions) is fully wired end-to-end. Backend pytest (test_iter71_multi_attach.py, 4/4 PASS): PATCH /api/team/signups|payments|attendance/{id} accepts and persists both competition_ids[] and event_ids[]; GET list filters by ?event_id= and ?competition_id= via array-membership; the same tool attached to two events surfaces under BOTH events; detaching one leaves the other; single-item GET reflects the arrays; regression on unfiltered lists returns 200 with competition_ids/event_ids as lists on every doc (legacy single-event docs migrated cleanly). Frontend UI (mobile 390x844, applereview@cheerplanner.app): (A) DIRECTION A — AttachSection multi-select verified in three places: (1) Sign-up sheet detail → pencil (testID signup-sheet-edit) opens 'Edit sheet' modal, ATTACH TO renders Competitions chips (attach-comp-<id>) + Schedule events chips (attach-event-<id>) — the previously-attached 'Worlds Tryout' chip renders with the checkmark on-state. (2) Payment tracker detail → payment-edit opens 'Edit tracker' with the same AttachSection chips (Worlds Tryout active). (3) Attendance /team/attendance-new?id=<AID> shows AttachSection; /team/attendance-new (create mode) correctly hides it (no attach-* testIDs present in create). (B) DIRECTION B — LinkedTools at bottom of Competition detail (/competitions/[id]): 'Attached Team Hub tools' header renders, sections for Sign-up sheets / Payment trackers / Attendance each list attached items with testIDs link-open-<id> + link-unlink-<id>, and ＋ Attach button (link-attach-<toolkey>) appears only when there are unattached tools. Picker opens with link-pick-<id> options; tapping attaches (item moves out of picker into the attached list); tapping link-unlink-<id> removes it (verified live: link-open-<sid> disappears after unlink and reappears in the picker via link-pick-<sid>). Schedule event edit screen (/schedule/new?id=<eventId>) also renders LinkedTools at the bottom with all three link-attach-signup/payment/attendance testIDs. (C) Sheet detail header shows '🔗 Attached to 1 item(s)' after attach — regression check passes. (D) Roster ⋯ menu: /team/roster → roster-actions opens the sheet, roster-menu-import-sizes is present and navigates to /import/team_sizes (Import Sizes screen with 'Pick file' + 'Download blank template' renders); existing roster-menu-import (Import roster) is still there. No red-screen errors during the flows once authenticated. No React Native / Expo deprecated packages observed in the touched files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter71_multi_attach.py",
+    "/app/test_reports/pytest/pytest_iter71.xml"
+  ],
+  "action_items": [
+    "No action required — feature is production-ready. Optional polish (not blocking): (1) On direct navigation to a household-scoped route while unauthenticated (e.g. /team/roster), the app throws a red-screen 'Uncaught Error: Request failed with status code 401' in RosterMember load before redirecting; consider gating the load() behind an isAuthenticated check or handling 401 more gracefully. Only reproducible when opening a deep link before login; the normal in-app flow (login → tab nav) is fine."
+  ],
+  "critical_code_review_comments": [
+    "LinkedTools.tsx L28-29: ctxKey/ctxId are derived from props once — correct; a mutually-exclusive prop (competitionId XOR eventId) contract is implicit — safe given both call sites in competitions/[id].tsx and schedule/new.tsx.",
+    "LinkedTools.tsx L50-56: toggle() is optimistic (local state set first, then PATCH, with `catch { load() }` reconcile) — good UX; PATCH body uses ctxKey so signup + payment + attendance all take the same shape.",
+    "AttachSection.tsx L26-29: loads /competitions and /schedule once on mount; falls back to empty on error — good; L44 short-circuits render when both lists are empty which is the right no-op behavior.",
+    "backend routers/{signups,team_payments,attendance}.py all use MongoDB array-membership syntax `query[key]=id` (implicit $in for scalar) which matches how competition_ids/event_ids are stored — no eq-vs-in mismatch.",
+    "team_payments.py PATCH goes through PaymentTrackerUpdate.model_dump(exclude_unset=True) so competition_ids/event_ids only update when explicitly sent — correct partial-update semantics; matches signups.py + attendance.py which check `is not None` per field."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter71_multi_attach.py (new — 4 tests)"
+  ],
+  "success_rate": {"backend": "100% (4/4 pytest)", "frontend": "100% — Roster menu → Import Sizes, LinkedTools attach/pick/unlink on Competition detail, LinkedTools on Schedule event edit, AttachSection on Sign-up sheet/Payment tracker/Attendance edit, Attendance create hides AttachSection, sheet header '🔗 Attached to N item(s)' all verified"},
+  "seed_data_creation": "Backend pytest creates TEST_iter71_event_0/1 schedule events, TEST_iter71_comp competition, TEST_iter71_signup / TEST_iter71_pay / TEST_iter71_att tools — all deleted in teardown. UI seed (TEST_iter71_ui_sheet / TEST_iter71_ui_pay / TEST_iter71_ui_att / TEST_iter71_ui_sheet_free) created via /tmp/seed_iter71.py and cleaned via /tmp/cleanup_iter71.py — no leftover data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Data model is competition_ids[] + event_ids[] on team.signups / team.payments / team.attendance_sessions. Filter endpoints: GET /api/team/signups?event_id=<id>|?competition_id=<id> (both work, membership in the array). AttachSection PATCHes on every chip tap ({competition_ids:[...]} or {event_ids:[...]}) optimistically. LinkedTools testIDs: link-attach-<signup|payment|attendance>, link-pick-<toolId>, link-open-<toolId>, link-unlink-<toolId>, link-picker-done. AttachSection testIDs: attach-comp-<compId>, attach-event-<eventId>. Entrypoints: Sign-up sheet detail (signup-sheet-edit pencil), Payment tracker detail (payment-edit), Attendance edit (/team/attendance-new?id=…). Attendance create mode (no id param) correctly hides AttachSection. Roster ⋯ menu has roster-menu-import (existing) + roster-menu-import-sizes (new → /import/team_sizes).",
+  "rca_of_issue": ""
+}

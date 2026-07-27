@@ -38,11 +38,13 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 
 
 @router.get("/signups")
-async def list_signups(event_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_signups(event_id: str | None = None, competition_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     query: dict = {"user_id": {"$in": member_ids}}
     if event_id:
-        query["event_id"] = event_id
+        query["event_ids"] = event_id
+    if competition_id:
+        query["competition_ids"] = competition_id
     docs = await db.signup_sheets.find(query, {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "signup")
     docs = [d for d in docs if d["id"] not in blocked]
@@ -58,7 +60,7 @@ async def create_signup(payload: SignupSheetCreate, current_user=Depends(get_cur
     existing = await db.signup_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0, "order": 1}).to_list(1000)
     order = min([s.get("order", 0) for s in existing], default=1) - 1  # new sheet floats to the top
     sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(),
-                        competition_id=payload.competition_id, event_id=payload.event_id, order=order)
+                        competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [], order=order)
     await db.signup_sheets.insert_one(sheet.model_dump())
     return sheet
 
@@ -89,10 +91,10 @@ async def update_signup(sheet_id: str, payload: SignupSheetUpdate, current_user=
         if not payload.name.strip():
             raise HTTPException(status_code=400, detail="Name cannot be blank")
         updates["name"] = payload.name.strip()
-    if payload.competition_id is not None:
-        updates["competition_id"] = payload.competition_id or None
-    if payload.event_id is not None:
-        updates["event_id"] = payload.event_id or None
+    if payload.competition_ids is not None:
+        updates["competition_ids"] = payload.competition_ids
+    if payload.event_ids is not None:
+        updates["event_ids"] = payload.event_ids
     if updates:
         await db.signup_sheets.update_one({"id": doc["id"]}, {"$set": updates})
         doc.update(updates)
@@ -121,7 +123,7 @@ async def duplicate_signup(sheet_id: str, current_user=Depends(get_current_user)
         for s in (doc.get("slots") or [])
     ]
     copy = SignupSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)",
-                       competition_id=doc.get("competition_id"), event_id=doc.get("event_id"),
+                       competition_ids=doc.get("competition_ids") or [], event_ids=doc.get("event_ids") or [],
                        order=doc.get("order", 0) - 1, slots=slots)
     await db.signup_sheets.insert_one(copy.model_dump())
     return copy

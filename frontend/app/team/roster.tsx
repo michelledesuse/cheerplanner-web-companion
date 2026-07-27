@@ -325,7 +325,11 @@ export default function RosterScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); router.push("/import/roster" as any); }} testID="roster-menu-import">
               <Ionicons name="grid-outline" size={19} color={colors.accent} />
-              <Text style={styles.menuText}>Import from spreadsheet (CSV / Excel)</Text>
+              <Text style={styles.menuText}>Import roster from spreadsheet (CSV / Excel)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); router.push("/import/team_sizes" as any); }} testID="roster-menu-import-sizes">
+              <Ionicons name="shirt-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Upload sizes from spreadsheet (CSV / Excel)</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); shareTeamLink("roster"); }} testID="roster-menu-share">
               <Ionicons name="share-outline" size={19} color={colors.accent} />

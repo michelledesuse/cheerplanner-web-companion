@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import DateField from "@/src/components/DateField";
+import AttachSection from "@/src/components/AttachSection";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -17,6 +18,8 @@ export default function AttendanceForm() {
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
+  const [compIds, setCompIds] = useState<string[]>([]);
+  const [eventIds, setEventIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
 
@@ -24,9 +27,11 @@ export default function AttendanceForm() {
     if (!isEdit) return;
     (async () => {
       try {
-        const r = await api.get<{ title: string; date?: string | null }>(`/team/attendance/${params.id}`);
+        const r = await api.get<{ title: string; date?: string | null; competition_ids?: string[]; event_ids?: string[] }>(`/team/attendance/${params.id}`);
         setTitle(r.data.title || "");
         setDate(r.data.date || "");
+        setCompIds(r.data.competition_ids || []);
+        setEventIds(r.data.event_ids || []);
       } catch (e: any) {
         Alert.alert("Error", e?.response?.data?.detail || "Could not load session.");
         router.back();
@@ -69,6 +74,8 @@ export default function AttendanceForm() {
 
           <Text style={styles.label}>Date (optional)</Text>
           <DateField value={date} onChange={setDate} testID="attendance-date-input" />
+
+          {isEdit && <AttachSection endpoint={`/team/attendance/${params.id}`} competitionIds={compIds} eventIds={eventIds} onChange={(c, e) => { setCompIds(c); setEventIds(e); }} />}
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving} testID="attendance-save-btn">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Create session"}</Text>}

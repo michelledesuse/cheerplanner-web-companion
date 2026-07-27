@@ -11,6 +11,7 @@ import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetwe
 import MapLink from "@/src/components/MapLink";
 import PackingListSection from "@/src/components/PackingListSection";
 import TodoList from "@/src/components/TodoList";
+import LinkedTools from "@/src/components/LinkedTools";
 import CompetitionTeamsSection, { TeamMeetTime, TeamToWatch } from "@/src/components/CompetitionTeamsSection";
 
 type Competition = {
@@ -290,6 +291,7 @@ export default function CompetitionDetail() {
 
         <Text style={styles.sectionHead}>To-do list</Text>
         <TodoList scope="competition" refId={comp.id} />
+        <LinkedTools competitionId={comp.id} />
       </ScrollView>
     </SafeAreaView>
   );
