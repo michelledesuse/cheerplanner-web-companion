@@ -9,6 +9,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { shareTeamLink } from "@/src/utils/shareLink";
 import { exportAoa } from "@/src/utils/exportFile";
+import { toggleId } from "@/src/utils/filters";
 
 type RosterMember = {
   id: string; name: string; role: string;
@@ -38,7 +39,7 @@ export default function RosterScreen() {
   const router = useRouter();
   const [members, setMembers] = useState<RosterMember[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string; color?: string | null }[]>([]);
-  const [teamFilter, setTeamFilter] = useState<string | null>(null); // null=all, "none"=unassigned
+  const [teamFilter, setTeamFilter] = useState<string[]>([]); // empty=all, "none"=unassigned
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -132,9 +133,9 @@ export default function RosterScreen() {
     .forEach((m) => {
       const tids = m.team_ids && m.team_ids.length ? m.team_ids : [null];
       tids.forEach((tid) => {
-        if (teamFilter === null) expanded.push({ member: m, teamId: tid });
-        else if (teamFilter === "none") { if (tid === null) expanded.push({ member: m, teamId: null }); }
-        else if (tid === teamFilter) expanded.push({ member: m, teamId: tid });
+        if (teamFilter.length === 0) expanded.push({ member: m, teamId: tid });
+        else if (tid === null) { if (teamFilter.includes("none")) expanded.push({ member: m, teamId: null }); }
+        else if (teamFilter.includes(tid)) expanded.push({ member: m, teamId: tid });
       });
     });
 
@@ -208,7 +209,7 @@ export default function RosterScreen() {
             <Text style={[styles.selBtnText, totalVisible === 0 && { opacity: 0.4 }]}>Select</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity onPress={() => router.push({ pathname: "/team/roster-new", params: teamFilter && teamFilter !== "none" ? { team_id: teamFilter } : {} })} style={styles.addBtn} testID="roster-add">
+        <TouchableOpacity onPress={() => router.push({ pathname: "/team/roster-new", params: teamFilter.length === 1 && teamFilter[0] !== "none" ? { team_id: teamFilter[0] } : {} })} style={styles.addBtn} testID="roster-add">
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
@@ -216,9 +217,10 @@ export default function RosterScreen() {
       {teams.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.teamChips}>
           {[{ id: null as any, name: "All teams" }, ...teams, { id: "none", name: "No team" }].map((t) => {
-            const active = teamFilter === t.id;
+            const active = t.id === null ? teamFilter.length === 0 : teamFilter.includes(t.id);
+            const onPress = t.id === null ? () => setTeamFilter([]) : () => setTeamFilter((p) => toggleId(p, t.id));
             return (
-              <TouchableOpacity key={String(t.id)} onPress={() => setTeamFilter(t.id)} style={[styles.teamChip, active && styles.teamChipOn]} testID={`roster-team-${t.id ?? "all"}`}>
+              <TouchableOpacity key={String(t.id)} onPress={onPress} style={[styles.teamChip, active && styles.teamChipOn]} testID={`roster-team-${t.id ?? "all"}`}>
                 <Text style={[styles.teamChipText, active && styles.teamChipTextOn]}>{t.name}</Text>
               </TouchableOpacity>
             );

@@ -15,6 +15,7 @@ import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
+import { toggleId } from "@/src/utils/filters";
 import HomeButton from "@/src/components/HomeButton";
 
 type Athlete = { id: string; name: string; avatar_color?: string; team_ids?: string[] };
@@ -29,9 +30,9 @@ export default function ExpensesTab() {
   const [tab, setTab] = useState<"expenses" | "payments" | "fundraisers">("expenses");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
   const [sortMode, setSortMode] = useState<"recent" | "due">("recent");
-  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);  // null = all athletes
-  const [teamFilter, setTeamFilter] = useState<string | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [athleteFilter, setAthleteFilter] = useState<string[]>([]);  // empty = all athletes
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -110,9 +111,9 @@ export default function ExpensesTab() {
 
   const filteredExpenses = useMemo(() => {
     const athById = new Map(athletes.map((a) => [a.id, a]));
-    let list = athleteFilter ? expenses.filter((e) => e.athlete_id === athleteFilter) : expenses;
-    if (teamFilter) list = list.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).includes(teamFilter));
-    if (categoryFilter) list = list.filter((e) => e.category === categoryFilter);
+    let list = athleteFilter.length ? expenses.filter((e) => athleteFilter.includes(e.athlete_id)) : expenses;
+    if (teamFilter.length) list = list.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).some((t) => teamFilter.includes(t)));
+    if (categoryFilter.length) list = list.filter((e) => categoryFilter.includes(e.category));
     if (filter === "open") list = list.filter((e) => !e.paid && Number(e.balance_due || 0) > 0);
     else if (filter === "paid") list = list.filter((e) => e.paid || Number(e.balance_due || 0) <= 0.001);
     if (sortMode === "due") {
@@ -139,7 +140,7 @@ export default function ExpensesTab() {
   }, [expenses, filter, athleteFilter, teamFilter, categoryFilter, athletes, sortMode]);
 
   const filteredPayments = useMemo(() => {
-    return athleteFilter ? payments.filter((p) => p.athlete_id === athleteFilter) : payments;
+    return athleteFilter.length ? payments.filter((p) => athleteFilter.includes(p.athlete_id)) : payments;
   }, [payments, athleteFilter]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -156,14 +157,14 @@ export default function ExpensesTab() {
     //     they reflect only the items in view — but NOT the all/open/paid view
     //     toggle (that's just a status filter within the same scope).
     const athById = new Map(athletes.map((a) => [a.id, a]));
-    let scope = athleteFilter ? expenses.filter((e) => e.athlete_id === athleteFilter) : expenses;
+    let scope = athleteFilter.length ? expenses.filter((e) => athleteFilter.includes(e.athlete_id)) : expenses;
     if (tab === "expenses") {
-      if (teamFilter) scope = scope.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).includes(teamFilter));
-      if (categoryFilter) scope = scope.filter((e) => e.category === categoryFilter);
+      if (teamFilter.length) scope = scope.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).some((t) => teamFilter.includes(t)));
+      if (categoryFilter.length) scope = scope.filter((e) => categoryFilter.includes(e.category));
     }
     const totalDue = scope.reduce((s, e) => s + Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0))), 0);
     const totalPaid = scope.reduce((s, e) => s + Number(e.paid_amount || 0), 0);
-    const scopeFiltered = !!athleteFilter || (tab === "expenses" && (!!teamFilter || !!categoryFilter));
+    const scopeFiltered = athleteFilter.length > 0 || (tab === "expenses" && (teamFilter.length > 0 || categoryFilter.length > 0));
     return { totalDue, totalPaid, scopeFiltered };
   }, [expenses, athletes, athleteFilter, teamFilter, categoryFilter, tab]);
 
@@ -306,22 +307,25 @@ export default function ExpensesTab() {
       >
         {tab !== "fundraisers" && athletes.length > 1 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: spacing.md }} contentContainerStyle={{ gap: 8 }}>
-            <TouchableOpacity onPress={() => setAthleteFilter(null)} style={[styles.athChipFilter, athleteFilter === null && styles.athChipFilterOn]} testID="ath-filter-all">
-              <Text style={[styles.athChipText, athleteFilter === null && styles.athChipTextOn]}>All</Text>
+            <TouchableOpacity onPress={() => setAthleteFilter([])} style={[styles.athChipFilter, athleteFilter.length === 0 && styles.athChipFilterOn]} testID="ath-filter-all">
+              <Text style={[styles.athChipText, athleteFilter.length === 0 && styles.athChipTextOn]}>All</Text>
             </TouchableOpacity>
-            {athletes.map((a) => (
-              <TouchableOpacity key={a.id} onPress={() => setAthleteFilter(a.id)} style={[styles.athChipFilter, athleteFilter === a.id && styles.athChipFilterOn]} testID={`ath-filter-${a.id}`}>
-                <View style={[styles.athDotSm, { backgroundColor: a.avatar_color || colors.accent }]} />
-                <Text style={[styles.athChipText, athleteFilter === a.id && styles.athChipTextOn]}>{a.name}</Text>
-              </TouchableOpacity>
-            ))}
+            {athletes.map((a) => {
+              const on = athleteFilter.includes(a.id);
+              return (
+                <TouchableOpacity key={a.id} onPress={() => setAthleteFilter((p) => toggleId(p, a.id))} style={[styles.athChipFilter, on && styles.athChipFilterOn]} testID={`ath-filter-${a.id}`}>
+                  <View style={[styles.athDotSm, { backgroundColor: a.avatar_color || colors.accent }]} />
+                  <Text style={[styles.athChipText, on && styles.athChipTextOn]}>{a.name}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         )}
         {tab !== "fundraisers" && (
           <ActiveFiltersBar
             testIDPrefix="exp-filters"
-            count={(athleteFilter ? 1 : 0) + (tab === "expenses" ? (teamFilter ? 1 : 0) + (categoryFilter ? 1 : 0) : 0)}
-            onClear={() => { setAthleteFilter(null); setTeamFilter(null); setCategoryFilter(null); }}
+            count={athleteFilter.length + (tab === "expenses" ? teamFilter.length + categoryFilter.length : 0)}
+            onClear={() => { setAthleteFilter([]); setTeamFilter([]); setCategoryFilter([]); }}
           />
         )}
         {tab === "expenses" && (
@@ -330,16 +334,18 @@ export default function ExpensesTab() {
               <FilterChipRow
                 label="Team"
                 testIDPrefix="exp-filter-team"
-                selectedId={teamFilter}
-                onSelect={setTeamFilter}
+                selectedIds={teamFilter}
+                onToggle={(id) => setTeamFilter((p) => toggleId(p, id))}
+                onClear={() => setTeamFilter([])}
                 options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
               />
             )}
             <FilterChipRow
               label="Category"
               testIDPrefix="exp-filter-cat"
-              selectedId={categoryFilter}
-              onSelect={setCategoryFilter}
+              selectedIds={categoryFilter}
+              onToggle={(id) => setCategoryFilter((p) => toggleId(p, id))}
+              onClear={() => setCategoryFilter([])}
               options={Array.from(new Set(expenses.map((e) => e.category).filter(Boolean))).sort().map((c) => ({ id: c, label: c }))}
             />
             <View style={styles.filterRow}>

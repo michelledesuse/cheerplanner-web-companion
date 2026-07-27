@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { colors, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
@@ -15,41 +16,44 @@ export type FilterOption = {
 type Props = {
   label: string;
   options: FilterOption[];
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  onClear: () => void;
   testIDPrefix: string;
   allLabel?: string;
 };
 
 /**
  * A single horizontally-scrolling filter dimension: an "All" chip followed by
- * one chip per option. Single-select within the row; combine multiple rows
- * (athlete + team + type) for AND filtering. Hidden entirely when there are no
- * options to choose from.
+ * one chip per option. MULTI-select within the row — tap several chips to
+ * combine them (OR within the row). The "All" chip clears the row. Combine
+ * multiple rows (athlete + team + type) for AND filtering across dimensions.
+ * Hidden entirely when there are no options to choose from.
  */
 export default function FilterChipRow({
-  label, options, selectedId, onSelect, testIDPrefix, allLabel = "All",
+  label, options, selectedIds, onToggle, onClear, testIDPrefix, allLabel = "All",
 }: Props) {
   const styles = useThemedStyles(makeStyles);
   if (options.length === 0) return null;
+  const allOn = selectedIds.length === 0;
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
         <TouchableOpacity
-          onPress={() => onSelect(null)}
-          style={[styles.chip, selectedId === null && styles.chipOn]}
+          onPress={onClear}
+          style={[styles.chip, allOn && styles.chipOn]}
           testID={`${testIDPrefix}-all`}
         >
-          <Text style={[styles.chipText, selectedId === null && styles.chipTextOn]}>{allLabel}</Text>
+          <Text style={[styles.chipText, allOn && styles.chipTextOn]}>{allLabel}</Text>
         </TouchableOpacity>
         {options.map((o) => {
-          const on = selectedId === o.id;
+          const on = selectedIds.includes(o.id);
           return (
             <TouchableOpacity
               key={o.id}
-              onPress={() => onSelect(on ? null : o.id)}
+              onPress={() => onToggle(o.id)}
               style={[styles.chip, on && styles.chipOn, o.color && !on ? { borderColor: o.color } : null]}
               testID={`${testIDPrefix}-${o.id}`}
             >
@@ -59,6 +63,7 @@ export default function FilterChipRow({
                 <View style={[styles.dot, { backgroundColor: o.color }]} />
               ) : null}
               <Text style={[styles.chipText, on && styles.chipTextOn]} numberOfLines={1}>{o.label}</Text>
+              {on && <Ionicons name="checkmark" size={13} color="white" style={{ marginLeft: 2 }} />}
             </TouchableOpacity>
           );
         })}

@@ -20,6 +20,7 @@ import { formatDateLong, daysBetween } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
+import { toggleId } from "@/src/utils/filters";
 import HomeButton from "@/src/components/HomeButton";
 
 type Competition = {
@@ -41,8 +42,8 @@ export default function CompetitionsScreen() {
   const [items, setItems] = useState<Competition[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
-  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);
-  const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  const [athleteFilter, setAthleteFilter] = useState<string[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   // Multi-select
@@ -75,10 +76,10 @@ export default function CompetitionsScreen() {
   }, [load]));
 
   const matches = useCallback((c: Competition) => {
-    if (teamFilter && !(c.team_ids || []).includes(teamFilter)) return false;
-    if (athleteFilter) {
-      const ath = athletes.find((a) => a.id === athleteFilter);
-      if (!ath || !(ath.competition_ids || []).includes(c.id)) return false;
+    if (teamFilter.length > 0 && !(c.team_ids || []).some((t) => teamFilter.includes(t))) return false;
+    if (athleteFilter.length > 0) {
+      const ok = athletes.some((a) => athleteFilter.includes(a.id) && (a.competition_ids || []).includes(c.id));
+      if (!ok) return false;
     }
     return true;
   }, [teamFilter, athleteFilter, athletes]);
@@ -202,8 +203,9 @@ export default function CompetitionsScreen() {
                 <FilterChipRow
                   label="Athlete"
                   testIDPrefix="comp-filter-athlete"
-                  selectedId={athleteFilter}
-                  onSelect={setAthleteFilter}
+                  selectedIds={athleteFilter}
+                  onToggle={(id) => setAthleteFilter((p) => toggleId(p, id))}
+                  onClear={() => setAthleteFilter([])}
                   options={athletes.map((a) => ({ id: a.id, label: a.name, color: a.avatar_color }))}
                 />
               )}
@@ -211,15 +213,16 @@ export default function CompetitionsScreen() {
                 <FilterChipRow
                   label="Team"
                   testIDPrefix="comp-filter-team"
-                  selectedId={teamFilter}
-                  onSelect={setTeamFilter}
+                  selectedIds={teamFilter}
+                  onToggle={(id) => setTeamFilter((p) => toggleId(p, id))}
+                  onClear={() => setTeamFilter([])}
                   options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
                 />
               )}
               <ActiveFiltersBar
                 testIDPrefix="comp-filters"
-                count={(athleteFilter ? 1 : 0) + (teamFilter ? 1 : 0)}
-                onClear={() => { setAthleteFilter(null); setTeamFilter(null); }}
+                count={athleteFilter.length + teamFilter.length}
+                onClear={() => { setAthleteFilter([]); setTeamFilter([]); }}
               />
             </View>
           )}

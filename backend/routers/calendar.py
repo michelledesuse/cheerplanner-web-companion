@@ -321,6 +321,7 @@ async def calendar_feed(
                     "time": s.get("start_time"),
                     "subtitle": subtitle,
                     "color": colors_by_type.get(et) or custom_event_colors.get(et) or "#64748B",
+                    "event_type": et,
                     "link": f"/schedule/new?id={s['id']}",
                     "links": s.get("links", []),
                 })
@@ -333,6 +334,7 @@ async def calendar_feed(
                 "time": s.get("start_time"),
                 "subtitle": subtitle,
                 "color": colors_by_type.get(et) or custom_event_colors.get(et) or "#64748B",
+                "event_type": et,
                 "link": f"/schedule/new?id={s['id']}",
                 "links": s.get("links", []),
             })

@@ -16,6 +16,7 @@ import TeamAvatar from "@/src/components/TeamAvatar";
 import FilterChipRow, { type FilterOption } from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 import HomeButton from "@/src/components/HomeButton";
+import { toggleId, passesMulti, passesMultiAny } from "@/src/utils/filters";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -44,9 +45,9 @@ export default function ScheduleTab() {
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [athleteFilter, setAthleteFilter] = useState<string | null>(null);
-  const [teamFilter, setTeamFilter] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [athleteFilter, setAthleteFilter] = useState<string[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
@@ -93,9 +94,9 @@ export default function ScheduleTab() {
   };
 
   const filtered = useMemo(() => events.filter((e) =>
-    (!typeFilter || e.event_type === typeFilter) &&
-    (!athleteFilter || (e.athlete_ids || []).includes(athleteFilter)) &&
-    (!teamFilter || e.team_id === teamFilter)
+    passesMulti(typeFilter, e.event_type) &&
+    passesMultiAny(athleteFilter, e.athlete_ids) &&
+    passesMulti(teamFilter, e.team_id)
   ), [events, typeFilter, athleteFilter, teamFilter]);
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = useMemo(() => filtered.filter((e) => e.date >= today), [filtered, today]);
@@ -190,8 +191,9 @@ export default function ScheduleTab() {
           <FilterChipRow
             label="Type"
             testIDPrefix="sched-filter-type"
-            selectedId={typeFilter}
-            onSelect={setTypeFilter}
+            selectedIds={typeFilter}
+            onToggle={(id) => setTypeFilter((p) => toggleId(p, id))}
+            onClear={() => setTypeFilter([])}
             options={[
               ...Object.entries(TYPE_LABEL).map(([k, label]) => ({ id: k, label, color: TYPE_COLOR[k] })),
               ...customTypes.map((t) => ({ id: t.id, label: t.label, color: t.color })),
@@ -201,8 +203,9 @@ export default function ScheduleTab() {
             <FilterChipRow
               label="Athlete"
               testIDPrefix="sched-filter-athlete"
-              selectedId={athleteFilter}
-              onSelect={setAthleteFilter}
+              selectedIds={athleteFilter}
+              onToggle={(id) => setAthleteFilter((p) => toggleId(p, id))}
+              onClear={() => setAthleteFilter([])}
               options={athletes.map((a) => ({ id: a.id, label: a.name, color: a.avatar_color }))}
             />
           )}
@@ -210,15 +213,16 @@ export default function ScheduleTab() {
             <FilterChipRow
               label="Team"
               testIDPrefix="sched-filter-team"
-              selectedId={teamFilter}
-              onSelect={setTeamFilter}
+              selectedIds={teamFilter}
+              onToggle={(id) => setTeamFilter((p) => toggleId(p, id))}
+              onClear={() => setTeamFilter([])}
               options={teams.map((t) => ({ id: t.id, label: t.name, color: t.color, logoImage: t.logo_image ?? null }))}
             />
           )}
           <ActiveFiltersBar
             testIDPrefix="sched-filters"
-            count={(typeFilter ? 1 : 0) + (athleteFilter ? 1 : 0) + (teamFilter ? 1 : 0)}
-            onClear={() => { setTypeFilter(null); setAthleteFilter(null); setTeamFilter(null); }}
+            count={typeFilter.length + athleteFilter.length + teamFilter.length}
+            onClear={() => { setTypeFilter([]); setAthleteFilter([]); setTeamFilter([]); }}
           />
         </View>
       )}

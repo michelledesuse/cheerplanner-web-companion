@@ -1,0 +1,34 @@
+{
+  "summary": "v2.5 multi-select filter roll-out verified end-to-end. Backend (test_v25_multi_filters_and_calendar_types.py, 3/3 PASS): GET /api/calendar exposes 'event_type' on kind=='schedule' items with correct built-in color (practice → #EA580C); custom household event type is picked up by the merged color map and schedule events referencing that type_id are returned with the user-chosen color (e.g. #123ABC) and event_type=<custom_id>; non-schedule kinds do not carry event_type. Frontend UI (mobile viewport 390x844, applereview@cheerplanner.app): (1) SCHEDULE tab — sched-filter-type-* chips are truly multi-select: tapping Practice then Team Bonding kept BOTH chips in the accent-blue on-state (backgroundColor rgb(37,99,235)) with the checkmark ionicon rendered; sched-filters-clear-all button appears (text 'Clear all'); athlete + team rows also render as chip lists. (2) CALENDAR tab — the NEW 'EVENT TYPES' FilterChipRow appears above the month grid (testIDPrefix cal-filter-type), lists built-in types AND user-created custom types (chip options are populated from the currently-loaded events in the selected range); selecting a type surfaces cal-filters-clear-all which clears back to All. (3) ROSTER (/team/roster) — roster-team-all + roster-team-<id> + roster-team-none pseudo-chip all render with the new multi-select signature. (4) The FilterChipRow component itself uses selectedIds:string[] + onToggle + onClear and renders a checkmark on active chips (verified in JSX and DOM). No critical, minor, or React Native issues observed this round.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_v25_multi_filters_and_calendar_types.py",
+    "/app/test_reports/pytest/pytest_v25.xml"
+  ],
+  "action_items": [
+    "No action required — all 3 backend tests pass and the UI multi-select flow works on Schedule, Calendar, and Roster. Expenses (ath-filter-*, exp-filter-team-*, exp-filter-cat-*) and Competitions (comp-filter-athlete-*, comp-filter-team-*) callers were code-reviewed and use the same shared toggleId/passesMulti primitives; if desired, add matching UI smoke tests in a future iteration."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/calendar.py L27-34 & L323/336: builds `custom_event_colors` map from _get_or_create_household and merges it into the schedule color lookup via `colors_by_type.get(et) or custom_event_colors.get(et) or '#64748B'` — clean fallback chain, custom color wins over the default gray.",
+    "backend/routers/calendar.py L324 & L337: `event_type: et` is now emitted on every schedule item (including multi-day expansions), which is exactly what the frontend cal.tsx uses for cal-filter-type-<id> options and typeFilter matching.",
+    "frontend/src/components/FilterChipRow.tsx L38 & L52: 'All' on-state is derived from `selectedIds.length === 0` and per-chip `on` from `selectedIds.includes(o.id)` — semantics match the spec: 'All' clears the row, empty array = show everything, non-empty = OR within the row.",
+    "frontend/src/utils/filters.ts is 15 lines and used by all 5 tabs (schedule/expenses/competitions/calendar/roster) — good DRY factoring; toggleId/passesMulti/passesMultiAny cover single-value + multi-value item fields uniformly.",
+    "frontend/app/(tabs)/calendar.tsx L129-138: typeOptions is derived from the currently loaded events (only shows chips for types the user actually has events for) — sensible UX; new custom types with no events yet correctly don't appear until a schedule event uses them.",
+    "frontend/app/(tabs)/calendar.tsx L124-127: passesType() correctly excludes non-schedule kinds from the filter (`e.kind !== 'schedule' || (!!e.event_type && typeFilter.includes(e.event_type))`) — matches the spec requirement that competitions/travel/payments remain visible when Event-types filter is active."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_v25_multi_filters_and_calendar_types.py (new — 3 tests, all pass)"
+  ],
+  "success_rate": {"backend": "100% (3/3 pytest)", "frontend": "100% (Schedule multi-select + Calendar event-type filter + Roster team filter verified in UI)"},
+  "seed_data_creation": "Backend pytest fixture created and DELETED: TESTv25_practice_* + TESTv25_customEvt_* schedule events and TESTv25_Camp_* custom event type. Two leftover events + one custom type from an earlier failed test iteration were removed post-run via cleanup script. Nothing left behind.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Multi-select filter suite is stable. FilterChipRow API is now { selectedIds:string[], onToggle:(id)=>void, onClear:()=>void } and is used everywhere. testIDs: sched-filter-type-*, sched-filter-athlete-*, sched-filter-team-*, sched-filters-clear-all; exp-filter-team-*, exp-filter-cat-*, ath-filter-*; comp-filter-athlete-*, comp-filter-team-*; roster-team-* + roster-team-all + roster-team-none; cal-filter-type-* + cal-filters-clear-all. Backend calendar items for kind=='schedule' carry event_type (built-in slug OR household custom-type UUID). Custom event type color merge lives in backend/routers/calendar.py:27-34, 323, 336.",
+  "rca_of_issue": ""
+}

@@ -15,6 +15,9 @@ import { formatCurrency, formatDateLong, todayISO } from "@/src/utils/format";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import DateJumpDropdown from "@/src/components/DateJumpDropdown";
 import HomeButton from "@/src/components/HomeButton";
+import FilterChipRow from "@/src/components/FilterChipRow";
+import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
+import { toggleId } from "@/src/utils/filters";
 
 type CalEvent = {
   id: string;
@@ -24,9 +27,15 @@ type CalEvent = {
   subtitle?: string;
   amount?: number;
   color: string;
+  event_type?: string;
   logo_image?: string | null;
   link?: string;
   links?: { label: string; url: string }[];
+};
+
+const BUILTIN_TYPE_LABEL: Record<string, string> = {
+  practice: "Practice", team_bonding: "Team Bonding", private_lesson: "Private Lesson",
+  choreography: "Choreography", class: "Class", fundraiser: "Fundraiser", other: "Other",
 };
 
 const KIND_ICONS: Record<string, any> = {
@@ -69,6 +78,12 @@ export default function CalendarTab() {
   const [refreshing, setRefreshing] = useState(false);
   const [jumpOpen, setJumpOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<string[]>([]);
+  const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
+
+  useEffect(() => {
+    api.get("/household/custom-types").then((r) => setCustomTypes(r.data.event_types || [])).catch(() => {});
+  }, []);
 
   const startAdd = (kind: "competition" | "event") => {
     setAddOpen(false);
@@ -106,11 +121,28 @@ export default function CalendarTab() {
   useEffect(() => { setLoading(true); load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const passesType = useCallback(
+    (e: CalEvent) => typeFilter.length === 0 || e.kind !== "schedule" || (!!e.event_type && typeFilter.includes(e.event_type)),
+    [typeFilter],
+  );
+
+  const typeOptions = useMemo(() => {
+    const seen = new Map<string, { id: string; label: string; color?: string }>();
+    for (const e of events) {
+      if (e.kind === "schedule" && e.event_type && !seen.has(e.event_type)) {
+        const label = BUILTIN_TYPE_LABEL[e.event_type] || customTypes.find((t) => t.id === e.event_type)?.label || "Other";
+        seen.set(e.event_type, { id: e.event_type, label, color: e.color });
+      }
+    }
+    return Array.from(seen.values());
+  }, [events, customTypes]);
+
   // Group dots per date
   const markedDates = useMemo(() => {
     const map: Record<string, { dots: Array<{ key: string; color: string }>; marked?: boolean; selected?: boolean; selectedColor?: string }> = {};
     const seen: Record<string, Set<string>> = {};
     for (const e of events) {
+      if (!passesType(e)) continue;
       if (!seen[e.date]) seen[e.date] = new Set();
       if (!seen[e.date].has(e.color)) {
         seen[e.date].add(e.color);
@@ -126,9 +158,9 @@ export default function CalendarTab() {
       selectedColor: colors.accent,
     };
     return map;
-  }, [events, selected]);
+  }, [events, selected, passesType]);
 
-  const dayEvents = (d: string) => events.filter((e) => e.date === d);
+  const dayEvents = (d: string) => events.filter((e) => e.date === d && passesType(e));
 
   const renderEvent = (e: CalEvent) => (
     <View key={e.id} style={styles.eventRow} testID={`event-${e.id}`}>
@@ -210,6 +242,20 @@ export default function CalendarTab() {
           ))}
         </View>
       </View>
+
+      {typeOptions.length > 0 && (
+        <View style={{ marginBottom: spacing.sm }}>
+          <FilterChipRow
+            label="Event types"
+            testIDPrefix="cal-filter-type"
+            selectedIds={typeFilter}
+            onToggle={(id) => setTypeFilter((p) => toggleId(p, id))}
+            onClear={() => setTypeFilter([])}
+            options={typeOptions}
+          />
+          <ActiveFiltersBar testIDPrefix="cal-filters" count={typeFilter.length} onClear={() => setTypeFilter([])} />
+        </View>
+      )}
 
       <DateJumpDropdown
         visible={jumpOpen}
