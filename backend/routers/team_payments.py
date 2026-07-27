@@ -45,22 +45,34 @@ def _summary(tracker: dict, roster_total: int, excluded_in_roster: int = 0) -> d
 
     if expected is not None or any(e.get("amount_due") is not None for e in entries):
         exp = float(expected or 0)
-        # Per-person shortfall using each member's own amount due when set.
+        # Per-person shortfall using each member's own amount due when set — for
+        # BOTH paid and unpaid entries, plus the tracker default for anyone with
+        # no entry yet.
         covered = 0
-        entry_shortfall = 0.0
+        outstanding = 0.0
+        expected_total = 0.0
+        unpaid_entries = [e for e in entries if not e.get("paid")]
         for e in paid_entries:
             due = e.get("amount_due")
             due = float(due) if due is not None else exp
             amt = e.get("amount_paid")
             paid_amt = float(amt if amt is not None else due)
+            expected_total += due
             if due <= 0 or paid_amt >= due:
                 covered += 1
             else:
-                entry_shortfall += (due - paid_amt)
-        outstanding = entry_shortfall + exp * unpaid_count
+                outstanding += (due - paid_amt)
+        for e in unpaid_entries:
+            due = e.get("amount_due")
+            due = float(due) if due is not None else exp
+            expected_total += due
+            outstanding += max(0.0, due)
+        no_entry_count = max(0, member_total - len(entries))
+        outstanding += exp * no_entry_count
+        expected_total += exp * no_entry_count
         summary["short_count"] = max(0, member_total - covered)
         summary["outstanding"] = round(outstanding, 2)
-        summary["expected_total"] = round(exp * member_total, 2)
+        summary["expected_total"] = round(expected_total, 2)
     else:
         # No expected amount set — "owing" just means not yet marked paid.
         summary["short_count"] = unpaid_count

@@ -97,6 +97,7 @@ export default function PaymentDetail() {
         amount_due: mDue.trim() ? Number(mDue) : null,
       });
       setTracker(r.data);
+      closeMember();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
     } finally { setMSaving(false); }
@@ -348,7 +349,7 @@ export default function PaymentDetail() {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={styles.unpaidBtn} onPress={saveDueOnly} disabled={mSaving} testID="payment-member-savedue">
-                  <Text style={styles.unpaidText}>Save amount due only</Text>
+                  <Text style={styles.unpaidText}>Save</Text>
                 </TouchableOpacity>
               )}
               </>

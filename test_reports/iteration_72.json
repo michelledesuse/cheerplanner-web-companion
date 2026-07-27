@@ -1,0 +1,32 @@
+{
+  "summary": "Iter72 Payment tracker member-modal bug fix verified end-to-end. Backend pytest (test_iter72_payment_amount_due_math.py, 8/8 PASS): _summary() now includes each UNPAID member's own amount_due in outstanding AND expected_total, plus PAID entries' amount_due (regardless of paid amount), plus tracker default for anyone with no entry — validated across the exact repro scenarios from the ticket: (a) NO default amount + one unpaid member with amount_due=50 → outstanding=50, expected_total=50, short_count≥1; (b) add second unpaid member amount_due=30 → outstanding=80, expected_total=80; (c) then mark m1 paid amount_paid=50 → outstanding=30, expected_total=80, paid_count=1. Regression PASS: PAID member with amount_paid=default clears their portion & collected reflects it; per-member amount_due for PAID member counts in expected_total and does NOT add to outstanding when fully covered; exempt member removes their amount_due from both totals; default 'amount per person' applied to members with no entry (expected_total = default × member_total); multi-attach PATCH persists competition_ids/event_ids arrays (regression from iter71). Frontend UI (mobile 390×844, applereview@cheerplanner.app): created a TEST_iter72_ui roster athlete + a no-default-amount tracker, tapped the member row → modal opens, entered Amount due=50, verified secondary button text is EXACTLY 'Save' (testID payment-member-savedue) — NOT 'Save amount due only' — tapped it and observed (1) modal closes immediately (payment-member-due no longer visible), (2) tracker summary updates in place to '1 person owes · $50.00 outstanding' and the member row shows 'owes $50.00', (3) reopening the same member modal shows Amount due prefilled as '50' confirming server persistence. Test data cleaned up (tracker + roster member deleted; final trackers=0, roster=0). No red-screen errors and no deprecated Expo packages introduced.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter72_payment_amount_due_math.py",
+    "/app/test_reports/pytest/pytest_iter72.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_payments.py::_summary L46-75: correctly enters the expected/expected_total branch when EITHER tracker.amount OR any entry has amount_due — so a tracker with no default still tallies per-member amount_due for both paid & unpaid entries. Good.",
+    "team_payments.py::_summary L55-64 (paid loop): due defaults to tracker.exp when entry.amount_due is None; paid_amt defaults to due when amount_paid is None (self-consistent 'assume they paid what they owed'). Under/overpayment handled by max(0, due - paid). Correct.",
+    "team_payments.py::_summary L65-69 (unpaid loop): due defaults to tracker.exp; outstanding uses max(0.0, due) to avoid negatives from a mistakenly negative amount_due — safe.",
+    "team_payments.py::_summary L70-72: default is applied only to members with NO entry (member_total - len(entries)) — since entries includes both paid and unpaid entries, no double-counting. Correct.",
+    "payment.tsx::saveDueOnly L92-104: PUT body sends ONLY amount_due (paid omitted — model_dump(exclude_unset=True) leaves paid untouched on server), then closeMember() runs after setTracker(r.data). Error path still calls Alert.alert but leaves modal open which is fine for a failure — user can retry.",
+    "payment.tsx L351-353: button testID payment-member-savedue and label 'Save' matches the ticket exactly. alreadyPaid branch (L346-349) still renders 'Mark unpaid' so no regression for paid rows."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter72_payment_amount_due_math.py (new — 8 tests)"
+  ],
+  "success_rate": {"backend": "100% (8/8 pytest)", "frontend": "100% — button label='Save', modal closes on tap, outstanding/expected reflect saved amount_due, amount_due persists on reopen"},
+  "seed_data_creation": "UI test created one TEST_iter72_ui_athlete roster entry + one TEST_iter72_ui_<ts> tracker; both deleted via API at end. Pytest fixtures create TEST_iter72_* roster members only if fewer than 3 non-parent members exist, and cleaned up in teardown; trackers created per-test are deleted in the fixture teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Endpoint to set/update a payment tracker member: PUT /api/team/payments/{tracker_id}/member/{member_id} with body from PaymentEntryUpdate — 'paid' is OPTIONAL (omit to leave unchanged). Setting amount_due only: {\"amount_due\": <number|null>}. Summary math (team_payments._summary): outstanding = sum of (due - paid_amt) for paid entries where paid_amt<due + sum of due for unpaid entries (due=entry.amount_due if set else tracker.amount if set else 0) + tracker.amount × (member_total - len(entries)). Applies whenever tracker.amount is set OR ANY entry has amount_due. Frontend: payment.tsx member modal secondary button is 'Save' (testID payment-member-savedue) when member is NOT paid; renders 'Mark unpaid' (testID payment-member-unpaid) when paid. saveDueOnly() calls closeMember() after success. Roster is empty by default for applereview account — create a non-parent member first via POST /api/roster to have anyone to bill.",
+  "rca_of_issue": "Original bug: _summary() only iterated paid_entries when computing outstanding/expected_total and treated unpaid members' amount_due as if it were the tracker default (which is None/0 by default), so a per-member amount_due entered without marking paid was ignored. Fix (already applied by main agent) added a second loop over unpaid_entries that adds each entry's amount_due (or the tracker default fallback) to BOTH outstanding and expected_total, then adds the default × no_entry_count for members with no entry at all. Frontend companion fix renamed 'Save amount due only' → 'Save' and added closeMember() after successful PUT so the modal closes on tap. Both fixes verified via new pytest + live UI walkthrough."
+}
