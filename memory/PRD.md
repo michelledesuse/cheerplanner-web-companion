@@ -221,5 +221,12 @@ Phase 3:
 - DONE (iter68): Block a granted user from a specific sheet — routers/blocks.py (GET /api/team/blocks/{resource}/{resource_id}, PUT /api/team/blocks?blocked=). sheet_blocks collection. Filters payment/paperwork/signup/attendance lists + 403 on get. Owner-only UI via SheetAccessButton (hidden for solo owners via useCanManageAccess).
 - DONE (iter69): Sizes on the in-app roster Add/Edit screen (inputs per size column, saved via NEW atomic PUT /api/team/sizes/values) AND on the public roster share link (parents fill roster info + sizes together). Fixed a HIGH race bug where per-column concurrent PUTs dropped values — replaced with a single batched write.
 
-## Backlog — Monetization (added)
-- FREE vs PREMIUM tiers (entitlement/paywall + billing). Scope separately.
+## Session update 9 (multi-select filters, calendar type filter, multi-attach)
+- DONE: Multi-select filters everywhere (Schedule type/athlete/team, Expenses athlete/team/category, Competitions athlete/team, Roster team) via a multi-select `FilterChipRow` (selectedIds[]/onToggle/onClear, optional hideAll) + `src/utils/filters.ts`.
+- DONE: Calendar 'Event types' multi-select filter (built-in + user custom types); backend /api/calendar schedule items now carry `event_type`.
+- DONE: Payment trackers, Sign-up sheets, Attendance sessions can attach to MULTIPLE competitions + events (competition_ids[]/event_ids[]). Both directions: `AttachSection` on each tool's edit screen; `LinkedTools` at the bottom of Competition detail + Schedule event screens (attach/detach/open). Sizes intentionally excluded. Old single links migrated to arrays.
+- DONE: 'Upload sizes from spreadsheet (CSV/Excel)' added to Roster ⋯ menu (routes to existing /import/team_sizes).
+- app.json version bumped to 1.1.9 (was stuck at 1.1.2 causing App Store Connect to show 1.1.2).
+
+## Backlog — Monetization (pending user decisions)
+- Free vs Premium tiers via RevenueCat + Apple/Google IAP. Awaiting user's feature split + billing model before implementation. NOT started.
