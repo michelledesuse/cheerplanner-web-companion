@@ -8,6 +8,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import HomeButton from "@/src/components/HomeButton";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
+import { usePremium } from "@/src/context/PremiumContext";
 
 type Tool = {
   key: string;
@@ -28,6 +29,8 @@ const TOOLS: Tool[] = [
   { key: "export", title: "Custom Roster Export", desc: "Pick columns (sizes, paperwork, payments) into one downloadable view for a competition.", icon: "download-outline", route: "/team/export" },
 ];
 
+const PREMIUM_TOOLS = new Set(["payments", "sizes", "paperwork", "export"]);
+
 /**
  * Team Hub — a private workspace for coaches, team reps/managers & staff.
  * Phase C: Roster is live; Gifts & Meals and Waivers arrive next.
@@ -36,6 +39,7 @@ export default function TeamScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user, refreshUser } = useAuth();
+  const { isPremium } = usePremium();
   const [loading, setLoading] = useState(true);
   const unlocked = !!user?.team_access;
 
@@ -88,14 +92,19 @@ export default function TeamScreen() {
             </Text>
           </View>
 
-          {TOOLS.map((t) => (
+          {TOOLS.map((t) => {
+            const locked = PREMIUM_TOOLS.has(t.key) && !isPremium;
+            return (
             <TouchableOpacity
               key={t.key}
               style={styles.toolCard}
               testID={`team-tool-${t.key}`}
               activeOpacity={t.route ? 0.7 : 1}
               disabled={!t.route}
-              onPress={() => t.route && router.push(t.route as any)}
+              onPress={() => {
+                if (locked) { router.push("/premium" as any); return; }
+                t.route && router.push(t.route as any);
+              }}
             >
               <View style={styles.toolIcon}>
                 <Ionicons name={t.icon} size={22} color={colors.accent} />
@@ -108,12 +117,19 @@ export default function TeamScreen() {
                       <Text style={styles.soonText}>COMING SOON</Text>
                     </View>
                   )}
+                  {locked && (
+                    <View style={styles.premiumBadge}>
+                      <Ionicons name="star" size={9} color="#92400E" />
+                      <Text style={styles.premiumText}>PREMIUM</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.toolDesc}>{t.desc}</Text>
               </View>
-              {t.route && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />}
+              {locked ? <Ionicons name="lock-closed" size={16} color={colors.textTertiary} /> : (t.route && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />)}
             </TouchableOpacity>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
     </SafeAreaView>
@@ -145,6 +161,8 @@ const makeStyles = (c: ThemePalette) => ({
   toolTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   soonBadge: { backgroundColor: c.divider, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   soonText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, color: c.textSecondary },
+  premiumBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  premiumText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, color: "#92400E" },
   toolDesc: { ...typography.caption, color: c.textSecondary, marginTop: 3 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   lockedCard: { alignItems: "center", backgroundColor: c.card, borderRadius: radius.xl, borderWidth: 1, borderColor: c.border, padding: spacing.xl, gap: spacing.sm, marginTop: spacing.md },

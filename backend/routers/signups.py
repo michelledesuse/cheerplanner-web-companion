@@ -14,6 +14,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.gating import assert_under_count
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -58,6 +59,7 @@ async def create_signup(payload: SignupSheetCreate, current_user=Depends(get_cur
         raise HTTPException(status_code=400, detail="Name is required")
     member_ids = await _household_user_ids(current_user["id"])
     existing = await db.signup_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0, "order": 1}).to_list(1000)
+    await assert_under_count(current_user["id"], "team_hub_signup_sheets", len(existing))
     order = min([s.get("order", 0) for s in existing], default=1) - 1  # new sheet floats to the top
     sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(),
                         competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [], order=order)

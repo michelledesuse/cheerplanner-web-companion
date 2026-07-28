@@ -14,8 +14,8 @@ PLAN_LIMITS: Dict[str, Dict[str, int]] = {
     "free": {
         "household_members": 2,      # primary + 1 additional
         # Free Team Hub limits (requirement #5 / approved split)
-        "team_hub_teams": 1,
-        "team_hub_roster": 10,
+        "team_hub_athletes": 36,      # roster athletes on Free
+        "team_hub_personnel": 4,      # coaches/reps/staff on Free
         "team_hub_signup_sheets": 1,
         "team_hub_todo_lists": 1,
         "team_hub_attendance_sessions": 1,
@@ -23,8 +23,8 @@ PLAN_LIMITS: Dict[str, Dict[str, int]] = {
     },
     "premium": {
         "household_members": 6,       # primary + up to 5 additional
-        "team_hub_teams": -1,         # -1 = unlimited
-        "team_hub_roster": -1,
+        "team_hub_athletes": -1,      # -1 = unlimited
+        "team_hub_personnel": -1,
         "team_hub_signup_sheets": -1,
         "team_hub_todo_lists": -1,
         "team_hub_attendance_sessions": -1,

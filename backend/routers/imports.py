@@ -17,6 +17,7 @@ from core.models import (
 )
 from core.security import get_current_user
 from core.helpers import _household_user_ids, _expand_recurrence
+from core.gating import assert_premium
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
@@ -85,6 +86,8 @@ async def import_preview(
         raise HTTPException(status_code=400, detail="Unknown import kind")
     if kind in TEAM_IMPORT_KINDS and not current_user.get("team_access"):
         raise HTTPException(status_code=403, detail="Team Hub access is limited to team personnel")
+    if kind in TEAM_IMPORT_KINDS:
+        await assert_premium(current_user["id"], "spreadsheet_import")
     content = await file.read()
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
@@ -162,6 +165,8 @@ async def import_commit(payload: ImportCommitPayload, current_user=Depends(get_c
         raise HTTPException(status_code=400, detail="Unknown import kind")
     if payload.kind in TEAM_IMPORT_KINDS and not current_user.get("team_access"):
         raise HTTPException(status_code=403, detail="Team Hub access is limited to team personnel")
+    if payload.kind in TEAM_IMPORT_KINDS:
+        await assert_premium(current_user["id"], "spreadsheet_import")
     user_id = current_user["id"]
 
     created = 0

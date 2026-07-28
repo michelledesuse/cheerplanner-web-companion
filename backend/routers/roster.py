@@ -16,6 +16,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids
+from core.gating import assert_premium, assert_under_count
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_team_access)])
 
@@ -54,6 +55,17 @@ async def create_roster_member(payload: RosterMemberCreate, current_user=Depends
     name = (payload.name or derived or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
+    # Free tier roster caps: 36 athletes + 4 personnel (coach/rep/staff).
+    member_ids = await _household_user_ids(current_user["id"])
+    role = (payload.role or "parent")
+    if role == "athlete":
+        cnt = await db.roster.count_documents({"user_id": {"$in": member_ids}, "role": "athlete"})
+        await assert_under_count(current_user["id"], "team_hub_athletes", cnt)
+    elif role in ("coach", "team_rep", "staff"):
+        cnt = await db.roster.count_documents(
+            {"user_id": {"$in": member_ids}, "role": {"$in": ["coach", "team_rep", "staff"]}}
+        )
+        await assert_under_count(current_user["id"], "team_hub_personnel", cnt)
     data.pop("name", None)
     member = RosterMember(user_id=current_user["id"], name=name, **data)
     await db.roster.insert_one(member.model_dump())
@@ -205,6 +217,7 @@ async def list_roster_columns(current_user=Depends(get_current_user)):
 
 @router.post("/roster/columns", response_model=RosterColumn)
 async def create_roster_column(payload: RosterColumnCreate, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "roster_custom_columns")
     label = (payload.label or "").strip()
     if not label:
         raise HTTPException(status_code=400, detail="Column name is required")

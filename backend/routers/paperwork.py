@@ -14,6 +14,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.gating import assert_premium
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -57,6 +58,7 @@ async def list_paperwork(current_user=Depends(get_current_user)):
 
 @router.post("/paperwork", response_model=PaperworkSheet)
 async def create_paperwork(payload: PaperworkSheetCreate, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "paperwork")
     if not (payload.name or "").strip():
         raise HTTPException(status_code=400, detail="Name is required")
     sheet = PaperworkSheet(user_id=current_user["id"], name=payload.name.strip())
@@ -95,6 +97,7 @@ async def delete_paperwork(sheet_id: str, current_user=Depends(get_current_user)
 
 @router.post("/paperwork/{sheet_id}/duplicate", response_model=PaperworkSheet)
 async def duplicate_paperwork(sheet_id: str, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "paperwork")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await db.paperwork_sheets.find_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"_id": 0})
     if not doc:

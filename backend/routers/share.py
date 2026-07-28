@@ -22,6 +22,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
+from core.gating import assert_premium
 
 router = APIRouter(prefix="/api")
 
@@ -35,6 +36,7 @@ def _norm(s) -> str:
 # ============================================================
 @router.post("/team/share", dependencies=[Depends(require_team_access)])
 async def create_share(payload: ShareLinkCreate, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "parent_share_links")
     member_ids = await _household_user_ids(current_user["id"])
     if payload.kind == "signup":
         if not payload.ref_id:

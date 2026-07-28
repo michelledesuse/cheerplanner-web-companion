@@ -15,6 +15,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
 from core.sms import send_sms, is_configured, normalize_us_phone
+from core.gating import assert_premium
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -117,6 +118,7 @@ async def list_payment_trackers(event_id: str | None = None, competition_id: str
 
 @router.post("/payments", response_model=PaymentTracker)
 async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "team_payments")
     if not (payload.name or "").strip():
         raise HTTPException(status_code=400, detail="Name is required")
     tracker = PaymentTracker(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
@@ -128,6 +130,7 @@ async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Dep
 @router.post("/payments/{tracker_id}/remind")
 async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
     """Text each person who still owes an INDIVIDUAL reminder via Twilio."""
+    await assert_premium(current_user["id"], "mass_sms_reminders")
     if not is_configured():
         raise HTTPException(status_code=400, detail="SMS isn't configured. Add your Twilio number in settings.")
     member_ids = await _household_user_ids(current_user["id"])
@@ -226,6 +229,7 @@ async def delete_payment_tracker(tracker_id: str, current_user=Depends(get_curre
 
 @router.post("/payments/{tracker_id}/duplicate")
 async def duplicate_payment_tracker(tracker_id: str, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "team_payments")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await db.payment_trackers.find_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"_id": 0})
     if not doc:

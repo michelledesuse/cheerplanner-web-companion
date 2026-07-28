@@ -12,6 +12,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids
+from core.gating import assert_premium
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -39,6 +40,7 @@ async def get_sizes(current_user=Depends(get_current_user)):
 
 @router.post("/sizes/columns", response_model=SizeSheet)
 async def add_size_column(payload: SizeColumnCreate, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "sizes")
     label = (payload.label or "").strip()
     if not label:
         raise HTTPException(status_code=400, detail="Column name is required")
@@ -88,6 +90,7 @@ async def delete_size_column(col_id: str, current_user=Depends(get_current_user)
 
 @router.put("/sizes/value", response_model=SizeSheet)
 async def set_size_value(payload: SizeValueUpdate, current_user=Depends(get_current_user)):
+    await assert_premium(current_user["id"], "sizes")
     member_ids = await _household_user_ids(current_user["id"])
     # Ensure the member is on this household's roster.
     rm = await db.roster.find_one({"id": payload.member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
@@ -113,6 +116,7 @@ async def set_size_value(payload: SizeValueUpdate, current_user=Depends(get_curr
 async def set_size_values_bulk(payload: SizeValuesBulkUpdate, current_user=Depends(get_current_user)):
     """Set MANY size columns for one member in a single atomic write (avoids the
     read-modify-write races of firing one PUT per column)."""
+    await assert_premium(current_user["id"], "sizes")
     member_ids = await _household_user_ids(current_user["id"])
     rm = await db.roster.find_one({"id": payload.member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
     if not rm:

@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 73: Phase 0/1 Free vs Premium + admin + gating tested. All 30 pytest tests PASSED (100% success). Covered entitlements endpoints, admin gating & code lifecycle (generate/list-no-hash/disable/self-toggle/grant/revoke), redeem flow (invalid/valid/re-use/rate-limit), Team Hub gating for FREE user (sizes/paperwork/team-payments/share/roster-custom-col/spreadsheet-import all 402; 2nd signup + 2nd attendance 402; roster 36-athlete + 4-personnel caps enforced), Team Hub NO gating for PREMIUM user (all succeed), regression on applereview Lifetime (source=admin_grant intact) & team-access GET returns members+collaborators[], and household/team-hub decoupling (grant_team_access invite lands in team_hub_member_user_ids NOT member_user_ids). Cleanup verified: 0 TEST_ users/codes left; applereview Lifetime & empty team_hub_member_user_ids preserved.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter73_premium_gating.py",
+    "/app/test_reports/pytest/pytest_iter73.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core/entitlements.get_household_premium runs an update_many on every call to lazily rebind cross-household entitlements. This adds a write on every premium check and could inflate audit events under high read volume — consider gating the rebind on membership change instead of every resolve.",
+    "core/security.get_current_user projection excludes password_hash but includes is_admin/team_access — good. seed_admins runs update_one per email at startup (fine, idempotent).",
+    "routers/admin.py mounts require_admin BOTH on the APIRouter dependencies AND on each endpoint parameter — harmless but redundant.",
+    "routers/premium.py redeem is atomic via find_one_and_update and rate-limited 5/min per IP; generic 400 error prevents enumeration. Good.",
+    "routers/imports.py gates team import kinds behind assert_premium for kind in TEAM_IMPORT_KINDS; free-user 402 confirmed. `spreadsheet_export` is in PREMIUM_TEAM_HUB_FEATURES but not enforced anywhere in routers/imports.py or exports.py — verify export endpoints if any exist (was not in this test scope).",
+    "routers/team_payments.py: mass_sms remind gate assert_premium('mass_sms_reminders') is present at line 133 (not directly regression-tested — deferred to avoid real Twilio sends per instructions)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter73_premium_gating.py (NEW)"
+  ],
+  "success_rate": {"backend": "100% (30/30)", "frontend": "N/A (backend-only)"},
+  "seed_data_creation": "During run: ephemeral TEST_ users (free_team_user, admin_user, several fresh redeem targets) + lifetime codes labeled TEST_iter73/TEST_disable/TEST_valid. All deleted by autouse cleanup fixture. Verified 0 TEST_* residuals in users & lifetime_codes; applereview Lifetime (source=admin_grant, label='Apple App Review') preserved; premium household team_hub_member_user_ids is empty.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "URLs: Team Hub routers use /api/team/* prefix (sizes, paperwork, payments, signups, attendance). Roster router uses /api/roster (no /team). PaymentTracker collection is db.payment_trackers; roster collection is db.roster (NOT db.roster_members). Rate limit is 5/min per IP; running 6+ redeem requests will produce 429s but assertion 'any 429 in statuses' is more robust than exact-index checks because slowapi's window overlaps across tests. For fresh admin users, JWT is issued BEFORE is_admin is flipped in Mongo — that's fine because require_admin re-reads users.find_one on each request.",
+  "rca_of_issue": "N/A — no bugs found. Initial 11 test failures were all in the test script (wrong URL prefixes and roster collection name), not in product code. Fixed the test URLs and re-ran to 100% pass."
+}

@@ -14,6 +14,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.gating import assert_under_count
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -61,6 +62,9 @@ async def list_attendance(event_id: str | None = None, competition_id: str | Non
 async def create_attendance(payload: AttendanceSessionCreate, current_user=Depends(get_current_user)):
     if not (payload.title or "").strip():
         raise HTTPException(status_code=400, detail="Title is required")
+    member_ids = await _household_user_ids(current_user["id"])
+    cnt = await db.attendance_sessions.count_documents({"user_id": {"$in": member_ids}})
+    await assert_under_count(current_user["id"], "team_hub_attendance_sessions", cnt)
     sess = AttendanceSession(
         user_id=current_user["id"], title=payload.title.strip(), date=payload.date,
         competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [],
