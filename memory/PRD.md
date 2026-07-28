@@ -240,10 +240,9 @@ Get exact current paths from user before building W2.
 - W2 (DONE): Public marketing homepage + legal pages replacing Google Sites.
   * app/index.tsx: logged-out WEB visitors see src/components/MarketingHome.tsx (hero, 6 feature cards,
     CTAs sign up / App Store, redeem link, footer). Native → /login; logged-in → /(tabs)/dashboard.
-  * Public routes (no auth): /privacy (app/privacy.tsx — VERBATIM match to live cheer-planner.com/privacy,
-    "Last updated July 21, 2026"), /text-messaging-opt-in (app/text-messaging-opt-in.tsx — built from the
-    exact SMS language in privacy §5; the standalone Google Sites page renders via JS so couldn't be scraped —
-    ask user to confirm/paste if it must be byte-identical), /contact (new; support email info@cheer-planner.com).
+  * Public routes (no auth): /privacy (VERBATIM match), /text-messaging-opt-in (REBUILT VERBATIM from the
+    user-provided live HTML: brand header, "How opt-in is collected", in-app phone mockup with toggle +
+    disclosure, exact consent blockquote, message types/frequency + sample, opt-out, privacy link), /contact.
   * Shared src/components/StaticPage.tsx (StaticPage/LegalSection/P). Root _layout has NO auth guard so public
     pages load without login. Verified /privacy + marketing home render publicly at wide width.
   * DEPLOY NOTE: point BOTH apex (cheer-planner.com) and www at the deployment so /privacy & /text-messaging-opt-in
