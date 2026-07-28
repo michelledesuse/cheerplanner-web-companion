@@ -10,6 +10,7 @@ from core.models import (
 from core.security import (
     hash_password, verify_password, create_access_token, get_current_user, limiter,
 )
+from core.config import ADMIN_EMAILS
 from core.models import utcnow_iso
 
 router = APIRouter(prefix="/api")
@@ -34,12 +35,14 @@ async def signup(request: Request, payload: UserSignup):
         "name": payload.name,
         "password_hash": hash_password(payload.password),
         "created_at": utcnow_iso(),
+        # Auto-flag admins from the ADMIN_EMAILS allowlist (server-side only).
+        "is_admin": email in ADMIN_EMAILS,
     }
     await db.users.insert_one(user_doc)
     token = create_access_token(user_id, email)
     return TokenResponse(
         access_token=token,
-        user=UserPublic(id=user_id, email=email, name=payload.name, created_at=user_doc["created_at"]),
+        user=UserPublic(id=user_id, email=email, name=payload.name, created_at=user_doc["created_at"], is_admin=user_doc["is_admin"]),
     )
 
 
