@@ -269,5 +269,21 @@ Phase 3:
   KNOWN minor (non-blocking, from testing): get_household_premium does a lazy rebind write per call (cheap);
   spreadsheet_export flag has no backend gate yet (frontend blocks via /premium) — wire when export backend lands.
 
-### Phase 2 — RevenueCat + Apple IAP + TestFlight (NEXT).  ### Phase 3 — analytics, Google Play, promos, web admin portal.
+### Phase 2 — RevenueCat + Apple IAP (CODE DONE, needs keys + native build to function)
+- Backend: routers/revenuecat_webhook.py POST /api/webhooks/revenuecat (Authorization shared-secret verify,
+  idempotent via rc_processed_events, maps app_user_id→user→household). Event rules: INITIAL_PURCHASE/RENEWAL/
+  UNCANCELLATION/PRODUCT_CHANGE→active, BILLING_ISSUE→grace, CANCELLATION→no-op(keep till expiry),
+  EXPIRATION→revoke. entitlements.apply_subscription_event upserts one household-bound `subscription`
+  entitlement (source=apple). plans.PRODUCT_PLAN_MAP (monthly/annual). config.REVENUECAT_WEBHOOK_AUTH.
+  Verified via simulated events (auth 401, purchase→annual active, idempotent replay, cancel keeps, expire revokes).
+- Client: react-native-purchases + expo-dev-client installed. src/lib/revenuecat.ts (guarded: purchasesSupported
+  = native && !ExpoGo && key; lazy require so web/Expo Go never load native module). AuthContext logIn/logOut set
+  appUserID=user_id. premium.tsx paywall loads live offerings/prices, buy monthly/annual, Restore Purchases;
+  Lifetime users see redundant-store-sub notice (status.has_store_subscription).
+- ENV placeholders: frontend EXPO_PUBLIC_REVENUECAT_IOS_SDK_KEY (public), backend REVENUECAT_WEBHOOK_AUTH.
+- SETUP GUIDE: /app/memory/REVENUECAT_SETUP.md. NEEDS FROM USER: RC iOS public SDK key + webhook secret;
+  App Store Connect products (cheerplanner_premium_monthly/annual, same group, 7-day trial on annual).
+  Purchase flow CANNOT be tested in Expo Go/web — requires TestFlight/native build.
+
+### Phase 3 — analytics, Google Play, promos, web admin portal (FUTURE).
 ### Phase 2 — RevenueCat + Apple IAP + TestFlight.  ### Phase 3 — analytics, Google Play, promos, web admin portal.

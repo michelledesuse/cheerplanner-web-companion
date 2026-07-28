@@ -92,6 +92,14 @@ async def get_household_premium(user_id: str) -> Dict[str, Any]:
         )
     status = await resolve_household_premium(hid)
     status["household_id"] = hid
+    # For the "you already have Lifetime — your store sub may still renew" notice (#14).
+    if status.get("plan") == "lifetime":
+        sub = await db.entitlements.find_one(
+            {"household_id": hid, "type": "subscription", "source": {"$in": ["apple", "google"]},
+             "status": "active", "$or": [{"expires_at": None}, {"expires_at": {"$gt": utcnow_iso()}}]},
+            {"_id": 0, "id": 1},
+        )
+        status["has_store_subscription"] = bool(sub)
     return status
 
 
@@ -147,6 +155,45 @@ async def revoke_entitlement(entitlement_id: str, *, admin_id: Optional[str] = N
         household_id=ent.get("household_id"), source=ent.get("source"), reason=reason, admin_id=admin_id,
     )
     return True
+
+
+async def apply_subscription_event(
+    *, user_id: str, plan: Optional[str], product_id: Optional[str],
+    expires_at: Optional[str], active: bool, source: str = "apple",
+    rc_id: Optional[str] = None, event_type: Optional[str] = None,
+) -> str:
+    """Upsert the user's store subscription entitlement (one per source), bound
+    to their current household. Called from the RevenueCat webhook."""
+    h = await _get_or_create_household(user_id)
+    now = utcnow_iso()
+    status = "active" if active else "expired"
+    existing = await db.entitlements.find_one(
+        {"user_id": user_id, "type": "subscription", "source": source}, {"_id": 0}
+    )
+    if existing:
+        await db.entitlements.update_one(
+            {"id": existing["id"]},
+            {"$set": {
+                "household_id": h["id"], "status": status, "plan": plan,
+                "expires_at": expires_at, "store_txn_id": product_id,
+                "revenuecat_id": rc_id, "updated_at": now,
+            }},
+        )
+        eid = existing["id"]
+    else:
+        ent = Entitlement(
+            type="subscription", source=source, user_id=user_id, household_id=h["id"],
+            status=status, plan=plan, expires_at=expires_at, store_txn_id=product_id,
+            revenuecat_id=rc_id,
+        ).model_dump()
+        await db.entitlements.insert_one(dict(ent))
+        eid = ent["id"]
+    await log_entitlement_event(
+        action=("purchased" if active else "expired"), entitlement_id=eid,
+        user_id=user_id, household_id=h["id"], source=source,
+        meta={"event_type": event_type, "product_id": product_id, "expires_at": expires_at},
+    )
+    return eid
 
 
 # ------------------------------------------------------------------

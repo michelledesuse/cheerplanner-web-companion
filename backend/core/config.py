@@ -39,6 +39,12 @@ REDEMPTION_PEPPER = os.environ.get("REDEMPTION_PEPPER", "cheerplanner-dev-pepper
 # Public URL where beta testers redeem Lifetime codes (web portal, Apple-compliant).
 REDEMPTION_PORTAL_URL = (os.environ.get("REDEMPTION_PORTAL_URL") or f"{BACKEND_PUBLIC_URL}/api/redeem").rstrip("/")
 
+# ---------- RevenueCat (Apple IAP subscriptions) ----------
+# Webhook Authorization header shared secret (server-side ONLY). The public
+# client SDK key lives in the frontend .env (EXPO_PUBLIC_REVENUECAT_IOS_SDK_KEY).
+REVENUECAT_WEBHOOK_AUTH = os.environ.get("REVENUECAT_WEBHOOK_AUTH", "")
+
+
 
 # Daily digest is sent at 8 AM in this timezone (UTC by default).
 # When per-user timezones are added we can override at job-build time.

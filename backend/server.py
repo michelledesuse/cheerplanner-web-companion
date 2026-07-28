@@ -48,6 +48,7 @@ from routers import (
     entitlements,
     admin,
     premium,
+    revenuecat_webhook,
 )
 
 
@@ -103,6 +104,7 @@ for r in (
     entitlements.router,
     admin.router,
     premium.router,
+    revenuecat_webhook.router,
 ):
     app.include_router(r)
 

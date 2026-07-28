@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 
 import { usePremium } from "@/src/context/PremiumContext";
+import { loadOfferings, purchasePackage, restorePurchases, purchasesSupported, type RCPackage } from "@/src/lib/revenuecat";
 import { spacing, radius, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -32,7 +33,49 @@ export default function PremiumScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
 
-  useFocusEffect(useCallback(() => { refresh(); }, [refresh]));
+  const [offerings, setOfferings] = useState<{ monthly?: RCPackage; annual?: RCPackage } | null>(null);
+  const [buying, setBuying] = useState(false);
+
+  useFocusEffect(useCallback(() => {
+    refresh();
+    if (purchasesSupported) loadOfferings().then(setOfferings);
+  }, [refresh]));
+
+  const buy = async (which: "monthly" | "annual") => {
+    const pkg = offerings?.[which];
+    if (!purchasesSupported || !pkg) {
+      Alert.alert(
+        "Available in the app build",
+        "In-app purchase works on the installed CheerPlanner app (App Store / TestFlight build), not in this preview. If you have a Lifetime Premium Access code, redeem it on the CheerPlanner website.",
+      );
+      return;
+    }
+    setBuying(true);
+    try {
+      const res = await purchasePackage(pkg);
+      if (res.ok) {
+        // Backend updates via RevenueCat webhook; refresh (may take a moment).
+        setTimeout(refresh, 1500);
+        await refresh();
+        Alert.alert("Welcome to Premium!", "Your CheerPlanner Premium is now active.");
+      } else if (!res.cancelled) {
+        Alert.alert("Purchase not completed", "We couldn't complete the purchase. Please try again.");
+      }
+    } finally {
+      setBuying(false);
+    }
+  };
+
+  const onRestore = async () => {
+    setBuying(true);
+    try {
+      const ok = await restorePurchases();
+      await refresh();
+      Alert.alert(ok ? "Restored" : "Nothing to restore", ok ? "Your Premium has been restored." : "No active purchases were found for this Apple ID.");
+    } finally {
+      setBuying(false);
+    }
+  };
 
   const products = config?.pricing?.products || {};
   const monthly = products.monthly?.display_price ?? 4.99;
@@ -40,13 +83,6 @@ export default function PremiumScreen() {
   const trialDays = products.annual?.trial_days ?? 7;
   const annualMonthEq = annual / 12;
   const savingsPct = monthly > 0 ? Math.round((1 - annualMonthEq / monthly) * 100) : 0;
-
-  const onUpgrade = () => {
-    Alert.alert(
-      "Subscriptions coming soon",
-      "In-app purchase of CheerPlanner Premium will be available shortly. If you have a Lifetime Premium Access code, you can redeem it on the CheerPlanner website.",
-    );
-  };
 
   if (loading && !status) {
     return (
@@ -86,22 +122,28 @@ export default function PremiumScreen() {
             <Text style={styles.blurb}>Unlock the full Team Hub, advanced roster, sizes, paperwork, team payments, sign-ups, attendance, spreadsheet import/export, parent share links, automated SMS reminders, and up to 6 household members.</Text>
 
             {/* Annual (best value) */}
-            <TouchableOpacity style={[styles.priceCard, styles.priceCardBest]} onPress={onUpgrade} testID="upgrade-annual">
+            <TouchableOpacity style={[styles.priceCard, styles.priceCardBest]} onPress={() => buy("annual")} disabled={buying} testID="upgrade-annual">
               {savingsPct > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>SAVE {savingsPct}%</Text></View> : null}
               <Text style={styles.priceTitle}>Annual</Text>
-              <Text style={styles.priceValue}>${annual.toFixed(2)}<Text style={styles.pricePer}>/year</Text></Text>
+              <Text style={styles.priceValue}>{offerings?.annual?.product?.priceString || `$${annual.toFixed(2)}`}<Text style={styles.pricePer}>/year</Text></Text>
               <Text style={styles.priceHint}>{trialDays > 0 ? `${trialDays}-day free trial · ` : ""}Best value (${annualMonthEq.toFixed(2)}/mo)</Text>
             </TouchableOpacity>
 
             {/* Monthly */}
-            <TouchableOpacity style={styles.priceCard} onPress={onUpgrade} testID="upgrade-monthly">
+            <TouchableOpacity style={styles.priceCard} onPress={() => buy("monthly")} disabled={buying} testID="upgrade-monthly">
               <Text style={styles.priceTitle}>Monthly</Text>
-              <Text style={styles.priceValue}>${monthly.toFixed(2)}<Text style={styles.pricePer}>/month</Text></Text>
+              <Text style={styles.priceValue}>{offerings?.monthly?.product?.priceString || `$${monthly.toFixed(2)}`}<Text style={styles.pricePer}>/month</Text></Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.cta} onPress={onUpgrade} testID="upgrade-cta">
-              <Text style={styles.ctaText}>Upgrade to Premium</Text>
+            <TouchableOpacity style={styles.cta} onPress={() => buy("annual")} disabled={buying} testID="upgrade-cta">
+              {buying ? <ActivityIndicator color="white" /> : <Text style={styles.ctaText}>Start Premium</Text>}
             </TouchableOpacity>
+
+            {purchasesSupported ? (
+              <TouchableOpacity style={styles.doneRow} onPress={onRestore} disabled={buying} testID="restore-purchases">
+                <Text style={styles.linkText}>Restore Purchases</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {/* Lifetime code redemption — web portal only (Apple compliant) */}
             {Platform.OS === "web" ? (
@@ -119,10 +161,18 @@ export default function PremiumScreen() {
         ) : (
           <>
             {plan === "lifetime" ? (
+              <>
               <View style={styles.infoBox}>
                 <Ionicons name="checkmark-circle" size={18} color="#16A34A" />
                 <Text style={styles.infoText}>You have Lifetime Premium Access. It stays with your account across devices and reinstalls — no renewal, no payment.</Text>
               </View>
+              {(status as any)?.has_store_subscription ? (
+                <View style={styles.infoBox}>
+                  <Ionicons name="alert-circle-outline" size={18} color="#B45309" />
+                  <Text style={styles.infoText}>Heads up: you also have an active App Store subscription. Since you have Lifetime access, it is redundant — it may keep renewing unless you cancel it in your App Store subscription settings.</Text>
+                </View>
+              ) : null}
+              </>
             ) : (
               <>
                 <TouchableOpacity style={styles.linkRow} onPress={() => Linking.openURL(Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions")} testID="manage-sub">
@@ -164,6 +214,7 @@ const makeStyles = (c: ThemePalette) => ({
   ctaText: { color: "white", fontWeight: "800", fontSize: 16 },
   linkRow: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center", marginTop: spacing.lg, padding: spacing.md },
   linkText: { ...typography.bodyMedium, color: c.primary },
+  doneRow: { alignItems: "center", padding: spacing.md, marginTop: spacing.xs },
   infoBox: { flexDirection: "row", gap: 8, backgroundColor: c.card, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: c.border, marginTop: spacing.md },
   infoText: { flex: 1, ...typography.caption, color: c.textSecondary, lineHeight: 18 },
 });

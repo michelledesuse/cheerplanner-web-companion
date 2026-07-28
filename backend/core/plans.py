@@ -71,6 +71,12 @@ PRICING: Dict[str, Any] = {
     "revenuecat_offering_id": "default",
 }
 
+# Map App Store / RevenueCat product IDs -> our plan name.
+PRODUCT_PLAN_MAP = {
+    "cheerplanner_premium_monthly": "monthly",
+    "cheerplanner_premium_annual": "annual",
+}
+
 
 def limit_for(is_premium: bool, key: str) -> int:
     """Return the configured limit for a key. -1 means unlimited."""

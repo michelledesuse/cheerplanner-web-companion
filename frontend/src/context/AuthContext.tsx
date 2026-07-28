@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { api, TOKEN_KEY } from "@/src/api/client";
 import { storage } from "@/src/utils/storage";
+import { loginRevenueCat, logoutRevenueCat } from "@/src/lib/revenuecat";
 
 export type UserPublic = {
   id: string;
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.get("/auth/me");
       setUser(res.data as UserPublic);
+      loginRevenueCat((res.data as UserPublic).id);
     } catch (e: any) {
       // Only sign the user out when the token is genuinely rejected (401).
       // Transient errors (network blips, 5xx) must NOT wipe the session.
@@ -57,17 +59,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post("/auth/login", { email, password });
     await storage.secureSet(TOKEN_KEY, res.data.access_token);
     setUser(res.data.user as UserPublic);
+    loginRevenueCat(res.data.user.id);
   };
 
   const signUp = async (email: string, password: string, name?: string) => {
     const res = await api.post("/auth/signup", { email, password, name });
     await storage.secureSet(TOKEN_KEY, res.data.access_token);
     setUser(res.data.user as UserPublic);
+    loginRevenueCat(res.data.user.id);
   };
 
   const signOut = async () => {
     await storage.secureRemove(TOKEN_KEY);
     setUser(null);
+    logoutRevenueCat();
   };
 
   return (
