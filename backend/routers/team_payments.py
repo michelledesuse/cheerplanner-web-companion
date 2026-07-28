@@ -13,7 +13,7 @@ from core.models import (
     utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _household_user_ids, _blocked_resource_ids
+from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
 from core.sms import send_sms, is_configured, normalize_us_phone
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])

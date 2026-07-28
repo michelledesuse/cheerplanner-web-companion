@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 
 import { useAuth } from "@/src/context/AuthContext";
+import { usePremium } from "@/src/context/PremiumContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
@@ -13,6 +14,7 @@ const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", o
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
+  const { isPremium, status } = usePremium();
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -140,6 +142,27 @@ export default function SettingsScreen() {
           </View>
           <Text style={styles.profileName}>{user?.name || user?.email?.split("@")[0]}</Text>
           <Text style={styles.profileEmail}>{user?.email}</Text>
+        </View>
+
+        <Text style={styles.sectionHead}>Membership</Text>
+        <View style={styles.group}>
+          <SettingRow
+            label="CheerPlanner Plan"
+            subtitle={isPremium ? (status?.plan === "lifetime" ? "Premium · Lifetime Access" : "Premium") : "Free — tap to upgrade"}
+            value={isPremium ? "Premium" : "Free"}
+            onPress={() => router.push("/premium" as any)}
+            chevron
+            testID="settings-plan"
+          />
+          {user?.is_admin ? (
+            <SettingRow
+              label="Admin"
+              subtitle="Manage Premium grants &amp; Lifetime codes"
+              onPress={() => router.push("/admin" as any)}
+              chevron
+              testID="settings-admin"
+            />
+          ) : null}
         </View>
 
         <Text style={styles.sectionHead}>Reminders/Notifications</Text>

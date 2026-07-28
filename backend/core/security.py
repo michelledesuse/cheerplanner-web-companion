@@ -1,4 +1,5 @@
 from datetime import datetime, timezone, timedelta
+from hashlib import sha256
 from typing import Optional
 
 from fastapi import Depends, HTTPException
@@ -8,7 +9,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 import jwt
 
-from core.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES
+from core.config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_MINUTES, ADMIN_EMAILS, REDEMPTION_PEPPER
 from core.db import db
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -60,3 +61,22 @@ async def require_team_access(current_user=Depends(get_current_user)) -> dict:
     if not current_user.get("team_access"):
         raise HTTPException(status_code=403, detail="Team Hub access is limited to team personnel")
     return current_user
+
+
+async def require_admin(current_user=Depends(get_current_user)) -> dict:
+    """Gate admin-only endpoints. Admin status is set server-side only
+    (seeded from ADMIN_EMAILS); the client can never self-grant it."""
+    if not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return current_user
+
+
+def code_hash(code: str) -> str:
+    """sha256(pepper:code) — codes are stored hashed, never plaintext."""
+    return sha256(f"{REDEMPTION_PEPPER}:{code.strip()}".encode()).hexdigest()
+
+
+async def seed_admins() -> None:
+    """Idempotently flag ADMIN_EMAILS accounts as admin at startup."""
+    for email in ADMIN_EMAILS:
+        await db.users.update_one({"email": email}, {"$set": {"is_admin": True}})

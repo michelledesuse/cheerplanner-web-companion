@@ -46,6 +46,8 @@ from routers import (
     attendance,
     blocks,
     entitlements,
+    admin,
+    premium,
 )
 
 
@@ -99,6 +101,8 @@ for r in (
     attendance.router,
     blocks.router,
     entitlements.router,
+    admin.router,
+    premium.router,
 ):
     app.include_router(r)
 
@@ -147,8 +151,17 @@ async def startup_db_client():
         await db.entitlements.create_index([("type", 1), ("status", 1)])
         await db.entitlement_events.create_index("household_id")
         await db.entitlement_events.create_index("user_id")
+        await db.lifetime_codes.create_index("code_hash", unique=True)
+        await db.lifetime_codes.create_index("status")
     except Exception as exc:
         logger.warning(f"Could not create entitlement indexes: {exc}")
+
+    # Phase 1 — seed admin accounts from ADMIN_EMAILS (idempotent).
+    try:
+        from core.security import seed_admins
+        await seed_admins()
+    except Exception as exc:
+        logger.warning(f"Could not seed admins: {exc}")
 
     # One-time (idempotent) migration: split legacy multi-day events into a
     # per-day series so each day is independently editable. Converted docs get

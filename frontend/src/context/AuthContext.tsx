@@ -8,6 +8,7 @@ export type UserPublic = {
   name?: string | null;
   created_at: string;
   team_access?: boolean;
+  is_admin?: boolean;
 };
 
 type AuthContextValue = {

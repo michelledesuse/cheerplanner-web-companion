@@ -13,7 +13,7 @@ from typing import Dict, Any, List, Optional
 import uuid
 
 from core.db import db
-from core.models import utcnow_iso
+from core.models import utcnow_iso, Entitlement
 from core.helpers import _get_or_create_household
 
 
@@ -71,13 +71,82 @@ async def resolve_household_premium(household_id: str) -> Dict[str, Any]:
 async def get_household_premium(user_id: str) -> Dict[str, Any]:
     """Convenience: resolve premium for the household the user belongs to.
 
-    Also returns household_id + whether a redundant subscription exists (for
-    the "you already have Lifetime but a paid sub is still active" notice).
+    Option C: the user's OWN lifetime/promo entitlements FOLLOW them to their
+    current household (single active binding). We rebind lazily here so leaving
+    a household reverts it to Free and joining a new one carries Premium.
     """
     h = await _get_or_create_household(user_id)
-    status = await resolve_household_premium(h["id"])
-    status["household_id"] = h["id"]
+    hid = h["id"]
+    res = await db.entitlements.update_many(
+        {
+            "user_id": user_id, "status": "active",
+            "type": {"$in": ["lifetime", "promo", "subscription"]},
+            "household_id": {"$ne": hid},
+        },
+        {"$set": {"household_id": hid, "updated_at": utcnow_iso()}},
+    )
+    if res.modified_count:
+        await log_entitlement_event(
+            action="rebound", entitlement_id=None, user_id=user_id, household_id=hid,
+            meta={"rebound_count": res.modified_count},
+        )
+    status = await resolve_household_premium(hid)
+    status["household_id"] = hid
     return status
+
+
+# ------------------------------------------------------------------
+# Grant / revoke
+# ------------------------------------------------------------------
+async def grant_lifetime(
+    *, user_id: str, household_id: str, source: str,
+    reason: Optional[str] = None, label: Optional[str] = None,
+    note: Optional[str] = None, admin_id: Optional[str] = None,
+) -> str:
+    """Grant (or rebind) a Lifetime Premium entitlement for a user. Option C:
+    one active lifetime per user, bound to their current household."""
+    existing = await db.entitlements.find_one(
+        {"user_id": user_id, "type": "lifetime", "status": "active"}, {"_id": 0}
+    )
+    if existing:
+        await db.entitlements.update_one(
+            {"id": existing["id"]},
+            {"$set": {
+                "household_id": household_id, "updated_at": utcnow_iso(),
+                "reason": reason or existing.get("reason"),
+                "label": label or existing.get("label"),
+            }},
+        )
+        await log_entitlement_event(
+            action="rebound", entitlement_id=existing["id"], user_id=user_id,
+            household_id=household_id, source=source, reason=reason, label=label, admin_id=admin_id,
+        )
+        return existing["id"]
+
+    ent = Entitlement(
+        type="lifetime", source=source, user_id=user_id, household_id=household_id,
+        plan="lifetime", reason=reason, label=label, note=note, granted_by_admin_id=admin_id,
+    ).model_dump()
+    await db.entitlements.insert_one(dict(ent))
+    await log_entitlement_event(
+        action="granted", entitlement_id=ent["id"], user_id=user_id, household_id=household_id,
+        source=source, reason=reason, label=label, admin_id=admin_id,
+    )
+    return ent["id"]
+
+
+async def revoke_entitlement(entitlement_id: str, *, admin_id: Optional[str] = None, reason: Optional[str] = None) -> bool:
+    ent = await db.entitlements.find_one({"id": entitlement_id}, {"_id": 0})
+    if not ent:
+        return False
+    await db.entitlements.update_one(
+        {"id": entitlement_id}, {"$set": {"status": "revoked", "updated_at": utcnow_iso()}}
+    )
+    await log_entitlement_event(
+        action="revoked", entitlement_id=entitlement_id, user_id=ent.get("user_id"),
+        household_id=ent.get("household_id"), source=ent.get("source"), reason=reason, admin_id=admin_id,
+    )
+    return True
 
 
 # ------------------------------------------------------------------

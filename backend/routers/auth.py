@@ -56,6 +56,7 @@ async def login(request: Request, payload: UserLogin):
         user=UserPublic(
             id=user_doc["id"], email=email, name=user_doc.get("name"), created_at=user_doc["created_at"],
             team_access=bool(user_doc.get("team_access")),
+            is_admin=bool(user_doc.get("is_admin")),
         ),
     )
 
@@ -68,6 +69,7 @@ async def me(current_user=Depends(get_current_user)):
         name=current_user.get("name"),
         created_at=current_user["created_at"],
         team_access=bool(current_user.get("team_access")),
+        is_admin=bool(current_user.get("is_admin")),
     )
 
 
@@ -106,6 +108,14 @@ async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get
             await db.households.update_one({"id": h["id"]}, {"$set": {"member_user_ids": members}})
         else:
             await db.households.delete_one({"id": h["id"]})
+
+    # Remove the user from any Team Hub they collaborate on (not a household member).
+    await db.households.update_many(
+        {"team_hub_member_user_ids": user_id},
+        {"$pull": {"team_hub_member_user_ids": user_id}},
+    )
+    # Clean up any entitlements the user owned (Premium reverts for their household).
+    await db.entitlements.delete_many({"user_id": user_id})
 
     collections_to_purge = [
         "athletes", "competitions", "bookings", "expenses", "payments",

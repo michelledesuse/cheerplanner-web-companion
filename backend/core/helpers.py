@@ -47,6 +47,26 @@ async def _household_user_ids(user_id: str) -> List[str]:
     return h.get("member_user_ids", [user_id])
 
 
+async def _team_hub_scope_user_ids(user_id: str) -> List[str]:
+    """Return the set of user_ids whose Team Hub data this user may access.
+
+    A user's Team Hub is the household they belong to. Team Hub COLLABORATORS
+    (invited coaches/reps/staff) are stored in the household's
+    `team_hub_member_user_ids` and do NOT count as household members — but they
+    can view/manage that household's Team Hub. This helper unions household
+    members + team-hub collaborators.
+
+    Backward-compatible: when a household has no collaborators (all current
+    households), this returns exactly the same list as `_household_user_ids`.
+    """
+    # If the user is a collaborator on someone else's hub, prefer that hub.
+    collab = await db.households.find_one({"team_hub_member_user_ids": user_id}, {"_id": 0})
+    h = collab or await _get_or_create_household(user_id)
+    scope = set(h.get("member_user_ids") or []) | set(h.get("team_hub_member_user_ids") or [])
+    scope.add(user_id)
+    return list(scope)
+
+
 async def _blocked_resource_ids(user_id: str, resource: str) -> set:
     """Set of resource ids of `resource` type that this user is blocked from viewing."""
     docs = await db.sheet_blocks.find(

@@ -35,6 +35,7 @@ class UserPublic(BaseModel):
     name: Optional[str] = None
     created_at: str
     team_access: bool = False
+    is_admin: bool = False
 
 
 class TeamAccessPayload(BaseModel):
@@ -59,6 +60,14 @@ class Household(BaseModel):
     member_user_ids: List[str] = Field(default_factory=list)
     # The main account holder — controls Team Hub access delegation.
     owner_user_id: Optional[str] = None
+    # Team Hub collaborators (coaches/reps/staff) invited to help manage the
+    # Team Hub. Kept SEPARATE from member_user_ids so they do NOT consume a
+    # household seat and do NOT see the family's personal data. (requirement #4)
+    team_hub_member_user_ids: List[str] = Field(default_factory=list)
+    # Grandfathering: if a household already exceeds a future Free member limit
+    # at migration time, we store the current count so they keep all members
+    # but can't ADD new ones until under limit or Premium. (requirement #24)
+    grandfathered_member_cap: Optional[int] = None
     # v1.0.8 theming — household-scoped so co-parents see the same theme.
     theme: Optional[Dict[str, Any]] = None
     # v2.3 custom types — household-wide, reusable in create forms.
@@ -1253,4 +1262,33 @@ class PremiumStatus(BaseModel):
     expires_at: Optional[str] = None
     entitlement_id: Optional[str] = None
     household_id: Optional[str] = None
+
+
+# --- Admin / redemption payloads ---
+class LifetimeGrantPayload(BaseModel):
+    email: Optional[EmailStr] = None
+    user_id: Optional[str] = None
+    reason: Optional[str] = None       # campaign/label, e.g. "Beta Tester 2026"
+    label: Optional[str] = None
+    note: Optional[str] = None
+
+
+class CodeGeneratePayload(BaseModel):
+    count: int = Field(default=1, ge=1, le=200)
+    label: Optional[str] = None        # campaign/reason, e.g. "Launch Promotion"
+    note: Optional[str] = None
+    expires_at: Optional[str] = None   # optional redemption deadline (ISO)
+
+
+class RevokePayload(BaseModel):
+    entitlement_id: str
+    reason: Optional[str] = None
+
+
+class RedeemPayload(BaseModel):
+    code: str
+
+
+class AdminSelfPremiumPayload(BaseModel):
+    enabled: bool
 

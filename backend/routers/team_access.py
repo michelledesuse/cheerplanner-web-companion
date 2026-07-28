@@ -49,6 +49,16 @@ async def get_team_access(current_user=Depends(get_current_user)):
             "is_owner": u["id"] == owner_id,
         })
 
+    # Team Hub collaborators (NOT household members — no seat consumed).
+    collaborators = []
+    async for u in db.users.find(
+        {"id": {"$in": h.get("team_hub_member_user_ids", [])}},
+        {"_id": 0, "id": 1, "email": 1, "name": 1},
+    ):
+        collaborators.append({
+            "id": u["id"], "email": u.get("email"), "name": u.get("name"),
+        })
+
     invites = []
     if is_owner:
         async for inv in db.household_invites.find(
@@ -61,6 +71,7 @@ async def get_team_access(current_user=Depends(get_current_user)):
         "is_owner": is_owner,
         "owner_user_id": owner_id,
         "members": members,
+        "collaborators": collaborators,
         "invites": invites,
     }
 
@@ -74,6 +85,22 @@ async def set_member_access(user_id: str, payload: TeamAccessMemberPayload, curr
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Member not found")
     return {"user_id": user_id, "team_access": bool(payload.enabled)}
+
+
+@router.delete("/collaborators/{user_id}")
+async def remove_collaborator(user_id: str, current_user=Depends(get_current_user)):
+    """Remove a Team Hub collaborator from this household's hub."""
+    h = await _require_owner(current_user)
+    if user_id not in (h.get("team_hub_member_user_ids") or []):
+        raise HTTPException(status_code=404, detail="That person isn't a Team Hub collaborator")
+    await db.households.update_one(
+        {"id": h["id"]}, {"$pull": {"team_hub_member_user_ids": user_id}}
+    )
+    # Revoke their team_access only if they aren't a collaborator elsewhere.
+    still = await db.households.find_one({"team_hub_member_user_ids": user_id}, {"_id": 0, "id": 1})
+    if not still:
+        await db.users.update_one({"id": user_id}, {"$set": {"team_access": False}})
+    return {"removed": True, "user_id": user_id}
 
 
 @router.post("/invite")

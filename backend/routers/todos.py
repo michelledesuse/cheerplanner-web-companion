@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from core.db import db
 from core.models import Todo, TodoCreate, TodoUpdate, utcnow_iso
 from core.security import get_current_user
-from core.helpers import _household_user_ids
+from core.helpers import _team_hub_scope_user_ids as _household_user_ids
 
 router = APIRouter(prefix="/api")
 

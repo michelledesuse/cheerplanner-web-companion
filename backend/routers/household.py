@@ -214,6 +214,22 @@ async def join_household(payload: HouseholdJoinRequest, current_user=Depends(get
     user_id = current_user["id"]
     if user_id == invite["invited_by"]:
         raise HTTPException(status_code=400, detail="You can't use your own invite code")
+
+    # Team Hub delegation invite: join as a COLLABORATOR, not a household member.
+    # This keeps Team Hub collaborators off the household seat count and out of
+    # the family's personal data. (requirement #4)
+    if invite.get("grant_team_access"):
+        await db.households.update_one(
+            {"id": invite["household_id"]},
+            {"$addToSet": {"team_hub_member_user_ids": user_id}},
+        )
+        await db.users.update_one({"id": user_id}, {"$set": {"team_access": True}})
+        await db.household_invites.update_one(
+            {"id": invite["id"]}, {"$set": {"used_at": utcnow_iso()}}
+        )
+        return {"joined": True, "household_id": invite["household_id"], "team_access": True, "collaborator": True}
+
+    # Regular household join (co-parent): becomes a full household member.
     # Remove user from current household (and delete household if empty)
     current_h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
     if current_h and current_h["id"] != invite["household_id"]:
@@ -227,14 +243,11 @@ async def join_household(payload: HouseholdJoinRequest, current_user=Depends(get
         {"id": invite["household_id"]},
         {"$addToSet": {"member_user_ids": user_id}},
     )
-    # Team Hub delegation: honor an owner's "invite by email" to the Team Hub.
-    if invite.get("grant_team_access"):
-        await db.users.update_one({"id": user_id}, {"$set": {"team_access": True}})
     # Mark invite as used
     await db.household_invites.update_one(
         {"id": invite["id"]}, {"$set": {"used_at": utcnow_iso()}}
     )
-    return {"joined": True, "household_id": invite["household_id"], "team_access": bool(invite.get("grant_team_access"))}
+    return {"joined": True, "household_id": invite["household_id"], "team_access": False}
 
 
 @router.post("/household/leave")

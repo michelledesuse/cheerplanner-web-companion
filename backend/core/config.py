@@ -29,6 +29,17 @@ WEB_FALLBACK_URL = os.environ.get("WEB_FALLBACK_URL", "https://cheer-planner.com
 # When unset we fall back to WEB_FALLBACK_URL so dev/local still works.
 BACKEND_PUBLIC_URL = (os.environ.get("BACKEND_PUBLIC_URL") or WEB_FALLBACK_URL).rstrip("/")
 
+# ---------- Admin / entitlements ----------
+# Comma-separated list of emails granted admin (seeded idempotently at startup).
+ADMIN_EMAILS = [
+    e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()
+]
+# Server-side pepper mixed into the sha256 of Lifetime codes before storage.
+REDEMPTION_PEPPER = os.environ.get("REDEMPTION_PEPPER", "cheerplanner-dev-pepper-change-me")
+# Public URL where beta testers redeem Lifetime codes (web portal, Apple-compliant).
+REDEMPTION_PORTAL_URL = (os.environ.get("REDEMPTION_PORTAL_URL") or f"{BACKEND_PUBLIC_URL}/api/redeem").rstrip("/")
+
+
 # Daily digest is sent at 8 AM in this timezone (UTC by default).
 # When per-user timezones are added we can override at job-build time.
 DIGEST_SEND_HOUR_UTC = int(os.environ.get("DIGEST_SEND_HOUR_UTC", "13"))  # 8 AM US Eastern ~ 13 UTC

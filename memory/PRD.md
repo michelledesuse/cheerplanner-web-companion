@@ -243,7 +243,24 @@ Phase 3:
 - Everyone resolves to Free (no entitlement docs yet); NOTHING gated. Verified: Free default, lifetime→Premium,
   expired sub→Free. No user-visible change, no data migration needed (Free is the default).
 
-### Phase 1 — NEXT (gating + admin + lifetime, no store): household/Team-Hub seat decoupling, feature gates +
-  paywall UI, configurable-limit enforcement + grandfathering, in-app Admin (direct Lifetime grants + code gen),
-  hashed single-use codes + atomic redemption, web redemption portal, plan status screen, audit surfacing.
+### Phase 1 — IN PROGRESS
+- 1a DONE: Household ↔ Team Hub decoupling. `Household.team_hub_member_user_ids[]` (separate from
+  member_user_ids). Team Hub invites now add collaborators there (NOT household seats). New helper
+  `_team_hub_scope_user_ids` (aliased into roster/attendance/team_payments/sizes/paperwork/signups/todos —
+  backward-compatible; identical output when no collaborators). team_access.py exposes/removes collaborators.
+  auth delete cleans collaborator refs + entitlements. Verified: roster + team-access still work.
+- 1b DONE: Admin system. `users.is_admin` seeded from `ADMIN_EMAILS` (cheerplanner@gmail.com) at startup.
+  `require_admin` guard + `code_hash` (sha256+REDEMPTION_PEPPER). routers/admin.py: users/search (+premium
+  status), users/{id}/entitlements, lifetime/grant, lifetime/revoke, codes/generate (plaintext once, stored
+  hashed+last4), codes list, codes disable/enable, self-premium-toggle (test). Frontend app/admin/index.tsx.
+  Verified: admin gating (403 non-admin), generate, race-safe single-use redeem (200/400), search, revoke.
+- 1c DONE: routers/premium.py — GET /premium/status, POST /premium/redeem (rate-limited 5/min, atomic
+  find_one_and_update, expiry-in-filter, generic errors). Web redemption portal app/redeem.tsx (web only).
+  Plan status/paywall app/premium.tsx (Free→pricing $4.99/$39.99+7d trial+computed SAVE%, Lifetime→no
+  renewal, Sub→manage link). Settings "Membership" section (Plan row + Admin row if is_admin). Verified UI render.
+- 1d TODO (NEXT, needs checkpoint): feature gating + household-limit enforcement + grandfathering.
+  RISK: gating live Team Hub features affects the FREE applereview review account (would hide features from
+  App Review). Decide review-account tier + exact enforcement points before wiring gates into ~10 routers.
+  Files: core/plans.py PLAN_LIMITS/PREMIUM_TEAM_HUB_FEATURES, core/entitlements.py, core/plans.limit_for.
+  Env added: ADMIN_EMAILS, REDEMPTION_PEPPER (backend/.env).
 ### Phase 2 — RevenueCat + Apple IAP + TestFlight.  ### Phase 3 — analytics, Google Play, promos, web admin portal.
