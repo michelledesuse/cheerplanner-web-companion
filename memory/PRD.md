@@ -258,9 +258,16 @@ Phase 3:
   find_one_and_update, expiry-in-filter, generic errors). Web redemption portal app/redeem.tsx (web only).
   Plan status/paywall app/premium.tsx (Free→pricing $4.99/$39.99+7d trial+computed SAVE%, Lifetime→no
   renewal, Sub→manage link). Settings "Membership" section (Plan row + Admin row if is_admin). Verified UI render.
-- 1d TODO (NEXT, needs checkpoint): feature gating + household-limit enforcement + grandfathering.
-  RISK: gating live Team Hub features affects the FREE applereview review account (would hide features from
-  App Review). Decide review-account tier + exact enforcement points before wiring gates into ~10 routers.
-  Files: core/plans.py PLAN_LIMITS/PREMIUM_TEAM_HUB_FEATURES, core/entitlements.py, core/plans.limit_for.
-  Env added: ADMIN_EMAILS, REDEMPTION_PEPPER (backend/.env).
+- 1d DONE (tested iter73, 30/30): core/gating.py (assert_premium 402 "premium_required:<f>", assert_under_count
+  402 "limit_reached:<key>"). Gated: sizes (columns/values), paperwork (create/duplicate), team_payments
+  (create/duplicate/remind=mass_sms), roster custom columns, spreadsheet import (team kinds, preview+commit),
+  parent share links, signup sheets (>1 free), attendance sessions (>1 free), roster athletes (>36) + personnel
+  (>4). Reads NOT gated (free users still see existing data). Frontend: axios 402 interceptor → Alert → /premium;
+  Team Hub landing shows PREMIUM badge + lock on payments/sizes/paperwork/export for Free (tap → /premium).
+  Household member-limit enforcement INTENTIONALLY DEFERRED (user: enforce at go-live). Review account
+  applereview granted Lifetime (admin_grant "Apple App Review") so App Review sees full app.
+  KNOWN minor (non-blocking, from testing): get_household_premium does a lazy rebind write per call (cheap);
+  spreadsheet_export flag has no backend gate yet (frontend blocks via /premium) — wire when export backend lands.
+
+### Phase 2 — RevenueCat + Apple IAP + TestFlight (NEXT).  ### Phase 3 — analytics, Google Play, promos, web admin portal.
 ### Phase 2 — RevenueCat + Apple IAP + TestFlight.  ### Phase 3 — analytics, Google Play, promos, web admin portal.
