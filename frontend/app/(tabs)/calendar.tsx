@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar, type DateData } from "react-native-calendars";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -120,6 +121,7 @@ export default function CalendarTab() {
 
   useEffect(() => { setLoading(true); load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useRealtimeRefetch(load);
 
   const passesType = useCallback(
     (e: CalEvent) => typeFilter.length === 0 || e.kind !== "schedule" || (!!e.event_type && typeFilter.includes(e.event_type)),

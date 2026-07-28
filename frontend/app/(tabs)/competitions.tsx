@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -74,6 +75,7 @@ export default function CompetitionsScreen() {
     load();
     return () => { setSelectMode(false); setSelectedIds(new Set()); };
   }, [load]));
+  useRealtimeRefetch(load);
 
   const matches = useCallback((c: Competition) => {
     if (teamFilter.length > 0 && !(c.team_ids || []).some((t) => teamFilter.includes(t))) return false;

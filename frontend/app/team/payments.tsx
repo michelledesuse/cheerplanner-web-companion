@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshCon
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
 import { formatCurrency } from "@/src/utils/format";
@@ -36,6 +37,7 @@ export default function PaymentsScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useRealtimeRefetch(load);
 
   const create = async () => {
     if (!name.trim()) { Alert.alert("Name required", "Give this a name."); return; }

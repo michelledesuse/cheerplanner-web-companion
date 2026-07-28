@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshCon
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
 import SheetAccessButton from "@/src/components/SheetAccessButton";
@@ -39,6 +40,7 @@ export default function SignupsScreen() {
 
   useEffect(() => { api.get<Comp[]>("/competitions").then((r) => setComps(r.data)).catch(() => {}); }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+  useRealtimeRefetch(load);
 
   const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
 

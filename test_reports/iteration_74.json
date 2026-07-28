@@ -1,0 +1,29 @@
+{
+  "summary": "Phase W3 real-time WebSocket sync VERIFIED WORKING end-to-end across two independent authenticated browser contexts on WEB preview. WS connects to /api/ws?token=... on login; on a mutation in Session B the backend broadcasts {\"type\":\"invalidate\",\"path\":\"/api/fundraisers\"} which Session A receives live; Session A's focused Home screen auto-refetched and the 'Raised' widget updated from $240.00 -> $282.00 (= previous total + the $42 fundraiser B just created) without any manual pull-to-refresh or tab switch by user A. No console errors originated from RealtimeContext; logout path (storage clear + reload) does not crash. Test selectors on desktop sidebar could not target the Money > Fundraisers segment (sidebar labels it 'Expenses' not 'Money' on wide layout), but the Home aggregate widget provides equally strong proof of the useRealtimeRefetch hook firing on a focused screen. Deprecated packages detected: none new — only a benign RN Web warning props.pointerEvents is deprecated (pre-existing, unrelated to Realtime).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "RN Web deprecation", "issue": "console warning: props.pointerEvents is deprecated. Use style.pointerEvents. Not from RealtimeContext; a pre-existing warning from an unrelated component. Non-blocking."}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "None required for Phase W3 real-time sync — feature is verified working. Optional: track down source of the pointerEvents deprecation warning (unrelated to this phase)."
+  ],
+  "critical_code_review_comments": [
+    "RealtimeContext.tsx: initial rev value stored in lastHandled on first useEffect run correctly prevents a spurious refetch on mount. Good.",
+    "Exponential backoff (2s..30s cap) with reset on ws open + AppState 'active' re-connect covers mobile background/foreground transitions.",
+    "connect() guards against stacking sockets by checking readyState — solid.",
+    "core/realtime.py ConnectionManager is in-process; comment already notes Redis pub/sub is needed for multi-worker. Acceptable for now."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% for phase W3 acceptance criteria"},
+  "seed_data_creation": "One test fundraiser 'RT1785282730' ($42) was created via Session B and remains in the applereview@cheerplanner.app household. Main agent may want to delete it after review.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Two-context WebSocket real-time test recipe: (1) navigate to /login (root path shows a marketing landing on wide viewport, only mobile viewport auto-routes to login); (2) fill 2 inputs then click 'Sign in' exact-text button; (3) desktop sidebar uses label 'Expenses' (not 'Money'); (4) to reach Fundraisers segment from desktop, click sidebar 'Expenses' then data-testid=tab-fundraisers; (5) subscribe to page.on('websocket') to capture ws.framereceived — invalidate frames arrive as {\"type\":\"invalidate\",\"path\":\"/api/<resource>\"}; (6) Home screen 'Raised' aggregate is a great low-effort proof-point because it uses useRealtimeRefetch and re-computes from /api/fundraisers.",
+  "rca_of_issue": "N/A — no bug. Verified acceptance: WS connects (1 /api/ws open), invalidate frame delivered to Session A after Session B POST /api/fundraisers, focused Home screen auto-refetched and 'Raised' aggregate updated from $240.00 to $282.00 (delta = $42, matching the fundraiser amount created in B). No console errors from RealtimeContext. Logout (localStorage clear + reload) does not throw."
+}

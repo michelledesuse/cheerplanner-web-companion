@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
@@ -75,6 +76,7 @@ export default function DashboardScreen() {
       load();
     }, [load])
   );
+  useRealtimeRefetch(load);
 
   if (loading) {
     return (
