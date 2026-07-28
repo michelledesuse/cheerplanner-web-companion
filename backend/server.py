@@ -49,6 +49,7 @@ from routers import (
     admin,
     premium,
     revenuecat_webhook,
+    analytics,
 )
 
 
@@ -105,6 +106,7 @@ for r in (
     admin.router,
     premium.router,
     revenuecat_webhook.router,
+    analytics.router,
 ):
     app.include_router(r)
 
@@ -155,6 +157,8 @@ async def startup_db_client():
         await db.entitlement_events.create_index("user_id")
         await db.lifetime_codes.create_index("code_hash", unique=True)
         await db.lifetime_codes.create_index("status")
+        await db.analytics_events.create_index("name")
+        await db.analytics_events.create_index("at")
     except Exception as exc:
         logger.warning(f"Could not create entitlement indexes: {exc}")
 

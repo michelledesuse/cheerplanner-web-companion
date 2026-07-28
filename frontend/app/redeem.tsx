@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { usePremium } from "@/src/context/PremiumContext";
+import { track } from "@/src/lib/analytics";
 import { spacing, radius, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -32,6 +33,7 @@ export default function RedeemScreen() {
     try {
       await api.post("/premium/redeem", { code: code.trim() });
       await refresh();
+      track("code_redeemed");
       setMsg({ ok: true, text: "Success! Lifetime Premium Access is now active on your account." });
       setCode("");
     } catch (e: any) {

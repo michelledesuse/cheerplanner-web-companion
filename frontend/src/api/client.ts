@@ -34,6 +34,9 @@ api.interceptors.response.use(
       if (now - lastPaywallAt > 1200) {
         lastPaywallAt = now;
         const detail: string = error?.response?.data?.detail || "";
+        const feature = detail.split(":")[1] || "unknown";
+        // fire-and-forget analytics (no recursion: this call won't 402)
+        try { api.post("/analytics/event", { name: "feature_gate_hit", props: { feature, platform: Platform.OS } }).catch(() => {}); } catch {}
         const isLimit = detail.startsWith("limit_reached");
         const title = isLimit ? "Free plan limit reached" : "Premium feature";
         const msg = isLimit

@@ -285,5 +285,13 @@ Phase 3:
   App Store Connect products (cheerplanner_premium_monthly/annual, same group, 7-day trial on annual).
   Purchase flow CANNOT be tested in Expo Go/web — requires TestFlight/native build.
 
-### Phase 3 — analytics, Google Play, promos, web admin portal (FUTURE).
+### Phase 3 — Analytics (DONE), Google Play/promos/web admin portal (FUTURE)
+- Analytics (privacy-conscious, DONE): routers/analytics.py POST /api/analytics/event (allowlisted event names
+  + allowlisted prop keys only {plan,feature,platform,source} — drops any PII), GET /api/analytics/summary
+  (admin: event counts, feature_gate_hits by feature, plan split, premium_households, lifetime/subs active,
+  codes_redeemed). Client src/lib/analytics.ts track() fire-and-forget. Events fired: paywall_view + upgrade_tap
+  + plan_selected + purchase_success (premium.tsx), feature_gate_hit (client.ts 402 interceptor, with feature),
+  code_redeemed (redeem.tsx). Admin screen shows analytics snapshot. Verified: event insert, PII rejection,
+  admin summary 200.
+- FUTURE: Google Play billing, promotional offers, web admin portal, trial_start/trial_to_paid (needs store data).
 ### Phase 2 — RevenueCat + Apple IAP + TestFlight.  ### Phase 3 — analytics, Google Play, promos, web admin portal.

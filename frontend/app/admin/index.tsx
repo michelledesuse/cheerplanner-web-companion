@@ -11,6 +11,15 @@ import { usePremium } from "@/src/context/PremiumContext";
 import { spacing, radius, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
+function Stat({ label, value, styles }: { label: string; value: number; styles: any }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statValue}>{value ?? 0}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
 export default function AdminScreen() {
   const { user } = useAuth();
   const { refresh: refreshPremium } = usePremium();
@@ -25,6 +34,7 @@ export default function AdminScreen() {
   const [generated, setGenerated] = useState<any[]>([]);
   const [codes, setCodes] = useState<any[]>([]);
   const [selfPremium, setSelfPremium] = useState<boolean | null>(null);
+  const [summary, setSummary] = useState<any>(null);
 
   const loadCodes = useCallback(async () => {
     try { const r = await api.get("/admin/codes"); setCodes(r.data.codes || []); } catch {}
@@ -32,8 +42,11 @@ export default function AdminScreen() {
   const loadSelf = useCallback(async () => {
     try { const r = await api.get("/premium/status"); setSelfPremium(!!r.data.is_premium); } catch {}
   }, []);
+  const loadSummary = useCallback(async () => {
+    try { const r = await api.get("/analytics/summary"); setSummary(r.data); } catch {}
+  }, []);
 
-  useFocusEffect(useCallback(() => { if (user?.is_admin) { loadCodes(); loadSelf(); } }, [user, loadCodes, loadSelf]));
+  useFocusEffect(useCallback(() => { if (user?.is_admin) { loadCodes(); loadSelf(); loadSummary(); } }, [user, loadCodes, loadSelf, loadSummary]));
 
   if (!user?.is_admin) {
     return (
@@ -92,6 +105,29 @@ export default function AdminScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }} testID="admin-screen">
+        {/* Analytics snapshot */}
+        {summary ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Premium analytics</Text>
+            <View style={styles.statGrid}>
+              <Stat label="Premium households" value={summary.premium_households} styles={styles} />
+              <Stat label="Lifetime active" value={summary.lifetime_active} styles={styles} />
+              <Stat label="Subs active" value={summary.subscriptions_active} styles={styles} />
+              <Stat label="Codes redeemed" value={summary.codes_redeemed} styles={styles} />
+              <Stat label="Paywall views" value={summary.events?.paywall_view || 0} styles={styles} />
+              <Stat label="Upgrade taps" value={summary.events?.upgrade_tap || 0} styles={styles} />
+            </View>
+            {summary.feature_gate_hits && Object.keys(summary.feature_gate_hits).length > 0 ? (
+              <>
+                <Text style={[styles.muted, { marginTop: spacing.sm }]}>Top locked features tapped:</Text>
+                {Object.entries(summary.feature_gate_hits).slice(0, 5).map(([f, n]: any) => (
+                  <Text key={f} style={styles.body}>• {f}: {n}</Text>
+                ))}
+              </>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Self premium test toggle */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Testing</Text>
@@ -189,4 +225,8 @@ const makeStyles = (c: ThemePalette) => ({
   genRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
   genCode: { ...typography.bodyMedium, color: c.textPrimary, letterSpacing: 1, fontWeight: "700" },
   disableText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  stat: { width: "47%", backgroundColor: c.bg, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: c.border },
+  statValue: { ...typography.h2, color: c.textPrimary },
+  statLabel: { ...typography.caption, color: c.textSecondary },
 });

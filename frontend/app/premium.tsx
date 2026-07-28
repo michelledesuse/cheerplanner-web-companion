@@ -6,6 +6,7 @@ import { useRouter, useFocusEffect } from "expo-router";
 
 import { usePremium } from "@/src/context/PremiumContext";
 import { loadOfferings, purchasePackage, restorePurchases, purchasesSupported, type RCPackage } from "@/src/lib/revenuecat";
+import { track } from "@/src/lib/analytics";
 import { spacing, radius, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -38,10 +39,13 @@ export default function PremiumScreen() {
 
   useFocusEffect(useCallback(() => {
     refresh();
+    track("paywall_view");
     if (purchasesSupported) loadOfferings().then(setOfferings);
   }, [refresh]));
 
   const buy = async (which: "monthly" | "annual") => {
+    track("plan_selected", { plan: which });
+    track("upgrade_tap", { plan: which });
     const pkg = offerings?.[which];
     if (!purchasesSupported || !pkg) {
       Alert.alert(
@@ -54,6 +58,7 @@ export default function PremiumScreen() {
     try {
       const res = await purchasePackage(pkg);
       if (res.ok) {
+        track("purchase_success", { plan: which });
         // Backend updates via RevenueCat webhook; refresh (may take a moment).
         setTimeout(refresh, 1500);
         await refresh();
