@@ -237,10 +237,18 @@ Get exact current paths from user before building W2.
   (src/components/WebSidebar.tsx) on wide web (Platform.OS==='web' && width>=900) and hides the bottom tab bar;
   content capped at maxWidth 1400. Mobile/native unchanged (bottom tabs). Sidebar: Home/Athletes/Expenses/
   Competitions/Schedule/Calendar/Team Hub + Reminders/Settings + Plan chip + user. Verified at 1280px.
-- W2 (TODO): Public marketing homepage on web (logged-out) replacing Google Sites; recreate privacy/contact/
-  SMS pages at SAME URLs. Logged-in users skip to app.
-- W3 (TODO): True real-time sync via authenticated WebSockets (in-process pub/sub; Redis needed if multi-worker).
-  Broadcast resource-changed events per household/team-hub; clients refetch. Biggest lift.
+- W2 (DONE): Public marketing homepage + legal pages replacing Google Sites.
+  * app/index.tsx: logged-out WEB visitors see src/components/MarketingHome.tsx (hero, 6 feature cards,
+    CTAs sign up / App Store, redeem link, footer). Native → /login; logged-in → /(tabs)/dashboard.
+  * Public routes (no auth): /privacy (app/privacy.tsx — VERBATIM match to live cheer-planner.com/privacy,
+    "Last updated July 21, 2026"), /text-messaging-opt-in (app/text-messaging-opt-in.tsx — built from the
+    exact SMS language in privacy §5; the standalone Google Sites page renders via JS so couldn't be scraped —
+    ask user to confirm/paste if it must be byte-identical), /contact (new; support email info@cheer-planner.com).
+  * Shared src/components/StaticPage.tsx (StaticPage/LegalSection/P). Root _layout has NO auth guard so public
+    pages load without login. Verified /privacy + marketing home render publicly at wide width.
+  * DEPLOY NOTE: point BOTH apex (cheer-planner.com) and www at the deployment so /privacy & /text-messaging-opt-in
+    resolve (Apple + Twilio A2P compliance URLs).
+- W3 (TODO): True real-time sync via authenticated WebSockets.
 
 ## Backlog — Monetization (pending user decisions)
 - Free vs Premium tiers via RevenueCat + Apple/Google IAP. APPROVED plan in /app/memory/MONETIZATION_PLAN.md.
