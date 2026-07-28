@@ -15,6 +15,7 @@ import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
+import LiveDot from "@/src/components/LiveDot";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { colors, radius, spacing, typography, shadow } from "@/src/theme";
@@ -112,6 +113,7 @@ export default function DashboardScreen() {
           <View style={{ flex: 1, marginRight: spacing.md, minWidth: 0 }}>
             <Text style={styles.greeting} numberOfLines={1}>Hi {user?.name || user?.email?.split("@")[0]}</Text>
             <Text style={styles.subGreeting} numberOfLines={1}>Here's your cheer season at a glance</Text>
+            <View style={{ marginTop: 4 }}><LiveDot /></View>
           </View>
           <TouchableOpacity
             onPress={() => router.push("/settings")}

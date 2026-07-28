@@ -7,6 +7,7 @@ import { spacing, radius, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { usePremium } from "@/src/context/PremiumContext";
 import { useAuth } from "@/src/context/AuthContext";
+import LiveDot from "@/src/components/LiveDot";
 
 type NavItem = { label: string; icon: keyof typeof Ionicons.glyphMap; route: string };
 
@@ -73,6 +74,7 @@ export default function WebSidebar() {
       <View style={styles.userRow}>
         <View style={styles.avatar}><Text style={styles.avatarText}>{(user?.name || user?.email || "?").charAt(0).toUpperCase()}</Text></View>
         <Text style={styles.userEmail} numberOfLines={1}>{user?.email}</Text>
+        <LiveDot showLabel={false} />
       </View>
     </View>
   );
