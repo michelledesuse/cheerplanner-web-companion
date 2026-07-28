@@ -45,6 +45,7 @@ from routers import (
     todos,
     attendance,
     blocks,
+    entitlements,
 )
 
 
@@ -97,6 +98,7 @@ for r in (
     todos.router,
     attendance.router,
     blocks.router,
+    entitlements.router,
 ):
     app.include_router(r)
 
@@ -137,6 +139,16 @@ async def startup_db_client():
         await db.sent_notifications.create_index("key", unique=True)
     except Exception as exc:
         logger.warning(f"Could not create sent_notifications index: {exc}")
+
+    # Premium entitlements (Phase 0) — indexes for the resolver + audit trail.
+    try:
+        await db.entitlements.create_index("household_id")
+        await db.entitlements.create_index("user_id")
+        await db.entitlements.create_index([("type", 1), ("status", 1)])
+        await db.entitlement_events.create_index("household_id")
+        await db.entitlement_events.create_index("user_id")
+    except Exception as exc:
+        logger.warning(f"Could not create entitlement indexes: {exc}")
 
     # One-time (idempotent) migration: split legacy multi-day events into a
     # per-day series so each day is independently editable. Converted docs get

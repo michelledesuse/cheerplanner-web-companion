@@ -229,4 +229,21 @@ Phase 3:
 - app.json version bumped to 1.1.9 (was stuck at 1.1.2 causing App Store Connect to show 1.1.2).
 
 ## Backlog — Monetization (pending user decisions)
-- Free vs Premium tiers via RevenueCat + Apple/Google IAP. Awaiting user's feature split + billing model before implementation. NOT started.
+- Free vs Premium tiers via RevenueCat + Apple/Google IAP. APPROVED plan in /app/memory/MONETIZATION_PLAN.md.
+- User approvals (locked): Free Team Hub split as proposed; Lifetime ownership = Option C; grandfathering =
+  keep-all-members-block-new-adds; admin = in-app first (web portal Phase 3).
+
+### Phase 0 — Entitlement foundation (DONE, invisible/safe)
+- `core/plans.py` — PLAN_LIMITS (free household_members=2 / premium=6, Team Hub Free caps), PRICING display
+  metadata ($4.99/mo, $39.99/yr+7d trial), PREMIUM_TEAM_HUB_FEATURES set. Config-driven (change limits w/o redesign).
+- `core/entitlements.py` — `resolve_household_premium(household_id)` (Lifetime > active Sub > Promo > Free),
+  `get_household_premium(user_id)`, append-only `log_entitlement_event(...)` audit helper.
+- Collections: `entitlements`, `entitlement_events` (+ startup indexes in server.py). Models: Entitlement, PremiumStatus.
+- API: `GET /api/entitlements/me` (household premium status), `GET /api/entitlements/config` (limits + pricing).
+- Everyone resolves to Free (no entitlement docs yet); NOTHING gated. Verified: Free default, lifetime→Premium,
+  expired sub→Free. No user-visible change, no data migration needed (Free is the default).
+
+### Phase 1 — NEXT (gating + admin + lifetime, no store): household/Team-Hub seat decoupling, feature gates +
+  paywall UI, configurable-limit enforcement + grandfathering, in-app Admin (direct Lifetime grants + code gen),
+  hashed single-use codes + atomic redemption, web redemption portal, plan status screen, audit surfacing.
+### Phase 2 — RevenueCat + Apple IAP + TestFlight.  ### Phase 3 — analytics, Google Play, promos, web admin portal.

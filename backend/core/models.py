@@ -1219,3 +1219,38 @@ class SheetBlockCreate(BaseModel):
     resource: Literal["payment", "paperwork", "signup", "sizes", "attendance"]
     resource_id: str
 
+
+# ============================================================
+# Premium entitlements (Phase 0 — central authorization)
+# ============================================================
+class Entitlement(BaseModel):
+    """A single grant of Premium access. Premium is resolved at household level
+    (see core/entitlements.py). Never overwrite a bool — append + resolve."""
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    type: Literal["subscription", "lifetime", "promo"]
+    source: str  # apple | google | admin_grant | code_redemption | ...
+    scope: Literal["household"] = "household"
+    user_id: str                       # individual who owns/triggered it
+    household_id: str                  # household currently benefiting (bound)
+    status: Literal["active", "expired", "revoked"] = "active"
+    plan: Optional[Literal["monthly", "annual", "lifetime", "promo"]] = None
+    starts_at: Optional[str] = None
+    expires_at: Optional[str] = None   # None = never (lifetime)
+    store_txn_id: Optional[str] = None
+    revenuecat_id: Optional[str] = None
+    reason: Optional[str] = None
+    label: Optional[str] = None
+    note: Optional[str] = None
+    granted_by_admin_id: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+    updated_at: str = Field(default_factory=utcnow_iso)
+
+
+class PremiumStatus(BaseModel):
+    is_premium: bool
+    plan: str = "free"                 # free | monthly | annual | lifetime | promo
+    source: Optional[str] = None
+    expires_at: Optional[str] = None
+    entitlement_id: Optional[str] = None
+    household_id: Optional[str] = None
+
