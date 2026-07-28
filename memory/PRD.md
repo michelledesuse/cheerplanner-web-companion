@@ -228,6 +228,20 @@ Phase 3:
 - DONE: 'Upload sizes from spreadsheet (CSV/Excel)' added to Roster ⋯ menu (routes to existing /import/team_sizes).
 - app.json version bumped to 1.1.9 (was stuck at 1.1.2 causing App Store Connect to show 1.1.2).
 
+## Backlog — Companion website (cheer-planner.com)
+User owns cheer-planner.com (Squarespace DNS), currently a Google Sites landing page. Decision: REPLACE
+Google Sites with our marketing homepage + full web app on cheer-planner.com. COMPLIANCE: privacy policy,
+contact-us, AND SMS/text-messaging consent pages MUST stay at their EXACT current URLs (Apple + Twilio A2P).
+Get exact current paths from user before building W2.
+- W1 (DONE): Desktop-responsive web app. app/(tabs)/_layout.tsx now renders a persistent left sidebar
+  (src/components/WebSidebar.tsx) on wide web (Platform.OS==='web' && width>=900) and hides the bottom tab bar;
+  content capped at maxWidth 1400. Mobile/native unchanged (bottom tabs). Sidebar: Home/Athletes/Expenses/
+  Competitions/Schedule/Calendar/Team Hub + Reminders/Settings + Plan chip + user. Verified at 1280px.
+- W2 (TODO): Public marketing homepage on web (logged-out) replacing Google Sites; recreate privacy/contact/
+  SMS pages at SAME URLs. Logged-in users skip to app.
+- W3 (TODO): True real-time sync via authenticated WebSockets (in-process pub/sub; Redis needed if multi-worker).
+  Broadcast resource-changed events per household/team-hub; clients refetch. Biggest lift.
+
 ## Backlog — Monetization (pending user decisions)
 - Free vs Premium tiers via RevenueCat + Apple/Google IAP. APPROVED plan in /app/memory/MONETIZATION_PLAN.md.
 - User approvals (locked): Free Team Hub split as proposed; Lifetime ownership = Option C; grandfathering =

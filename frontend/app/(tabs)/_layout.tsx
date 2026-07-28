@@ -1,19 +1,24 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { Platform } from "react-native";
+import { Platform, View, useWindowDimensions } from "react-native";
 
 import { colors } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
+import WebSidebar from "@/src/components/WebSidebar";
 
 /**
- * Tab bar layout. Reads palette via `useTheme()` so the tabs re-render
- * (and thus pick up new accent/card colors) every time the user changes
- * the theme in Settings → Appearance.
+ * Tab bar layout. On phones this is the bottom tab bar. On WIDE WEB screens
+ * (desktop companion website) we render a persistent left sidebar instead and
+ * hide the bottom bar, so coaches get a real desktop app experience.
  */
 export default function TabsLayout() {
   useTheme(); // subscribe to theme version so this layout re-renders on theme change
-  return (
+  const { width } = useWindowDimensions();
+  const isDesktopWeb = Platform.OS === "web" && width >= 900;
+
+  const tabs = (
     <Tabs
+      tabBar={isDesktopWeb ? () => null : undefined}
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: colors.accent,
@@ -76,4 +81,14 @@ export default function TabsLayout() {
       <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
+
+  if (isDesktopWeb) {
+    return (
+      <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
+        <WebSidebar />
+        <View style={{ flex: 1, maxWidth: 1400, width: "100%" }}>{tabs}</View>
+      </View>
+    );
+  }
+  return tabs;
 }
