@@ -50,6 +50,7 @@ from routers import (
     premium,
     revenuecat_webhook,
     analytics,
+    realtime,
 )
 
 
@@ -107,8 +108,30 @@ for r in (
     premium.router,
     revenuecat_webhook.router,
     analytics.router,
+    realtime.router,
 ):
     app.include_router(r)
+
+
+# ---------- Real-time broadcast (W3) ----------
+_RT_EXCLUDE = ("/api/ws", "/api/webhooks", "/api/analytics", "/api/auth")
+
+
+@app.middleware("http")
+async def realtime_broadcast(request: Request, call_next):
+    response = await call_next(request)
+    try:
+        if request.method in ("POST", "PUT", "PATCH", "DELETE") and response.status_code < 400:
+            path = request.url.path
+            if path.startswith("/api") and not any(path.startswith(p) for p in _RT_EXCLUDE):
+                from core.realtime import manager, rooms_for_user, _user_from_auth_header
+                user = await _user_from_auth_header(request.headers.get("authorization"))
+                if user:
+                    rooms = await rooms_for_user(user["id"])
+                    await manager.broadcast(rooms, {"type": "invalidate", "path": path})
+    except Exception:
+        pass
+    return response
 
 
 # ---------- CORS ----------
