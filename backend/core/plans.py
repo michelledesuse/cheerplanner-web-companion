@@ -58,7 +58,7 @@ PRICING: Dict[str, Any] = {
             "product_id": "cheerplanner_premium_monthly",
             "display_price": 4.99,
             "period": "month",
-            "trial_days": 0,
+            "trial_days": 7,
         },
         "annual": {
             "product_id": "cheerplanner_premium_annual",

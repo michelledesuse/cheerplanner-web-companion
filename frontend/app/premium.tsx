@@ -86,6 +86,7 @@ export default function PremiumScreen() {
   const monthly = products.monthly?.display_price ?? 4.99;
   const annual = products.annual?.display_price ?? 39.99;
   const trialDays = products.annual?.trial_days ?? 7;
+  const monthlyTrialDays = products.monthly?.trial_days ?? 0;
   const annualMonthEq = annual / 12;
   const savingsPct = monthly > 0 ? Math.round((1 - annualMonthEq / monthly) * 100) : 0;
 
@@ -138,6 +139,7 @@ export default function PremiumScreen() {
             <TouchableOpacity style={styles.priceCard} onPress={() => buy("monthly")} disabled={buying} testID="upgrade-monthly">
               <Text style={styles.priceTitle}>Monthly</Text>
               <Text style={styles.priceValue}>{offerings?.monthly?.product?.priceString || `$${monthly.toFixed(2)}`}<Text style={styles.pricePer}>/month</Text></Text>
+              {monthlyTrialDays > 0 ? <Text style={styles.priceHint}>{monthlyTrialDays}-day free trial</Text> : null}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cta} onPress={() => buy("annual")} disabled={buying} testID="upgrade-cta">
