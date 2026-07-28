@@ -39,7 +39,7 @@ export default function TeamScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const { user, refreshUser } = useAuth();
-  const { isPremium } = usePremium();
+  const { gatingActive } = usePremium();
   const [loading, setLoading] = useState(true);
   const unlocked = !!user?.team_access;
 
@@ -93,7 +93,7 @@ export default function TeamScreen() {
           </View>
 
           {TOOLS.map((t) => {
-            const locked = PREMIUM_TOOLS.has(t.key) && !isPremium;
+            const locked = PREMIUM_TOOLS.has(t.key) && gatingActive;
             return (
             <TouchableOpacity
               key={t.key}

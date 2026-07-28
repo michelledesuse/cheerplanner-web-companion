@@ -44,6 +44,27 @@ REDEMPTION_PORTAL_URL = (os.environ.get("REDEMPTION_PORTAL_URL") or f"{BACKEND_P
 # client SDK key lives in the frontend .env (EXPO_PUBLIC_REVENUECAT_IOS_SDK_KEY).
 REVENUECAT_WEBHOOK_AUTH = os.environ.get("REVENUECAT_WEBHOOK_AUTH", "")
 
+# ---------- Monetization go-live ----------
+# Until this date (UTC), the app behaves as fully unlocked for EVERYONE: no
+# feature gating, no paywalls, no household limits. On/after this date the
+# Free/Premium tiers take effect automatically. Change the env value to reschedule.
+MONETIZATION_START = os.environ.get("MONETIZATION_START", "2026-08-15")
+
+
+def monetization_active() -> bool:
+    """True once we've reached MONETIZATION_START (UTC). Before then, gating is off."""
+    from datetime import datetime, timezone
+    raw = (MONETIZATION_START or "").strip()
+    if not raw:
+        return True
+    try:
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) >= dt
+    except Exception:
+        return True
+
 
 
 # Daily digest is sent at 8 AM in this timezone (UTC by default).

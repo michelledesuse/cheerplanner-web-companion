@@ -30,7 +30,7 @@ function fmtDate(iso?: string | null) {
 }
 
 export default function PremiumScreen() {
-  const { status, config, isPremium, loading, refresh } = usePremium();
+  const { status, config, isPremium, monetizationActive, loading, refresh } = usePremium();
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
 
@@ -123,6 +123,20 @@ export default function PremiumScreen() {
         </View>
 
         {!isPremium ? (
+          !monetizationActive ? (
+            <>
+              <View style={styles.infoBox}>
+                <Ionicons name="sparkles" size={18} color="#16A34A" />
+                <Text style={styles.infoText}>Good news — every CheerPlanner feature, including the full Team Hub, is unlocked for free during our launch period. Premium plans start later; we&apos;ll let you know before anything changes.</Text>
+              </View>
+              {Platform.OS === "web" ? (
+                <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/redeem" as any)} testID="redeem-link">
+                  <Ionicons name="gift-outline" size={18} color={styles._icon.color} />
+                  <Text style={styles.linkText}>Have a Lifetime Premium code? Redeem it</Text>
+                </TouchableOpacity>
+              ) : null}
+            </>
+          ) : (
           <>
             <Text style={styles.sectionTitle}>Upgrade to Premium</Text>
             <Text style={styles.blurb}>Unlock the full Team Hub, advanced roster, sizes, paperwork, team payments, sign-ups, attendance, spreadsheet import/export, parent share links, automated SMS reminders, and up to 6 household members.</Text>
@@ -165,6 +179,7 @@ export default function PremiumScreen() {
               </View>
             )}
           </>
+          )
         ) : (
           <>
             {plan === "lifetime" ? (

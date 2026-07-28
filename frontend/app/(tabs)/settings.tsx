@@ -14,7 +14,7 @@ const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", o
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
-  const { isPremium, status } = usePremium();
+  const { isPremium, status, monetizationActive } = usePremium();
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -148,8 +148,8 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <SettingRow
             label="CheerPlanner Plan"
-            subtitle={isPremium ? (status?.plan === "lifetime" ? "Premium · Lifetime Access" : "Premium") : "Free — tap to upgrade"}
-            value={isPremium ? "Premium" : "Free"}
+            subtitle={!monetizationActive ? "All features unlocked during launch" : (isPremium ? (status?.plan === "lifetime" ? "Premium · Lifetime Access" : "Premium") : "Free — tap to upgrade")}
+            value={isPremium ? (status?.plan === "lifetime" ? "Lifetime" : "Premium") : (!monetizationActive ? "Free" : "Free")}
             onPress={() => router.push("/premium" as any)}
             chevron
             testID="settings-plan"

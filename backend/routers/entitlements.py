@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 from core.security import get_current_user
 from core.entitlements import get_household_premium
 from core.plans import PLAN_LIMITS, PRICING, PREMIUM_TEAM_HUB_FEATURES
+from core.config import monetization_active, MONETIZATION_START
 
 router = APIRouter(prefix="/api/entitlements")
 
@@ -28,4 +29,6 @@ async def plan_config(current_user=Depends(get_current_user)):
         "limits": PLAN_LIMITS,
         "pricing": PRICING,
         "premium_team_hub_features": sorted(PREMIUM_TEAM_HUB_FEATURES),
+        "monetization_active": monetization_active(),
+        "monetization_start": MONETIZATION_START,
     }

@@ -12,9 +12,13 @@ from fastapi import HTTPException
 
 from core.entitlements import get_household_premium
 from core.plans import limit_for
+from core.config import monetization_active
 
 
 async def is_premium(user_id: str) -> bool:
+    # Pre-launch: everyone is treated as premium (gating disabled).
+    if not monetization_active():
+        return True
     status = await get_household_premium(user_id)
     return bool(status.get("is_premium"))
 

@@ -15,6 +15,7 @@ import uuid
 from core.db import db
 from core.models import utcnow_iso, Entitlement
 from core.helpers import _get_or_create_household
+from core.config import monetization_active, MONETIZATION_START
 
 
 # ------------------------------------------------------------------
@@ -92,6 +93,8 @@ async def get_household_premium(user_id: str) -> Dict[str, Any]:
         )
     status = await resolve_household_premium(hid)
     status["household_id"] = hid
+    status["monetization_active"] = monetization_active()
+    status["monetization_start"] = MONETIZATION_START
     # For the "you already have Lifetime — your store sub may still renew" notice (#14).
     if status.get("plan") == "lifetime":
         sub = await db.entitlements.find_one(
