@@ -247,7 +247,17 @@ Get exact current paths from user before building W2.
     pages load without login. Verified /privacy + marketing home render publicly at wide width.
   * DEPLOY NOTE: point BOTH apex (cheer-planner.com) and www at the deployment so /privacy & /text-messaging-opt-in
     resolve (Apple + Twilio A2P compliance URLs).
-- W3 (TODO): True real-time sync via authenticated WebSockets.
+- W3 (DONE — iter74): True real-time sync via authenticated WebSockets. Backend broadcasts an
+  `invalidate` event to household rooms after every successful mutating HTTP request
+  (core/realtime.py ConnectionManager + rooms_for_user; routers/realtime.py WS /api/ws?token=;
+  server.py http middleware, excludes /api/ws,/webhooks,/analytics,/auth). Frontend
+  src/context/RealtimeContext.tsx (RealtimeProvider in app/_layout.tsx) connects on login,
+  auto-reconnects (backoff + AppState foreground), bumps a `rev` counter per invalidate; hook
+  useRealtimeRefetch(load) re-runs a screen's loader when rev changes AND the screen is focused.
+  Wired into 15 screens: dashboard, expenses, athletes, competitions, schedule, calendar,
+  reminders, roster, team payments, sizes, paperwork, signups, attendance, household, fundraisers.
+  Verified: WS connects on login; a mutation in session B live-updated session A's focused Home
+  widget ($240→$282) with no manual refresh; no RealtimeContext console errors.
 
 ## Backlog — Monetization (pending user decisions)
 - Free vs Premium tiers via RevenueCat + Apple/Google IAP. APPROVED plan in /app/memory/MONETIZATION_PLAN.md.
