@@ -1,7 +1,6 @@
 import React, { ReactNode } from "react";
-import { View, Text, ScrollView, TouchableOpacity, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { spacing, radius, typography } from "@/src/theme";
@@ -17,7 +16,7 @@ export default function StaticPage({ title, subtitle, children }: { title: strin
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={goHome} style={styles.brandRow} testID="static-home">
-          <View style={styles.logoDot}><Ionicons name="sparkles" size={16} color="white" /></View>
+          <Image source={require("../../assets/images/cheerplanner-mark.png")} style={styles.brandMark} resizeMode="contain" />
           <Text style={styles.brand}>CheerPlanner</Text>
         </TouchableOpacity>
       </View>
@@ -58,7 +57,7 @@ const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   header: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: c.borderSoft, backgroundColor: c.card },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoDot: { width: 28, height: 28, borderRadius: 9, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" },
+  brandMark: { width: 28, height: 26 },
   brand: { ...typography.h3, color: c.textPrimary, fontWeight: "800" },
   content: { padding: spacing.lg, alignItems: "center" },
   inner: { width: "100%", maxWidth: 760 },

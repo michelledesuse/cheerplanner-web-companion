@@ -78,16 +78,6 @@ THEME_PRESETS: List[Dict[str, Any]] = [
         "tabActive": "#3B82F6",
     },
     {
-        "id": "royal_blue_white",
-        "name": "Royal Blue & White",
-        "accent": "#2563EB",
-        "accentSubtle": "#DBEAFE",
-        "bg": "#F8FAFC",
-        "card": "#FFFFFF",
-        "textPrimary": "#0F172A",
-        "tabActive": "#2563EB",
-    },
-    {
         "id": "pink_white",
         "name": "Pink & White",
         "accent": "#DB2777",

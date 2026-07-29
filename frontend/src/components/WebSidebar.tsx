@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 
@@ -53,7 +53,7 @@ export default function WebSidebar() {
   return (
     <View style={styles.sidebar}>
       <View style={styles.brandRow}>
-        <View style={styles.logoDot}><Ionicons name="sparkles" size={18} color="white" /></View>
+        <Image source={require("../../assets/images/cheerplanner-mark.png")} style={styles.brandMark} resizeMode="contain" />
         <Text style={styles.brand}>CheerPlanner</Text>
       </View>
 
@@ -85,7 +85,7 @@ const makeStyles = (c: ThemePalette) => ({
   _muted: { color: c.textSecondary },
   sidebar: { width: 248, backgroundColor: c.card, borderRightWidth: 1, borderRightColor: c.border, paddingHorizontal: spacing.md, paddingTop: spacing.xl, paddingBottom: spacing.md },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: spacing.sm, marginBottom: spacing.xl },
-  logoDot: { width: 32, height: 32, borderRadius: 10, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" },
+  brandMark: { width: 32, height: 30 },
   brand: { ...typography.h3, color: c.textPrimary, fontWeight: "800" },
   item: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: spacing.md, paddingVertical: 11, borderRadius: radius.md, marginBottom: 2 },
   itemActive: { backgroundColor: c.primarySoft || c.bg },

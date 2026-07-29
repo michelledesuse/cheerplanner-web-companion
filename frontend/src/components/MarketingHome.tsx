@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, Linking } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -28,7 +28,7 @@ export default function MarketingHome() {
       {/* Top bar */}
       <View style={styles.nav}>
         <View style={styles.brandRow}>
-          <View style={styles.logoDot}><Ionicons name="sparkles" size={18} color="white" /></View>
+          <Image source={require("../../assets/images/cheerplanner-mark.png")} style={styles.brandMark} resizeMode="contain" />
           <Text style={styles.brand}>CheerPlanner</Text>
         </View>
         <View style={styles.navRight}>
@@ -40,6 +40,7 @@ export default function MarketingHome() {
       <ScrollView contentContainerStyle={{ alignItems: "center", paddingBottom: 60 }} testID="marketing-home">
         {/* Hero */}
         <View style={[styles.hero, { maxWidth: 900 }]}>
+          <Image source={require("../../assets/images/cheerplanner-logo-full.png")} style={styles.heroLogo} resizeMode="contain" />
           <Text style={styles.heroTitle}>Cheer life, finally organized.</Text>
           <Text style={styles.heroSub}>CheerPlanner keeps your athletes, expenses, competitions, schedules, and team details in one place — for cheer parents and coaches alike.</Text>
           <View style={[styles.heroBtns, wide && { flexDirection: "row" }]}>
@@ -89,33 +90,34 @@ export default function MarketingHome() {
 
 const makeStyles = (c: ThemePalette) => ({
   _text: { color: c.textPrimary },
-  _accent: { color: c.primary },
+  _accent: { color: c.accent },
   safe: { flex: 1, backgroundColor: c.bg },
   nav: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderBottomWidth: 1, borderBottomColor: c.borderSoft, backgroundColor: c.card },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  logoDot: { width: 30, height: 30, borderRadius: 9, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" },
+  brandMark: { width: 34, height: 30 },
   brand: { ...typography.h3, color: c.textPrimary, fontWeight: "800" },
   navRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   navLink: { ...typography.bodyMedium, color: c.textPrimary },
-  navCta: { backgroundColor: c.primary, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 9 },
+  navCta: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: 16, paddingVertical: 9 },
   navCtaText: { color: "white", fontWeight: "700" },
-  hero: { width: "100%", paddingHorizontal: spacing.lg, paddingTop: spacing.xxl, paddingBottom: spacing.xl, alignItems: "center" },
+  hero: { width: "100%", paddingHorizontal: spacing.lg, paddingTop: spacing.xl, paddingBottom: spacing.xl, alignItems: "center" },
+  heroLogo: { width: 150, height: 150, maxWidth: "60%", marginBottom: spacing.md },
   heroTitle: { fontSize: 40, lineHeight: 46, fontWeight: "800", color: c.textPrimary, textAlign: "center" },
   heroSub: { ...typography.body, fontSize: 17, lineHeight: 25, color: c.textSecondary, textAlign: "center", marginTop: spacing.md, maxWidth: 620 },
   heroBtns: { marginTop: spacing.xl, gap: spacing.md, alignItems: "center" },
-  primaryBtn: { backgroundColor: c.primary, borderRadius: radius.md, paddingHorizontal: 26, paddingVertical: 14, alignItems: "center" },
+  primaryBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: 26, paddingVertical: 14, alignItems: "center" },
   primaryBtnText: { color: "white", fontWeight: "800", fontSize: 16 },
   secondaryBtn: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 22, paddingVertical: 13 },
   secondaryBtnText: { color: c.textPrimary, fontWeight: "700" },
   featuresWrap: { width: "100%", flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.xl },
   featureCard: { backgroundColor: c.card, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, padding: spacing.lg, width: "100%", minWidth: 240 },
-  featIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.primarySoft || c.bg, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
+  featIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.accentSubtle, alignItems: "center", justifyContent: "center", marginBottom: spacing.sm },
   featTitle: { ...typography.h3, color: c.textPrimary },
   featDesc: { ...typography.body, color: c.textSecondary, marginTop: 4, lineHeight: 20 },
   ctaBand: { width: "100%", alignItems: "center", paddingHorizontal: spacing.lg, paddingVertical: spacing.xxl, marginTop: spacing.xl },
   ctaTitle: { ...typography.h1, color: c.textPrimary, textAlign: "center", marginBottom: spacing.lg },
-  redeemLink: { ...typography.bodyMedium, color: c.primary },
+  redeemLink: { ...typography.bodyMedium, color: c.accent },
   footer: { width: "100%", flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: spacing.xl, paddingHorizontal: spacing.lg, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: c.borderSoft },
-  footerLink: { ...typography.bodyMedium, color: c.primary },
+  footerLink: { ...typography.bodyMedium, color: c.accent },
   copyright: { ...typography.caption, color: c.textTertiary, marginTop: spacing.md },
 });
