@@ -118,6 +118,7 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - DONE: **Download sign-up list** — on the sign-up sheet detail (Edit sheet modal → "Download list"): exports CSV of Slot/Type/Time/Qty needed/Signed up by/Qty/Note via `exportAoa`.
 - DONE: **Roster "Text" chip** per member (testID `roster-text-<id>`) opens the native Messages app pre-filled (athlete→parent phone, staff→own); web shows an info alert (sms: not supported). One at a time, go down the list.
 - Frontend files: app/team/payments.tsx, payment.tsx, signup-sheet.tsx, paperwork-sheet.tsx, roster.tsx. Verified links UI renders; backend tests `/app/backend/tests/test_iter75_links_and_reminders.py`.
+- DONE (follow-ups): (1) **Last reminded** timestamp — `last_reminded_at` set on the tracker/sheet/paperwork-item whenever a reminder actually sends (sent>0); shown as "Last reminded {date/time}" under each reminder button. Verified end-to-end (Twilio magic number). (2) **Downloads offer both formats** — the sign-up sheet download now has Excel (.xls) + CSV (.csv) buttons (roster & Team Hub export already offered both).
 
 ## Backlog — web companion (added)
 - Companion WEBSITE that shares the SAME backend/database so users can use CheerPlanner on desktop or phone. Ranked HARDEST/largest: reuses existing FastAPI API + JWT auth, but is effectively a full second frontend (all screens, auth, responsive web UI). Bigger than offline support. Do as a dedicated multi-phase project.

@@ -6,12 +6,13 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { formatDateTime12 } from "@/src/utils/format";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 
-type Item = { id: string; label: string; order: number; links?: ExternalLink[] };
+type Item = { id: string; label: string; order: number; links?: ExternalLink[]; last_reminded_at?: string | null };
 type Cell = { done?: boolean; note?: string | null };
 type Sheet = { id: string; name: string; items: Item[]; values: Record<string, Record<string, Cell>> };
 type Member = GridMember & { role: string };
@@ -139,6 +140,7 @@ export default function PaperworkSheetScreen() {
             let msg = `Sent ${sent} reminder${sent === 1 ? "" : "s"}.`;
             if (no_phone?.length) msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
             setItemMenu(null);
+            await load();
             Alert.alert("Reminders sent", msg);
           } catch (e: any) {
             Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
@@ -343,6 +345,9 @@ export default function PaperworkSheetScreen() {
                 <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.accent} />
                 <Text style={styles.remindText}>Text those still missing this</Text>
               </TouchableOpacity>
+              {!!itemMenu?.last_reminded_at && (
+                <Text style={styles.itemLastReminded} testID="paperwork-item-last-reminded">Last reminded {formatDateTime12(itemMenu.last_reminded_at)}</Text>
+              )}
               <TouchableOpacity style={styles.deleteBtn} onPress={deleteItem} testID="paperwork-item-delete">
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete item</Text>
@@ -409,6 +414,7 @@ const makeStyles = (c: ThemePalette) => ({
   itemLinkLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.md, marginBottom: 6 },
   remindBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
   remindText: { ...typography.caption, fontWeight: "800", color: c.accent },
+  itemLastReminded: { ...typography.micro, color: c.textTertiary, textAlign: "center", marginTop: 8 },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
   deleteText: { color: c.danger, fontWeight: "700" },
   mItem: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: c.border },

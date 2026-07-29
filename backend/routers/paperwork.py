@@ -11,6 +11,7 @@ from core.models import (
     PaperworkItemCreate,
     PaperworkItemUpdate,
     PaperworkValueUpdate,
+    utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
@@ -202,6 +203,11 @@ async def remind_missing_item(sheet_id: str, item_id: str, current_user=Depends(
             sent += 1
         else:
             failed.append(m.get("name"))
+    if sent > 0:
+        await db.paperwork_sheets.update_one(
+            {"id": sheet_id, "items.id": item_id},
+            {"$set": {"items.$.last_reminded_at": utcnow_iso()}},
+        )
     return {"sent": sent, "no_phone": no_phone, "failed": failed}
 
 

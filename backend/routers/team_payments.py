@@ -187,6 +187,8 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
         else:
             failed.append(m.get("name"))
 
+    if sent > 0:
+        await db.payment_trackers.update_one({"id": tracker_id}, {"$set": {"last_reminded_at": utcnow_iso()}})
     return {"sent": sent, "no_phone": no_phone, "failed": failed}
 
 

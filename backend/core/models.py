@@ -948,6 +948,7 @@ class PaymentTracker(BaseModel):
     excluded_member_ids: List[str] = Field(default_factory=list)  # people not required to pay
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)
+    last_reminded_at: Optional[str] = None
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -1033,6 +1034,7 @@ class PaperworkItem(BaseModel):
     label: str
     order: int = 0
     links: List[ExternalLink] = Field(default_factory=list)  # e.g. link(s) to the waiver/form
+    last_reminded_at: Optional[str] = None
 
 
 class PaperworkSheet(BaseModel):
@@ -1102,6 +1104,7 @@ class SignupSheet(BaseModel):
     event_ids: List[str] = Field(default_factory=list)  # links to schedule events
     order: int = 0  # manual sort order (lower = higher in the list)
     slots: List[SignupSlot] = Field(default_factory=list)
+    last_reminded_at: Optional[str] = None
     created_at: str = Field(default_factory=utcnow_iso)
 
 

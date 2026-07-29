@@ -5,7 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
-import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
+import { formatCurrency, formatDate, formatDateTime12, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
@@ -14,7 +14,7 @@ import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/Lin
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; amount_due?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
@@ -190,6 +190,7 @@ export default function PaymentDetail() {
             let msg = `Sent ${sent} individual reminder${sent === 1 ? "" : "s"}.`;
             if (no_phone.length) msg += `\n\nNo phone on file for: ${no_phone.slice(0, 8).join(", ")}${no_phone.length > 8 ? "…" : ""}.`;
             if (failed.length) msg += `\n\nCouldn't reach: ${failed.slice(0, 8).join(", ")}.`;
+            if (sent > 0) await load();
             Alert.alert(sent > 0 ? "Reminders sent" : "Nothing sent", msg);
           } catch (e: any) {
             Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
@@ -266,6 +267,9 @@ export default function PaymentDetail() {
               {nudging ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="chatbubble-ellipses-outline" size={16} color="white" />}
               <Text style={styles.nudgeText}>Text who owes ({owingCount})</Text>
             </TouchableOpacity>
+          )}
+          {!!tracker?.last_reminded_at && (
+            <Text style={styles.lastReminded} testID="payment-last-reminded">Last reminded {formatDateTime12(tracker.last_reminded_at)}</Text>
           )}
         </View>
 
@@ -397,6 +401,7 @@ const makeStyles = (c: ThemePalette) => ({
   oweTag: { ...typography.caption, color: c.warningText || c.accent, fontWeight: "800" },
   nudgeBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12 },
   nudgeText: { color: "white", fontWeight: "800", fontSize: 14 },
+  lastReminded: { ...typography.micro, color: c.textTertiary, textAlign: "center", marginTop: 8 },
   progressTrack: { height: 10, borderRadius: 999, backgroundColor: c.divider, overflow: "hidden" },
   progressFill: { height: 10, borderRadius: 999, backgroundColor: c.accent },
   memberRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.sm },
