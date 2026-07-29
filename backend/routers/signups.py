@@ -14,7 +14,8 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
-from core.gating import assert_under_count
+from core.gating import assert_under_count, assert_premium
+from core.sms import send_sms, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -62,6 +63,7 @@ async def create_signup(payload: SignupSheetCreate, current_user=Depends(get_cur
     await assert_under_count(current_user["id"], "team_hub_signup_sheets", len(existing))
     order = min([s.get("order", 0) for s in existing], default=1) - 1  # new sheet floats to the top
     sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(),
+                        links=[l.model_dump() for l in (payload.links or [])],
                         competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [], order=order)
     await db.signup_sheets.insert_one(sheet.model_dump())
     return sheet
@@ -93,6 +95,8 @@ async def update_signup(sheet_id: str, payload: SignupSheetUpdate, current_user=
         if not payload.name.strip():
             raise HTTPException(status_code=400, detail="Name cannot be blank")
         updates["name"] = payload.name.strip()
+    if payload.links is not None:
+        updates["links"] = [l.model_dump() for l in payload.links]
     if payload.competition_ids is not None:
         updates["competition_ids"] = payload.competition_ids
     if payload.event_ids is not None:
@@ -125,10 +129,55 @@ async def duplicate_signup(sheet_id: str, current_user=Depends(get_current_user)
         for s in (doc.get("slots") or [])
     ]
     copy = SignupSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)",
+                       links=list(doc.get("links") or []),
                        competition_ids=doc.get("competition_ids") or [], event_ids=doc.get("event_ids") or [],
                        order=doc.get("order", 0) - 1, slots=slots)
     await db.signup_sheets.insert_one(copy.model_dump())
     return copy
+
+
+@router.post("/signups/{sheet_id}/remind")
+async def remind_signup(sheet_id: str, current_user=Depends(get_current_user)):
+    """Text roster members who haven't claimed any slot on this sheet, with the
+    sheet's link(s) so they can sign up."""
+    await assert_premium(current_user["id"], "mass_sms_reminders")
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="SMS isn't configured. Add your Twilio number in settings.")
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.signup_sheets.find_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sign-up sheet not found")
+
+    sheet_name = doc.get("name") or "sign-up"
+    links = doc.get("links") or []
+    links_txt = (" Sign up here: " + join_links(links)) if join_links(links) else ""
+
+    # Roster member ids that already claimed at least one slot.
+    claimed_ids = set()
+    for s in (doc.get("slots") or []):
+        for c in (s.get("claims") or []):
+            if c.get("member_id"):
+                claimed_ids.add(c["member_id"])
+
+    roster = await db.roster.find(
+        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
+    ).to_list(2000)
+
+    sent, no_phone, failed = 0, [], []
+    for m in roster:
+        if m["id"] in claimed_ids:
+            continue  # already signed up
+        phone = (m.get("parent_phone") or m.get("phone")) if m.get("role") == "athlete" else (m.get("phone") or m.get("parent_phone"))
+        if not normalize_us_phone(phone):
+            no_phone.append(m.get("name"))
+            continue
+        first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
+        body = f"Hi {first}, please sign up for '{sheet_name}'.{links_txt} Thank you!"
+        if send_sms(phone, body):
+            sent += 1
+        else:
+            failed.append(m.get("name"))
+    return {"sent": sent, "no_phone": no_phone, "failed": failed}
 
 
 @router.post("/signups/{sheet_id}/slots", response_model=SignupSheet)

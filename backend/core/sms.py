@@ -81,3 +81,21 @@ def send_sms(to: str, body: str) -> bool:
     except Exception as exc:  # noqa: BLE001
         logger.warning("send_sms failed: %s", exc)
         return False
+
+
+def join_links(links) -> str:
+    """Format a list of links (ExternalLink dicts {label,url} or plain strings)
+    into a single space-separated string suitable for an SMS body, e.g.
+    'Waiver: https://... Medical: https://...'."""
+    parts = []
+    for l in links or []:
+        if isinstance(l, dict):
+            url = (l.get("url") or "").strip()
+            label = (l.get("label") or "").strip()
+        else:
+            url = str(l or "").strip()
+            label = ""
+        if not url:
+            continue
+        parts.append(f"{label}: {url}" if label else url)
+    return " ".join(parts)

@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, Linking, Alert } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, Linking, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -26,6 +26,24 @@ type Candidate = { id: string; name: string; role?: string; email?: string | nul
 const ROLE_LABEL: Record<string, string> = {
   athlete: "Athlete", parent: "Parent", coach: "Coach", team_rep: "Team Rep", staff: "Staff",
 };
+
+/** Open the phone's native Messages app pre-filled to the member's number.
+ * Athletes → parent's phone; staff → own phone. Web can't open sms:. */
+function openMemberText(m: { role: string; name: string; first_name?: string | null; phone?: string | null; parent_phone?: string | null; parent_first_name?: string | null }) {
+  const isAthlete = m.role === "athlete";
+  const ph = isAthlete ? (m.parent_phone || m.phone) : (m.phone || m.parent_phone);
+  if (!ph) { Alert.alert("No phone", "There's no phone number on file for this person."); return; }
+  if (Platform.OS === "web") {
+    Alert.alert("Open on your phone", "Texting opens your phone's Messages app. Use CheerPlanner on your phone to send a text.");
+    return;
+  }
+  const greet = isAthlete ? (m.parent_first_name || "there") : (m.first_name || (m.name || "").split(" ")[0] || "there");
+  const body = `Hi ${greet}, `;
+  const sep = Platform.OS === "ios" ? "&" : "?";
+  Linking.openURL(`sms:${ph}${sep}body=${encodeURIComponent(body)}`).catch(() => {
+    Alert.alert("Couldn't open Messages", "Your device couldn't open the Messages app.");
+  });
+}
 
 // Grouping: 1) Coaches, 2) Staff & Reps, 3) Athletes. Parents are not listed.
 const ROLE_GROUP: Record<string, number> = { coach: 1, staff: 2, team_rep: 2, athlete: 3 };
@@ -285,6 +303,12 @@ export default function RosterScreen() {
                               <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`} disabled={selectMode}>
                                 <Ionicons name="call-outline" size={12} color={colors.accent} />
                                 <Text style={styles.contactText}>{ph}</Text>
+                              </TouchableOpacity>
+                            )}
+                            {!!ph && (
+                              <TouchableOpacity onPress={() => openMemberText(m)} style={styles.contactChip} testID={`roster-text-${m.id}`} disabled={selectMode}>
+                                <Ionicons name="chatbubble-ellipses-outline" size={12} color={colors.accent} />
+                                <Text style={styles.contactText}>Text</Text>
                               </TouchableOpacity>
                             )}
                             {!!em && (

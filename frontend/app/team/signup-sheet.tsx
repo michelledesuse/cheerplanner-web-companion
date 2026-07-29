@@ -9,12 +9,14 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 import { shareTeamLink } from "@/src/utils/shareLink";
+import { exportAoa } from "@/src/utils/exportFile";
 import AttachSection from "@/src/components/AttachSection";
+import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 
 type Claim = { id: string; member_id?: string | null; guest_name?: string | null; qty: number; note?: string | null };
 type SlotKind = "item" | "duty" | "time";
 type Slot = { id: string; label: string; kind?: SlotKind; time_label?: string | null; qty_needed: number; order: number; claims: Claim[] };
-type Sheet = { id: string; name: string; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
+type Sheet = { id: string; name: string; links?: ExternalLink[]; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
 type Member = GridMember & { role: string };
 
 const KINDS: { value: SlotKind; label: string; icon: any }[] = [
@@ -47,6 +49,8 @@ export default function SignupSheetScreen() {
 
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editLinks, setEditLinks] = useState<ExternalLink[]>([]);
+  const [nudging, setNudging] = useState(false);
 
   const [claimSlot, setClaimSlot] = useState<Slot | null>(null);
   const [claimMemberId, setClaimMemberId] = useState<string | null>(null);
@@ -151,12 +155,56 @@ export default function SignupSheetScreen() {
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not remove."); }
   };
 
-  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setSheetMenuOpen(true); } };
+  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setEditLinks(sheet.links || []); setSheetMenuOpen(true); } };
 
   const saveSheet = async () => {
     if (!sheet || !editName.trim()) return;
-    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim() }); setSheetMenuOpen(false); await load(); }
+    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim(), links: cleanLinks(editLinks) }); setSheetMenuOpen(false); await load(); }
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
+  };
+
+  const downloadList = async () => {
+    if (!sheet) return;
+    const aoa: (string | number)[][] = [["Slot", "Type", "Time", "Qty needed", "Signed up by", "Qty", "Note"]];
+    for (const slot of slots) {
+      const claims = slot.claims || [];
+      if (claims.length === 0) {
+        aoa.push([slot.label, slot.kind || "item", slot.time_label || "", slot.qty_needed, "(unclaimed)", "", ""]);
+      } else {
+        for (const cl of claims) {
+          aoa.push([slot.label, slot.kind || "item", slot.time_label || "", slot.qty_needed, claimName(cl), cl.qty || 1, cl.note || ""]);
+        }
+      }
+    }
+    try {
+      const safe = (sheet.name || "signup").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+      await exportAoa(`signup-${safe}`, aoa, "csv", "Sign-ups");
+    } catch (e: any) {
+      Alert.alert("Export failed", e?.message || "Could not export the list.");
+    }
+  };
+
+  const sendReminder = () => {
+    if (!sheet) return;
+    Alert.alert(
+      "Send sign-up reminder?",
+      "We'll text each person on the roster who hasn't signed up yet, including any links on this sheet. Athletes' texts go to the parent's number.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Send texts", onPress: async () => {
+          setNudging(true);
+          try {
+            const r = await api.post<{ sent: number; no_phone: string[]; failed: string[] }>(`/team/signups/${sheet.id}/remind`, {});
+            const { sent, no_phone } = r.data;
+            let msg = `Sent ${sent} reminder${sent === 1 ? "" : "s"}.`;
+            if (no_phone?.length) msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
+            Alert.alert("Reminders sent", msg);
+          } catch (e: any) {
+            Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
+          } finally { setNudging(false); }
+        } },
+      ]
+    );
   };
 
   const deleteSheet = () => {
@@ -379,8 +427,20 @@ export default function SignupSheetScreen() {
               <Text style={styles.sheetTitle}>Edit sheet</Text>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="signup-edit-name" />
+              <Text style={styles.label}>Sign-up links (optional)</Text>
+              <LinksEditor value={editLinks} onChange={setEditLinks} testIDPrefix="signup-link" />
               {sheet && <AttachSection endpoint={`/team/signups/${sheet.id}`} competitionIds={sheet.competition_ids || []} eventIds={sheet.event_ids || []} onChange={(c, e) => setSheet((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveSheet} testID="signup-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => { setSheetMenuOpen(false); downloadList(); }} testID="signup-download">
+                  <Ionicons name="download-outline" size={16} color={colors.accent} />
+                  <Text style={styles.actionText}>Download list</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.actionBtn, nudging && { opacity: 0.6 }]} disabled={nudging} onPress={() => { setSheetMenuOpen(false); sendReminder(); }} testID="signup-remind">
+                  <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.accent} />
+                  <Text style={styles.actionText}>Send reminder text</Text>
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity style={styles.deleteBtn} onPress={deleteSheet} testID="signup-sheet-delete">
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete sheet</Text>
@@ -443,5 +503,8 @@ const makeStyles = (c: ThemePalette) => ({
   compChipTextOn: { color: "white" },
   confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
   confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
+  actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
+  actionText: { ...typography.caption, fontWeight: "800", color: c.accent },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
 });

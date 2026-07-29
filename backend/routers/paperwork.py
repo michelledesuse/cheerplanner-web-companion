@@ -15,6 +15,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
 from core.gating import assert_premium
+from core.sms import send_sms, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -103,7 +104,7 @@ async def duplicate_paperwork(sheet_id: str, current_user=Depends(get_current_us
     if not doc:
         raise HTTPException(status_code=404, detail="Sheet not found")
     # Copy the columns (items) with fresh ids; start with no checkmarks.
-    items = [PaperworkItem(label=it["label"], order=it.get("order", i)).model_dump()
+    items = [PaperworkItem(label=it["label"], order=it.get("order", i), links=list(it.get("links") or [])).model_dump()
              for i, it in enumerate(doc.get("items") or [])]
     copy = PaperworkSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)", items=items)
     await db.paperwork_sheets.insert_one(copy.model_dump())
@@ -118,7 +119,8 @@ async def add_item(sheet_id: str, payload: PaperworkItemCreate, current_user=Dep
     doc = await _get_sheet(sheet_id, current_user)
     items = doc.get("items") or []
     order = max([i.get("order", 0) for i in items], default=-1) + 1
-    items.append(PaperworkItem(label=label, order=order).model_dump())
+    links = [l.model_dump() for l in (payload.links or [])]
+    items.append(PaperworkItem(label=label, order=order, links=links).model_dump())
     await db.paperwork_sheets.update_one({"id": doc["id"]}, {"$set": {"items": items}})
     doc["items"] = items
     return PaperworkSheet(**doc)
@@ -126,15 +128,18 @@ async def add_item(sheet_id: str, payload: PaperworkItemCreate, current_user=Dep
 
 @router.patch("/paperwork/{sheet_id}/items/{item_id}", response_model=PaperworkSheet)
 async def rename_item(sheet_id: str, item_id: str, payload: PaperworkItemUpdate, current_user=Depends(get_current_user)):
-    label = (payload.label or "").strip()
-    if not label:
-        raise HTTPException(status_code=400, detail="Item name is required")
     doc = await _get_sheet(sheet_id, current_user)
     items = doc.get("items") or []
     found = False
     for i in items:
         if i.get("id") == item_id:
-            i["label"] = label
+            if payload.label is not None:
+                label = (payload.label or "").strip()
+                if not label:
+                    raise HTTPException(status_code=400, detail="Item name is required")
+                i["label"] = label
+            if payload.links is not None:
+                i["links"] = [l.model_dump() for l in payload.links]
             found = True
             break
     if not found:
@@ -155,6 +160,49 @@ async def delete_item(sheet_id: str, item_id: str, current_user=Depends(get_curr
     doc["items"] = items
     doc["values"] = values
     return PaperworkSheet(**doc)
+
+
+@router.post("/paperwork/{sheet_id}/items/{item_id}/remind")
+async def remind_missing_item(sheet_id: str, item_id: str, current_user=Depends(get_current_user)):
+    """Text each roster member who has NOT completed this item, including the
+    item's link(s) so they can act right away."""
+    await assert_premium(current_user["id"], "mass_sms_reminders")
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="SMS isn't configured. Add your Twilio number in settings.")
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.paperwork_sheets.find_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+    item = next((i for i in (doc.get("items") or []) if i.get("id") == item_id), None)
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+
+    sheet_name = doc.get("name") or "paperwork"
+    item_label = item.get("label") or "an item"
+    links = item.get("links") or []
+    links_txt = (" Complete it here: " + join_links(links)) if join_links(links) else ""
+    values = doc.get("values") or {}
+
+    roster = await db.roster.find(
+        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
+    ).to_list(2000)
+
+    sent, no_phone, failed = 0, [], []
+    for m in roster:
+        cell = (values.get(m["id"]) or {}).get(item_id) or {}
+        if cell.get("done"):
+            continue  # already completed
+        phone = (m.get("parent_phone") or m.get("phone")) if m.get("role") == "athlete" else (m.get("phone") or m.get("parent_phone"))
+        if not normalize_us_phone(phone):
+            no_phone.append(m.get("name"))
+            continue
+        first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
+        body = f"Hi {first}, reminder: '{item_label}' for {sheet_name} is still needed.{links_txt} Thank you!"
+        if send_sms(phone, body):
+            sent += 1
+        else:
+            failed.append(m.get("name"))
+    return {"sent": sent, "no_phone": no_phone, "failed": failed}
 
 
 @router.put("/paperwork/{sheet_id}/value", response_model=PaperworkSheet)

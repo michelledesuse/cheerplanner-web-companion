@@ -9,8 +9,9 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
+import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 
-type Item = { id: string; label: string; order: number };
+type Item = { id: string; label: string; order: number; links?: ExternalLink[] };
 type Cell = { done?: boolean; note?: string | null };
 type Sheet = { id: string; name: string; items: Item[]; values: Record<string, Record<string, Cell>> };
 type Member = GridMember & { role: string };
@@ -29,10 +30,13 @@ export default function PaperworkSheetScreen() {
 
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [newItemLabel, setNewItemLabel] = useState("");
+  const [newItemLinks, setNewItemLinks] = useState<ExternalLink[]>([]);
   const [savingItem, setSavingItem] = useState(false);
 
   const [itemMenu, setItemMenu] = useState<Item | null>(null);
   const [renameLabel, setRenameLabel] = useState("");
+  const [editItemLinks, setEditItemLinks] = useState<ExternalLink[]>([]);
+  const [nudging, setNudging] = useState(false);
 
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
   const [editName, setEditName] = useState("");
@@ -100,23 +104,48 @@ export default function PaperworkSheetScreen() {
     if (!sheet || !newItemLabel.trim()) return;
     setSavingItem(true);
     try {
-      const r = await api.post<Sheet>(`/team/paperwork/${sheet.id}/items`, { label: newItemLabel.trim() });
-      setSheet(r.data); setNewItemLabel(""); setAddItemOpen(false);
+      const r = await api.post<Sheet>(`/team/paperwork/${sheet.id}/items`, { label: newItemLabel.trim(), links: cleanLinks(newItemLinks) });
+      setSheet(r.data); setNewItemLabel(""); setNewItemLinks([]); setAddItemOpen(false);
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not add item."); }
     finally { setSavingItem(false); }
   };
 
   const openItemMenu = (it: { id: string; label: string }) => {
     const full = items.find((x) => x.id === it.id) || null;
-    setItemMenu(full); setRenameLabel(it.label);
+    setItemMenu(full); setRenameLabel(it.label); setEditItemLinks(full?.links || []);
   };
 
   const renameItem = async () => {
     if (!sheet || !itemMenu || !renameLabel.trim()) return;
     try {
-      const r = await api.patch<Sheet>(`/team/paperwork/${sheet.id}/items/${itemMenu.id}`, { label: renameLabel.trim() });
+      const r = await api.patch<Sheet>(`/team/paperwork/${sheet.id}/items/${itemMenu.id}`, { label: renameLabel.trim(), links: cleanLinks(editItemLinks) });
       setSheet(r.data); setItemMenu(null);
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not rename."); }
+  };
+
+  const remindItem = () => {
+    if (!sheet || !itemMenu) return;
+    const it = itemMenu;
+    Alert.alert(
+      "Send reminder text?",
+      `We'll text each person still missing "${it.label}", including any links. Athletes' texts go to the parent's number.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Send texts", onPress: async () => {
+          setNudging(true);
+          try {
+            const r = await api.post<{ sent: number; no_phone: string[]; failed: string[] }>(`/team/paperwork/${sheet.id}/items/${it.id}/remind`, {});
+            const { sent, no_phone } = r.data;
+            let msg = `Sent ${sent} reminder${sent === 1 ? "" : "s"}.`;
+            if (no_phone?.length) msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
+            setItemMenu(null);
+            Alert.alert("Reminders sent", msg);
+          } catch (e: any) {
+            Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
+          } finally { setNudging(false); }
+        } },
+      ]
+    );
   };
 
   const deleteItem = () => {
@@ -290,6 +319,8 @@ export default function PaperworkSheetScreen() {
             <Pressable style={styles.sheetModal} onPress={() => {}}>
               <Text style={styles.sheetTitle}>Add an item</Text>
               <TextInput style={styles.input} value={newItemLabel} onChangeText={setNewItemLabel} placeholder="e.g. Medical waiver" placeholderTextColor={colors.textTertiary} testID="paperwork-new-item" autoFocus />
+              <Text style={styles.itemLinkLabel}>Links (optional) — e.g. the waiver/form</Text>
+              <LinksEditor value={newItemLinks} onChange={setNewItemLinks} testIDPrefix="paperwork-new-link" />
               <TouchableOpacity style={[styles.confirm, savingItem && { opacity: 0.6 }]} onPress={addItem} disabled={savingItem} testID="paperwork-new-item-save">
                 {savingItem ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add item</Text>}
               </TouchableOpacity>
@@ -305,7 +336,13 @@ export default function PaperworkSheetScreen() {
             <Pressable style={styles.sheetModal} onPress={() => {}}>
               <Text style={styles.sheetTitle}>Edit item</Text>
               <TextInput style={styles.input} value={renameLabel} onChangeText={setRenameLabel} placeholderTextColor={colors.textTertiary} testID="paperwork-rename-item" />
+              <Text style={styles.itemLinkLabel}>Links (optional) — e.g. the waiver/form</Text>
+              <LinksEditor value={editItemLinks} onChange={setEditItemLinks} testIDPrefix="paperwork-edit-link" />
               <TouchableOpacity style={styles.confirm} onPress={renameItem} testID="paperwork-rename-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.remindBtn, nudging && { opacity: 0.6 }]} disabled={nudging} onPress={remindItem} testID="paperwork-item-remind">
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.accent} />
+                <Text style={styles.remindText}>Text those still missing this</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={deleteItem} testID="paperwork-item-delete">
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete item</Text>
@@ -369,6 +406,9 @@ const makeStyles = (c: ThemePalette) => ({
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
   confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
+  itemLinkLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.md, marginBottom: 6 },
+  remindBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
+  remindText: { ...typography.caption, fontWeight: "800", color: c.accent },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
   deleteText: { color: c.danger, fontWeight: "700" },
   mItem: { paddingVertical: spacing.sm, borderTopWidth: 1, borderTopColor: c.border },

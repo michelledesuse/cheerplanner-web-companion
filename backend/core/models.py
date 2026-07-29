@@ -943,6 +943,7 @@ class PaymentTracker(BaseModel):
     name: str
     amount: Optional[float] = None  # expected amount per person (optional)
     note: Optional[str] = None
+    links: List[ExternalLink] = Field(default_factory=list)  # payment links (Venmo/Stripe/etc.)
     entries: List[TeamPaymentEntry] = Field(default_factory=list)
     excluded_member_ids: List[str] = Field(default_factory=list)  # people not required to pay
     competition_ids: List[str] = Field(default_factory=list)
@@ -954,6 +955,7 @@ class PaymentTrackerCreate(BaseModel):
     name: str
     amount: Optional[float] = None
     note: Optional[str] = None
+    links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
 
@@ -962,6 +964,7 @@ class PaymentTrackerUpdate(BaseModel):
     name: Optional[str] = None
     amount: Optional[float] = None
     note: Optional[str] = None
+    links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
 
@@ -1029,6 +1032,7 @@ class PaperworkItem(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     label: str
     order: int = 0
+    links: List[ExternalLink] = Field(default_factory=list)  # e.g. link(s) to the waiver/form
 
 
 class PaperworkSheet(BaseModel):
@@ -1051,10 +1055,12 @@ class PaperworkSheetUpdate(BaseModel):
 
 class PaperworkItemCreate(BaseModel):
     label: str
+    links: Optional[List[ExternalLink]] = None
 
 
 class PaperworkItemUpdate(BaseModel):
-    label: str
+    label: Optional[str] = None
+    links: Optional[List[ExternalLink]] = None
 
 
 class PaperworkValueUpdate(BaseModel):
@@ -1091,6 +1097,7 @@ class SignupSheet(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
+    links: List[ExternalLink] = Field(default_factory=list)  # link(s) to the sign-up form / details
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)  # links to schedule events
     order: int = 0  # manual sort order (lower = higher in the list)
@@ -1100,12 +1107,14 @@ class SignupSheet(BaseModel):
 
 class SignupSheetCreate(BaseModel):
     name: str
+    links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
 
 
 class SignupSheetUpdate(BaseModel):
     name: Optional[str] = None
+    links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
 

@@ -14,7 +14,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
-from core.sms import send_sms, is_configured, normalize_us_phone
+from core.sms import send_sms, is_configured, normalize_us_phone, join_links
 from core.gating import assert_premium
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
@@ -142,6 +142,8 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
     expected = doc.get("amount")
     entries = {e.get("member_id"): e for e in (doc.get("entries") or [])}
     tracker_name = doc.get("name") or "team payment"
+    links = doc.get("links") or []
+    links_txt = (" Pay here: " + join_links(links)) if join_links(links) else ""
 
     roster = await db.roster.find(
         {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
@@ -179,7 +181,7 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
 
         first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
         amount_txt = f" of ${owed:,.2f}" if owed and owed > 0 else ""
-        body = f"Hi {first}, friendly reminder about '{tracker_name}': a balance{amount_txt} is still outstanding. Thank you!"
+        body = f"Hi {first}, friendly reminder about '{tracker_name}': a balance{amount_txt} is still outstanding.{links_txt} Thank you!"
         if send_sms(phone, body):
             sent += 1
         else:
@@ -240,6 +242,7 @@ async def duplicate_payment_tracker(tracker_id: str, current_user=Depends(get_cu
         name=f"{doc.get('name')} (copy)",
         amount=doc.get("amount"),
         note=doc.get("note"),
+        links=list(doc.get("links") or []),
         excluded_member_ids=list(doc.get("excluded_member_ids") or []),
         entries=[TeamPaymentEntry(member_id=e["member_id"], amount_due=e.get("amount_due")).model_dump()
                  for e in (doc.get("entries") or []) if e.get("amount_due") is not None],

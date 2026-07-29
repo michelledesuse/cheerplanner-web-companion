@@ -11,6 +11,7 @@ import SheetAccessButton from "@/src/components/SheetAccessButton";
 import { useCanManageAccess } from "@/src/hooks/useCanManageAccess";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 
 type Tracker = {
   id: string; name: string; amount?: number | null; note?: string | null;
@@ -26,6 +27,7 @@ export default function PaymentsScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [links, setLinks] = useState<ExternalLink[]>([]);
   const [saving, setSaving] = useState(false);
   const canManage = useCanManageAccess();
 
@@ -43,8 +45,8 @@ export default function PaymentsScreen() {
     if (!name.trim()) { Alert.alert("Name required", "Give this a name."); return; }
     setSaving(true);
     try {
-      await api.post("/team/payments", { name: name.trim(), amount: amount ? Number(amount) : null });
-      setName(""); setAmount(""); setAddOpen(false);
+      await api.post("/team/payments", { name: name.trim(), amount: amount ? Number(amount) : null, links: cleanLinks(links) });
+      setName(""); setAmount(""); setLinks([]); setAddOpen(false);
       await load();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not create.");
@@ -128,6 +130,9 @@ export default function PaymentsScreen() {
               <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Team bonding – Nationals" placeholderTextColor={colors.textTertiary} testID="payment-name-input" />
               <Text style={styles.label}>Amount per person (optional)</Text>
               <TextInput style={styles.input} value={amount} onChangeText={setAmount} placeholder="e.g. 25" placeholderTextColor={colors.textTertiary} keyboardType="decimal-pad" testID="payment-amount-input" />
+              <Text style={styles.label}>Payment links (optional)</Text>
+              <Text style={styles.hint}>Venmo, Stripe, etc. Included in reminder texts.</Text>
+              <LinksEditor value={links} onChange={setLinks} testIDPrefix="payment-link" />
               <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="payment-create-btn">
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create tracker</Text>}
               </TouchableOpacity>
@@ -161,6 +166,7 @@ const makeStyles = (c: ThemePalette) => ({
   sheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
   sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
   label: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.md, marginBottom: 6 },
+  hint: { ...typography.micro, color: c.textTertiary, marginBottom: 8 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
   confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
