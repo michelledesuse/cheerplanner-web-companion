@@ -3,7 +3,7 @@ import StaticPage, { LegalSection, P } from "@/src/components/StaticPage";
 
 export default function PrivacyScreen() {
   return (
-    <StaticPage title="Privacy Policy" subtitle="Last updated: July 21, 2026">
+    <StaticPage title="Privacy Policy" subtitle="Last updated: August 3, 2026">
       <LegalSection>
         <P>CheerPlanner ("we," "our," or "us") is a mobile application that helps cheerleading families organize expenses, competition travel, schedules, and packing lists. This Privacy Policy explains how CheerPlanner collects, uses, and protects your information when you use the CheerPlanner mobile application and related services (the "Service"), and the choices you have. By creating an account and using CheerPlanner, you agree to the practices described in this policy.</P>
       </LegalSection>

@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
-const LAST_UPDATED = "July 21, 2026";
+const LAST_UPDATED = "August 3, 2026";
 const SUPPORT_EMAIL = "info@cheer-planner.com";
 const WEBSITE = "https://cheer-planner.com/privacy";
 
