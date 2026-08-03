@@ -132,7 +132,12 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - [x] FAQ + setup guide: add subscription info + current adjustments — DONE (iter77b): FAQ got a new "Membership & subscription" section (Free vs Premium, $4.99/mo & $39.99/yr + 7-day trial, restore, household-wide, lifetime codes); fixed the outdated "no in-app purchases" answer; updated Team Hub access answer (owner-controlled) & packing template answer. Setup Guide got step 17 (Seasons) + step 18 (Go Premium) and refreshed packing/templates copy.
 - [ ] UI-consistency review across Team Hub + Parent Portal (requested last).
 
-## Session update 13 (UI consistency + date/keyboard fixes + branding, iter79)
+## Session update 14 (music playback fix + season filter visibility + roster request-info, iter80)
+- FIX (**Team Music playback**): stream endpoint now supports HTTP **Range** (200 + `Accept-Ranges: bytes` for full, **206 Partial Content** for ranges) — iOS AVPlayer/expo-audio requires this; also `setAudioModeAsync({playsInSilentMode:true})` so it's audible on silent. Verified 200/206 byte-exact.
+- FIX (**"where do I filter by season?"**): the `SeasonBar` picker was only on the Dashboard — now also rendered on **Athletes, Competitions, Expenses, and Schedule** tabs (they already filtered by the active season).
+- NEW (**Request info link**): per-member completion link for someone already on the roster but missing info. `kind="roster_member"` share link pre-fills their current info; `POST /api/team/roster/{id}/request-info {base_url, send}` — texts the link via Twilio if a phone is on file, otherwise the roster row's "Request info" sheet offers Copy/Share. Token is reused on repeat. SMS guarded (400 when no phone). Verified iter80 (12/12 pytest + frontend).
+
+
 - DONE: **App-wide button/chip color standardized to CheerPlanner blue (`accent`)** — swapped interactive `colors.primary`/`c.primary` → accent across ~35 files (Parent Portal was navy, Team Hub blue). Root cause of prior mismatch: theme mutates `accent` but never `primary`, so primary buttons ignored custom themes. Now all CTAs follow the user's custom Appearance color.
 - DONE: **Schedule tab UX** — smaller header Add/Select buttons; Type filter row gained a dashed "+ Type" add-chip (opens AddTypeModal) + a right chevron scroll-hint on overflow (FilterChipRow now supports `onAdd`/overflow detection).
 - DONE: **Seasons dates → MM-DD-YYYY** via shared `DateField` (ISO storage, MM-DD-YYYY display) on create/edit + row display; **keyboard no longer covers inputs** (Create/Edit modals wrapped in KeyboardAvoidingView).
