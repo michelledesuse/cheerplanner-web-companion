@@ -347,7 +347,7 @@ const makeStyles = () => ({
   qRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
   q: { ...typography.bodyMedium, color: colors.textPrimary, flex: 1, fontWeight: "700" },
   a: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm, lineHeight: 20 },
-  contactBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.primary, borderRadius: 999, marginTop: spacing.xl },
+  contactBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 18, paddingVertical: 12, backgroundColor: colors.accent, borderRadius: 999, marginTop: spacing.xl },
   contactBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
   footer: { ...typography.caption, color: colors.textTertiary, textAlign: "center", marginTop: spacing.sm },
 });

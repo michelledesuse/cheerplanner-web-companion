@@ -118,7 +118,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card, borderRadius: 20, borderWidth: 1, borderColor: colors.border,
     paddingVertical: 36, paddingHorizontal: 24,
   },
-  badge: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  badge: { width: 56, height: 56, borderRadius: 28, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center", marginBottom: 16 },
   label: { fontSize: 11, fontWeight: "800", letterSpacing: 1, color: colors.textSecondary },
   name: { fontSize: 22, fontWeight: "800", color: colors.textPrimary, textAlign: "center", marginTop: 6 },
   amount: { fontSize: 44, fontWeight: "800", color: colors.successText, marginTop: 18, letterSpacing: -1 },

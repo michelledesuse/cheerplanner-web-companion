@@ -408,7 +408,7 @@ const makeStyles = (c: ThemePalette) => ({
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   roleChip: { flexBasis: "48%", flexGrow: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, paddingHorizontal: 6, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
-  roleChipOn: { backgroundColor: c.primary, borderColor: c.primary },
+  roleChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   roleChipText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700", fontSize: 14 },
   roleChipTextOn: { color: "white" },
   colLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

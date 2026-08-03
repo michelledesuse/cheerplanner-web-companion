@@ -344,6 +344,6 @@ const makeStyles = () => ({
   row2: { flexDirection: "row", gap: spacing.md },
   section: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
   helperText: { ...typography.caption, color: colors.textTertiary, marginTop: 4, marginBottom: 4, fontStyle: "italic" },
-  saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
+  saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.accent, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
 });

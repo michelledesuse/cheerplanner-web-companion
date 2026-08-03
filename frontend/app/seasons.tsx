@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, StyleSheet, Alert, ActivityIndicator, Switch } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, StyleSheet, Alert, ActivityIndicator, Switch, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -7,6 +7,8 @@ import { useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useSeason, type Season } from "@/src/context/SeasonContext";
+import DateField from "@/src/components/DateField";
+import { isoToInput } from "@/src/utils/format";
 
 const KINDS: { key: string; label: string }[] = [
   { key: "athletes", label: "Athletes" },
@@ -107,7 +109,7 @@ export default function SeasonsScreen() {
             <TouchableOpacity key={s.id} style={styles.row} onPress={() => setMenu(s)} testID={`season-row-${s.id}`}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowName}>{s.name}</Text>
-                {(s.start_date || s.end_date) ? <Text style={styles.rowDates}>{s.start_date || "?"} → {s.end_date || "?"}</Text> : null}
+                {(s.start_date || s.end_date) ? <Text style={styles.rowDates}>{isoToInput(s.start_date || "") || "?"} → {isoToInput(s.end_date || "") || "?"}</Text> : null}
               </View>
               {s.is_active ? <View style={styles.activeBadge}><Text style={styles.activeBadgeText}>Active</Text></View> : null}
               <Ionicons name="ellipsis-horizontal" size={20} color={colors.textTertiary} />
@@ -118,20 +120,22 @@ export default function SeasonsScreen() {
 
       {/* Create */}
       <Modal visible={createOpen} transparent animationType="slide" onRequestClose={() => setCreateOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setCreateOpen(false)} />
-        <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>New season</Text>
-          <Text style={styles.label}>Name</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. 2025–2026" placeholderTextColor={colors.textTertiary} testID="season-name" autoFocus />
-          <View style={styles.dateRow}>
-            <View style={{ flex: 1 }}><Text style={styles.label}>Start (optional)</Text><TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} /></View>
-            <View style={{ flex: 1 }}><Text style={styles.label}>End (optional)</Text><TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} /></View>
+        <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <Pressable style={styles.backdrop} onPress={() => setCreateOpen(false)} />
+          <View style={styles.sheetFlow}>
+            <Text style={styles.sheetTitle}>New season</Text>
+            <Text style={styles.label}>Name</Text>
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. 2025–2026" placeholderTextColor={colors.textTertiary} testID="season-name" autoFocus />
+            <View style={styles.dateRow}>
+              <View style={{ flex: 1 }}><Text style={styles.label}>Start (optional)</Text><DateField value={startDate} onChange={setStartDate} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.label}>End (optional)</Text><DateField value={endDate} onChange={setEndDate} /></View>
+            </View>
+            <View style={styles.switchRow}><Text style={styles.switchLabel}>Make this the active season</Text><Switch value={makeActive} onValueChange={setMakeActive} /></View>
+            <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="season-create-btn">
+              {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create season</Text>}
+            </TouchableOpacity>
           </View>
-          <View style={styles.switchRow}><Text style={styles.switchLabel}>Make this the active season</Text><Switch value={makeActive} onValueChange={setMakeActive} /></View>
-          <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="season-create-btn">
-            {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create season</Text>}
-          </TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Season menu */}
@@ -148,17 +152,19 @@ export default function SeasonsScreen() {
 
       {/* Edit */}
       <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setEditOpen(false)} />
-        <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>Edit season</Text>
-          <Text style={styles.label}>Name</Text>
-          <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={colors.textTertiary} testID="season-edit-name" />
-          <View style={styles.dateRow}>
-            <View style={{ flex: 1 }}><Text style={styles.label}>Start</Text><TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} /></View>
-            <View style={{ flex: 1 }}><Text style={styles.label}>End</Text><TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textTertiary} /></View>
+        <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <Pressable style={styles.backdrop} onPress={() => setEditOpen(false)} />
+          <View style={styles.sheetFlow}>
+            <Text style={styles.sheetTitle}>Edit season</Text>
+            <Text style={styles.label}>Name</Text>
+            <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={colors.textTertiary} testID="season-edit-name" />
+            <View style={styles.dateRow}>
+              <View style={{ flex: 1 }}><Text style={styles.label}>Start</Text><DateField value={startDate} onChange={setStartDate} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.label}>End</Text><DateField value={endDate} onChange={setEndDate} /></View>
+            </View>
+            <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="season-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="season-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Rollover */}
@@ -214,6 +220,8 @@ const styles = StyleSheet.create({
   activeBadge: { backgroundColor: colors.accentSubtle, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   activeBadgeText: { ...typography.micro, fontWeight: "800", color: colors.accent },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
+  kav: { flex: 1, justifyContent: "flex-end" },
+  sheetFlow: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
   sheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
   menuSheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
   sheetTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },

@@ -38,7 +38,7 @@ export default function ContactScreen() {
 const makeStyles = (c: ThemePalette) => ({
   _muted: { color: c.textSecondary },
   emailCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: c.border, marginTop: spacing.lg },
-  iconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.primary, alignItems: "center", justifyContent: "center" },
+  iconWrap: { width: 44, height: 44, borderRadius: 12, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
   emailLabel: { ...typography.caption, color: c.textSecondary },
   email: { ...typography.h3, color: c.textPrimary },
 });

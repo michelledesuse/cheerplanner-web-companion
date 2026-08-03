@@ -267,7 +267,7 @@ const makeStyles = () => ({
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  addBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  addBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.accent },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
   empty: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.sm },
   emptySub: { ...typography.body, color: colors.textTertiary, textAlign: "center", paddingHorizontal: spacing.lg },
@@ -293,6 +293,6 @@ const makeStyles = () => ({
   modalTitle: { ...typography.h2, color: colors.textPrimary },
   label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md, marginBottom: 6 },
   input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
-  saveBtn: { marginTop: spacing.xl, backgroundColor: colors.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
+  saveBtn: { marginTop: spacing.xl, backgroundColor: colors.accent, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
 });

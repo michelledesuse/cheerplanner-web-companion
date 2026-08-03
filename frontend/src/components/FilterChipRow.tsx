@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -22,6 +22,8 @@ type Props = {
   testIDPrefix: string;
   allLabel?: string;
   hideAll?: boolean;
+  onAdd?: () => void;
+  addLabel?: string;
 };
 
 /**
@@ -31,47 +33,70 @@ type Props = {
  * multiple rows (athlete + team + type) for AND filtering across dimensions.
  * Hidden entirely when there are no options to choose from. Set hideAll to use
  * it as a plain multi-select (e.g. attach targets) without the clear-all chip.
+ * When onAdd is provided a trailing dashed "+ addLabel" chip is shown. A right
+ * chevron hint appears when the row overflows so users know they can scroll.
  */
 export default function FilterChipRow({
-  label, options, selectedIds, onToggle, onClear, testIDPrefix, allLabel = "All", hideAll = false,
+  label, options, selectedIds, onToggle, onClear, testIDPrefix, allLabel = "All", hideAll = false, onAdd, addLabel = "Add",
 }: Props) {
   const styles = useThemedStyles(makeStyles);
-  if (options.length === 0) return null;
+  const [overflow, setOverflow] = useState(false);
+  const [viewW, setViewW] = useState(0);
+  if (options.length === 0 && !onAdd) return null;
   const allOn = selectedIds.length === 0;
 
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
-        {!hideAll && (
-          <TouchableOpacity
-            onPress={onClear}
-            style={[styles.chip, allOn && styles.chipOn]}
-            testID={`${testIDPrefix}-all`}
-          >
-            <Text style={[styles.chipText, allOn && styles.chipTextOn]}>{allLabel}</Text>
-          </TouchableOpacity>
-        )}
-        {options.map((o) => {
-          const on = selectedIds.includes(o.id);
-          return (
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.row}
+          onLayout={(e) => setViewW(e.nativeEvent.layout.width)}
+          onContentSizeChange={(w) => setOverflow(w > viewW + 8)}
+        >
+          {!hideAll && (
             <TouchableOpacity
-              key={o.id}
-              onPress={() => onToggle(o.id)}
-              style={[styles.chip, on && styles.chipOn, o.color && !on ? { borderColor: o.color } : null]}
-              testID={`${testIDPrefix}-${o.id}`}
+              onPress={onClear}
+              style={[styles.chip, allOn && styles.chipOn]}
+              testID={`${testIDPrefix}-all`}
             >
-              {o.logoImage !== undefined ? (
-                <TeamAvatar logoImage={o.logoImage} color={o.color || colors.accent} size={16} />
-              ) : o.color ? (
-                <View style={[styles.dot, { backgroundColor: o.color }]} />
-              ) : null}
-              <Text style={[styles.chipText, on && styles.chipTextOn]} numberOfLines={1}>{o.label}</Text>
-              {on && <Ionicons name="checkmark" size={13} color="white" style={{ marginLeft: 2 }} />}
+              <Text style={[styles.chipText, allOn && styles.chipTextOn]}>{allLabel}</Text>
             </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+          )}
+          {options.map((o) => {
+            const on = selectedIds.includes(o.id);
+            return (
+              <TouchableOpacity
+                key={o.id}
+                onPress={() => onToggle(o.id)}
+                style={[styles.chip, on && styles.chipOn, o.color && !on ? { borderColor: o.color } : null]}
+                testID={`${testIDPrefix}-${o.id}`}
+              >
+                {o.logoImage !== undefined ? (
+                  <TeamAvatar logoImage={o.logoImage} color={o.color || colors.accent} size={16} />
+                ) : o.color ? (
+                  <View style={[styles.dot, { backgroundColor: o.color }]} />
+                ) : null}
+                <Text style={[styles.chipText, on && styles.chipTextOn]} numberOfLines={1}>{o.label}</Text>
+                {on && <Ionicons name="checkmark" size={13} color="white" style={{ marginLeft: 2 }} />}
+              </TouchableOpacity>
+            );
+          })}
+          {onAdd && (
+            <TouchableOpacity onPress={onAdd} style={[styles.chip, styles.addChip]} testID={`${testIDPrefix}-add`}>
+              <Ionicons name="add" size={14} color={colors.accent} />
+              <Text style={[styles.chipText, { color: colors.accent }]}>{addLabel}</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+        {overflow && (
+          <View style={styles.scrollHint} pointerEvents="none">
+            <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -79,10 +104,16 @@ export default function FilterChipRow({
 const makeStyles = () => ({
   wrap: { marginBottom: spacing.sm },
   label: { ...typography.micro, color: colors.textTertiary, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, paddingHorizontal: spacing.lg },
-  row: { gap: 6, paddingHorizontal: spacing.lg },
+  row: { gap: 6, paddingHorizontal: spacing.lg, paddingRight: spacing.xl },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   chipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   chipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "600", fontSize: 12, maxWidth: 130 },
   chipTextOn: { color: "white" },
+  addChip: { borderStyle: "dashed" as const, borderColor: colors.accent, backgroundColor: colors.accentSubtle },
   dot: { width: 7, height: 7, borderRadius: 3.5 },
+  scrollHint: {
+    position: "absolute", right: 0, top: 0, bottom: 0, width: 34,
+    alignItems: "flex-end", justifyContent: "center", paddingRight: 4,
+    backgroundColor: colors.bg + "F2",
+  },
 });

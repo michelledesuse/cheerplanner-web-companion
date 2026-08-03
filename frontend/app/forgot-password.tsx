@@ -140,7 +140,7 @@ const makeStyles = () => ({
     fontSize: 15, color: colors.textPrimary, marginBottom: spacing.md,
   },
   primaryBtn: {
-    backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14,
+    backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 14,
     alignItems: "center", marginTop: spacing.sm,
   },
   primaryBtnText: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },

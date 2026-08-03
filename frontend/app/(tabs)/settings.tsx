@@ -328,7 +328,7 @@ const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   title: { ...typography.display, color: c.textPrimary, marginBottom: spacing.lg },
   profile: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.xl, alignItems: "center", borderWidth: 1, borderColor: c.border, marginBottom: spacing.lg },
-  avatar: { width: 70, height: 70, borderRadius: 22, backgroundColor: c.primary, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
+  avatar: { width: 70, height: 70, borderRadius: 22, backgroundColor: c.accent, alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
   avatarText: { color: "white", fontSize: 28, fontWeight: "800" },
   profileName: { ...typography.h2, color: c.textPrimary },
   profileEmail: { ...typography.caption, color: c.textSecondary, marginTop: 2 },

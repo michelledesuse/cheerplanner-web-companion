@@ -132,7 +132,7 @@ const makeStyles = () => ({
   },
   pwWrap: { flexDirection: "row", alignItems: "center", position: "relative" },
   eye: { position: "absolute", right: 12, height: "100%", justifyContent: "center" },
-  primaryBtn: { backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
+  primaryBtn: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
   primaryBtnText: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },
   footerRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: spacing.lg },
   footerText: { ...typography.body, color: colors.textSecondary },

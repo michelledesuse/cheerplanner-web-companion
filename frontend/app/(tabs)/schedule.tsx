@@ -19,6 +19,7 @@ import TeamAvatar from "@/src/components/TeamAvatar";
 import FilterChipRow, { type FilterOption } from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 import HomeButton from "@/src/components/HomeButton";
+import AddTypeModal from "@/src/components/AddTypeModal";
 import { toggleId, passesMulti, passesMultiAny } from "@/src/utils/filters";
 
 type Athlete = { id: string; name: string; avatar_color?: string };
@@ -46,6 +47,16 @@ export default function ScheduleTab() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
+  const [addTypeOpen, setAddTypeOpen] = useState(false);
+
+  const addType = async (name: string, color?: string) => {
+    try {
+      const r = await api.post("/household/custom-types/event-type", { label: name, color: color || "#64748B" });
+      setCustomTypes(r.data.event_types || []);
+      if (r.data.event_type) setTypeFilter((p) => [...p, r.data.event_type.id]);
+      setAddTypeOpen(false);
+    } catch { Alert.alert("Error", "Could not add the type."); }
+  };
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
@@ -231,6 +242,8 @@ export default function ScheduleTab() {
             selectedIds={typeFilter}
             onToggle={(id) => setTypeFilter((p) => toggleId(p, id))}
             onClear={() => setTypeFilter([])}
+            onAdd={() => setAddTypeOpen(true)}
+            addLabel="Type"
             options={[
               ...Object.entries(TYPE_LABEL).map(([k, label]) => ({ id: k, label, color: TYPE_COLOR[k] })),
               ...customTypes.map((t) => ({ id: t.id, label: t.label, color: t.color })),
@@ -325,6 +338,14 @@ export default function ScheduleTab() {
           </>
         )}
       </ScrollView>
+      <AddTypeModal
+        visible={addTypeOpen}
+        title="Add event type"
+        placeholder="e.g. Tumbling"
+        withColor
+        onSubmit={addType}
+        onClose={() => setAddTypeOpen(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -406,17 +427,17 @@ const makeStyles = (c: ThemePalette) => ({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   headerBar: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   headerTitle: { ...typography.h1, color: c.textPrimary },
-  addBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 14, paddingVertical: 9, backgroundColor: c.accent, borderRadius: 999 },
-  addBtnText: { color: "white", fontWeight: "700", fontSize: 13 },
-  selectBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: c.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: c.accent },
-  selectBtnText: { color: c.accent, fontWeight: "700", fontSize: 13 },
+  addBtn: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 11, paddingVertical: 7, backgroundColor: c.accent, borderRadius: 999 },
+  addBtnText: { color: "white", fontWeight: "700", fontSize: 12 },
+  selectBtn: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: c.accentSubtle, borderRadius: 999, borderWidth: 1, borderColor: c.accent },
+  selectBtnText: { color: c.accent, fontWeight: "700", fontSize: 12 },
   selectBar: { flex: 1, flexDirection: "row", alignItems: "center", gap: spacing.md },
   selectBarText: { ...typography.bodyMedium, color: c.textPrimary, flex: 1 },
   deleteBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
   deleteBtnText: { color: c.danger, fontWeight: "700" },
   checkBox: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: c.border, alignItems: "center", justifyContent: "center" },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
-  chipOn: { backgroundColor: c.primary, borderColor: c.primary },
+  chipOn: { backgroundColor: c.accent, borderColor: c.accent },
   chipDot: { width: 7, height: 7, borderRadius: 3.5 },
   chipText: { ...typography.caption, color: c.textPrimary, fontWeight: "600", fontSize: 12 },
   chipTextOn: { color: "white" },

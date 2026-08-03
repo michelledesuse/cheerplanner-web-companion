@@ -103,7 +103,7 @@ const makeStyles = (c: ThemePalette) => ({
   msgOk: { backgroundColor: "#DCFCE7" },
   msgErr: { backgroundColor: "#FEE2E2" },
   msgText: { flex: 1, ...typography.caption, color: "#1F2937" },
-  cta: { backgroundColor: c.primary, borderRadius: radius.md, paddingVertical: 15, alignItems: "center", marginTop: spacing.lg },
+  cta: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 15, alignItems: "center", marginTop: spacing.lg },
   ctaText: { color: "white", fontWeight: "800", fontSize: 16 },
   doneRow: { alignItems: "center", padding: spacing.md, marginTop: spacing.sm },
   doneText: { ...typography.bodyMedium, color: c.primary },

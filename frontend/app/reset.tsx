@@ -177,7 +177,7 @@ const makeStyles = () => ({
   pwWrap: { flexDirection: "row", alignItems: "center", position: "relative", marginBottom: spacing.sm },
   eye: { position: "absolute", right: 12, height: "100%", justifyContent: "center" },
   primaryBtn: {
-    backgroundColor: colors.primary, borderRadius: radius.md, paddingVertical: 14,
+    backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 14,
     alignItems: "center", marginTop: spacing.md,
   },
   primaryBtnText: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },

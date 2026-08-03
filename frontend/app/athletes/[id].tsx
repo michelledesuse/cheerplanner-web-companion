@@ -515,7 +515,7 @@ const makeStyles = () => ({
   statValue: { ...typography.h3, color: colors.textPrimary, marginTop: 2 },
   tabs: { flexDirection: "row", marginTop: spacing.lg, backgroundColor: colors.card, padding: 4, borderRadius: 12, borderWidth: 1, borderColor: colors.border },
   tab: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: "center" },
-  tabActive: { backgroundColor: colors.primary },
+  tabActive: { backgroundColor: colors.accent },
   tabText: { ...typography.caption, color: colors.textSecondary, fontWeight: "700" },
   tabTextActive: { color: "white" },
   compSection: { marginTop: spacing.lg, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md },

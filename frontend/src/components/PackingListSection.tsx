@@ -577,7 +577,7 @@ const makeStyles = () => ({
   emptyText: { ...typography.body, color: colors.textSecondary, marginBottom: 12 },
 
   primaryBtn: {
-    backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: colors.accent, paddingHorizontal: 14, paddingVertical: 10,
     borderRadius: radius.md, flexDirection: "row", alignItems: "center", gap: 6,
   },
   primaryBtnText: { color: "white", fontWeight: "700", fontSize: 14 },
@@ -624,7 +624,7 @@ const makeStyles = () => ({
     borderColor: colors.border, alignItems: "center", justifyContent: "center",
     backgroundColor: colors.card,
   },
-  checkboxOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  checkboxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   itemText: { ...typography.body, color: colors.textPrimary, flex: 1, fontSize: 14 },
   itemTextChecked: { color: colors.textTertiary, textDecorationLine: "line-through" },
 
@@ -636,7 +636,7 @@ const makeStyles = () => ({
   },
   addBtn: {
     width: 40, height: 40, borderRadius: radius.md, alignItems: "center",
-    justifyContent: "center", backgroundColor: colors.primary,
+    justifyContent: "center", backgroundColor: colors.accent,
   },
   catChip: {
     paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,

@@ -362,7 +362,7 @@ const makeStyles = (c: ThemePalette) => ({
   miniBalanceValueSm: { fontSize: 14, fontWeight: "700", color: c.textPrimary },
   miniDivider: { width: 1, height: 28, backgroundColor: c.border },
   heroCard: {
-    backgroundColor: c.primary, borderRadius: radius.xl, padding: spacing.xl,
+    backgroundColor: c.accent, borderRadius: radius.xl, padding: spacing.xl,
     ...shadow.card,
   },
   heroLabel: { color: "rgba(255,255,255,0.65)", ...typography.micro },
@@ -400,7 +400,7 @@ const makeStyles = (c: ThemePalette) => ({
     padding: spacing.xl, alignItems: "center",
   },
   emptyText: { ...typography.body, color: c.textSecondary, marginTop: spacing.sm },
-  emptyBtn: { marginTop: spacing.md, backgroundColor: c.primary, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
+  emptyBtn: { marginTop: spacing.md, backgroundColor: c.accent, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 },
   emptyBtnText: { color: "white", fontWeight: "700" },
   reminderRow: {
     backgroundColor: c.card, borderRadius: radius.md, padding: spacing.md,

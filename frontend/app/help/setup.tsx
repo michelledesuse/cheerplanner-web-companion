@@ -189,7 +189,7 @@ const makeStyles = () => ({
   intro: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.lg },
   card: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.md },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.sm },
-  numChip: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+  numChip: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   numText: { color: "white", fontWeight: "800", fontSize: 13 },
   cardTitle: { ...typography.h3, color: colors.textPrimary, flex: 1, fontSize: 16 },
   cardBody: { ...typography.body, color: colors.textPrimary, lineHeight: 20 },

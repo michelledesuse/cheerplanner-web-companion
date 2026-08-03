@@ -332,7 +332,7 @@ const makeStyles = () => ({
     paddingVertical: 10,
     borderRadius: 9,
   },
-  segmentActive: { backgroundColor: colors.primary },
+  segmentActive: { backgroundColor: colors.accent },
   segmentText: { ...typography.caption, fontWeight: "700", color: colors.textSecondary },
   segmentTextActive: { color: "white" },
   fundRow: {

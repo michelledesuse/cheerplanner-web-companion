@@ -431,7 +431,7 @@ const makeStyles = () => ({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.textPrimary, flex: 1, textAlign: "center", marginHorizontal: spacing.md },
-  heroCard: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: spacing.xl, alignItems: "flex-start" },
+  heroCard: { backgroundColor: colors.accent, borderRadius: radius.xl, padding: spacing.xl, alignItems: "flex-start" },
   heroDays: { color: colors.accent, fontSize: 64, fontWeight: "800", letterSpacing: -2, lineHeight: 64 },
   heroDaysLabel: { color: "rgba(255,255,255,0.65)", ...typography.caption, marginTop: 2, marginBottom: spacing.md },
   heroDate: { color: "white", ...typography.h3 },

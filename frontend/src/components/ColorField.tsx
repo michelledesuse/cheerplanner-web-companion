@@ -137,6 +137,6 @@ const makeStyles = () => ({
   sheetActions: { flexDirection: "row", gap: spacing.md, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.border },
   cancelBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
   cancelText: { ...typography.bodyMedium, color: colors.textPrimary },
-  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: "center" },
+  confirmBtn: { flex: 1, paddingVertical: 12, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: "center" },
   confirmText: { ...typography.bodyMedium, color: "white" },
 });

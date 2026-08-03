@@ -135,7 +135,7 @@ const makeStyles = () => ({
     width: 56,
     height: 56,
     borderRadius: 18,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.md,
@@ -166,7 +166,7 @@ const makeStyles = () => ({
   pwWrap: { flexDirection: "row", alignItems: "center", position: "relative" },
   eye: { position: "absolute", right: 12, height: "100%", justifyContent: "center" },
   primaryBtn: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
     borderRadius: radius.md,
     paddingVertical: 14,
     alignItems: "center",

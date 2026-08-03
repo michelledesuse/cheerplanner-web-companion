@@ -118,7 +118,7 @@ export default function FundraisersScreen() {
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Fundraisers</Text>
-          <TouchableOpacity onPress={() => setShowAdd((s) => !s)} style={[styles.iconBtn, { backgroundColor: colors.primary }]} testID="toggle-fundraiser-form">
+          <TouchableOpacity onPress={() => setShowAdd((s) => !s)} style={[styles.iconBtn, { backgroundColor: colors.accent }]} testID="toggle-fundraiser-form">
             <Ionicons name={showAdd ? "close" : "add"} size={20} color="white" />
           </TouchableOpacity>
         </View>
@@ -232,14 +232,14 @@ const makeStyles = () => ({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", padding: spacing.md, borderBottomWidth: 1, borderBottomColor: colors.border },
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
-  heroCard: { backgroundColor: colors.primary, borderRadius: radius.xl, padding: spacing.xl },
+  heroCard: { backgroundColor: colors.accent, borderRadius: radius.xl, padding: spacing.xl },
   heroLabel: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "700", letterSpacing: 0.5 },
   heroAmount: { color: "white", fontSize: 40, fontWeight: "800", marginTop: 4, letterSpacing: -0.5 },
   heroMeta: { color: "rgba(255,255,255,0.7)", marginTop: 4 },
   formCard: { backgroundColor: colors.card, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: colors.border, marginTop: spacing.md },
   label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.sm, marginBottom: 6 },
   input: { backgroundColor: colors.bg, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
-  saveBtn: { marginTop: spacing.md, backgroundColor: colors.primary, paddingVertical: 12, borderRadius: radius.md, alignItems: "center" },
+  saveBtn: { marginTop: spacing.md, backgroundColor: colors.accent, paddingVertical: 12, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 15 },
   row: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginTop: spacing.sm },
   iconCircle: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
