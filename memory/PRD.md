@@ -125,7 +125,8 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - DONE (iter76): Sign-up **remind-claimed** — `POST /api/team/signups/{id}/remind-claimed` texts everyone who signed up with a summary of what they signed up for; sign-up Edit modal now has two reminder buttons (not-signed-up vs signed-up).
 
 ## REMAINING for this batch (in progress)
-- [ ] Photos: multiple photos on events, competitions, sign-up sheets, payment trackers, paperwork, fundraisers, to-dos (athlete/staff single photo already exists). Public roster share link: allow parent to upload one athlete/staff photo.
+- [x] Photos: multiple photos on events, competitions, sign-up sheets, payment trackers, paperwork, fundraisers (internal galleries DONE). Public roster share link: parent uploads ONE athlete/staff photo — DONE (iter77): `RosterMember.photo`, public `/submit` accepts base64 (client-resized ≤600px), renders in internal roster avatar + coach can add/change/remove in roster edit form.
+- [x] Season filtering extended to Expenses, Payments, Fundraisers — DONE (iter77): `season_ids` on Expense/Payment/Fundraiser (+bulk), list endpoints accept `?season_id=` via `season_query` (tagged items show only under their season; untagged always show), auto-tagged with active season on create. Frontend passes `filterSeasonId` on Expenses tab + Fundraisers. (athletes/staff/events/competitions/teams already season-scoped.)
 - [ ] Seasons Phase C2: per-item SeasonPicker (multi-attach) in detail/edit forms + the this/forward/all scope PROMPT UI (backend ready).
 - [ ] Template management UI: edit/delete user-created packing-list templates (backend CRUD already exists).
 - [ ] FAQ + setup guide: add subscription info + current adjustments.

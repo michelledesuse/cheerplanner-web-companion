@@ -19,7 +19,7 @@ type RosterMember = {
   parent_first_name?: string | null; parent_last_name?: string | null;
   parent_phone?: string | null; parent_email?: string | null;
   team_ids?: string[] | null; notes?: string | null; source?: string; linked_id?: string | null;
-  pending_review?: boolean;
+  pending_review?: boolean; photo?: string | null;
 };
 type Candidate = { id: string; name: string; role?: string; email?: string | null; team_id?: string | null };
 
