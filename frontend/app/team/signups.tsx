@@ -10,6 +10,8 @@ import SheetAccessButton from "@/src/components/SheetAccessButton";
 import { useCanManageAccess } from "@/src/hooks/useCanManageAccess";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import SeasonBar from "@/src/components/SeasonBar";
+import { useSeason } from "@/src/context/SeasonContext";
 
 type Sheet = {
   id: string; name: string; competition_id?: string | null;
@@ -30,13 +32,14 @@ export default function SignupsScreen() {
   const [saving, setSaving] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const canManage = useCanManageAccess();
+  const { filterSeasonId } = useSeason();
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Sheet[]>("/team/signups");
+      const r = await api.get<Sheet[]>("/team/signups", { params: filterSeasonId ? { season_id: filterSeasonId } : {} });
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useEffect(() => { api.get<Comp[]>("/competitions").then((r) => setComps(r.data)).catch(() => {}); }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -87,6 +90,8 @@ export default function SignupsScreen() {
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
+
+      <View style={styles.seasonWrap}><SeasonBar /></View>
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
@@ -175,6 +180,7 @@ export default function SignupsScreen() {
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  seasonWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   iconBtnOn: { backgroundColor: c.accent, borderColor: c.accent },

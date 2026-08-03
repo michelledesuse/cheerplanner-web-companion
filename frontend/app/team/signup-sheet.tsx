@@ -18,7 +18,7 @@ import PhotoGallery from "@/src/components/PhotoGallery";
 type Claim = { id: string; member_id?: string | null; guest_name?: string | null; qty: number; note?: string | null };
 type SlotKind = "item" | "duty" | "time";
 type Slot = { id: string; label: string; kind?: SlotKind; time_label?: string | null; qty_needed: number; order: number; claims: Claim[] };
-type Sheet = { id: string; name: string; links?: ExternalLink[]; photos?: string[]; last_reminded_at?: string | null; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
+type Sheet = { id: string; name: string; links?: ExternalLink[]; photos?: string[]; season_ids?: string[]; last_reminded_at?: string | null; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
 type Member = GridMember & { role: string };
 
 const KINDS: { value: SlotKind; label: string; icon: any }[] = [
@@ -64,10 +64,9 @@ export default function SignupSheetScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([
-        api.get<Sheet>(`/team/signups/${params.id}`),
-        api.get<Member[]>("/roster"),
-      ]);
+      const s = await api.get<Sheet>(`/team/signups/${params.id}`);
+      const sid = s.data.season_ids?.[0];
+      const r = await api.get<Member[]>("/roster", { params: sid ? { season_id: sid } : {} });
       setSheet(s.data);
       setRoster(r.data.filter((m) => m.role !== "parent"));
     } finally { setLoading(false); setRefreshing(false); }

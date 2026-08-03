@@ -13,7 +13,13 @@ from core.models import (
     utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.helpers import (
+    _team_hub_scope_user_ids as _household_user_ids,
+    _blocked_resource_ids,
+    season_query,
+    roster_season_query,
+    active_season_id,
+)
 from core.sms import send_sms, is_configured, normalize_us_phone, join_links
 from core.gating import assert_premium
 
@@ -83,8 +89,10 @@ def _summary(tracker: dict, roster_total: int, excluded_in_roster: int = 0) -> d
     return summary
 
 
-async def _roster_total(member_ids: List[str]) -> int:
-    return await db.roster.count_documents({"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}})
+async def _roster_total(member_ids: List[str], season_id: str | None = None) -> int:
+    q = await roster_season_query(member_ids, season_id)
+    q["role"] = {"$ne": "parent"}
+    return await db.roster.count_documents(q)
 
 
 async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str]) -> int:
@@ -97,9 +105,9 @@ async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str]) ->
 
 
 @router.get("/payments")
-async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    query: dict = {"user_id": {"$in": member_ids}}
+    query: dict = season_query(member_ids, season_id)
     if event_id:
         query["event_ids"] = event_id
     if competition_id:
@@ -108,7 +116,7 @@ async def list_payment_trackers(event_id: str | None = None, competition_id: str
     blocked = await _blocked_resource_ids(current_user["id"], "payment")
     docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
-    roster_total = await _roster_total(member_ids)
+    roster_total = await _roster_total(member_ids, season_id)
     out = []
     for d in docs:
         exc = await _excluded_in_roster(member_ids, d.get("excluded_member_ids") or [])
@@ -123,6 +131,10 @@ async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Dep
         raise HTTPException(status_code=400, detail="Name is required")
     tracker = PaymentTracker(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
     tracker.name = payload.name.strip()
+    member_ids = await _household_user_ids(current_user["id"])
+    sid = await active_season_id(member_ids)
+    if sid:
+        tracker.season_ids = [sid]
     await db.payment_trackers.insert_one(tracker.model_dump())
     return tracker
 
@@ -146,7 +158,8 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
     links_txt = (" Pay here: " + join_links(links)) if join_links(links) else ""
 
     roster = await db.roster.find(
-        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
+        {**await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), "role": {"$ne": "parent"}},
+        {"_id": 0},
     ).to_list(2000)
 
     sent, no_phone, failed = 0, [], []
@@ -200,7 +213,8 @@ async def get_payment_tracker(tracker_id: str, current_user=Depends(get_current_
     doc = await db.payment_trackers.find_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Tracker not found")
-    roster_total = await _roster_total(member_ids)
+    sea = (doc.get("season_ids") or [None])[0]
+    roster_total = await _roster_total(member_ids, sea)
     exc = await _excluded_in_roster(member_ids, doc.get("excluded_member_ids") or [])
     return {**PaymentTracker(**doc).model_dump(), "summary": _summary(doc, roster_total, exc)}
 
@@ -246,11 +260,13 @@ async def duplicate_payment_tracker(tracker_id: str, current_user=Depends(get_cu
         note=doc.get("note"),
         links=list(doc.get("links") or []),
         excluded_member_ids=list(doc.get("excluded_member_ids") or []),
+        season_ids=list(doc.get("season_ids") or []),
         entries=[TeamPaymentEntry(member_id=e["member_id"], amount_due=e.get("amount_due")).model_dump()
                  for e in (doc.get("entries") or []) if e.get("amount_due") is not None],
     )
     await db.payment_trackers.insert_one(copy.model_dump())
-    roster_total = await _roster_total(member_ids)
+    sea = (copy.season_ids or [None])[0]
+    roster_total = await _roster_total(member_ids, sea)
     exc = await _excluded_in_roster(member_ids, copy.excluded_member_ids)
     return {**copy.model_dump(), "summary": _summary(copy.model_dump(), roster_total, exc)}
 
@@ -292,7 +308,8 @@ async def set_member_status(tracker_id: str, member_id: str, payload: PaymentEnt
 
     await db.payment_trackers.update_one({"id": tracker_id}, {"$set": {"entries": entries}})
     updated = await db.payment_trackers.find_one({"id": tracker_id}, {"_id": 0})
-    roster_total = await _roster_total(member_ids)
+    sea = (updated.get("season_ids") or [None])[0]
+    roster_total = await _roster_total(member_ids, sea)
     exc = await _excluded_in_roster(member_ids, updated.get("excluded_member_ids") or [])
     return {**PaymentTracker(**updated).model_dump(), "summary": _summary(updated, roster_total, exc)}
 
@@ -313,6 +330,7 @@ async def set_member_excluded(tracker_id: str, member_id: str, payload: PaymentE
         excluded.discard(member_id)
     await db.payment_trackers.update_one({"id": tracker_id}, {"$set": {"excluded_member_ids": list(excluded)}})
     updated = await db.payment_trackers.find_one({"id": tracker_id}, {"_id": 0})
-    roster_total = await _roster_total(member_ids)
+    sea = (updated.get("season_ids") or [None])[0]
+    roster_total = await _roster_total(member_ids, sea)
     exc = await _excluded_in_roster(member_ids, updated.get("excluded_member_ids") or [])
     return {**PaymentTracker(**updated).model_dump(), "summary": _summary(updated, roster_total, exc)}

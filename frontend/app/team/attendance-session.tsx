@@ -9,7 +9,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 type Member = { id: string; name: string; role: string; team_ids?: string[] | null };
-type Session = { id: string; title: string; date?: string | null; records: Record<string, string> };
+type Session = { id: string; title: string; date?: string | null; season_ids?: string[]; records: Record<string, string> };
 type Status = "present" | "absent" | "excused";
 
 const STATUSES: { key: Status; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -31,9 +31,10 @@ export default function AttendanceSessionScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [s, r, tr] = await Promise.all([
-        api.get<Session>(`/team/attendance/${params.id}`),
-        api.get<Member[]>("/roster"),
+      const s = await api.get<Session>(`/team/attendance/${params.id}`);
+      const sid = s.data.season_ids?.[0];
+      const [r, tr] = await Promise.all([
+        api.get<Member[]>("/roster", { params: sid ? { season_id: sid } : {} }),
         api.get<{ id: string; name: string }[]>("/teams").catch(() => ({ data: [] as any })),
       ]);
       setSession(s.data);

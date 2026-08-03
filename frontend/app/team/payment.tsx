@@ -15,7 +15,7 @@ import PhotoGallery from "@/src/components/PhotoGallery";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; amount_due?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; photos?: string[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; photos?: string[]; season_ids?: string[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
@@ -46,10 +46,9 @@ export default function PaymentDetail() {
 
   const load = useCallback(async () => {
     try {
-      const [t, r] = await Promise.all([
-        api.get<Tracker>(`/team/payments/${params.id}`),
-        api.get<Member[]>("/roster"),
-      ]);
+      const t = await api.get<Tracker>(`/team/payments/${params.id}`);
+      const sid = t.data.season_ids?.[0];
+      const r = await api.get<Member[]>("/roster", { params: sid ? { season_id: sid } : {} });
       setTracker(t.data);
       setRoster(r.data.filter((m) => m.role !== "parent"));
     } finally { setLoading(false); }

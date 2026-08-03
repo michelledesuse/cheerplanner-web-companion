@@ -15,7 +15,7 @@ from core.models import (
     RosterColumnUpdate,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids
+from core.helpers import _team_hub_scope_user_ids as _household_user_ids, roster_season_query
 from core.gating import assert_premium, assert_under_count
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_team_access)])
@@ -31,9 +31,9 @@ def _split_name(full: str) -> tuple:
 
 
 @router.get("/roster", response_model=List[RosterMember])
-async def list_roster(team_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_roster(team_id: str | None = None, season_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    query: dict = {"user_id": {"$in": member_ids}}
+    query: dict = await roster_season_query(member_ids, season_id)
     docs = await db.roster.find(query, {"_id": 0}).to_list(1000)
     # Migrate legacy single team_id -> team_ids list for older documents.
     for d in docs:

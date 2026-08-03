@@ -15,7 +15,7 @@ import PhotoGallery from "@/src/components/PhotoGallery";
 
 type Item = { id: string; label: string; order: number; links?: ExternalLink[]; last_reminded_at?: string | null };
 type Cell = { done?: boolean; note?: string | null };
-type Sheet = { id: string; name: string; items: Item[]; values: Record<string, Record<string, Cell>> };
+type Sheet = { id: string; name: string; items: Item[]; season_ids?: string[]; values: Record<string, Record<string, Cell>> };
 type Member = GridMember & { role: string };
 type Team = { id: string; name: string };
 
@@ -48,9 +48,10 @@ export default function PaperworkSheetScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [s, r, t] = await Promise.all([
-        api.get<Sheet>(`/team/paperwork/${params.id}`),
-        api.get<Member[]>("/roster"),
+      const s = await api.get<Sheet>(`/team/paperwork/${params.id}`);
+      const sid = s.data.season_ids?.[0];
+      const [r, t] = await Promise.all([
+        api.get<Member[]>("/roster", { params: sid ? { season_id: sid } : {} }),
         api.get<Team[]>("/teams").catch(() => ({ data: [] as Team[] })),
       ]);
       setSheet(s.data);

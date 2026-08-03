@@ -12,6 +12,8 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { shareTeamLink } from "@/src/utils/shareLink";
 import { exportAoa } from "@/src/utils/exportFile";
 import { toggleId } from "@/src/utils/filters";
+import SeasonBar from "@/src/components/SeasonBar";
+import { useSeason } from "@/src/context/SeasonContext";
 
 type RosterMember = {
   id: string; name: string; role: string;
@@ -57,6 +59,7 @@ const GROUP_TITLES: { g: number; title: string }[] = [
 export default function RosterScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { filterSeasonId } = useSeason();
   const [members, setMembers] = useState<RosterMember[]>([]);
   const [teams, setTeams] = useState<{ id: string; name: string; color?: string | null }[]>([]);
   const [teamFilter, setTeamFilter] = useState<string[]>([]); // empty=all, "none"=unassigned
@@ -173,13 +176,13 @@ export default function RosterScreen() {
   const load = useCallback(async () => {
     try {
       const [r, tr] = await Promise.all([
-        api.get<RosterMember[]>("/roster"),
+        api.get<RosterMember[]>("/roster", { params: filterSeasonId ? { season_id: filterSeasonId } : {} }),
         api.get<{ id: string; name: string; color?: string | null }[]>("/teams").catch(() => ({ data: [] as any })),
       ]);
       setMembers(r.data);
       setTeams(tr.data || []);
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);
@@ -275,6 +278,8 @@ export default function RosterScreen() {
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
+
+      <View style={styles.seasonWrap}><SeasonBar /></View>
 
       {teams.length > 0 && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={styles.teamChips}>
@@ -491,6 +496,7 @@ export default function RosterScreen() {
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  seasonWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.xs, paddingBottom: spacing.xs },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h1, color: c.textPrimary, flex: 1 },

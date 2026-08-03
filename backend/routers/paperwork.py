@@ -14,15 +14,23 @@ from core.models import (
     utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.helpers import (
+    _team_hub_scope_user_ids as _household_user_ids,
+    _blocked_resource_ids,
+    season_query,
+    roster_season_query,
+    active_season_id,
+)
 from core.gating import assert_premium
 from core.sms import send_sms, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
 
-async def _roster_total(member_ids: List[str]) -> int:
-    return await db.roster.count_documents({"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}})
+async def _roster_total(member_ids: List[str], season_id: str | None = None) -> int:
+    q = await roster_season_query(member_ids, season_id)
+    q["role"] = {"$ne": "parent"}
+    return await db.roster.count_documents(q)
 
 
 def _summary(sheet: dict, roster_total: int) -> dict:
@@ -48,13 +56,13 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 
 
 @router.get("/paperwork")
-async def list_paperwork(current_user=Depends(get_current_user)):
+async def list_paperwork(season_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    docs = await db.paperwork_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(1000)
+    docs = await db.paperwork_sheets.find(season_query(member_ids, season_id), {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "paperwork")
     docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
-    roster_total = await _roster_total(member_ids)
+    roster_total = await _roster_total(member_ids, season_id)
     return [{**PaperworkSheet(**d).model_dump(), "summary": _summary(d, roster_total)} for d in docs]
 
 
@@ -63,7 +71,10 @@ async def create_paperwork(payload: PaperworkSheetCreate, current_user=Depends(g
     await assert_premium(current_user["id"], "paperwork")
     if not (payload.name or "").strip():
         raise HTTPException(status_code=400, detail="Name is required")
-    sheet = PaperworkSheet(user_id=current_user["id"], name=payload.name.strip())
+    member_ids = await _household_user_ids(current_user["id"])
+    sid = await active_season_id(member_ids)
+    sheet = PaperworkSheet(user_id=current_user["id"], name=payload.name.strip(),
+                           season_ids=[sid] if sid else [])
     await db.paperwork_sheets.insert_one(sheet.model_dump())
     return sheet
 
@@ -74,7 +85,7 @@ async def get_paperwork(sheet_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="You don't have access to this sheet")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await _get_sheet(sheet_id, current_user)
-    roster_total = await _roster_total(member_ids)
+    roster_total = await _roster_total(member_ids, (doc.get("season_ids") or [None])[0])
     return {**PaperworkSheet(**doc).model_dump(), "summary": _summary(doc, roster_total)}
 
 
@@ -114,7 +125,8 @@ async def duplicate_paperwork(sheet_id: str, current_user=Depends(get_current_us
     # Copy the columns (items) with fresh ids; start with no checkmarks.
     items = [PaperworkItem(label=it["label"], order=it.get("order", i), links=list(it.get("links") or [])).model_dump()
              for i, it in enumerate(doc.get("items") or [])]
-    copy = PaperworkSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)", items=items)
+    copy = PaperworkSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)", items=items,
+                          season_ids=list(doc.get("season_ids") or []))
     await db.paperwork_sheets.insert_one(copy.model_dump())
     return copy
 
@@ -192,7 +204,8 @@ async def remind_missing_item(sheet_id: str, item_id: str, current_user=Depends(
     values = doc.get("values") or {}
 
     roster = await db.roster.find(
-        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
+        {**await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), "role": {"$ne": "parent"}},
+        {"_id": 0},
     ).to_list(2000)
 
     sent, no_phone, failed = 0, [], []

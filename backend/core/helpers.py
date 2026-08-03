@@ -475,6 +475,42 @@ def season_query(member_ids: List[str], season_id: Optional[str]) -> dict:
     return q
 
 
+async def active_season_id(member_ids: List[str]) -> Optional[str]:
+    """Id of the household's currently-active season, or None."""
+    s = await db.seasons.find_one(
+        {"user_id": {"$in": member_ids}, "is_active": True}, {"_id": 0, "id": 1}
+    )
+    return s["id"] if s else None
+
+
+async def _season_team_ids(member_ids: List[str], season_id: str) -> List[str]:
+    """Team ids that belong to `season_id` PLUS teams with no season assigned
+    (so unassigned teams always stay visible, matching season_query semantics)."""
+    teams = await db.teams.find(
+        {"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "season_ids": 1}
+    ).to_list(2000)
+    return [
+        t["id"] for t in teams
+        if (season_id in (t.get("season_ids") or [])) or not t.get("season_ids")
+    ]
+
+
+async def roster_season_query(member_ids: List[str], season_id: Optional[str]) -> dict:
+    """Mongo query for roster members visible in a season. A member shows if
+    they belong to a team that's in the season, OR they have no team assigned.
+    With no season_id, returns the plain household query (everyone)."""
+    base: Dict[str, Any] = {"user_id": {"$in": member_ids}}
+    if not season_id:
+        return base
+    tids = await _season_team_ids(member_ids, season_id)
+    base["$or"] = [
+        {"team_ids": {"$in": tids}},
+        {"team_ids": {"$in": [None, []]}},
+        {"team_ids": {"$exists": False}},
+    ]
+    return base
+
+
 async def apply_scoped_update(collection, member_ids: List[str], entity_id: str,
                               updates: dict, scope: Optional[str]) -> dict:
     """Apply an entity update honoring a season scope.

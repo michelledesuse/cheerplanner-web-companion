@@ -13,14 +13,22 @@ from core.models import (
     AttendanceMarkPayload,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.helpers import (
+    _team_hub_scope_user_ids as _household_user_ids,
+    _blocked_resource_ids,
+    season_query,
+    roster_season_query,
+    active_season_id,
+)
 from core.gating import assert_under_count
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
 
-async def _roster_total(member_ids: List[str]) -> int:
-    return await db.roster.count_documents({"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}})
+async def _roster_total(member_ids: List[str], season_id: str | None = None) -> int:
+    q = await roster_season_query(member_ids, season_id)
+    q["role"] = {"$ne": "parent"}
+    return await db.roster.count_documents(q)
 
 
 def _summary(sess: dict, roster_total: int) -> dict:
@@ -43,9 +51,9 @@ async def _get_session(session_id: str, current_user) -> dict:
 
 
 @router.get("/attendance")
-async def list_attendance(event_id: str | None = None, competition_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_attendance(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    query: dict = {"user_id": {"$in": member_ids}}
+    query: dict = season_query(member_ids, season_id)
     if event_id:
         query["event_ids"] = event_id
     if competition_id:
@@ -54,7 +62,7 @@ async def list_attendance(event_id: str | None = None, competition_id: str | Non
     blocked = await _blocked_resource_ids(current_user["id"], "attendance")
     docs = [d for d in docs if d["id"] not in blocked]
     docs.sort(key=lambda d: (d.get("date") or "", d.get("created_at") or ""), reverse=True)
-    roster_total = await _roster_total(member_ids)
+    roster_total = await _roster_total(member_ids, season_id)
     return [{**AttendanceSession(**d).model_dump(), "summary": _summary(d, roster_total)} for d in docs]
 
 
@@ -65,9 +73,11 @@ async def create_attendance(payload: AttendanceSessionCreate, current_user=Depen
     member_ids = await _household_user_ids(current_user["id"])
     cnt = await db.attendance_sessions.count_documents({"user_id": {"$in": member_ids}})
     await assert_under_count(current_user["id"], "team_hub_attendance_sessions", cnt)
+    sid = await active_season_id(member_ids)
     sess = AttendanceSession(
         user_id=current_user["id"], title=payload.title.strip(), date=payload.date,
         competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [],
+        season_ids=[sid] if sid else [],
     )
     await db.attendance_sessions.insert_one(sess.model_dump())
     return sess
@@ -79,7 +89,7 @@ async def get_attendance(session_id: str, current_user=Depends(get_current_user)
         raise HTTPException(status_code=403, detail="You don't have access to this session")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await _get_session(session_id, current_user)
-    roster_total = await _roster_total(member_ids)
+    roster_total = await _roster_total(member_ids, (doc.get("season_ids") or [None])[0])
     return {**AttendanceSession(**doc).model_dump(), "summary": _summary(doc, roster_total)}
 
 
@@ -126,5 +136,5 @@ async def mark_attendance(session_id: str, payload: AttendanceMarkPayload, curre
         records[payload.member_id] = payload.status
     await db.attendance_sessions.update_one({"id": doc["id"]}, {"$set": {"records": records}})
     doc["records"] = records
-    roster_total = await _roster_total(member_ids)
+    roster_total = await _roster_total(member_ids, (doc.get("season_ids") or [None])[0])
     return {**AttendanceSession(**doc).model_dump(), "summary": _summary(doc, roster_total)}

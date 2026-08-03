@@ -1009,6 +1009,7 @@ class PaymentTracker(BaseModel):
     photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
+    season_ids: List[str] = Field(default_factory=list)
     name: str
     amount: Optional[float] = None  # expected amount per person (optional)
     note: Optional[str] = None
@@ -1112,6 +1113,7 @@ class PaperworkSheet(BaseModel):
     photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
+    season_ids: List[str] = Field(default_factory=list)
     name: str
     items: List[PaperworkItem] = Field(default_factory=list)
     # member_id -> item_id -> {"done": bool, "note": Optional[str]}
@@ -1173,6 +1175,7 @@ class SignupSheet(BaseModel):
     photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
+    season_ids: List[str] = Field(default_factory=list)
     name: str
     links: List[ExternalLink] = Field(default_factory=list)  # link(s) to the sign-up form / details
     competition_ids: List[str] = Field(default_factory=list)
@@ -1275,6 +1278,7 @@ class TodoUpdate(BaseModel):
 class AttendanceSession(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
+    season_ids: List[str] = Field(default_factory=list)
     title: str
     date: Optional[str] = None  # ISO YYYY-MM-DD
     competition_ids: List[str] = Field(default_factory=list)

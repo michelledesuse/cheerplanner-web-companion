@@ -1,0 +1,27 @@
+{
+  "summary": "Iter81 (SeasonBar extended to all Team Hub tools + season-scoped data). Backend: 24/24 pytest passed, 1 skipped (legacy-no-season sheet cannot be produced via API — invariant is still exercised via season_query's $or clause). Verified GET /api/roster season filtering (member on team A shown only under season A, member on team B only under season B, unassigned always shows), season stamping on POST for payments/paperwork/signups/attendance, season filtering on GET (own-season shows, other-season hides, no filter shows all), detail endpoints return season_ids, and payments summary.member_total is season-scoped (excludes MB when filtered to S1). Frontend: SeasonBar renders on all 6 requested screens (roster, payments, paperwork, signups, attendance, sizes) with testIDs seasonbar-all / seasonbar-{id} / seasonbar-manage; season-chip switching works (Payments screen visually confirmed with TESTSEASON2026 highlighted).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter81_season_scope_team_hub.py",
+    "/app/test_reports/pytest/pytest_iter81.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "In routers/team_payments.py, team_paperwork.py, attendance.py, signups.py: creating a sheet reads active_season_id and stamps season_ids=[sid] if set, else []. GET honors season_query which shows items with empty/missing season_ids in every season filter (legacy-safe). Behavior correct.",
+    "roster_season_query correctly includes members with no team_ids (unassigned) even when a season_id filter is applied.",
+    "Payments summary.member_total is computed from a season-scoped roster_total (via _roster_total(member_ids, sea)) using the sheet's own season_ids in list/get/duplicate/exclude/set_member — consistent.",
+    "SMS remind endpoints (payments, paperwork item remind, signups remind, remind-claimed) also use roster_season_query on the sheet's season, so reminders won't spam out-of-season members. Correct."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Created (and cleaned up) 2 seasons (IT81_*_S1, IT81_*_S2), 2 teams (IT81_*_TA on S1, IT81_*_TB on S2), and 3 roster members (MA/MB/MU) during the pytest run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "SeasonBar chip testIDs: 'seasonbar-all', 'seasonbar-{season_id}', 'seasonbar-manage', and 'seasonbar-create' when no seasons exist. Login route is /login with testIDs login-email-input / login-password-input / login-submit-button. Season activation endpoint is POST /api/seasons/{id}/activate (204 or 200 OK). Team season assignment via POST /api/teams {name, season_ids:[...]}. Backend BASE_URL: EXPO_PUBLIC_BACKEND_URL."
+}

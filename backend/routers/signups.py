@@ -14,7 +14,13 @@ from core.models import (
     utcnow_iso,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _blocked_resource_ids
+from core.helpers import (
+    _team_hub_scope_user_ids as _household_user_ids,
+    _blocked_resource_ids,
+    season_query,
+    roster_season_query,
+    active_season_id,
+)
 from core.gating import assert_under_count, assert_premium
 from core.sms import send_sms, is_configured, normalize_us_phone, join_links
 
@@ -41,9 +47,9 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 
 
 @router.get("/signups")
-async def list_signups(event_id: str | None = None, competition_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_signups(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
-    query: dict = {"user_id": {"$in": member_ids}}
+    query: dict = season_query(member_ids, season_id)
     if event_id:
         query["event_ids"] = event_id
     if competition_id:
@@ -63,9 +69,11 @@ async def create_signup(payload: SignupSheetCreate, current_user=Depends(get_cur
     existing = await db.signup_sheets.find({"user_id": {"$in": member_ids}}, {"_id": 0, "order": 1}).to_list(1000)
     await assert_under_count(current_user["id"], "team_hub_signup_sheets", len(existing))
     order = min([s.get("order", 0) for s in existing], default=1) - 1  # new sheet floats to the top
+    sid = await active_season_id(member_ids)
     sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(),
                         links=[l.model_dump() for l in (payload.links or [])],
-                        competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [], order=order)
+                        competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [], order=order,
+                        season_ids=[sid] if sid else [])
     await db.signup_sheets.insert_one(sheet.model_dump())
     return sheet
 
@@ -134,7 +142,8 @@ async def duplicate_signup(sheet_id: str, current_user=Depends(get_current_user)
     copy = SignupSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)",
                        links=list(doc.get("links") or []),
                        competition_ids=doc.get("competition_ids") or [], event_ids=doc.get("event_ids") or [],
-                       order=doc.get("order", 0) - 1, slots=slots)
+                       order=doc.get("order", 0) - 1, slots=slots,
+                       season_ids=list(doc.get("season_ids") or []))
     await db.signup_sheets.insert_one(copy.model_dump())
     return copy
 
@@ -163,7 +172,8 @@ async def remind_signup(sheet_id: str, current_user=Depends(get_current_user)):
                 claimed_ids.add(c["member_id"])
 
     roster = await db.roster.find(
-        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0}
+        {**await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), "role": {"$ne": "parent"}},
+        {"_id": 0},
     ).to_list(2000)
 
     sent, no_phone, failed = 0, [], []
@@ -211,7 +221,7 @@ async def remind_signed_up(sheet_id: str, current_user=Depends(get_current_user)
             qty = int(c.get("qty") or 1)
             per_member.setdefault(mid, []).append(f"{label} x{qty}" if qty > 1 else label)
 
-    roster = await db.roster.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(2000)
+    roster = await db.roster.find(await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), {"_id": 0}).to_list(2000)
     roster_by_id = {m["id"]: m for m in roster}
 
     sent, no_phone, failed = 0, [], []

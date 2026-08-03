@@ -8,6 +8,8 @@ import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import SeasonBar from "@/src/components/SeasonBar";
+import { useSeason } from "@/src/context/SeasonContext";
 
 type Session = {
   id: string; title: string; date?: string | null;
@@ -27,13 +29,14 @@ export default function AttendanceScreen() {
   const [items, setItems] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { filterSeasonId } = useSeason();
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Session[]>("/team/attendance");
+      const r = await api.get<Session[]>("/team/attendance", { params: filterSeasonId ? { season_id: filterSeasonId } : {} });
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);
@@ -49,6 +52,8 @@ export default function AttendanceScreen() {
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
       </View>
+
+      <View style={styles.seasonWrap}><SeasonBar /></View>
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
@@ -92,6 +97,7 @@ export default function AttendanceScreen() {
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  seasonWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
