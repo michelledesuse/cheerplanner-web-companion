@@ -183,6 +183,7 @@ async def public_submit(token: str, payload: dict = Body(...)):
             "food_allergies": (payload.get("food_allergies") or "").strip() or None,
             "other_allergies": (payload.get("other_allergies") or "").strip() or None,
             "medical_concerns": (payload.get("medical_concerns") or "").strip() or None,
+            "photo": (payload.get("photo") or "").strip() or None,
             "notes": (payload.get("notes") or "").strip() or None,
         }
         # team_ids (list) and host_bonding_opt_in (bool) don't fit the truthy filter — handle explicitly.
@@ -388,6 +389,10 @@ function renderRoster(d){
   h+="<label>Other allergies</label><input id='oallergy'/>";
   h+="<label>Medical concerns</label><input id='medical'/>";
   h+="<label>Host bonding opt-in</label><select id='host'><option value=''>Not set</option><option value='yes'>Yes</option><option value='no'>No</option></select>";
+  h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Photo</div>";
+  h+="<div class='meta'>Add one photo of the athlete/staff member (optional).</div>";
+  h+="<div id='photoPrev'></div>";
+  h+="<input id='photo' type='file' accept='image/*' onchange='onPhoto(event)' style='padding:8px'/>";
   window._szcols=(d.size_columns||[]).map(c=>c.id);
   if((d.size_columns||[]).length){
     h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Sizes</div>";
@@ -406,8 +411,26 @@ async function saveRoster(btn){
   const ok=await submit({first_name:g('first'),last_name:g('last'),preferred_name:g('pref'),role:g('role'),
     team_ids:teamIds,phone:g('phone'),email:g('email'),
     parent_first_name:g('pfirst'),parent_last_name:g('plast'),parent_phone:g('pphone'),parent_email:g('pemail'),
-    food_allergies:g('food'),other_allergies:g('oallergy'),medical_concerns:g('medical'),host_bonding_opt_in:host,sizes:sizes},btn);
+    food_allergies:g('food'),other_allergies:g('oallergy'),medical_concerns:g('medical'),host_bonding_opt_in:host,
+    photo:window._photo||null,sizes:sizes},btn);
   if(ok){document.getElementById("ok").textContent="Thanks! Your info was submitted.";btn.textContent="Submitted";}
+}
+function onPhoto(ev){
+  const f=ev.target.files&&ev.target.files[0]; if(!f)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const max=600; let w=img.width,h=img.height;
+      if(w>h&&w>max){h=Math.round(h*max/w);w=max;} else if(h>=w&&h>max){w=Math.round(w*max/h);h=max;}
+      const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      window._photo=cv.toDataURL('image/jpeg',0.6);
+      document.getElementById('photoPrev').innerHTML="<img src='"+window._photo+"' style='width:90px;height:90px;object-fit:cover;border-radius:10px;margin-top:8px;border:1px solid #E2E8F0'/>";
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(f);
 }
 """
 

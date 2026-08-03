@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -38,6 +39,7 @@ export default function RosterMemberForm() {
   const [otherAllergies, setOtherAllergies] = useState("");
   const [medicalConcerns, setMedicalConcerns] = useState("");
   const [hostBonding, setHostBonding] = useState<boolean | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
   const [columns, setColumns] = useState<{ id: string; label: string }[]>([]);
   const [custom, setCustom] = useState<Record<string, string>>({});
   const [sizeColumns, setSizeColumns] = useState<{ id: string; label: string }[]>([]);
@@ -88,6 +90,7 @@ export default function RosterMemberForm() {
           setOtherAllergies(m.other_allergies || "");
           setMedicalConcerns(m.medical_concerns || "");
           setHostBonding(typeof m.host_bonding_opt_in === "boolean" ? m.host_bonding_opt_in : null);
+          setPhoto(m.photo || null);
           setCustom(m.custom || {});
         }
       } finally { setLoading(false); }
@@ -116,6 +119,7 @@ export default function RosterMemberForm() {
         other_allergies: otherAllergies.trim() || null,
         medical_concerns: medicalConcerns.trim() || null,
         host_bonding_opt_in: hostBonding,
+        photo: photo,
         custom,
       };
       let memberId = params.id as string | undefined;
@@ -128,6 +132,20 @@ export default function RosterMemberForm() {
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
     } finally { setSaving(false); }
+  };
+
+  const pickPhoto = async () => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Photo access needed", "Allow photo access to add a picture.",
+        perm.canAskAgain ? [{ text: "OK" }] : [{ text: "Cancel", style: "cancel" }, { text: "Open Settings", onPress: () => Linking.openSettings() }]);
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true, allowsEditing: true, aspect: [1, 1] });
+    if (!res.canceled && res.assets?.[0]?.base64) {
+      const a = res.assets[0];
+      setPhoto(`data:${a.mimeType || "image/jpeg"};base64,${a.base64}`);
+    }
   };
 
   const remove = () => {
@@ -192,6 +210,29 @@ export default function RosterMemberForm() {
 
           <Text style={styles.label}>Preferred name <Text style={styles.labelHint}>(optional)</Text></Text>
           <TextInput style={styles.input} value={preferredName} onChangeText={setPreferredName} placeholder="What they go by" placeholderTextColor={colors.textTertiary} testID="roster-preferred-input" />
+
+          <Text style={styles.label}>Photo <Text style={styles.labelHint}>(optional)</Text></Text>
+          <View style={styles.photoRow}>
+            <TouchableOpacity onPress={pickPhoto} activeOpacity={0.8} testID="roster-photo-pick">
+              {photo ? (
+                <Image source={{ uri: photo }} style={styles.photoThumb} />
+              ) : (
+                <View style={[styles.photoThumb, styles.photoEmpty]}>
+                  <Ionicons name="camera-outline" size={24} color={colors.accent} />
+                </View>
+              )}
+            </TouchableOpacity>
+            <View style={{ flex: 1, gap: 8 }}>
+              <TouchableOpacity onPress={pickPhoto} style={styles.photoBtn} testID="roster-photo-add">
+                <Text style={styles.photoBtnText}>{photo ? "Change photo" : "Add photo"}</Text>
+              </TouchableOpacity>
+              {photo ? (
+                <TouchableOpacity onPress={() => setPhoto(null)} style={styles.photoBtnGhost} testID="roster-photo-remove">
+                  <Text style={styles.photoBtnGhostText}>Remove</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          </View>
 
           <Text style={styles.label}>Role</Text>
           <View style={styles.roleRow}>
@@ -357,6 +398,13 @@ const makeStyles = (c: ThemePalette) => ({
   labelHint: { ...typography.caption, color: c.textTertiary, fontWeight: "500" },
   sectionLabel: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800", marginTop: spacing.xl },
   nameRow: { flexDirection: "row", gap: spacing.md },
+  photoRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  photoThumb: { width: 76, height: 76, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  photoEmpty: { alignItems: "center", justifyContent: "center", borderStyle: "dashed", borderColor: c.accent, backgroundColor: c.accentSubtle },
+  photoBtn: { backgroundColor: c.accentSubtle, borderRadius: radius.md, paddingVertical: 10, alignItems: "center" },
+  photoBtnText: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  photoBtnGhost: { paddingVertical: 8, alignItems: "center" },
+  photoBtnGhostText: { ...typography.caption, color: c.textTertiary, fontWeight: "600" },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   roleChip: { flexBasis: "48%", flexGrow: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, paddingHorizontal: 6, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },

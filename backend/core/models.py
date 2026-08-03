@@ -903,6 +903,7 @@ class RosterMember(BaseModel):
     other_allergies: Optional[str] = None
     medical_concerns: Optional[str] = None
     host_bonding_opt_in: Optional[bool] = None
+    photo: Optional[str] = None  # base64 data URL (single athlete/staff photo)
     custom: Dict[str, str] = Field(default_factory=dict)  # custom_column_id -> value
     source: Literal["manual", "athlete", "household"] = "manual"
     linked_id: Optional[str] = None  # source athlete id / household user id
@@ -927,6 +928,7 @@ class RosterMemberCreate(BaseModel):
     other_allergies: Optional[str] = None
     medical_concerns: Optional[str] = None
     host_bonding_opt_in: Optional[bool] = None
+    photo: Optional[str] = None
     custom: Optional[Dict[str, str]] = None
 
 
@@ -948,10 +950,10 @@ class RosterMemberUpdate(BaseModel):
     other_allergies: Optional[str] = None
     medical_concerns: Optional[str] = None
     host_bonding_opt_in: Optional[bool] = None
+    photo: Optional[str] = None
     custom: Optional[Dict[str, str]] = None
 
 
-# Custom roster columns (household-scoped, user-defined extra fields)
 class RosterColumn(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str

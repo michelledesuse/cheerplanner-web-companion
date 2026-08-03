@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, Linking, Alert, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, Linking, Alert, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -282,7 +282,11 @@ export default function RosterScreen() {
                       {selected && <Ionicons name="checkmark" size={14} color="white" />}
                     </View>
                   )}
-                  <View style={styles.avatar}><Text style={styles.avatarText}>{(m.name || "?")[0]?.toUpperCase()}</Text></View>
+                  {m.photo ? (
+                    <Image source={{ uri: m.photo }} style={styles.avatar} />
+                  ) : (
+                    <View style={styles.avatar}><Text style={styles.avatarText}>{(m.name || "?")[0]?.toUpperCase()}</Text></View>
+                  )}
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <Text style={styles.name}>{m.name}</Text>
