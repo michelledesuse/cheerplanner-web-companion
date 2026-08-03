@@ -128,8 +128,8 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - [x] Photos: multiple photos on events, competitions, sign-up sheets, payment trackers, paperwork, fundraisers (internal galleries DONE). Public roster share link: parent uploads ONE athlete/staff photo — DONE (iter77): `RosterMember.photo`, public `/submit` accepts base64 (client-resized ≤600px), renders in internal roster avatar + coach can add/change/remove in roster edit form.
 - [x] Season filtering extended to Expenses, Payments, Fundraisers — DONE (iter77): `season_ids` on Expense/Payment/Fundraiser (+bulk), list endpoints accept `?season_id=` via `season_query` (tagged items show only under their season; untagged always show), auto-tagged with active season on create. Frontend passes `filterSeasonId` on Expenses tab + Fundraisers. (athletes/staff/events/competitions/teams already season-scoped.)
 - [ ] Seasons Phase C2: per-item SeasonPicker (multi-attach) in detail/edit forms + the this/forward/all scope PROMPT UI (backend ready).
-- [ ] Template management UI: edit/delete user-created packing-list templates (backend CRUD already exists).
-- [ ] FAQ + setup guide: add subscription info + current adjustments.
+- [x] Template management UI: edit/delete user-created packing-list templates — DONE (iter77b): Templates picker gained a "Manage" mode (rename via inline input, delete with confirm) for non-default templates; CheerPlanner Standard is locked. Wired to existing PATCH/DELETE /api/packing-templates.
+- [x] FAQ + setup guide: add subscription info + current adjustments — DONE (iter77b): FAQ got a new "Membership & subscription" section (Free vs Premium, $4.99/mo & $39.99/yr + 7-day trial, restore, household-wide, lifetime codes); fixed the outdated "no in-app purchases" answer; updated Team Hub access answer (owner-controlled) & packing template answer. Setup Guide got step 17 (Seasons) + step 18 (Go Premium) and refreshed packing/templates copy.
 - [ ] UI-consistency review across Team Hub + Parent Portal (requested last).
 
 ## Backlog — web companion (added)

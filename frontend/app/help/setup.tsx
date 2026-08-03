@@ -71,7 +71,7 @@ const STEPS: Step[] = [
     num: 9,
     title: "Build a packing list",
     body:
-      "On any competition detail page, open the Packing List section. You can apply a saved template from Settings → Packing list templates, or add items one at a time. Each item is checkable per athlete so you can confirm nothing was left behind.",
+      "On any competition detail page, open the Packing List section. Apply the CheerPlanner Standard template or any list you've saved, or add items one at a time. Tap Save to store the current list as a reusable template, and use Templates → Manage to rename or delete templates you've created. Each item is checkable per athlete so you can confirm nothing was left behind.",
   },
   {
     num: 10,
@@ -116,6 +116,20 @@ const STEPS: Step[] = [
     body:
       "Open Settings → Appearance to recolor the whole app for your household. Pick one of the ready-made presets (Red & White, Royal Blue, Green & Black and more — including dark themes), or scroll to Build your own to create a custom theme. The custom builder gives you a full color picker and up to 4 colors — Accent, Background, Surface, and Text — so you can match your gym's colors exactly. Changes apply instantly across every screen.",
     tip: "Themes are shared household-wide and sync to every member's phone, so pick something everyone likes.",
+  },
+  {
+    num: 17,
+    title: "Organize by season",
+    body:
+      "Open Settings → Seasons to create seasons (e.g. \"2025–26\"). Mark one active and the whole app filters to it — new athletes, competitions, schedule events, expenses, payments and fundraisers you add are automatically tagged to the active season. Use the season bar on the dashboard to switch between seasons or view All. When a new season starts, use Roll over to carry teams and athletes forward.",
+    tip: "Items you created before making a season stay visible in every season, so nothing gets hidden.",
+  },
+  {
+    num: 18,
+    title: "Go Premium (optional)",
+    body:
+      "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full Team Hub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",
+    tip: "Tap Restore Purchases on the Membership screen after switching phones to get your plan back.",
   },
 ];
 

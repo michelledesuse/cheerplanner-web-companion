@@ -127,7 +127,12 @@ const FAQ: Section[] = [
       {
         q: "How do I reuse the same packing list at every competition?",
         a:
-          "Open Settings → Packing list templates. Build a master list there. Then on any competition, scroll to the Packing List section and tap Apply template. Items are checkable per athlete so each child has their own progress.",
+          "Open a competition and scroll to the Packing List section, then tap Apply template. You can start from the CheerPlanner Standard list or any list you've saved. Tap Save to store the current list as a reusable template.",
+      },
+      {
+        q: "Can I rename or delete a packing template I made?",
+        a:
+          "Yes. Open the Templates picker (the Templates button on any packing list) and tap Manage. From there you can rename or delete any template you created. The built-in CheerPlanner Standard template is locked and can't be edited or removed.",
       },
       {
         q: "Can the co-parent see what's been packed?",
@@ -172,7 +177,7 @@ const FAQ: Section[] = [
       {
         q: "Who can see the Team Hub?",
         a:
-          "Only logins that turn on 'I'm team personnel' in Settings → Team Hub. This is per-login, so if a couple shares one household, the Hub only appears for the coach/rep/staff member — the other family member won't see it (and can't reach the data even via the app). Turn it off any time to hide it again.",
+          "The household owner controls access. Open Settings → Team Hub → Team Hub Access to grant or revoke it for each household member, or invite someone by email. Members with access see the Team tab and its tools; everyone else won't see the Hub or its data.",
       },
       {
         q: "How is the Roster different from my athletes?",
@@ -217,12 +222,52 @@ const FAQ: Section[] = [
       {
         q: "Are there ads or in-app purchases?",
         a:
-          "No. CheerPlanner has no advertising, no subscriptions, no in-app purchases, and never sells your data. All entries are private records you keep for your own bookkeeping.",
+          "There are never any ads and we never sell your data. CheerPlanner is free to use with generous limits, and offers an optional Premium membership (in-app purchase via the App Store) that unlocks higher limits and the advanced Team Hub tools. See the Membership section below for details.",
       },
       {
         q: "Do you store my financial information?",
         a:
           "No. Money entries you log are tracking records only — CheerPlanner never connects to a bank, processes a payment, or stores card numbers. The 'payment' you log is just a note that you paid something, not an actual transaction.",
+      },
+    ],
+  },
+  {
+    title: "Membership & subscription",
+    items: [
+      {
+        q: "What's included in the Free plan?",
+        a:
+          "Free covers everyday cheer-parent needs: unlimited athletes, expenses, payments, fundraisers, competitions, travel, schedule, calendar and packing lists for your own family, plus a household of up to 2 members. Team Hub on Free includes the Roster (up to 36 athletes / 4 personnel), 1 sign-up sheet, and 1 attendance session.",
+      },
+      {
+        q: "What does Premium add?",
+        a:
+          "Premium raises your household to 6 members and unlocks the full Team Hub: unlimited roster, unlimited sign-up sheets and attendance sessions, plus Sizes, Paperwork, Team Payment tracking, custom roster columns & expanded fields, spreadsheet import/export, parent share links, and mass SMS reminders.",
+      },
+      {
+        q: "How much does Premium cost?",
+        a:
+          "$4.99/month or $39.99/year — the annual plan works out to a big saving versus monthly, and both come with a 7-day free trial. Prices are shown and charged by the App Store in your local currency; the store is always the source of truth.",
+      },
+      {
+        q: "How do I upgrade, and can I try it first?",
+        a:
+          "Open Settings → Membership (or tap any locked Premium feature) to see the plans and start your 7-day free trial. You can cancel anytime during the trial in your App Store subscription settings and you won't be charged.",
+      },
+      {
+        q: "I switched phones / reinstalled — how do I get Premium back?",
+        a:
+          "Open Settings → Membership and tap Restore Purchases. As long as you're signed into the same App Store account, your subscription (or lifetime access) is restored.",
+      },
+      {
+        q: "Does Premium apply to my whole household?",
+        a:
+          "Yes. Premium is tied to your household, so once any member upgrades, everyone sharing that household gets the Premium limits and Team Hub features.",
+      },
+      {
+        q: "What if I already have a lifetime or promo code?",
+        a:
+          "If you were given a lifetime access or promo code, redeem it on the web at cheer-planner.com/redeem while signed in. Lifetime members never see a renewal and don't need a store subscription.",
       },
     ],
   },

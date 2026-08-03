@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, ScrollView, Pressable } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, ScrollView, Pressable, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
@@ -191,6 +191,31 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
     })();
   };
 
+  const refreshTemplates = async () => {
+    const t = await api.get<Template[]>("/packing-templates");
+    setTemplates(t.data || []);
+  };
+
+  const deleteTemplate = async (t: Template) => {
+    try {
+      await api.delete(`/packing-templates/${t.id}`);
+      await refreshTemplates();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not delete template");
+    }
+  };
+
+  const renameTemplate = async (t: Template, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      await api.patch(`/packing-templates/${t.id}`, { name: trimmed });
+      await refreshTemplates();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not rename template");
+    }
+  };
+
   const grouped = useMemo(() => {
     const map: Record<string, Item[]> = {};
     (list?.items || []).forEach(i => {
@@ -265,6 +290,8 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
           onClose={() => setTemplatePickerOpen(false)}
           templates={templates}
           onPick={applyTemplate}
+          onDelete={deleteTemplate}
+          onRename={renameTemplate}
           onSeedDefault={async () => {
             const t = await ensureDefaultTemplate();
             if (t) applyTemplate(t);
@@ -393,6 +420,8 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
         onClose={() => setTemplatePickerOpen(false)}
         templates={templates}
         onPick={applyTemplate}
+        onDelete={deleteTemplate}
+        onRename={renameTemplate}
         onSeedDefault={async () => {
           const t = await ensureDefaultTemplate();
           if (t) applyTemplate(t);
@@ -403,24 +432,58 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
 }
 
 function TemplatePicker({
-  open, onClose, templates, onPick, onSeedDefault,
+  open, onClose, templates, onPick, onSeedDefault, onDelete, onRename,
 }: {
   open: boolean;
   onClose: () => void;
   templates: Template[];
   onPick: (t: Template) => void;
   onSeedDefault: () => void;
+  onDelete: (t: Template) => Promise<void> | void;
+  onRename: (t: Template, name: string) => Promise<void> | void;
 }) {
   const styles = useThemedStyles(makeStyles);
+  const [manageMode, setManageMode] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+
+  const editableCount = templates.filter(t => !t.is_default).length;
+
+  const confirmDelete = (t: Template) => {
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Delete template "${t.name}"? This cannot be undone.`)) {
+        onDelete(t);
+      }
+      return;
+    }
+    Alert.alert("Delete template?", `"${t.name}" will be removed. This cannot be undone.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => onDelete(t) },
+    ]);
+  };
+
+  const startRename = (t: Template) => { setEditingId(t.id); setEditName(t.name); };
+  const commitRename = async (t: Template) => {
+    await onRename(t, editName);
+    setEditingId(null); setEditName("");
+  };
+
   return (
     <Modal visible={open} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Pick a template</Text>
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
-              <Ionicons name="close" size={22} color={colors.textPrimary} />
-            </TouchableOpacity>
+            <Text style={styles.modalTitle}>{manageMode ? "Manage templates" : "Pick a template"}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              {editableCount > 0 && (
+                <TouchableOpacity onPress={() => { setManageMode(m => !m); setEditingId(null); }} testID="packing-manage-toggle">
+                  <Text style={styles.manageLink}>{manageMode ? "Done" : "Manage"}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={onClose} hitSlop={10}>
+                <Ionicons name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
           </View>
           <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ paddingBottom: 16 }}>
             {templates.length === 0 && (
@@ -434,20 +497,68 @@ function TemplatePicker({
                 </TouchableOpacity>
               </View>
             )}
-            {templates.map(t => (
-              <TouchableOpacity
-                key={t.id}
-                style={styles.templateRow}
-                onPress={() => onPick(t)}
-                testID={`packing-template-${t.id}`}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.templateName}>{t.name}</Text>
-                  <Text style={styles.templateMeta}>{t.items.length} items{t.is_default ? " • Standard" : ""}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-              </TouchableOpacity>
-            ))}
+            {templates.map(t => {
+              const isEditing = editingId === t.id;
+              if (manageMode) {
+                return (
+                  <View key={t.id} style={styles.templateRow}>
+                    {isEditing ? (
+                      <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                        <TextInput
+                          style={[styles.addInput, { flex: 1 }]}
+                          value={editName}
+                          onChangeText={setEditName}
+                          autoFocus
+                          placeholder="Template name"
+                          placeholderTextColor={colors.textTertiary}
+                          onSubmitEditing={() => commitRename(t)}
+                          testID={`packing-rename-input-${t.id}`}
+                        />
+                        <TouchableOpacity onPress={() => commitRename(t)} hitSlop={8} testID={`packing-rename-save-${t.id}`}>
+                          <Ionicons name="checkmark-circle" size={24} color={colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => { setEditingId(null); setEditName(""); }} hitSlop={8}>
+                          <Ionicons name="close-circle-outline" size={24} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.templateName}>{t.name}</Text>
+                          <Text style={styles.templateMeta}>{t.items.length} items{t.is_default ? " • Standard (locked)" : ""}</Text>
+                        </View>
+                        {t.is_default ? (
+                          <Ionicons name="lock-closed" size={16} color={colors.textTertiary} />
+                        ) : (
+                          <View style={{ flexDirection: "row", gap: 14 }}>
+                            <TouchableOpacity onPress={() => startRename(t)} hitSlop={8} testID={`packing-rename-${t.id}`}>
+                              <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
+                            </TouchableOpacity>
+                            <TouchableOpacity onPress={() => confirmDelete(t)} hitSlop={8} testID={`packing-delete-${t.id}`}>
+                              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </>
+                    )}
+                  </View>
+                );
+              }
+              return (
+                <TouchableOpacity
+                  key={t.id}
+                  style={styles.templateRow}
+                  onPress={() => onPick(t)}
+                  testID={`packing-template-${t.id}`}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.templateName}>{t.name}</Text>
+                    <Text style={styles.templateMeta}>{t.items.length} items{t.is_default ? " • Standard" : ""}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       </View>
@@ -544,6 +655,7 @@ const makeStyles = () => ({
     padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   modalTitle: { ...typography.h3, color: colors.textPrimary },
+  manageLink: { ...typography.caption, color: colors.accent, fontWeight: "700", fontSize: 14 },
   templateRow: {
     flexDirection: "row", alignItems: "center", gap: 8,
     paddingHorizontal: spacing.lg, paddingVertical: 14,
