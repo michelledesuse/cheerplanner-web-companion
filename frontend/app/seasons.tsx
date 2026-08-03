@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, StyleSheet, Alert, ActivityIndicator, Switch, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, Alert, ActivityIndicator, Switch, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { useSeason, type Season } from "@/src/context/SeasonContext";
 import DateField from "@/src/components/DateField";
 import { isoToInput } from "@/src/utils/format";
@@ -19,6 +20,7 @@ const KINDS: { key: string; label: string }[] = [
 
 export default function SeasonsScreen() {
   const router = useRouter();
+  const styles = useThemedStyles(makeStyles);
   const { seasons, refresh, activate, loading } = useSeason();
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -171,8 +173,8 @@ export default function SeasonsScreen() {
       <Modal visible={rollOpen} transparent animationType="slide" onRequestClose={() => setRollOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setRollOpen(false)} />
         <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>Roll over from "{menu?.name}"</Text>
-          <Text style={styles.intro}>Add everything from this season into another season (they'll belong to both).</Text>
+          <Text style={styles.sheetTitle}>Roll over from “{menu?.name}”</Text>
+          <Text style={styles.intro}>Add everything from this season into another season (they’ll belong to both).</Text>
           <Text style={styles.label}>Into which season?</Text>
           {seasons.filter((s) => s.id !== menu?.id).map((s) => (
             <TouchableOpacity key={s.id} style={[styles.pickRow, rollTarget === s.id && styles.pickRowOn]} onPress={() => setRollTarget(s.id)} testID={`roll-target-${s.id}`}>
@@ -196,6 +198,7 @@ export default function SeasonsScreen() {
 }
 
 function MenuItem({ icon, label, onPress, danger, testID }: { icon: any; label: string; onPress: () => void; danger?: boolean; testID?: string }) {
+  const styles = useThemedStyles(makeStyles);
   return (
     <TouchableOpacity style={styles.menuItem} onPress={onPress} testID={testID}>
       <Ionicons name={icon} size={20} color={danger ? colors.danger : colors.accent} />
@@ -204,42 +207,42 @@ function MenuItem({ icon, label, onPress, danger, testID }: { icon: any; label: 
   );
 }
 
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.bg },
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
+  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
   iconBtn: { padding: 4 },
-  headerTitle: { ...typography.h2, color: colors.textPrimary, flex: 1 },
-  addBtn: { backgroundColor: colors.accent, width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center" },
-  intro: { ...typography.body, color: colors.textSecondary, marginBottom: spacing.md, lineHeight: 20 },
+  headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
+  addBtn: { backgroundColor: c.accent, width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center" },
+  intro: { ...typography.body, color: c.textSecondary, marginBottom: spacing.md, lineHeight: 20 },
   empty: { alignItems: "center", marginTop: spacing.xxl, gap: 6 },
-  emptyTitle: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.sm },
-  emptySub: { ...typography.body, color: colors.textSecondary },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm },
-  rowName: { ...typography.bodyMedium, fontWeight: "800", color: colors.textPrimary },
-  rowDates: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
-  activeBadge: { backgroundColor: colors.accentSubtle, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  activeBadgeText: { ...typography.micro, fontWeight: "800", color: colors.accent },
+  emptyTitle: { ...typography.h3, color: c.textPrimary, marginTop: spacing.sm },
+  emptySub: { ...typography.body, color: c.textSecondary },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm },
+  rowName: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  rowDates: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  activeBadge: { backgroundColor: c.accentSubtle, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  activeBadgeText: { ...typography.micro, fontWeight: "800", color: c.accent },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
   kav: { flex: 1, justifyContent: "flex-end" },
-  sheetFlow: { backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
-  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
-  menuSheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: colors.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
-  sheetTitle: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
-  label: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", marginBottom: 6, marginTop: spacing.sm },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 11, color: colors.textPrimary, backgroundColor: colors.card },
+  sheetFlow: { backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
+  sheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
+  menuSheet: { position: "absolute", left: 0, right: 0, bottom: 0, backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xxl },
+  sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
+  label: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginBottom: 6, marginTop: spacing.sm },
+  input: { borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 11, color: c.textPrimary, backgroundColor: c.card },
   dateRow: { flexDirection: "row", gap: spacing.sm },
   switchRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.md },
-  switchLabel: { ...typography.body, color: colors.textPrimary },
-  confirm: { backgroundColor: colors.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
+  switchLabel: { ...typography.body, color: c.textPrimary },
+  confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
   confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
   menuItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 },
-  menuItemText: { ...typography.body, color: colors.textPrimary, fontWeight: "600" },
-  pickRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 6 },
-  pickRowOn: { borderColor: colors.accent, backgroundColor: colors.accentSubtle },
-  pickText: { ...typography.body, color: colors.textPrimary },
+  menuItemText: { ...typography.body, color: c.textPrimary, fontWeight: "600" },
+  pickRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, paddingHorizontal: 12, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, marginBottom: 6 },
+  pickRowOn: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  pickText: { ...typography.body, color: c.textPrimary },
   kindsWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
-  kindChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
-  kindChipOn: { borderColor: colors.accent, backgroundColor: colors.accentSubtle },
-  kindChipText: { ...typography.caption, fontWeight: "700", color: colors.textSecondary },
-  kindChipTextOn: { color: colors.accent },
+  kindChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
+  kindChipOn: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  kindChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
+  kindChipTextOn: { color: c.accent },
 });

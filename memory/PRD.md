@@ -132,7 +132,15 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - [x] FAQ + setup guide: add subscription info + current adjustments — DONE (iter77b): FAQ got a new "Membership & subscription" section (Free vs Premium, $4.99/mo & $39.99/yr + 7-day trial, restore, household-wide, lifetime codes); fixed the outdated "no in-app purchases" answer; updated Team Hub access answer (owner-controlled) & packing template answer. Setup Guide got step 17 (Seasons) + step 18 (Go Premium) and refreshed packing/templates copy.
 - [ ] UI-consistency review across Team Hub + Parent Portal (requested last).
 
-## Session update 12 (Seasons Phase 2 + conflict detection + Team Music, iter78)
+## Session update 13 (UI consistency + date/keyboard fixes + branding, iter79)
+- DONE: **App-wide button/chip color standardized to CheerPlanner blue (`accent`)** — swapped interactive `colors.primary`/`c.primary` → accent across ~35 files (Parent Portal was navy, Team Hub blue). Root cause of prior mismatch: theme mutates `accent` but never `primary`, so primary buttons ignored custom themes. Now all CTAs follow the user's custom Appearance color.
+- DONE: **Schedule tab UX** — smaller header Add/Select buttons; Type filter row gained a dashed "+ Type" add-chip (opens AddTypeModal) + a right chevron scroll-hint on overflow (FilterChipRow now supports `onAdd`/overflow detection).
+- DONE: **Seasons dates → MM-DD-YYYY** via shared `DateField` (ISO storage, MM-DD-YYYY display) on create/edit + row display; **keyboard no longer covers inputs** (Create/Edit modals wrapped in KeyboardAvoidingView).
+- DONE: **Seasons screen now theme-following** — converted its static `StyleSheet.create` to `useThemedStyles(makeStyles)` (was frozen at default accent).
+- DONE: **Splash screen re-branded** — app.json expo-splash-screen now uses `cheerplanner-logo-full.png` on white (was the Emergent "e" splash). REQUIRES a native rebuild/publish to take effect; not visible in Expo Go/web preview.
+- Tested iter79 (frontend): no red screens, buttons blue + theme-following, schedule add-type + seasons keyboard/date fixes verified.
+
+
 - DONE: **Seasons Phase 2** — `SeasonPicker` (multi-select season chips + this/forward/all scope selector) on athlete/competition/schedule/team edit forms. Scope maps to backend `edit_scope`; only shown when item is in >1 season.
 - DONE: **Schedule conflict detection** — Schedule tab flags events on the same date with overlapping start/end times: amber badge "Overlaps with <title>" (household-wide) or "<athlete> double-booked" (shared athlete). Client-side in `app/(tabs)/schedule.tsx` (testID schedule-conflict-<id>).
 - DONE: **Team Music** (Team Hub, FREE) — `routers/music.py`: chunked base64 upload → GridFS (bucket team_music), token-auth streaming (`GET /api/team/music/{id}/stream?token=`), list/patch/delete, 15MB cap. Frontend `app/team/music.tsx` (upload via expo-document-picker, playback via expo-audio, attach to teams/competitions, edit/delete) + Team Hub tool card. Models TeamTrack/Init/Update; startup indexes. Backend 8/8 pytest (iter78).
