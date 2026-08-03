@@ -48,27 +48,38 @@ export default function PrivacyPolicyScreen() {
           details, uniform/apparel sizes, paperwork completion status, and payment tracking notes.
           You may enter this manually or upload it by importing a spreadsheet (CSV or Excel) file.
         </Text>
+        <Text style={styles.p}>
+          You may also add photos (for example, an athlete or staff profile photo, or photos
+          attached to a competition, event, fundraiser, sign-up, payment, or paperwork record) and,
+          in Team Hub, audio files (&quot;Team Music&quot;). If you share a roster link, a parent or
+          guardian can upload a single photo of their athlete or staff member without logging in.
+          Photos and audio you add are stored as part of your account so they can sync across your
+          household and Team Hub.
+        </Text>
 
         <Text style={styles.h}>Team Hub (for coaches &amp; team staff)</Text>
         <Text style={styles.p}>
           Team Hub is an optional workspace for coaches, team reps, and staff to organize a team
-          roster, sizes, paperwork, payment tracking, and volunteer sign-ups. Access is controlled
-          by the account owner, who grants Team Hub access to specific people and can invite others
-          by email.
+          roster, sizes, paperwork, payment tracking, volunteer sign-ups, and shared team music.
+          Access is controlled by the account owner, who grants Team Hub access to specific people
+          and can invite others by email.
         </Text>
         <Text style={styles.p}>
-          If you enter or upload information about other individuals, you are responsible for having
-          the appropriate authority or consent to do so, and for using that information solely for
-          legitimate team-management purposes. This data is visible only to household logins you
-          have granted Team Hub access. If a person listed in your roster asks you to remove their
-          information, you can delete it within the app.
+          If you enter or upload information about other individuals — including photos or audio —
+          you are responsible for having the appropriate authority or consent to do so, and for
+          using that information solely for legitimate team-management purposes. This data is visible
+          only to household logins you have granted Team Hub access. If a person listed in your
+          roster asks you to remove their information, you can delete it within the app.
         </Text>
 
-        <Text style={styles.h}>Uploaded files</Text>
+        <Text style={styles.h}>Uploaded files &amp; media</Text>
         <Text style={styles.p}>
           When you import a spreadsheet, we process the file only to extract the rows you choose to
-          import and to create the corresponding records in your account. We do not use uploaded
-          files for any other purpose.
+          import and to create the corresponding records in your account. Photos and audio files you
+          upload are stored solely to provide the feature you used them for (for example, showing an
+          athlete&apos;s profile photo or letting your team play shared music) and to sync them
+          across your household and Team Hub. We do not use uploaded files or media for any other
+          purpose, and we do not sell them.
         </Text>
 
         <Text style={styles.h}>How we use your information</Text>
@@ -102,6 +113,11 @@ export default function PrivacyPolicyScreen() {
           help us operate the Service (such as cloud hosting, email delivery, and SMS delivery),
           with household members you explicitly invite or people you grant Team Hub access, or when
           required by law.
+        </Text>
+        <Text style={styles.p}>
+          If you purchase a Premium subscription, the transaction is processed by the Apple App
+          Store; we and our subscription-management provider receive only your subscription status
+          (active, trial, expired) to unlock Premium features — never your full payment card details.
         </Text>
 
         <Text style={styles.h}>Data retention & security</Text>

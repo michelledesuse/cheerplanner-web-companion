@@ -209,6 +209,16 @@ const FAQ: Section[] = [
         a:
           "Pick exactly which columns to include — contact info, any Sizes column, any Paperwork item, any Payment tracker's status — filter by team, optionally label it with a competition, preview it on screen, and download the whole thing as a CSV you can open in Excel or Google Sheets.",
       },
+      {
+        q: "Can I share music with my team?",
+        a:
+          "Yes. Open Team → Team Music to upload competition mixes or music (audio files up to 15 MB each). Everyone with Team Hub access can play them right in the app, and you can attach a track to specific teams or competitions so it's easy to find. Only team personnel can upload, edit, or delete tracks. (Background/locked-screen playback requires the installed app build, not Expo Go.)",
+      },
+      {
+        q: "Can parents add a photo of their athlete to the roster?",
+        a:
+          "Yes. When you share your roster link, a parent can upload one photo of their athlete or staff member (no login needed) along with their info — it saves straight to that person on your internal roster. You can also add, change, or remove a member's photo yourself from the roster edit screen.",
+      },
     ],
   },
   {
@@ -228,6 +238,11 @@ const FAQ: Section[] = [
         q: "Do you store my financial information?",
         a:
           "No. Money entries you log are tracking records only — CheerPlanner never connects to a bank, processes a payment, or stores card numbers. The 'payment' you log is just a note that you paid something, not an actual transaction.",
+      },
+      {
+        q: "What happens to photos and music I upload?",
+        a:
+          "Photos (athlete/staff and record photos) and Team Music audio are stored only to power those features and to sync across your household and Team Hub. They're never sold or used for anything else, and deleting the item — or your account — removes them. See our Privacy Policy for full details.",
       },
     ],
   },

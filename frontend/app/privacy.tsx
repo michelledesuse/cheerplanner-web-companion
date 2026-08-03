@@ -12,15 +12,16 @@ export default function PrivacyScreen() {
         <P>We collect information you provide directly, including your name, email address, mobile phone number (if you opt in to SMS), and the household, athlete, competition, expense, payment, travel, and schedule details you enter into the app.</P>
         <P>We also collect basic technical data such as device type and app usage needed to operate the Service.</P>
         <P>If you use Team Hub (see below), you may also provide information about other people — such as team members, athletes, and their parents/guardians — including names, contact details, uniform/apparel sizes, paperwork completion status, and payment tracking notes. You may enter this manually or upload it by importing a spreadsheet (CSV or Excel) file.</P>
+        <P>You may also add photos (for example, an athlete or staff profile photo, or photos attached to a competition, event, fundraiser, sign-up, payment, or paperwork record) and, in Team Hub, audio files (“Team Music”). If you share a roster link, a parent/guardian can upload a single photo of their athlete or staff member without logging in. Any photos or audio you add are stored as part of your account so they can sync across your household and Team Hub.</P>
       </LegalSection>
 
       <LegalSection heading="2. Team Hub (for Coaches & Team Staff)">
-        <P>Team Hub is an optional workspace for coaches, team reps, and staff to organize a team roster, sizes, paperwork, payment tracking, and volunteer sign-ups. Access is controlled by the account owner, who grants Team Hub access to specific people and can invite others by email.</P>
-        <P>If you enter or upload information about other individuals, you are responsible for having the appropriate authority or consent to do so, and for using that information solely for legitimate team-management purposes. This data is visible only to household logins you have granted Team Hub access. If a person listed in your roster asks you to remove their information, you can delete it within the app.</P>
+        <P>Team Hub is an optional workspace for coaches, team reps, and staff to organize a team roster, sizes, paperwork, payment tracking, volunteer sign-ups, and shared team music. Access is controlled by the account owner, who grants Team Hub access to specific people and can invite others by email.</P>
+        <P>If you enter or upload information about other individuals — including photos or audio — you are responsible for having the appropriate authority or consent to do so, and for using that information solely for legitimate team-management purposes. This data is visible only to household logins you have granted Team Hub access. If a person listed in your roster asks you to remove their information, you can delete it within the app.</P>
       </LegalSection>
 
-      <LegalSection heading="3. Uploaded Files">
-        <P>When you import a spreadsheet, we process the file only to extract the rows you choose to import and to create the corresponding records in your account. We do not use uploaded files for any other purpose.</P>
+      <LegalSection heading="3. Uploaded Files & Media">
+        <P>When you import a spreadsheet, we process the file only to extract the rows you choose to import and to create the corresponding records in your account. Photos and audio files you upload are stored solely to provide the feature you used them for (for example, showing an athlete’s profile photo or letting your team play shared music) and to sync them across your household and Team Hub. We do not use uploaded files or media for any other purpose, and we do not sell them.</P>
       </LegalSection>
 
       <LegalSection heading="4. How We Use Your Information">
@@ -36,6 +37,7 @@ export default function PrivacyScreen() {
 
       <LegalSection heading="6. How We Share Information">
         <P>We do not sell your personal information. We share data only with service providers that help us operate the Service (such as cloud hosting, email delivery, and SMS delivery), with household members you explicitly invite or people you grant Team Hub access, or when required by law.</P>
+        <P>If you purchase a Premium subscription, the transaction is processed by the Apple App Store; we and our subscription-management provider receive only your subscription status (active, trial, expired) to unlock Premium features — never your full payment card details.</P>
       </LegalSection>
 
       <LegalSection heading="7. Data Retention & Security">
