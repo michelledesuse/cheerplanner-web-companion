@@ -5,11 +5,12 @@ temp collection, then assembled into GridFS on finish). Playback streams from
 GridFS via a token-authenticated GET so expo-audio can load the URL directly.
 """
 import base64
+import re
 from typing import List, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Body
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Body, Request
+from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 
 from core.db import db
@@ -143,8 +144,13 @@ async def delete_track(track_id: str, current_user=Depends(get_current_user)):
 
 
 @router.get("/team/music/{track_id}/stream")
-async def stream_track(track_id: str, token: str):
-    """Token-authenticated streaming (expo-audio loads this URL directly)."""
+async def stream_track(track_id: str, token: str, request: Request):
+    """Token-authenticated streaming with HTTP Range support.
+
+    iOS AVPlayer (expo-audio) requires byte-range support to play remote audio,
+    so we honor the Range header and return 206 Partial Content. Tracks are
+    <=15 MB, so we read the file once and slice in memory.
+    """
     u = await _user_from_token(token)
     if not u:
         raise HTTPException(status_code=401, detail="Not authorized")
@@ -158,20 +164,37 @@ async def stream_track(track_id: str, token: str):
     if not track or not track.get("gridfs_id"):
         raise HTTPException(status_code=404, detail="Track not found")
     grid_out = await _bucket.open_download_stream(ObjectId(track["gridfs_id"]))
+    data = await grid_out.read()
+    total = len(data)
+    ctype = track.get("content_type") or "audio/mpeg"
 
-    async def _iter():
-        while True:
-            chunk = await grid_out.readchunk()
-            if not chunk:
-                break
-            yield chunk
+    range_header = request.headers.get("range") or request.headers.get("Range")
+    if range_header:
+        m = re.match(r"bytes=(\d+)-(\d*)", range_header.strip())
+        if m:
+            start = int(m.group(1))
+            end = int(m.group(2)) if m.group(2) else total - 1
+            start = max(0, min(start, total - 1))
+            end = max(start, min(end, total - 1))
+            body = data[start:end + 1]
+            return Response(
+                content=body,
+                status_code=206,
+                media_type=ctype,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{total}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(len(body)),
+                    "Cache-Control": "private, max-age=3600",
+                },
+            )
 
-    return StreamingResponse(
-        _iter(),
-        media_type=track.get("content_type") or "audio/mpeg",
+    return Response(
+        content=data,
+        media_type=ctype,
         headers={
-            "Content-Length": str(track.get("size") or grid_out.length),
-            "Accept-Ranges": "none",
+            "Content-Length": str(total),
+            "Accept-Ranges": "bytes",
             "Cache-Control": "private, max-age=3600",
         },
     )

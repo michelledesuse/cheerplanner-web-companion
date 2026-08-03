@@ -236,6 +236,9 @@ export default function ScheduleTab() {
 
       {!selectMode && (
         <View style={styles.filtersContainer}>
+          <View style={{ marginBottom: spacing.sm }}>
+            <SeasonBar />
+          </View>
           <FilterChipRow
             label="Type"
             testIDPrefix="sched-filter-type"

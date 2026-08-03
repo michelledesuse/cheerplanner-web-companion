@@ -16,6 +16,7 @@ import { formatCurrency, formatDate } from "@/src/utils/format";
 import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 import FilterChipRow from "@/src/components/FilterChipRow";
+import SeasonBar from "@/src/components/SeasonBar";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 import { toggleId } from "@/src/utils/filters";
 import HomeButton from "@/src/components/HomeButton";
@@ -237,6 +238,10 @@ export default function ExpensesTab() {
             <Text style={styles.addBtnText}>{tab === "expenses" ? "Expense" : tab === "payments" ? "Payment" : "Fundraiser"}</Text>
           </TouchableOpacity>
         </View>
+      </View>
+
+      <View style={{ paddingLeft: spacing.lg, paddingTop: 8 }}>
+        <SeasonBar />
       </View>
 
       <View style={styles.tabs}>

@@ -23,6 +23,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
 from core.gating import assert_premium
+from core.sms import send_sms, is_configured, normalize_us_phone
 
 router = APIRouter(prefix="/api")
 
@@ -44,6 +45,12 @@ async def create_share(payload: ShareLinkCreate, current_user=Depends(get_curren
         sheet = await db.signup_sheets.find_one({"id": payload.ref_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
         if not sheet:
             raise HTTPException(status_code=404, detail="Sign-up sheet not found")
+    if payload.kind == "roster_member":
+        if not payload.ref_id:
+            raise HTTPException(status_code=400, detail="ref_id (member) required")
+        m = await db.roster.find_one({"id": payload.ref_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
+        if not m:
+            raise HTTPException(status_code=404, detail="Roster member not found")
     # Reuse an existing active link for the same kind+ref in this household.
     existing = await db.share_links.find_one(
         {"kind": payload.kind, "ref_id": payload.ref_id, "user_id": {"$in": member_ids}, "active": True},
@@ -54,6 +61,58 @@ async def create_share(payload: ShareLinkCreate, current_user=Depends(get_curren
     link = ShareLink(token=secrets.token_urlsafe(9), kind=payload.kind, ref_id=payload.ref_id, user_id=current_user["id"])
     await db.share_links.insert_one(link.model_dump())
     return {"token": link.token, "kind": link.kind, "id": link.id}
+
+
+@router.post("/team/roster/{member_id}/request-info", dependencies=[Depends(require_team_access)])
+async def request_member_info(member_id: str, payload: dict = Body(default={}), current_user=Depends(get_current_user)):
+    """Create (or reuse) a member-specific completion link so an existing roster
+    member can finish their missing info. Optionally text it to them.
+
+    Body: { base_url: str, send: bool }
+      • base_url — the app's public backend origin (e.g. EXPO_PUBLIC_BACKEND_URL),
+        used to build the shareable /api/public/s/<token> URL.
+      • send — if true and a phone number is on file, text the link via Twilio.
+    """
+    await assert_premium(current_user["id"], "parent_share_links")
+    member_ids = await _household_user_ids(current_user["id"])
+    m = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Roster member not found")
+
+    existing = await db.share_links.find_one(
+        {"kind": "roster_member", "ref_id": member_id, "user_id": {"$in": member_ids}, "active": True},
+        {"_id": 0},
+    )
+    if existing:
+        token = existing["token"]
+    else:
+        link = ShareLink(token=secrets.token_urlsafe(9), kind="roster_member", ref_id=member_id, user_id=current_user["id"])
+        await db.share_links.insert_one(link.model_dump())
+        token = link.token
+
+    base = str(payload.get("base_url") or "").rstrip("/")
+    if not base.startswith("https://"):
+        raise HTTPException(status_code=400, detail="A valid https base_url is required")
+    url = f"{base}/api/public/s/{token}"
+
+    # Prefer the athlete's own phone; fall back to the parent/guardian phone.
+    raw_phone = m.get("phone") or m.get("parent_phone")
+    phone = normalize_us_phone(raw_phone)
+
+    sent = False
+    if payload.get("send"):
+        if not is_configured():
+            raise HTTPException(status_code=400, detail="SMS isn't set up yet. Add your Twilio number in Settings, or copy the link and send it yourself.")
+        if not phone:
+            raise HTTPException(status_code=400, detail="No phone number on file for this person. Copy the link and send it yourself.")
+        who = m.get("preferred_name") or m.get("first_name") or "there"
+        body = f"Hi {who}! Please complete your team roster info here: {url}"
+        sent = send_sms(phone, body)
+        if sent:
+            from core.models import utcnow_iso as _now
+            await db.roster.update_one({"id": member_id}, {"$set": {"last_reminded_at": _now()}})
+
+    return {"token": token, "url": url, "phone": phone, "has_phone": bool(phone), "sent": sent}
 
 
 @router.delete("/team/share/{link_id}", dependencies=[Depends(require_team_access)])
@@ -113,16 +172,43 @@ async def public_data(token: str):
         roster_names = sorted([v for v in rmap.values() if v], key=lambda n: n.lower())
         slots.sort(key=lambda s: (1 if s["claimed"] >= s["qty_needed"] else 0))
         return {"kind": "signup", "title": sheet.get("name"), "slots": slots, "roster_names": roster_names}
-    if link["kind"] == "roster":
+    if link["kind"] in ("roster", "roster_member"):
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
         teams = []
         async for t in db.teams.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1}):
             teams.append({"id": t["id"], "name": t.get("name")})
         teams.sort(key=lambda t: (t["name"] or "").lower())
-        return {"kind": "roster", "title": "Team Roster",
-                "size_columns": [{"id": c["id"], "label": c["label"]} for c in cols],
-                "teams": teams}
+        out = {"kind": link["kind"], "title": "Team Roster",
+               "size_columns": [{"id": c["id"], "label": c["label"]} for c in cols],
+               "teams": teams}
+        if link["kind"] == "roster_member":
+            m = await db.roster.find_one({"id": link.get("ref_id"), "user_id": {"$in": member_ids}}, {"_id": 0})
+            if not m:
+                raise HTTPException(status_code=404, detail="This person is no longer on the roster.")
+            sizes_vals = (doc.get("values") or {}).get(m["id"], {})
+            out["title"] = m.get("name") or "Your info"
+            out["member"] = {
+                "id": m["id"],
+                "first_name": m.get("first_name") or "",
+                "last_name": m.get("last_name") or "",
+                "preferred_name": m.get("preferred_name") or "",
+                "role": m.get("role") or "athlete",
+                "team_ids": m.get("team_ids") or [],
+                "phone": m.get("phone") or "",
+                "email": m.get("email") or "",
+                "parent_first_name": m.get("parent_first_name") or "",
+                "parent_last_name": m.get("parent_last_name") or "",
+                "parent_phone": m.get("parent_phone") or "",
+                "parent_email": m.get("parent_email") or "",
+                "food_allergies": m.get("food_allergies") or "",
+                "other_allergies": m.get("other_allergies") or "",
+                "medical_concerns": m.get("medical_concerns") or "",
+                "host_bonding_opt_in": m.get("host_bonding_opt_in"),
+                "photo": m.get("photo") or "",
+                "sizes": sizes_vals,
+            }
+        return out
     if link["kind"] == "sizes":
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
@@ -158,19 +244,25 @@ async def public_submit(token: str, payload: dict = Body(...)):
         await db.signup_sheets.update_one({"id": sheet["id"]}, {"$set": {"slots": slots}})
         return {"ok": True}
 
-    if link["kind"] == "roster":
+    if link["kind"] in ("roster", "roster_member"):
         first = (payload.get("first_name") or "").strip()
         last = (payload.get("last_name") or "").strip()
         name = f"{first} {last}".strip()
         if not name:
             raise HTTPException(status_code=400, detail="Please enter a first and last name.")
         role = payload.get("role") if payload.get("role") in ("athlete", "parent", "coach", "team_rep", "staff") else "athlete"
-        # Upsert by name within the household.
+        # Resolve the member to update. For a member-specific link, target that
+        # exact person; otherwise upsert by name within the household.
         match = None
-        async for m in db.roster.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1}):
-            if _norm(m.get("name")) == _norm(name):
-                match = m
-                break
+        if link["kind"] == "roster_member":
+            match = await db.roster.find_one({"id": link.get("ref_id"), "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1})
+            if not match:
+                raise HTTPException(status_code=404, detail="This person is no longer on the roster.")
+        else:
+            async for m in db.roster.find({"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1}):
+                if _norm(m.get("name")) == _norm(name):
+                    match = m
+                    break
         fields = {
             "first_name": first or None, "last_name": last or None, "role": role,
             "preferred_name": (payload.get("preferred_name") or "").strip() or None,
@@ -206,6 +298,9 @@ async def public_submit(token: str, payload: dict = Body(...)):
         if match:
             member_id = match["id"]
             upd = {**{k: v for k, v in fields.items() if v}, **extras}
+            # Keep the display name in sync with corrected first/last on a member link.
+            if name and _norm(name) != _norm(match.get("name")):
+                upd["name"] = name
             if upd:
                 await db.roster.update_one({"id": match["id"]}, {"$set": upd})
         else:
@@ -307,7 +402,7 @@ async function submit(payload,btn){{
 function render(d){{
   const KIND={_js(kind)};
   if(KIND==="signup") return renderSignup(d);
-  if(KIND==="roster") return renderRoster(d);
+  if(KIND==="roster"||KIND==="roster_member") return renderRoster(d);
   if(KIND==="sizes") return renderSizes(d);
 }}
 {_JS_SIGNUP}
@@ -373,30 +468,37 @@ async function claim(id,btn){
 _JS_ROSTER = """
 function renderRoster(d){
   window._teams=d.teams||[];
-  let h="<h1>"+esc(d.title)+"</h1><p class='sub'>Add your info</p>";
-  h+="<div class='row'><div><label>First name</label><input id='first'/></div><div><label>Last name</label><input id='last'/></div></div>";
-  h+="<label>Preferred name</label><input id='pref'/>";
-  h+="<label>Role</label><select id='role'><option value='athlete'>Athlete</option><option value='parent'>Parent</option><option value='coach'>Coach</option><option value='team_rep'>Team Rep</option><option value='staff'>Staff</option></select>";
+  const mem=d.member||null;
+  const val=k=>mem&&mem[k]!=null?String(mem[k]):"";
+  let h="<h1>"+esc(d.title)+"</h1><p class='sub'>"+(mem?"Please review & complete your info":"Add your info")+"</p>";
+  h+="<div class='row'><div><label>First name</label><input id='first' value=\\""+esc(val('first_name'))+"\\"/></div><div><label>Last name</label><input id='last' value=\\""+esc(val('last_name'))+"\\"/></div></div>";
+  h+="<label>Preferred name</label><input id='pref' value=\\""+esc(val('preferred_name'))+"\\"/>";
+  const roles=['athlete','parent','coach','team_rep','staff'];const rlabels={athlete:'Athlete',parent:'Parent',coach:'Coach',team_rep:'Team Rep',staff:'Staff'};
+  h+="<label>Role</label><select id='role'>"+roles.map(r=>"<option value='"+r+"'"+((val('role')||'athlete')===r?" selected":"")+">"+rlabels[r]+"</option>").join("")+"</select>";
   if((d.teams||[]).length){
     h+="<label>Team(s)</label>";
-    (d.teams||[]).forEach(t=>{h+="<div style='display:flex;align-items:center;gap:8px;margin:6px 0'><input type='checkbox' id='tm_"+t.id+"' style='width:auto'/><span>"+esc(t.name)+"</span></div>";});
+    const mt=(mem&&mem.team_ids)||[];
+    (d.teams||[]).forEach(t=>{h+="<div style='display:flex;align-items:center;gap:8px;margin:6px 0'><input type='checkbox' id='tm_"+t.id+"'"+(mt.indexOf(t.id)>=0?" checked":"")+" style='width:auto'/><span>"+esc(t.name)+"</span></div>";});
   }
-  h+="<label>Phone</label><input id='phone'/><label>Email</label><input id='email'/>";
-  h+="<label>Parent/Guardian first name</label><input id='pfirst'/><label>Parent/Guardian last name</label><input id='plast'/>";
-  h+="<label>Parent phone</label><input id='pphone'/><label>Parent email</label><input id='pemail'/>";
+  h+="<label>Phone</label><input id='phone' value=\\""+esc(val('phone'))+"\\"/><label>Email</label><input id='email' value=\\""+esc(val('email'))+"\\"/>";
+  h+="<label>Parent/Guardian first name</label><input id='pfirst' value=\\""+esc(val('parent_first_name'))+"\\"/><label>Parent/Guardian last name</label><input id='plast' value=\\""+esc(val('parent_last_name'))+"\\"/>";
+  h+="<label>Parent phone</label><input id='pphone' value=\\""+esc(val('parent_phone'))+"\\"/><label>Parent email</label><input id='pemail' value=\\""+esc(val('parent_email'))+"\\"/>";
   h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Health & extra info</div>";
-  h+="<label>Food allergies</label><input id='food'/>";
-  h+="<label>Other allergies</label><input id='oallergy'/>";
-  h+="<label>Medical concerns</label><input id='medical'/>";
-  h+="<label>Host bonding opt-in</label><select id='host'><option value=''>Not set</option><option value='yes'>Yes</option><option value='no'>No</option></select>";
+  h+="<label>Food allergies</label><input id='food' value=\\""+esc(val('food_allergies'))+"\\"/>";
+  h+="<label>Other allergies</label><input id='oallergy' value=\\""+esc(val('other_allergies'))+"\\"/>";
+  h+="<label>Medical concerns</label><input id='medical' value=\\""+esc(val('medical_concerns'))+"\\"/>";
+  const hb=mem?mem.host_bonding_opt_in:null;
+  h+="<label>Host bonding opt-in</label><select id='host'><option value=''"+(hb==null?" selected":"")+">Not set</option><option value='yes'"+(hb===true?" selected":"")+">Yes</option><option value='no'"+(hb===false?" selected":"")+">No</option></select>";
   h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Photo</div>";
   h+="<div class='meta'>Add one photo of the athlete/staff member (optional).</div>";
-  h+="<div id='photoPrev'></div>";
+  h+="<div id='photoPrev'>"+(val('photo')?("<img src='"+val('photo')+"' style='width:90px;height:90px;object-fit:cover;border-radius:10px;margin-top:8px;border:1px solid #E2E8F0'/>"):"")+"</div>";
   h+="<input id='photo' type='file' accept='image/*' onchange='onPhoto(event)' style='padding:8px'/>";
+  window._photo=val('photo')||null;
   window._szcols=(d.size_columns||[]).map(c=>c.id);
+  const msizes=(mem&&mem.sizes)||{};
   if((d.size_columns||[]).length){
     h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Sizes</div>";
-    (d.size_columns||[]).forEach(c=>{h+="<label>"+esc(c.label)+"</label><input id='sz_"+c.id+"'/>";});
+    (d.size_columns||[]).forEach(c=>{h+="<label>"+esc(c.label)+"</label><input id='sz_"+c.id+"' value=\\""+esc(msizes[c.id]||"")+"\\"/>";});
   }
   h+="<button onclick='saveRoster(this)'>Submit</button><div class='ok' id='ok'></div>";
   document.getElementById("app").innerHTML="<div class='card'>"+h+"</div>";

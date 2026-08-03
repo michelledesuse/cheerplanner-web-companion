@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl,
   Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import { readAsStringAsync } from "expo-file-system/legacy";
-import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from "expo-audio";
 
 import { api, TOKEN_KEY } from "@/src/api/client";
 import { storage } from "@/src/utils/storage";
@@ -73,6 +73,11 @@ export default function TeamMusicScreen() {
   const [token, setToken] = useState<string>("");
   const player = useAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
+
+  // Ensure playback is audible even when the phone is on silent/vibrate.
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  }, []);
 
   const load = useCallback(async () => {
     try {

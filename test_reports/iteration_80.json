@@ -1,0 +1,33 @@
+{
+  "summary": "Iter80 validated the three items against the external URL: (1) BACKEND music HTTP Range — GET /api/team/music/{id}/stream returns 200 with Accept-Ranges: bytes for a full request, and 206 Partial Content with correct Content-Range (bytes 0-99/2048, bytes 100-199/2048, bytes 2000-2047/2048) and exact byte-slice payloads for Range headers; bad token → 401, missing token → 422. (2) BACKEND roster_member link — POST /api/team/roster/{id}/request-info {base_url,send:false} returns {token,url,has_phone,sent:false} where url is /api/public/s/<token>; calling again returns the SAME token (reuse); GET /api/public/share/{token}/data returns kind 'roster_member' with a 'member' object pre-filled from the member row (id, first/last name, phone, etc.); POST /api/public/share/{token}/submit updates THAT specific member (preferred_name, email, food_allergies, pending_review:true) verified via GET /api/roster. (3) BACKEND SMS guard — POST request-info {send:true} on a member with NO phone returns 400 (never triggers a real SMS). Also verified bad-base-url (http://) → 400 and non-existent member → 404. 12/12 backend tests PASS. FRONTEND: logged in as applereview@cheerplanner.app @ 390x844 mobile viewport: (a) SeasonBar is visible on Athletes, Competitions, Expenses, AND Schedule tabs — each renders `[data-testid=seasonbar-all]` + season chips (seasonbar-<season_id>) + seasonbar-manage; clicking a season chip on Athletes filters the list (verified with TESTSEASON2026 → 2 athletes shown, and the same active season persists app-wide). (b) On /team/roster the seeded member row shows 'Request info' with testID roster-request-<id>; tapping it opens the sheet titled 'Request info — TEST_ITER80UI Member' with the copyable link https://event-planner-394.preview.emergentagent.com/api/public/s/<token>, plus both 'Text link to +15005550006' (roster-request-send) AND 'Copy link' (roster-request-copy) because a phone was on file; Copy tap works without crash. (c) /team/music renders 'No music yet' empty state with 'Upload a track' CTA, no red screen, no crashes. Music playback via mobile playback couldn't be triggered on web (no track to play, but backend ranged streaming is proven separately). No red screens on any tab. No regressions observed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter80_music_range_and_roster_request.py",
+    "/app/test_reports/pytest/pytest_iter80.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routers/music.py stream_track: reads the entire GridFS payload into memory before slicing, then returns a Response. Correct for ≤15MB tracks and matches the comment. Content-Range/Accept-Ranges/Content-Length are all set correctly for 206; Accept-Ranges is also set on the full 200 response so iOS AVPlayer can start ranged fetches after the initial probe. Good.",
+    "backend/routers/music.py stream_track: end index is clamped to `min(end, total-1)` and start is clamped to `min(start, total-1)`, but a start > total-1 is silently clamped rather than returning 416. This is acceptable given the ≤15MB cap and how expo-audio issues Range requests, but a strictly correct implementation would return 416 Range Not Satisfiable. Not a blocker.",
+    "backend/routers/share.py request_member_info: correctly reuses an existing active link (same token) for the same (kind='roster_member', ref_id) tuple within the household, so re-tapping 'Request info' doesn't spam new URLs. Validated by the reuse test.",
+    "backend/routers/share.py request_member_info: guards `send:true` with (a) is_configured() check for Twilio and (b) phone-on-file check, returning 400 in either case before ever invoking send_sms — matches the SMS-safety requirement.",
+    "frontend/app/team/roster.tsx uses testID roster-request-<id> for every member row (not conditionally hidden), and the sheet renders 'Text link to <phone>' only when phone is on file — matches the spec (verified in UI).",
+    "frontend/app/team/music.tsx calls setAudioModeAsync({playsInSilentMode:true}) once on mount and builds the stream URL as `${BACKEND}/api/team/music/${id}/stream?token=${token}` — will benefit directly from the new Range support.",
+    "SeasonBar (src/components/SeasonBar.tsx) is imported and rendered at the top of Athletes, Competitions, Expenses, and Schedule tabs — verified via the seasonbar-all testID on all four tab routes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter80_music_range_and_roster_request.py (new pytest — 12 tests)"
+  ],
+  "success_rate": {"backend": "12/12 (100%)", "frontend": "SeasonBar 4/4 tabs; Roster Request-info sheet OK; Music screen loads without crash; Login OK"},
+  "seed_data_creation": "Ephemeral only, all cleaned up: (a) one roster member 'TEST_ITER80UI Member' (phone +15005550006, Twilio magic no-delivery) created via /api/roster and deleted post-test; (b) one 2KB test music track via init→chunk→finish, deleted post-test; (c) one 16MB oversize track that was rejected by finish (400) as expected — no artifact left. Test data prefixed with TEST_ITER80.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login: /login, testIDs login-email-input, login-password-input, login-submit-button (NOT 'sign-in text' click — use the testID). SeasonBar testIDs are seasonbar-all / seasonbar-<season_id> / seasonbar-manage / seasonbar-create (not 'season-bar' or 'season-chip-*'). Roster: to see the row-level 'Request info' button you must have at least one roster member; seed via POST /api/roster then look for roster-request-<id>. The sheet uses roster-request-copy, roster-request-send (only when phone on file), roster-request-share. Music stream URL format: ${BACKEND}/api/team/music/{id}/stream?token=<jwt>; when testing Range, use requests.get with headers={'Range':'bytes=start-end'} and expect 206 + Content-Range header. Twilio magic number +15005550006 was used for the phone-on-file member — it is safe (never delivers).",
+  "rca_of_issue": "N/A — no bugs found this iteration. Three items (music Range, roster_member request-info link + reuse + submit + SMS guard, and SeasonBar visibility across 4 tabs) all pass end-to-end."
+}

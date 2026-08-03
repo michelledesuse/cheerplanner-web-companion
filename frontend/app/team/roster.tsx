@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, Linking, Alert, Platform, Image } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, Linking, Alert, Platform, Image, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Clipboard from "expo-clipboard";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
@@ -68,6 +69,47 @@ export default function RosterScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [reqOpen, setReqOpen] = useState(false);
+  const [reqMember, setReqMember] = useState<RosterMember | null>(null);
+  const [reqInfo, setReqInfo] = useState<{ url: string; has_phone: boolean; phone: string | null } | null>(null);
+  const [reqLoading, setReqLoading] = useState(false);
+  const [reqSending, setReqSending] = useState(false);
+
+  const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+
+  const openRequestInfo = async (m: RosterMember) => {
+    setReqMember(m); setReqInfo(null); setReqOpen(true); setReqLoading(true);
+    try {
+      const r = await api.post(`/team/roster/${m.id}/request-info`, { base_url: BACKEND, send: false });
+      setReqInfo({ url: r.data.url, has_phone: r.data.has_phone, phone: r.data.phone });
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not create the link.");
+      setReqOpen(false);
+    } finally { setReqLoading(false); }
+  };
+
+  const sendRequestText = async () => {
+    if (!reqMember) return;
+    setReqSending(true);
+    try {
+      const r = await api.post(`/team/roster/${reqMember.id}/request-info`, { base_url: BACKEND, send: true });
+      if (r.data.sent) { Alert.alert("Text sent", `We texted an info request to ${r.data.phone}.`); setReqOpen(false); }
+      else Alert.alert("Not sent", "Couldn't send the text. Try copying the link instead.");
+    } catch (e: any) {
+      Alert.alert("Couldn't send", e?.response?.data?.detail || "Try copying the link and sending it yourself.");
+    } finally { setReqSending(false); }
+  };
+
+  const copyReqLink = async () => {
+    if (!reqInfo) return;
+    await Clipboard.setStringAsync(reqInfo.url);
+    Alert.alert("Copied", "The link is on your clipboard — paste it into a text or email.");
+  };
+
+  const shareReqLink = async () => {
+    if (!reqInfo) return;
+    try { await Share.share({ message: `Please complete your team roster info (no app needed):\n${reqInfo.url}` }); } catch { /* dismissed */ }
+  };
 
   const downloadRoster = async (format: "csv" | "xlsx") => {
     setActionsOpen(false);
@@ -322,6 +364,10 @@ export default function RosterScreen() {
                               </TouchableOpacity>
                             )}
                             {!ph && !em && <Text style={styles.noContact}>No contact info</Text>}
+                            <TouchableOpacity onPress={() => openRequestInfo(m)} style={styles.contactChip} testID={`roster-request-${m.id}`} disabled={selectMode}>
+                              <Ionicons name="clipboard-outline" size={12} color={colors.accent} />
+                              <Text style={styles.contactText}>Request info</Text>
+                            </TouchableOpacity>
                           </View>
                         </>
                       );
@@ -402,6 +448,42 @@ export default function RosterScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Request info from an existing member */}
+      <Modal visible={reqOpen} transparent animationType="slide" onRequestClose={() => setReqOpen(false)}>
+        <Pressable style={styles.menuBackdrop} onPress={() => setReqOpen(false)}>
+          <Pressable style={styles.reqSheet} onPress={() => {}}>
+            <View style={styles.reqHeader}>
+              <Text style={styles.reqTitle} numberOfLines={1}>Request info{reqMember ? ` — ${reqMember.name}` : ""}</Text>
+              <TouchableOpacity onPress={() => setReqOpen(false)} hitSlop={10}><Ionicons name="close" size={22} color={colors.textPrimary} /></TouchableOpacity>
+            </View>
+            <Text style={styles.reqBlurb}>Send a private link so this person can fill in any missing roster details. Their existing info is pre-filled.</Text>
+            {reqLoading || !reqInfo ? (
+              <View style={{ paddingVertical: 24 }}><ActivityIndicator color={colors.accent} /></View>
+            ) : (
+              <>
+                <View style={styles.reqLinkBox}><Text style={styles.reqLinkText} numberOfLines={1}>{reqInfo.url}</Text></View>
+                {reqInfo.has_phone && (
+                  <TouchableOpacity style={styles.reqPrimary} onPress={sendRequestText} disabled={reqSending} testID="roster-request-send">
+                    {reqSending ? <ActivityIndicator color="white" /> : (<><Ionicons name="chatbubble-ellipses-outline" size={18} color="white" /><Text style={styles.reqPrimaryText}>Text link to {reqInfo.phone}</Text></>)}
+                  </TouchableOpacity>
+                )}
+                <View style={styles.reqRow}>
+                  <TouchableOpacity style={styles.reqSecondary} onPress={copyReqLink} testID="roster-request-copy">
+                    <Ionicons name="copy-outline" size={17} color={colors.accent} /><Text style={styles.reqSecondaryText}>Copy link</Text>
+                  </TouchableOpacity>
+                  {Platform.OS !== "web" && (
+                    <TouchableOpacity style={styles.reqSecondary} onPress={shareReqLink} testID="roster-request-share">
+                      <Ionicons name="share-outline" size={17} color={colors.accent} /><Text style={styles.reqSecondaryText}>Share…</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+                {!reqInfo.has_phone && <Text style={styles.reqNote}>No phone number on file — copy or share the link to send it yourself.</Text>}
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -424,6 +506,18 @@ const makeStyles = (c: ThemePalette) => ({
   deleteBarBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
   menuBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   menuSheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.md, paddingBottom: spacing.xl },
+  reqSheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xxl },
+  reqHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6 },
+  reqTitle: { ...typography.h3, color: c.textPrimary, flex: 1, marginRight: 8 },
+  reqBlurb: { ...typography.caption, color: c.textSecondary, lineHeight: 19, marginBottom: spacing.md },
+  reqLinkBox: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 12, marginBottom: spacing.md },
+  reqLinkText: { ...typography.caption, color: c.textSecondary },
+  reqPrimary: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, marginBottom: spacing.sm },
+  reqPrimaryText: { color: "white", fontWeight: "800", fontSize: 15 },
+  reqRow: { flexDirection: "row", gap: spacing.sm },
+  reqSecondary: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: c.accentSubtle, borderRadius: radius.md, paddingVertical: 12, borderWidth: 1, borderColor: c.accent },
+  reqSecondaryText: { color: c.accent, fontWeight: "700", fontSize: 14 },
+  reqNote: { ...typography.caption, color: c.textTertiary, marginTop: spacing.md, textAlign: "center" },
   menuHandle: { width: 40, height: 4, borderRadius: 2, backgroundColor: c.border, alignSelf: "center", marginBottom: spacing.md },
   menuItem: { flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 15, paddingHorizontal: 14, borderRadius: radius.md },
   menuText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "600" },

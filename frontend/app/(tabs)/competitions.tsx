@@ -180,6 +180,12 @@ export default function CompetitionsScreen() {
         )}
       </View>
 
+      {!selectMode && (
+        <View style={{ paddingLeft: spacing.lg, paddingVertical: 6 }}>
+          <SeasonBar />
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.centered}><ActivityIndicator color={colors.accent} /></View>
       ) : items.length === 0 ? (
