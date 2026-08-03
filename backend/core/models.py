@@ -240,6 +240,7 @@ class ExpenseEntry(BaseModel):
     paid: bool = False
     receipt_image: Optional[str] = None  # base64 data URL
     recurrence_group_id: Optional[str] = None  # links a series of recurring expenses
+    season_ids: List[str] = Field(default_factory=list)
     # Response-only computed fields (not stored)
     paid_amount: float = 0.0
     balance_due: float = 0.0
@@ -258,6 +259,7 @@ class ExpenseCreate(BaseModel):
     # Recurrence options (NEW): when set, server creates N additional occurrences
     recurrence: Optional[Literal["monthly", "weekly", "biweekly"]] = None
     recurrence_count: Optional[int] = None  # total entries to create (including this one); default 1
+    season_ids: Optional[List[str]] = None
 
 
 class ExpenseUpdate(BaseModel):
@@ -280,6 +282,7 @@ class ExpenseBulkCreate(BaseModel):
     due_date: Optional[str] = None
     note: Optional[str] = None
     paid: bool = False
+    season_ids: Optional[List[str]] = None
 
 
 class PaymentAllocation(BaseModel):
@@ -298,6 +301,7 @@ class PaymentEntry(BaseModel):
     applied_expense_ids: List[str] = Field(default_factory=list)
     # Optional per-expense breakdown (used by bulk auto-allocation)
     allocations: Optional[List[PaymentAllocation]] = None
+    season_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -309,6 +313,7 @@ class PaymentCreate(BaseModel):
     note: Optional[str] = None
     applied_expense_ids: List[str] = Field(default_factory=list)
     allocations: Optional[List[PaymentAllocation]] = None
+    season_ids: Optional[List[str]] = None
 
 
 class PaymentUpdate(BaseModel):
@@ -327,6 +332,7 @@ class PaymentBulkCreate(BaseModel):
     paid_on: str
     method: Optional[str] = None
     note: Optional[str] = None
+    season_ids: Optional[List[str]] = None
 
 
 class ApplyPaymentRequest(BaseModel):
@@ -747,6 +753,7 @@ class Fundraiser(BaseModel):
     link_url: Optional[str] = None
     is_public: bool = False
     share_token: Optional[str] = None
+    season_ids: List[str] = Field(default_factory=list)
     # Response-only convenience field
     available: float = 0.0
     created_at: str = Field(default_factory=utcnow_iso)
@@ -761,6 +768,7 @@ class FundraiserCreate(BaseModel):
     note: Optional[str] = None
     goal_amount: Optional[float] = None
     link_url: Optional[str] = None
+    season_ids: Optional[List[str]] = None
 
 
 class FundraiserUpdate(BaseModel):

@@ -8,15 +8,15 @@ from core.models import (
 )
 from core.security import get_current_user
 from core.helpers import (
-    _household_user_ids, _waterfall_allocations, _refresh_expense_paid_flags,
+    _household_user_ids, _waterfall_allocations, _refresh_expense_paid_flags, season_query,
 )
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/payments", response_model=List[PaymentEntry])
-async def list_payments(athlete_id: Optional[str] = None, current_user=Depends(get_current_user)):
-    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
+async def list_payments(athlete_id: Optional[str] = None, season_id: Optional[str] = None, current_user=Depends(get_current_user)):
+    q = season_query(await _household_user_ids(current_user["id"]), season_id)
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.payments.find(q, {"_id": 0}).sort("paid_on", -1).to_list(2000)
@@ -25,7 +25,7 @@ async def list_payments(athlete_id: Optional[str] = None, current_user=Depends(g
 
 @router.post("/payments", response_model=PaymentEntry)
 async def create_payment(payload: PaymentCreate, current_user=Depends(get_current_user)):
-    entry = PaymentEntry(user_id=current_user["id"], **payload.model_dump())
+    entry = PaymentEntry(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
     # If caller picked expenses but didn't supply explicit allocations,
     # waterfall-allocate in due-date order so each expense gets paid IN FULL.
     if entry.applied_expense_ids and not entry.allocations:
@@ -80,6 +80,7 @@ async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(
             note=payload.note,
             applied_expense_ids=[],
             allocations=None,
+            season_ids=payload.season_ids or [],
         )
         docs.append(entry.model_dump())
         created.append(entry)

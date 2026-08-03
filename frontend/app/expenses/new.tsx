@@ -11,6 +11,7 @@ import * as ImagePicker from "expo-image-picker";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
+import { useSeason } from "@/src/context/SeasonContext";
 import { todayISO, formatCurrency } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import AddTypeModal from "@/src/components/AddTypeModal";
@@ -20,6 +21,7 @@ type Athlete = { id: string; name: string; avatar_color?: string };
 export default function ExpenseForm() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
+  const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ athlete_id?: string; id?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
@@ -152,6 +154,7 @@ export default function ExpenseForm() {
           payload.recurrence = recurrence;
           payload.recurrence_count = Math.max(1, parseInt(recurrenceCount) || 1);
         }
+        if (filterSeasonId) payload.season_ids = [filterSeasonId];
         await api.post("/expenses", payload);
       } else {
         // bulk
@@ -160,6 +163,7 @@ export default function ExpenseForm() {
           category, amount: amt, split_mode: splitMode,
           incurred_on: incurredOn || todayISO(), due_date: dueDate || null,
           note: note || null, paid,
+          ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}),
         });
       }
       router.back();

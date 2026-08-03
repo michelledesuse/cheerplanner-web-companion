@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
+import { useSeason } from "@/src/context/SeasonContext";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -28,6 +29,7 @@ type Fundraiser = { id: string; name: string; amount_raised: number; applied_amo
 export default function ExpensesTab() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
+  const { filterSeasonId } = useSeason();
   const [tab, setTab] = useState<"expenses" | "payments" | "fundraisers">("expenses");
   const [filter, setFilter] = useState<"all" | "open" | "paid">("all");
   const [sortMode, setSortMode] = useState<"recent" | "due">("recent");
@@ -91,16 +93,17 @@ export default function ExpensesTab() {
 
   const load = useCallback(async () => {
     try {
+      const sp = filterSeasonId ? { params: { season_id: filterSeasonId } } : undefined;
       const [a, e, p, f] = await Promise.all([
-        api.get<Athlete[]>("/athletes"),
-        api.get<Expense[]>("/expenses"),
-        api.get<Payment[]>("/payments"),
-        api.get<Fundraiser[]>("/fundraisers"),
+        api.get<Athlete[]>("/athletes", sp),
+        api.get<Expense[]>("/expenses", sp),
+        api.get<Payment[]>("/payments", sp),
+        api.get<Fundraiser[]>("/fundraisers", sp),
       ]);
       setAthletes(a.data); setExpenses(e.data); setPayments(p.data); setFundraisers(f.data);
       try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* teams optional */ }
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => {
     load();

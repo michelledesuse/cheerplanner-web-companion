@@ -10,6 +10,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
+import { useSeason } from "@/src/context/SeasonContext";
 import { todayISO, formatCurrency, formatDate } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
@@ -21,6 +22,7 @@ type ExpenseLite = { id: string; category: string; amount: number; incurred_on: 
 export default function PaymentForm() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
+  const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ athlete_id?: string; id?: string; expense_id?: string; amount?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
@@ -134,12 +136,14 @@ export default function PaymentForm() {
           athlete_id: Array.from(selectedIds)[0],
           amount: amt, paid_on: paidOn || todayISO(), method, note: note || null,
           applied_expense_ids: Array.from(appliedIds),
+          ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}),
         });
       } else {
         await api.post("/payments/bulk", {
           athlete_ids: Array.from(selectedIds),
           amount: amt, split_mode: splitMode,
           paid_on: paidOn || todayISO(), method, note: note || null,
+          ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}),
         });
       }
       router.back();

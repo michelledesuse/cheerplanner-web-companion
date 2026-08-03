@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,15 +9,15 @@ from core.models import (
     Fundraiser, FundraiserCreate, FundraiserUpdate,
 )
 from core.security import get_current_user
-from core.helpers import _household_user_ids, _fundraiser_with_available
+from core.helpers import _household_user_ids, _fundraiser_with_available, season_query
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/fundraisers", response_model=List[Fundraiser])
-async def list_fundraisers(current_user=Depends(get_current_user)):
+async def list_fundraisers(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
     docs = await db.fundraisers.find(
-        {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
+        season_query(await _household_user_ids(current_user["id"]), season_id),
         {"_id": 0},
     ).sort("raised_on", -1).to_list(1000)
     return [_fundraiser_with_available(d) for d in docs]
@@ -28,6 +28,10 @@ async def create_fundraiser(payload: FundraiserCreate, current_user=Depends(get_
     data = payload.model_dump()
     for k in ("available",):
         data.pop(k, None)
+    if data.get("season_ids") is None:
+        data.pop("season_ids", None)
+    if data.get("photos") is None:
+        data.pop("photos", None)
     fr = Fundraiser(user_id=current_user["id"], **data)
     stored = fr.model_dump()
     stored.pop("available", None)

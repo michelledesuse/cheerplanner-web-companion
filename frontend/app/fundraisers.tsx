@@ -8,6 +8,7 @@ import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
+import { useSeason } from "@/src/context/SeasonContext";
 import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import PhotoGallery from "@/src/components/PhotoGallery";
@@ -20,6 +21,7 @@ const normalizeUrl = (u: string) => (/^https?:\/\//i.test(u.trim()) ? u.trim() :
 export default function FundraisersScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { filterSeasonId } = useSeason();
   const [items, setItems] = useState<Fundraiser[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,10 +38,10 @@ export default function FundraisersScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get("/fundraisers");
+      const r = await api.get("/fundraisers", filterSeasonId ? { params: { season_id: filterSeasonId } } : undefined);
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);
@@ -55,7 +57,7 @@ export default function FundraisersScreen() {
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { Alert.alert("Missing", "Enter a valid amount"); return; }
     const goalNum = goal.trim() ? parseFloat(goal) : null;
-    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null, link_url: linkUrl.trim() ? normalizeUrl(linkUrl) : null, photos };
+    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null, link_url: linkUrl.trim() ? normalizeUrl(linkUrl) : null, photos, ...(!editingId && filterSeasonId ? { season_ids: [filterSeasonId] } : {}) };
     try {
       if (editingId) {
         await api.patch(`/fundraisers/${editingId}`, body);

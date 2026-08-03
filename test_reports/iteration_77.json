@@ -1,0 +1,29 @@
+{
+  "summary": "Iter77 (Public roster share photo upload + season filtering for expenses/payments/fundraisers) tested against the external URL. Backend: 8/8 pytest cases PASSED — public roster share submit with base64 photo persists on the RosterMember (verified via /api/roster), season-tagged expense visible under its season and hidden under other seasons, untagged expense visible under both seasons (legacy safety), same season visibility invariant confirmed for payments and fundraisers, /api/fundraisers create without photos/season_ids succeeds (regression), and /api/expenses/bulk + /api/payments/bulk correctly tag every created row with the supplied season_ids. Frontend (Expo Web, 390x844): Login → dashboard OK; Team → Roster → '+' opens the roster form which renders the Photo section with testIDs roster-photo-pick and roster-photo-add (and roster-photo-remove when a photo is set); /expenses screen loads with tab-expenses, tab-payments, tab-fundraisers tabs and successfully passes the active season_id to /athletes,/expenses,/payments,/fundraisers (verified in code at (tabs)/expenses.tsx:96-101 and fundraisers.tsx:41,60). No red screens, no broken tabs. Twilio was NOT triggered (no SMS endpoints called). All ephemeral test data (seasons, expenses, payments, fundraisers, roster member) was cleaned up.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter77_share_photo_and_season_filters.py",
+    "/app/test_reports/pytest/pytest_iter77.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "frontend/app/team/roster.tsx: the local `RosterMember` type (lines 15-23) is missing the optional `photo?: string | null` field even though `m.photo` is read at line 285 to render the avatar. TypeScript still compiles because the field is accessed via a truthy check, but the type should be updated for correctness / IntelliSense. Reference: /app/frontend/app/team/roster.tsx:15-23,285.",
+    "backend/routers/fundraisers.py POST /api/fundraisers now strips `season_ids` and `photos` when None (lines 31-34), fixing the previously latent None-photos regression cleanly. No further changes needed.",
+    "backend/routers/expenses.py: create_expense strips `season_ids` when None (line 48-49) but create_expenses_bulk (bulk) writes `season_ids=payload.season_ids or []` (line 136) which stores an empty list. Both are correctly treated as 'unassigned' by season_query, but the storage shape is inconsistent (missing vs []). Not a bug — worth noting for future normalization.",
+    "backend/routers/share.py public_submit (roster branch): `photo` is stored via `data:` URL base64 string — no size cap enforced. Consider adding a max length (e.g. 300 KB) to prevent a parent from uploading a very large image that would bloat the roster document. Client already resizes to 600px @ 0.6 quality, so it's usually fine — server-side cap is defense-in-depth."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter77_share_photo_and_season_filters.py (new)"
+  ],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "100% smoke (photo picker rendered, expenses/fundraisers tabs load with season_id in queries)"},
+  "seed_data_creation": "Ephemeral only: two TEST_ITER77_* seasons, one roster member submitted via the public share link, TEST_ITER77_* expense / payment / fundraiser rows, and bulk-created expense/payment rows. Everything is deleted in the same test that created it.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login uses testIDs login-email-input, login-password-input; the Sign in element is a TouchableOpacity — clicking by role='button' can timeout, use page.get_by_text('Sign in', exact=True).first.click(force=True). Roster form testIDs: roster-photo-pick (thumbnail tap), roster-photo-add (button), roster-photo-remove (visible only once a photo is set). Public roster share endpoint accepts a full data URL in the `photo` field; expect /api/roster GET to return `photo` verbatim. Bulk expense/payment split_mode is 'equal' or 'same' (not 'each'). ExpenseCreate REQUIRES athlete_id (422 otherwise)."
+}

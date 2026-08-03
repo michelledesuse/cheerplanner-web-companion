@@ -13,7 +13,7 @@ from core.models import (
 )
 from core.security import get_current_user
 from core.helpers import (
-    _household_user_ids, _build_paid_map, _expense_with_balance,
+    _household_user_ids, _build_paid_map, _expense_with_balance, season_query,
 )
 
 router = APIRouter(prefix="/api")
@@ -27,9 +27,10 @@ async def expense_categories():
 @router.get("/expenses", response_model=List[ExpenseEntry])
 async def list_expenses(
     athlete_id: Optional[str] = None,
+    season_id: Optional[str] = None,
     current_user=Depends(get_current_user),
 ):
-    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
+    q = season_query(await _household_user_ids(current_user["id"]), season_id)
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.expenses.find(q, {"_id": 0}).sort([("incurred_on", 1), ("created_at", 1)]).to_list(2000)
@@ -44,6 +45,8 @@ async def create_expense(payload: ExpenseCreate, current_user=Depends(get_curren
     # Strip response-only / non-stored fields
     for k in ("paid_amount", "balance_due", "recurrence", "recurrence_count"):
         data.pop(k, None)
+    if data.get("season_ids") is None:
+        data.pop("season_ids", None)
     # Auto-populate due_date from incurred_on if not provided
     if not data.get("due_date"):
         data["due_date"] = data.get("incurred_on")
@@ -130,6 +133,7 @@ async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(
             incurred_on=payload.incurred_on,
             due_date=due,
             paid=payload.paid,
+            season_ids=payload.season_ids or [],
         )
         stored = entry.model_dump()
         stored.pop("paid_amount", None)
