@@ -10,6 +10,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, todayISO } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
+import PhotoGallery from "@/src/components/PhotoGallery";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 
 type Fundraiser = { id: string; name: string; amount_raised: number; applied_amount?: number; available?: number; raised_on: string; note?: string; goal_amount?: number | null; link_url?: string | null };
@@ -28,6 +29,7 @@ export default function FundraisersScreen() {
   const [goal, setGoal] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
   const [raisedOn, setRaisedOn] = useState(todayISO());
+  const [photos, setPhotos] = useState<string[]>([]);
   const [applyFund, setApplyFund] = useState<Fundraiser | null>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -45,7 +47,7 @@ export default function FundraisersScreen() {
   const total = items.reduce((s, i) => s + Number(i.amount_raised || 0), 0);
 
   const resetForm = () => {
-    setName(""); setAmount(""); setGoal(""); setLinkUrl(""); setRaisedOn(todayISO()); setEditingId(null); setShowAdd(false);
+    setName(""); setAmount(""); setGoal(""); setLinkUrl(""); setRaisedOn(todayISO()); setPhotos([]); setEditingId(null); setShowAdd(false);
   };
 
   const save = async () => {
@@ -53,7 +55,7 @@ export default function FundraisersScreen() {
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt < 0) { Alert.alert("Missing", "Enter a valid amount"); return; }
     const goalNum = goal.trim() ? parseFloat(goal) : null;
-    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null, link_url: linkUrl.trim() ? normalizeUrl(linkUrl) : null };
+    const body = { name: name.trim(), amount_raised: amt, raised_on: raisedOn, goal_amount: (goalNum != null && !isNaN(goalNum) && goalNum > 0) ? goalNum : null, link_url: linkUrl.trim() ? normalizeUrl(linkUrl) : null, photos };
     try {
       if (editingId) {
         await api.patch(`/fundraisers/${editingId}`, body);
@@ -73,6 +75,7 @@ export default function FundraisersScreen() {
     setAmount(String(f.amount_raised));
     setGoal(f.goal_amount != null ? String(f.goal_amount) : "");
     setLinkUrl(f.link_url || "");
+    setPhotos(Array.isArray((f as any).photos) ? (f as any).photos : []);
     setRaisedOn(f.raised_on);
     setShowAdd(true);
   };
@@ -147,6 +150,7 @@ export default function FundraisersScreen() {
               <TextInput style={styles.input} value={linkUrl} onChangeText={setLinkUrl} autoCapitalize="none" keyboardType="url" placeholder="e.g. gofundme.com/our-team" placeholderTextColor={colors.textTertiary} testID="fundraiser-link-input" />
               <Text style={styles.label}>Date</Text>
               <DateField value={raisedOn} onChange={setRaisedOn} />
+              <PhotoGallery photos={photos} onChange={setPhotos} testIDPrefix="fundraiser-photo" />
               <TouchableOpacity style={styles.saveBtn} onPress={save} testID="fundraiser-save-btn">
                 <Text style={styles.saveBtnText}>{editingId ? "Save changes" : "Add fundraiser"}</Text>
               </TouchableOpacity>

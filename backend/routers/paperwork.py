@@ -80,11 +80,18 @@ async def get_paperwork(sheet_id: str, current_user=Depends(get_current_user)):
 
 @router.patch("/paperwork/{sheet_id}", response_model=PaperworkSheet)
 async def rename_paperwork(sheet_id: str, payload: PaperworkSheetUpdate, current_user=Depends(get_current_user)):
-    if not (payload.name or "").strip():
-        raise HTTPException(status_code=400, detail="Name cannot be blank")
     doc = await _get_sheet(sheet_id, current_user)
-    await db.paperwork_sheets.update_one({"id": doc["id"]}, {"$set": {"name": payload.name.strip()}})
-    doc["name"] = payload.name.strip()
+    updates: dict = {}
+    if payload.name is not None:
+        if not payload.name.strip():
+            raise HTTPException(status_code=400, detail="Name cannot be blank")
+        updates["name"] = payload.name.strip()
+    if payload.photos is not None:
+        updates["photos"] = payload.photos
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    await db.paperwork_sheets.update_one({"id": doc["id"]}, {"$set": updates})
+    doc.update(updates)
     return PaperworkSheet(**doc)
 
 

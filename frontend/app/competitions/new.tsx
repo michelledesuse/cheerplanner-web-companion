@@ -13,6 +13,7 @@ import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
 import TimeField from "@/src/components/TimeField";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import PhotoGallery from "@/src/components/PhotoGallery";
 import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 
 export default function CompetitionForm() {
@@ -35,6 +36,7 @@ export default function CompetitionForm() {
   const [smsOffsets, setSmsOffsets] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
   const [links, setLinks] = useState<ExternalLink[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
 
@@ -56,6 +58,7 @@ export default function CompetitionForm() {
         setSmsOffsets(Array.isArray(c.sms_reminder_offsets) ? c.sms_reminder_offsets : []);
         setNotes(c.notes || "");
         setLinks(Array.isArray(c.links) ? c.links : []);
+        setPhotos(Array.isArray(c.photos) ? c.photos : []);
       } catch (_e) {
         Alert.alert("Error", "Could not load competition");
       } finally {
@@ -81,6 +84,7 @@ export default function CompetitionForm() {
         sms_reminder_offsets: bookingReleaseAt ? smsOffsets : [],
         notes: notes.trim() || null,
         links: cleanLinks(links),
+        photos,
       };
       if (isEdit) {
         await api.patch(`/competitions/${editingId}`, payload);
@@ -154,6 +158,7 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Links (optional)</Text>
           <LinksEditor value={links} onChange={setLinks} testIDPrefix="comp-link" />
+          <PhotoGallery photos={photos} onChange={setPhotos} testIDPrefix="comp-photo" />
 
           <Text style={styles.label}>Booking release (date &amp; time)</Text>
           <DateTimeField value={bookingReleaseAt} onChange={setBookingReleaseAt} testID="comp-booking-release-input" />

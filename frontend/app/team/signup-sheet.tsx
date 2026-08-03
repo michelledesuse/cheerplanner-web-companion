@@ -13,11 +13,12 @@ import { shareTeamLink } from "@/src/utils/shareLink";
 import { exportAoa } from "@/src/utils/exportFile";
 import AttachSection from "@/src/components/AttachSection";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import PhotoGallery from "@/src/components/PhotoGallery";
 
 type Claim = { id: string; member_id?: string | null; guest_name?: string | null; qty: number; note?: string | null };
 type SlotKind = "item" | "duty" | "time";
 type Slot = { id: string; label: string; kind?: SlotKind; time_label?: string | null; qty_needed: number; order: number; claims: Claim[] };
-type Sheet = { id: string; name: string; links?: ExternalLink[]; last_reminded_at?: string | null; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
+type Sheet = { id: string; name: string; links?: ExternalLink[]; photos?: string[]; last_reminded_at?: string | null; competition_ids?: string[]; event_ids?: string[]; slots: Slot[] };
 type Member = GridMember & { role: string };
 
 const KINDS: { value: SlotKind; label: string; icon: any }[] = [
@@ -51,6 +52,7 @@ export default function SignupSheetScreen() {
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const [editLinks, setEditLinks] = useState<ExternalLink[]>([]);
+  const [editPhotos, setEditPhotos] = useState<string[]>([]);
   const [nudging, setNudging] = useState(false);
 
   const [claimSlot, setClaimSlot] = useState<Slot | null>(null);
@@ -156,11 +158,11 @@ export default function SignupSheetScreen() {
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not remove."); }
   };
 
-  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setEditLinks(sheet.links || []); setSheetMenuOpen(true); } };
+  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setEditLinks(sheet.links || []); setEditPhotos(sheet.photos || []); setSheetMenuOpen(true); } };
 
   const saveSheet = async () => {
     if (!sheet || !editName.trim()) return;
-    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim(), links: cleanLinks(editLinks) }); setSheetMenuOpen(false); await load(); }
+    try { await api.patch(`/team/signups/${sheet.id}`, { name: editName.trim(), links: cleanLinks(editLinks), photos: editPhotos }); setSheetMenuOpen(false); await load(); }
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
   };
 
@@ -432,6 +434,7 @@ export default function SignupSheetScreen() {
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="signup-edit-name" />
               <Text style={styles.label}>Sign-up links (optional)</Text>
               <LinksEditor value={editLinks} onChange={setEditLinks} testIDPrefix="signup-link" />
+              <PhotoGallery photos={editPhotos} onChange={setEditPhotos} testIDPrefix="signup-photo" />
               {sheet && <AttachSection endpoint={`/team/signups/${sheet.id}`} competitionIds={sheet.competition_ids || []} eventIds={sheet.event_ids || []} onChange={(c, e) => setSheet((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveSheet} testID="signup-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
               <Text style={styles.downloadLabel}>Download list</Text>

@@ -11,6 +11,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import PhotoGallery from "@/src/components/PhotoGallery";
 
 type Item = { id: string; label: string; order: number; links?: ExternalLink[]; last_reminded_at?: string | null };
 type Cell = { done?: boolean; note?: string | null };
@@ -161,11 +162,12 @@ export default function PaperworkSheetScreen() {
     ]);
   };
 
-  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setSheetMenuOpen(true); } };
+  const [editSheetPhotos, setEditSheetPhotos] = useState<string[]>([]);
+  const openSheetMenu = () => { if (sheet) { setEditName(sheet.name); setEditSheetPhotos((sheet as any).photos || []); setSheetMenuOpen(true); } };
 
   const renameSheet = async () => {
     if (!sheet || !editName.trim()) return;
-    try { await api.patch(`/team/paperwork/${sheet.id}`, { name: editName.trim() }); setSheetMenuOpen(false); await load(); }
+    try { await api.patch(`/team/paperwork/${sheet.id}`, { name: editName.trim(), photos: editSheetPhotos }); setSheetMenuOpen(false); await load(); }
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
   };
 
@@ -364,6 +366,7 @@ export default function PaperworkSheetScreen() {
             <Pressable style={styles.sheetModal} onPress={() => {}}>
               <Text style={styles.sheetTitle}>Edit sheet</Text>
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="paperwork-edit-name" />
+              <PhotoGallery photos={editSheetPhotos} onChange={setEditSheetPhotos} testIDPrefix="paperwork-photo" />
               <TouchableOpacity style={styles.confirm} onPress={renameSheet} testID="paperwork-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
               <TouchableOpacity style={styles.deleteBtn} onPress={deleteSheet} testID="paperwork-sheet-delete">
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />

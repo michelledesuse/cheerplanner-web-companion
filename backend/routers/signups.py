@@ -102,6 +102,8 @@ async def update_signup(sheet_id: str, payload: SignupSheetUpdate, current_user=
         updates["competition_ids"] = payload.competition_ids
     if payload.event_ids is not None:
         updates["event_ids"] = payload.event_ids
+    if payload.photos is not None:
+        updates["photos"] = payload.photos
     if updates:
         await db.signup_sheets.update_one({"id": doc["id"]}, {"$set": updates})
         doc.update(updates)

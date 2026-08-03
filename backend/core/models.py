@@ -112,6 +112,7 @@ class RecurrenceRule(BaseModel):
 
 
 class ScheduleEvent(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     athlete_ids: List[str] = Field(default_factory=list)  # empty = all/household
@@ -133,6 +134,7 @@ class ScheduleEvent(BaseModel):
 
 
 class ScheduleEventCreate(BaseModel):
+    photos: Optional[List[str]] = None
     athlete_ids: List[str] = Field(default_factory=list)
     event_type: str = "practice"
     title: str
@@ -150,6 +152,7 @@ class ScheduleEventCreate(BaseModel):
 
 
 class ScheduleEventUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     athlete_ids: Optional[List[str]] = None
     event_type: Optional[str] = None
     title: Optional[str] = None
@@ -422,6 +425,7 @@ class SeasonRollover(BaseModel):
 # Competitions
 # ============================================================
 class Competition(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
@@ -445,6 +449,7 @@ class Competition(BaseModel):
 
 
 class CompetitionCreate(BaseModel):
+    photos: Optional[List[str]] = None
     name: str
     location: Optional[str] = None
     address: Optional[str] = None
@@ -463,6 +468,7 @@ class CompetitionCreate(BaseModel):
 
 
 class CompetitionUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     name: Optional[str] = None
     location: Optional[str] = None
     address: Optional[str] = None
@@ -728,6 +734,7 @@ CHEERPLANNER_STANDARD_TIPS: List[str] = [
 # Fundraisers
 # ============================================================
 class Fundraiser(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     athlete_id: Optional[str] = None  # null = household-level
@@ -746,6 +753,7 @@ class Fundraiser(BaseModel):
 
 
 class FundraiserCreate(BaseModel):
+    photos: Optional[List[str]] = None
     athlete_id: Optional[str] = None
     name: str
     amount_raised: float = 0.0
@@ -756,6 +764,7 @@ class FundraiserCreate(BaseModel):
 
 
 class FundraiserUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     athlete_id: Optional[str] = None
     name: Optional[str] = None
     amount_raised: Optional[float] = None
@@ -987,6 +996,7 @@ class TeamPaymentEntry(BaseModel):
 
 
 class PaymentTracker(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
@@ -1002,6 +1012,7 @@ class PaymentTracker(BaseModel):
 
 
 class PaymentTrackerCreate(BaseModel):
+    photos: Optional[List[str]] = None
     name: str
     amount: Optional[float] = None
     note: Optional[str] = None
@@ -1011,6 +1022,7 @@ class PaymentTrackerCreate(BaseModel):
 
 
 class PaymentTrackerUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     name: Optional[str] = None
     amount: Optional[float] = None
     note: Optional[str] = None
@@ -1087,6 +1099,7 @@ class PaperworkItem(BaseModel):
 
 
 class PaperworkSheet(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
@@ -1097,10 +1110,12 @@ class PaperworkSheet(BaseModel):
 
 
 class PaperworkSheetCreate(BaseModel):
+    photos: Optional[List[str]] = None
     name: str
 
 
 class PaperworkSheetUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     name: str
 
 
@@ -1145,6 +1160,7 @@ class SignupSlot(BaseModel):
 
 
 class SignupSheet(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     name: str
@@ -1158,6 +1174,7 @@ class SignupSheet(BaseModel):
 
 
 class SignupSheetCreate(BaseModel):
+    photos: Optional[List[str]] = None
     name: str
     links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
@@ -1165,6 +1182,7 @@ class SignupSheetCreate(BaseModel):
 
 
 class SignupSheetUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     name: Optional[str] = None
     links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
@@ -1217,6 +1235,7 @@ class ShareLinkCreate(BaseModel):
 # To-Do lists (Team Hub + attached to competitions & events)
 # ============================================================
 class Todo(BaseModel):
+    photos: List[str] = Field(default_factory=list)
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     text: str
@@ -1228,12 +1247,14 @@ class Todo(BaseModel):
 
 
 class TodoCreate(BaseModel):
+    photos: Optional[List[str]] = None
     text: str
     scope: Literal["team", "competition", "event"] = "team"
     ref_id: Optional[str] = None
 
 
 class TodoUpdate(BaseModel):
+    photos: Optional[List[str]] = None
     text: Optional[str] = None
     done: Optional[bool] = None
 

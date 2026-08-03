@@ -11,10 +11,11 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import DateField from "@/src/components/DateField";
 import AttachSection from "@/src/components/AttachSection";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import PhotoGallery from "@/src/components/PhotoGallery";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; amount_due?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; photos?: string[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
@@ -30,6 +31,7 @@ export default function PaymentDetail() {
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editLinks, setEditLinks] = useState<ExternalLink[]>([]);
+  const [editPhotos, setEditPhotos] = useState<string[]>([]);
   const [nudging, setNudging] = useState(false);
 
   // Per-member payment sheet
@@ -128,12 +130,12 @@ export default function PaymentDetail() {
     } finally { setMSaving(false); }
   };
 
-  const openEdit = () => { if (tracker) { setEditName(tracker.name); setEditAmount(tracker.amount != null ? String(tracker.amount) : ""); setEditLinks(tracker.links || []); setEditOpen(true); } };
+  const openEdit = () => { if (tracker) { setEditName(tracker.name); setEditAmount(tracker.amount != null ? String(tracker.amount) : ""); setEditLinks(tracker.links || []); setEditPhotos(tracker.photos || []); setEditOpen(true); } };
 
   const saveEdit = async () => {
     if (!tracker || !editName.trim()) return;
     try {
-      await api.patch(`/team/payments/${tracker.id}`, { name: editName.trim(), amount: editAmount ? Number(editAmount) : null, links: cleanLinks(editLinks) });
+      await api.patch(`/team/payments/${tracker.id}`, { name: editName.trim(), amount: editAmount ? Number(editAmount) : null, links: cleanLinks(editLinks), photos: editPhotos });
       setEditOpen(false); await load();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
   };
@@ -376,6 +378,7 @@ export default function PaymentDetail() {
               <TextInput style={styles.input} value={editAmount} onChangeText={setEditAmount} keyboardType="decimal-pad" placeholderTextColor={colors.textTertiary} testID="payment-edit-amount" returnKeyType="done" />
               <Text style={styles.label}>Payment links (optional)</Text>
               <LinksEditor value={editLinks} onChange={setEditLinks} testIDPrefix="payment-edit-link" />
+              <PhotoGallery photos={editPhotos} onChange={setEditPhotos} testIDPrefix="payment-photo" />
               {tracker && <AttachSection endpoint={`/team/payments/${tracker.id}`} competitionIds={tracker.competition_ids || []} eventIds={tracker.event_ids || []} onChange={(c, e) => setTracker((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="payment-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
             </Pressable>

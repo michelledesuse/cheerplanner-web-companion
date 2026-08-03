@@ -15,6 +15,7 @@ import TeamAvatar from "@/src/components/TeamAvatar";
 import TodoList from "@/src/components/TodoList";
 import LinkedTools from "@/src/components/LinkedTools";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import PhotoGallery from "@/src/components/PhotoGallery";
 import AddTypeModal from "@/src/components/AddTypeModal";
 
 const TYPES = [
@@ -76,6 +77,7 @@ export default function ScheduleForm() {
   const [endDate, setEndDate] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [links, setLinks] = useState<ExternalLink[]>([]);
+  const [photos, setPhotos] = useState<string[]>([]);
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
   const [addTypeOpen, setAddTypeOpen] = useState(false);
 
@@ -123,6 +125,7 @@ export default function ScheduleForm() {
             setEndDate(e.end_date || "");
             setSeriesId(e.series_id || null);
             setLinks(Array.isArray(e.links) ? e.links : []);
+            setPhotos(Array.isArray(e.photos) ? e.photos : []);
             if (e.recurrence_rule) {
               setRepeat(true);
               setFrequency(e.recurrence_rule.frequency || "weekly");
@@ -185,6 +188,7 @@ export default function ScheduleForm() {
     notes: notes.trim() || null,
     athlete_ids: Array.from(selectedIds),
     links: cleanLinks(links),
+    photos,
     ...(includeRecurrence && repeat ? {
       recurrence_rule: {
         frequency,
@@ -439,6 +443,7 @@ export default function ScheduleForm() {
 
           <Text style={styles.label}>Links (optional)</Text>
           <LinksEditor value={links} onChange={setLinks} testIDPrefix="schedule-link" />
+          <PhotoGallery photos={photos} onChange={setPhotos} testIDPrefix="schedule-photo" />
 
           <Text style={styles.label}>Notes (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wear comp shoes" placeholderTextColor={colors.textTertiary} />
