@@ -120,6 +120,17 @@ Fundraisers tracker — quietly turns parents into evangelists by letting them c
 - Frontend files: app/team/payments.tsx, payment.tsx, signup-sheet.tsx, paperwork-sheet.tsx, roster.tsx. Verified links UI renders; backend tests `/app/backend/tests/test_iter75_links_and_reminders.py`.
 - DONE (follow-ups): (1) **Last reminded** timestamp — `last_reminded_at` set on the tracker/sheet/paperwork-item whenever a reminder actually sends (sent>0); shown as "Last reminded {date/time}" under each reminder button. Verified end-to-end (Twilio magic number). (2) **Downloads offer both formats** — the sign-up sheet download now has Excel (.xls) + CSV (.csv) buttons (roster & Team Hub export already offered both).
 
+## Session update 11 (Seasons + Sign-up "remind who signed up")
+- DONE (iter76, backend 32/32): **Seasons** — new `seasons` collection + `/api/seasons` CRUD, activate (one active/household), rollover (multi-season membership via $addToSet), delete (detaches `season_ids`, promotes next active). Added `season_ids` to Athlete/Team/Competition/ScheduleEvent (+Create/Update). List endpoints accept `?season_id=` (includes unassigned items). Scoped edit fork via `apply_scoped_update` in core/helpers (edit_scope this/forward/all) wired into athletes/teams/competitions PATCH (events use recurrence scope). Frontend: `SeasonContext` + `SeasonProvider`, `/seasons` management screen, `SeasonBar` on dashboard, Settings → Seasons row, list filtering (athletes/comps/schedule/teams), auto-assign active season on create.
+- DONE (iter76): Sign-up **remind-claimed** — `POST /api/team/signups/{id}/remind-claimed` texts everyone who signed up with a summary of what they signed up for; sign-up Edit modal now has two reminder buttons (not-signed-up vs signed-up).
+
+## REMAINING for this batch (in progress)
+- [ ] Photos: multiple photos on events, competitions, sign-up sheets, payment trackers, paperwork, fundraisers, to-dos (athlete/staff single photo already exists). Public roster share link: allow parent to upload one athlete/staff photo.
+- [ ] Seasons Phase C2: per-item SeasonPicker (multi-attach) in detail/edit forms + the this/forward/all scope PROMPT UI (backend ready).
+- [ ] Template management UI: edit/delete user-created packing-list templates (backend CRUD already exists).
+- [ ] FAQ + setup guide: add subscription info + current adjustments.
+- [ ] UI-consistency review across Team Hub + Parent Portal (requested last).
+
 ## Backlog — web companion (added)
 - Companion WEBSITE that shares the SAME backend/database so users can use CheerPlanner on desktop or phone. Ranked HARDEST/largest: reuses existing FastAPI API + JWT auth, but is effectively a full second frontend (all screens, auth, responsive web UI). Bigger than offline support. Do as a dedicated multi-phase project.
 - **REAL-TIME SYNC (user request, for website phase):** When building the companion website, implement real-time listeners so the website AND the mobile app feel like ONE fluid experience — a change on either surface reflects instantly on the other. Approach options: WebSockets (FastAPI `WebSocket` endpoints broadcasting per-household updates) and/or MongoDB Change Streams (watch collections filtered by household, push diffs to connected clients). Scope: both web and mobile subscribe to household-scoped update channels; on create/update/delete, broadcast the changed resource so all clients (web + phones in the same household) live-update without manual refresh. Bundle this into the companion-website multi-phase project.
