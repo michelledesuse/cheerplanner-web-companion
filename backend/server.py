@@ -52,6 +52,7 @@ from routers import (
     analytics,
     realtime,
     seasons,
+    music,
 )
 
 
@@ -111,6 +112,7 @@ for r in (
     analytics.router,
     realtime.router,
     seasons.router,
+    music.router,
 ):
     app.include_router(r)
 
@@ -172,6 +174,13 @@ async def startup_db_client():
         await db.sent_notifications.create_index("key", unique=True)
     except Exception as exc:
         logger.warning(f"Could not create sent_notifications index: {exc}")
+
+    # Team Music (Team Hub) indexes.
+    try:
+        await db.team_music.create_index("user_id")
+        await db.music_chunks.create_index([("track_id", 1), ("index", 1)], unique=True)
+    except Exception as exc:
+        logger.warning(f"Could not create team_music indexes: {exc}")
 
     # Premium entitlements (Phase 0) — indexes for the resolver + audit trail.
     try:

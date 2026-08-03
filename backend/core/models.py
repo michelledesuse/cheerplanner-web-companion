@@ -1384,3 +1384,36 @@ class RedeemPayload(BaseModel):
 class AdminSelfPremiumPayload(BaseModel):
     enabled: bool
 
+
+
+
+# ============================================================
+# Team Music (Team Hub) — audio shared with the team
+# ============================================================
+class TeamTrack(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str  # uploader / household scope owner
+    title: str
+    filename: Optional[str] = None
+    content_type: str = "audio/mpeg"
+    size: int = 0
+    team_ids: List[str] = Field(default_factory=list)
+    competition_ids: List[str] = Field(default_factory=list)
+    gridfs_id: Optional[str] = None
+    status: Literal["uploading", "ready"] = "uploading"
+    uploaded_by_name: Optional[str] = None
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class TeamTrackInit(BaseModel):
+    title: str
+    filename: Optional[str] = None
+    content_type: Optional[str] = "audio/mpeg"
+    team_ids: Optional[List[str]] = None
+    competition_ids: Optional[List[str]] = None
+
+
+class TeamTrackUpdate(BaseModel):
+    title: Optional[str] = None
+    team_ids: Optional[List[str]] = None
+    competition_ids: Optional[List[str]] = None

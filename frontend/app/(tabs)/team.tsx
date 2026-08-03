@@ -26,6 +26,7 @@ const TOOLS: Tool[] = [
   { key: "signup", title: "Sign-Up Sheet", desc: "Let parents sign up to volunteer or bring items for events.", icon: "hand-left-outline", route: "/team/signups" },
   { key: "attendance", title: "Attendance", desc: "Check off who's present at practices & events.", icon: "checkmark-done-outline", route: "/team/attendance" },
   { key: "todos", title: "To-Do List", desc: "A shared checklist for your team's tasks.", icon: "checkbox-outline", route: "/team/todos" },
+  { key: "music", title: "Team Music", desc: "Upload competition mixes & music to share with the team.", icon: "musical-notes-outline", route: "/team/music" },
   { key: "export", title: "Custom Roster Export", desc: "Pick columns (sizes, paperwork, payments) into one downloadable view for a competition.", icon: "download-outline", route: "/team/export" },
 ];
 

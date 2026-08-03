@@ -108,6 +108,38 @@ export default function ScheduleTab() {
   const past = useMemo(() => filtered.filter((e) => e.date < today), [filtered, today]);
 
   const visibleIds = useMemo(() => filtered.map((e) => e.id), [filtered]);
+
+  // Conflict detection: two events on the same date whose start/end times
+  // overlap. Flags both household-wide overlaps and (with a stronger label)
+  // when the SAME athlete is double-booked.
+  const conflicts = useMemo(() => {
+    const map: Record<string, { title: string; athlete?: string }> = {};
+    const parse = (t?: string) => {
+      if (!t || !/^\d{1,2}:\d{2}/.test(t)) return null;
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + (m || 0);
+    };
+    const byDate: Record<string, Evt[]> = {};
+    events.forEach((e) => { (byDate[e.date] = byDate[e.date] || []).push(e); });
+    Object.values(byDate).forEach((list) => {
+      for (let i = 0; i < list.length; i++) {
+        for (let j = i + 1; j < list.length; j++) {
+          const a = list[i]; const b = list[j];
+          const as = parse(a.start_time); const bs = parse(b.start_time);
+          if (as == null || bs == null) continue;
+          const ae = parse(a.end_time) ?? as; const be = parse(b.end_time) ?? bs;
+          if (as < be && bs < ae) {
+            const shared = (a.athlete_ids || []).find((id) => (b.athlete_ids || []).includes(id));
+            const athlete = shared ? athletes.find((x) => x.id === shared)?.name : undefined;
+            if (!map[a.id]) map[a.id] = { title: b.title, athlete };
+            if (!map[b.id]) map[b.id] = { title: a.title, athlete };
+          }
+        }
+      }
+    });
+    return map;
+  }, [events, athletes]);
+
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const toggleSelectAll = () => {
     setSelectedIds((s) => {
@@ -262,6 +294,7 @@ export default function ScheduleTab() {
                 customTypes={customTypes}
                 selectMode={selectMode}
                 selected={selectedIds.has(e.id)}
+                conflict={conflicts[e.id]}
                 onPress={() => {
                   if (selectMode) { toggleSelected(e.id); return; }
                   router.push({ pathname: "/schedule/new", params: { id: e.id } });
@@ -280,6 +313,7 @@ export default function ScheduleTab() {
                 customTypes={customTypes}
                 selectMode={selectMode}
                 selected={selectedIds.has(e.id)}
+                conflict={conflicts[e.id]}
                 onPress={() => {
                   if (selectMode) { toggleSelected(e.id); return; }
                   router.push({ pathname: "/schedule/new", params: { id: e.id } });
@@ -295,8 +329,8 @@ export default function ScheduleTab() {
   );
 }
 
-function Row({ e, athletes, teams, customTypes, onPress, onLongPress, onDelete, selectMode, selected }: {
-  e: Evt; athletes: Athlete[]; teams: Team[]; customTypes?: { id: string; label: string; color: string }[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean;
+function Row({ e, athletes, teams, customTypes, onPress, onLongPress, onDelete, selectMode, selected, conflict }: {
+  e: Evt; athletes: Athlete[]; teams: Team[]; customTypes?: { id: string; label: string; color: string }[]; onPress: () => void; onLongPress?: () => void; onDelete: () => void; selectMode?: boolean; selected?: boolean; conflict?: { title: string; athlete?: string };
 }) {
   const styles = useThemedStyles(makeStyles);
   const color = TYPE_COLOR[e.event_type] || (customTypes || []).find((t) => t.id === e.event_type)?.color || "#64748B";
@@ -349,6 +383,14 @@ function Row({ e, athletes, teams, customTypes, onPress, onLongPress, onDelete, 
           </View>
         ) : null}
         {names ? <Text style={styles.rowAthletes}>{names}</Text> : null}
+        {conflict ? (
+          <View style={styles.conflictBadge} testID={`schedule-conflict-${e.id}`}>
+            <Ionicons name="warning" size={12} color="#B45309" />
+            <Text style={styles.conflictText} numberOfLines={1}>
+              {conflict.athlete ? `${conflict.athlete} double-booked` : `Overlaps with ${conflict.title}`}
+            </Text>
+          </View>
+        ) : null}
       </View>
       {!selectMode && (
         <TouchableOpacity onPress={(ev) => { ev.stopPropagation?.(); onDelete(); }} hitSlop={10}>
@@ -387,6 +429,8 @@ const makeStyles = (c: ThemePalette) => ({
   rowMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   rowTeam: { ...typography.caption, color: c.textPrimary, fontWeight: "700", fontSize: 12 },
   rowAthletes: { ...typography.caption, color: c.accent, marginTop: 2, fontWeight: "600" },
+  conflictBadge: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 6, alignSelf: "flex-start", backgroundColor: "#FEF3C7", borderColor: "#FCD34D", borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  conflictText: { ...typography.micro, color: "#B45309", fontWeight: "800" },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },
   empty: { ...typography.h3, color: c.textPrimary, marginTop: spacing.sm },
   emptySub: { ...typography.body, color: c.textTertiary, textAlign: "center" },

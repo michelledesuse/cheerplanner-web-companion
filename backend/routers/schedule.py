@@ -31,6 +31,11 @@ async def list_schedule(
 async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get_current_user)):
     base = payload.model_dump()
     rule = base.pop("recurrence_rule", None)
+    # Normalize Optional[List] fields: None -> [] so ScheduleEvent (which
+    # requires lists) doesn't 500 when the client omits these keys.
+    for k in ("photos", "season_ids", "athlete_ids", "links"):
+        if base.get(k) is None:
+            base[k] = []
 
     if rule:
         rule_obj = RecurrenceRule(**rule) if not isinstance(rule, RecurrenceRule) else rule

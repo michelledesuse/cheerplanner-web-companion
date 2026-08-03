@@ -7,6 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { useSeason } from "@/src/context/SeasonContext";
+import SeasonPicker from "@/src/components/SeasonPicker";
 import SeasonBar from "@/src/components/SeasonBar";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
@@ -30,6 +31,9 @@ export default function TeamsScreen() {
   const [color, setColor] = useState(DEFAULT_TEAM_COLOR);
   const [season, setSeason] = useState("");
   const [logoImage, setLogoImage] = useState<string | null>(null);
+  const [seasonIds, setSeasonIds] = useState<string[]>([]);
+  const [origSeasonIds, setOrigSeasonIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<"this" | "forward" | "all">("all");
   const [saving, setSaving] = useState(false);
 
   const { filterSeasonId } = useSeason();
@@ -45,12 +49,14 @@ export default function TeamsScreen() {
   const openNew = () => {
     setEditing(null);
     setName(""); setColor(DEFAULT_TEAM_COLOR); setSeason(""); setLogoImage(null);
+    setSeasonIds(filterSeasonId ? [filterSeasonId] : []); setOrigSeasonIds([]); setScope("all");
     setShowForm(true);
   };
 
   const openEdit = (t: Team) => {
     setEditing(t);
     setName(t.name); setColor(t.color || DEFAULT_TEAM_COLOR); setSeason(t.season || ""); setLogoImage(t.logo_image || null);
+    setSeasonIds((t as any).season_ids || []); setOrigSeasonIds((t as any).season_ids || []); setScope("all");
     setShowForm(true);
   };
 
@@ -89,9 +95,13 @@ export default function TeamsScreen() {
     try {
       const payload = { name: name.trim(), color, season: season.trim() || null, logo_image: logoImage || "" };
       if (editing) {
-        await api.patch(`/teams/${editing.id}`, payload);
+        if (origSeasonIds.length > 1 && scope !== "all") {
+          await api.patch(`/teams/${editing.id}`, { ...payload, edit_scope: scope });
+        } else {
+          await api.patch(`/teams/${editing.id}`, { ...payload, season_ids: seasonIds });
+        }
       } else {
-        await api.post("/teams", { ...payload, ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
+        await api.post("/teams", { ...payload, season_ids: seasonIds });
       }
       closeForm();
       await load();
@@ -231,6 +241,14 @@ export default function TeamsScreen() {
                   )}
                 </View>
               </View>
+
+              <SeasonPicker
+                selectedIds={seasonIds}
+                onToggle={(id) => setSeasonIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+                showScope={!!editing && origSeasonIds.length > 1}
+                scope={scope}
+                onScopeChange={setScope}
+              />
 
               <TouchableOpacity onPress={save} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.7 }]} testID="team-save-btn">
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{editing ? "Save changes" : "Add team"}</Text>}

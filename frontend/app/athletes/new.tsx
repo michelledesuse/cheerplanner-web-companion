@@ -7,6 +7,7 @@ import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { useSeason } from "@/src/context/SeasonContext";
+import SeasonPicker from "@/src/components/SeasonPicker";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
@@ -44,6 +45,9 @@ export default function AthleteForm() {
   const [avatarImage, setAvatarImage] = useState<string | null>(null);
   const [teamIds, setTeamIds] = useState<string[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [seasonIds, setSeasonIds] = useState<string[]>([]);
+  const [origSeasonIds, setOrigSeasonIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<"this" | "forward" | "all">("all");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
   const [pickingImage, setPickingImage] = useState(false);
@@ -71,6 +75,8 @@ export default function AthleteForm() {
           setColor(a.avatar_color || DEFAULT_COLOR);
           setAvatarImage(a.avatar_image || null);
           setTeamIds(a.team_ids || []);
+          setSeasonIds((a as any).season_ids || []);
+          setOrigSeasonIds((a as any).season_ids || []);
         }
       } finally { setLoading(false); }
     })();
@@ -127,9 +133,15 @@ export default function AthleteForm() {
         team_ids: teamIds,
       };
       if (isEdit) {
-        await api.patch(`/athletes/${editingId}`, payload);
+        const multiSeason = origSeasonIds.length > 1;
+        if (multiSeason && scope !== "all") {
+          // Fork field edits for the chosen scope; leave season membership as-is.
+          await api.patch(`/athletes/${editingId}`, { ...payload, edit_scope: scope });
+        } else {
+          await api.patch(`/athletes/${editingId}`, { ...payload, season_ids: seasonIds });
+        }
       } else {
-        await api.post("/athletes", { ...payload, ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
+        await api.post("/athletes", { ...payload, season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
       }
       router.back();
     } catch (e: any) {
@@ -259,6 +271,14 @@ export default function AthleteForm() {
 
           <Text style={styles.label}>Avatar color</Text>
           <ColorField value={color} onChange={setColor} testID="athlete-color" />
+
+          <SeasonPicker
+            selectedIds={seasonIds}
+            onToggle={(id) => setSeasonIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+            showScope={isEdit && origSeasonIds.length > 1}
+            scope={scope}
+            onScopeChange={setScope}
+          />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="athlete-save-btn">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save athlete"}</Text>}

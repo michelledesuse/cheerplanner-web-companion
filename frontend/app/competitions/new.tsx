@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { useSeason } from "@/src/context/SeasonContext";
+import SeasonPicker from "@/src/components/SeasonPicker";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
@@ -37,6 +38,9 @@ export default function CompetitionForm() {
   const [notes, setNotes] = useState("");
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [seasonIds, setSeasonIds] = useState<string[]>([]);
+  const [origSeasonIds, setOrigSeasonIds] = useState<string[]>([]);
+  const [scope, setScope] = useState<"this" | "forward" | "all">("all");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
 
@@ -59,6 +63,8 @@ export default function CompetitionForm() {
         setNotes(c.notes || "");
         setLinks(Array.isArray(c.links) ? c.links : []);
         setPhotos(Array.isArray(c.photos) ? c.photos : []);
+        setSeasonIds(Array.isArray(c.season_ids) ? c.season_ids : []);
+        setOrigSeasonIds(Array.isArray(c.season_ids) ? c.season_ids : []);
       } catch (_e) {
         Alert.alert("Error", "Could not load competition");
       } finally {
@@ -87,9 +93,13 @@ export default function CompetitionForm() {
         photos,
       };
       if (isEdit) {
-        await api.patch(`/competitions/${editingId}`, payload);
+        if (origSeasonIds.length > 1 && scope !== "all") {
+          await api.patch(`/competitions/${editingId}`, { ...payload, edit_scope: scope });
+        } else {
+          await api.patch(`/competitions/${editingId}`, { ...payload, season_ids: seasonIds });
+        }
       } else {
-        await api.post("/competitions", { ...payload, ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
+        await api.post("/competitions", { ...payload, season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
       }
       router.back();
     } catch (e: any) {
@@ -173,6 +183,14 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Notes</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />
+
+          <SeasonPicker
+            selectedIds={seasonIds}
+            onToggle={(id) => setSeasonIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+            showScope={isEdit && origSeasonIds.length > 1}
+            scope={scope}
+            onScopeChange={setScope}
+          />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="comp-save-btn">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save competition"}</Text>}

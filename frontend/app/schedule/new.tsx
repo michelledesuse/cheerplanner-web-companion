@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { useSeason } from "@/src/context/SeasonContext";
+import SeasonPicker from "@/src/components/SeasonPicker";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { todayISO } from "@/src/utils/format";
@@ -78,6 +79,7 @@ export default function ScheduleForm() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [seasonIds, setSeasonIds] = useState<string[]>([]);
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
   const [addTypeOpen, setAddTypeOpen] = useState(false);
 
@@ -126,6 +128,7 @@ export default function ScheduleForm() {
             setSeriesId(e.series_id || null);
             setLinks(Array.isArray(e.links) ? e.links : []);
             setPhotos(Array.isArray(e.photos) ? e.photos : []);
+            setSeasonIds(Array.isArray(e.season_ids) ? e.season_ids : []);
             if (e.recurrence_rule) {
               setRepeat(true);
               setFrequency(e.recurrence_rule.frequency || "weekly");
@@ -204,9 +207,9 @@ export default function ScheduleForm() {
     setSaving(true);
     try {
       if (isEdit) {
-        await api.patch(`/schedule/${params.id}?scope=${scope}`, buildPayload(false));
+        await api.patch(`/schedule/${params.id}?scope=${scope}`, { ...buildPayload(false), season_ids: seasonIds });
       } else {
-        await api.post("/schedule", { ...buildPayload(true), ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
+        await api.post("/schedule", { ...buildPayload(true), season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
       }
       router.back();
     } catch (e: any) {
@@ -444,6 +447,11 @@ export default function ScheduleForm() {
           <Text style={styles.label}>Links (optional)</Text>
           <LinksEditor value={links} onChange={setLinks} testIDPrefix="schedule-link" />
           <PhotoGallery photos={photos} onChange={setPhotos} testIDPrefix="schedule-photo" />
+
+          <SeasonPicker
+            selectedIds={seasonIds}
+            onToggle={(id) => setSeasonIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])}
+          />
 
           <Text style={styles.label}>Notes (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wear comp shoes" placeholderTextColor={colors.textTertiary} />
