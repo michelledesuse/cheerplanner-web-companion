@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
 import LiveDot from "@/src/components/LiveDot";
+import SeasonBar from "@/src/components/SeasonBar";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { colors, radius, spacing, typography, shadow } from "@/src/theme";
@@ -128,6 +129,8 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
         </View>
+
+        <View style={{ marginBottom: spacing.md }}><SeasonBar /></View>
 
         {/* Stat tiles — tappable, each routes to its primary tab */}
         <View style={styles.tileRow}>

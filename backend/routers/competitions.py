@@ -1,20 +1,20 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.db import db
 from core.models import Competition, CompetitionCreate, CompetitionUpdate
 from core.security import get_current_user
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, season_query, apply_scoped_update
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/competitions", response_model=List[Competition])
-async def list_competitions(current_user=Depends(get_current_user)):
+async def list_competitions(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
     docs = await db.competitions.find(
-        {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
-        {"_id": 0},
+        season_query(member_ids, season_id), {"_id": 0},
     ).sort("event_date", 1).to_list(500)
     return [Competition(**d) for d in docs]
 
@@ -39,15 +39,15 @@ async def get_competition(competition_id: str, current_user=Depends(get_current_
 
 @router.patch("/competitions/{competition_id}", response_model=Competition)
 async def update_competition(competition_id: str, payload: CompetitionUpdate, current_user=Depends(get_current_user)):
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    member_ids = await _household_user_ids(current_user["id"])
+    sent = payload.model_dump(exclude_unset=True)
+    scope = sent.pop("edit_scope", None)
+    updates = {k: v for k, v in sent.items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    res = await db.competitions.update_one(
-        {"id": competition_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
-    )
-    if res.matched_count == 0:
+    doc = await apply_scoped_update(db.competitions, member_ids, competition_id, updates, scope)
+    if doc is None:
         raise HTTPException(status_code=404, detail="Competition not found")
-    doc = await db.competitions.find_one({"id": competition_id}, {"_id": 0})
     return Competition(**doc)
 
 

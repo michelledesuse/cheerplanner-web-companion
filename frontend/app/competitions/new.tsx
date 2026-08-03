@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { isoToInput, userDateToISO } from "@/src/utils/format";
@@ -17,6 +18,7 @@ import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 export default function CompetitionForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
@@ -83,7 +85,7 @@ export default function CompetitionForm() {
       if (isEdit) {
         await api.patch(`/competitions/${editingId}`, payload);
       } else {
-        await api.post("/competitions", payload);
+        await api.post("/competitions", { ...payload, ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
       }
       router.back();
     } catch (e: any) {

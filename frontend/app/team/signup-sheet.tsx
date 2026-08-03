@@ -185,28 +185,29 @@ export default function SignupSheetScreen() {
     }
   };
 
-  const sendReminder = () => {
+  const sendReminder = (mode: "unclaimed" | "claimed") => {
     if (!sheet) return;
-    Alert.alert(
-      "Send sign-up reminder?",
-      "We'll text each person on the roster who hasn't signed up yet, including any links on this sheet. Athletes' texts go to the parent's number.",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Send texts", onPress: async () => {
-          setNudging(true);
-          try {
-            const r = await api.post<{ sent: number; no_phone: string[]; failed: string[] }>(`/team/signups/${sheet.id}/remind`, {});
-            const { sent, no_phone } = r.data;
-            let msg = `Sent ${sent} reminder${sent === 1 ? "" : "s"}.`;
-            if (no_phone?.length) msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
-            await load();
-            Alert.alert("Reminders sent", msg);
-          } catch (e: any) {
-            Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
-          } finally { setNudging(false); }
-        } },
-      ]
-    );
+    const endpoint = mode === "claimed" ? `/team/signups/${sheet.id}/remind-claimed` : `/team/signups/${sheet.id}/remind`;
+    const title = mode === "claimed" ? "Remind who signed up?" : "Remind who hasn't signed up?";
+    const body = mode === "claimed"
+      ? "We'll text everyone who signed up, reminding them exactly what they signed up to bring/do. Athletes' texts go to the parent's number."
+      : "We'll text each person on the roster who hasn't signed up yet, including any links on this sheet. Athletes' texts go to the parent's number.";
+    Alert.alert(title, body, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Send texts", onPress: async () => {
+        setNudging(true);
+        try {
+          const r = await api.post<{ sent: number; no_phone: string[]; failed: string[] }>(endpoint, {});
+          const { sent, no_phone } = r.data;
+          let msg = `Sent ${sent} reminder${sent === 1 ? "" : "s"}.`;
+          if (no_phone?.length) msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
+          await load();
+          Alert.alert("Reminders sent", msg);
+        } catch (e: any) {
+          Alert.alert("Couldn't send", e?.response?.data?.detail || "Please try again.");
+        } finally { setNudging(false); }
+      } },
+    ]);
   };
 
   const deleteSheet = () => {
@@ -444,9 +445,13 @@ export default function SignupSheetScreen() {
                   <Text style={styles.actionText}>CSV (.csv)</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={[styles.remindWide, nudging && { opacity: 0.6 }]} disabled={nudging} onPress={() => { setSheetMenuOpen(false); sendReminder(); }} testID="signup-remind">
+              <TouchableOpacity style={[styles.remindWide, nudging && { opacity: 0.6 }]} disabled={nudging} onPress={() => { setSheetMenuOpen(false); sendReminder("unclaimed"); }} testID="signup-remind">
                 <Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.accent} />
-                <Text style={styles.actionText}>Send reminder text</Text>
+                <Text style={styles.actionText}>Remind people not signed up yet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.remindWide, nudging && { opacity: 0.6 }]} disabled={nudging} onPress={() => { setSheetMenuOpen(false); sendReminder("claimed"); }} testID="signup-remind-claimed">
+                <Ionicons name="checkmark-done-outline" size={16} color={colors.accent} />
+                <Text style={styles.actionText}>Remind who signed up (what they signed up for)</Text>
               </TouchableOpacity>
               {!!sheet?.last_reminded_at && (
                 <Text style={styles.lastReminded} testID="signup-last-reminded">Last reminded {formatDateTime12(sheet.last_reminded_at)}</Text>

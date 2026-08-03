@@ -206,6 +206,7 @@ export default function SettingsScreen() {
           <SettingRow label="Export Expenses &amp; Payments (CSV)" onPress={() => openExport("/export/expenses-payments.csv", "cheerplanner-expenses-payments.csv")} chevron testID="export-expenses-payments" />
           <SettingRow label="Export Calendar (.ics)" onPress={() => openExport("/export/calendar.ics", "cheerplanner.ics", "text/calendar")} chevron testID="export-calendar" />
           <SettingRow label="Athletes" onPress={() => router.push("/(tabs)/athletes")} chevron />
+          <SettingRow label="Seasons" onPress={() => router.push("/seasons" as any)} chevron testID="settings-seasons" />
           <SettingRow label="Teams" onPress={() => router.push("/teams" as any)} chevron testID="settings-teams" />
           <SettingRow label="Competitions" onPress={() => router.push("/(tabs)/competitions")} chevron />
           <SettingRow label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />

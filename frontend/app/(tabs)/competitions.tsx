@@ -15,6 +15,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
+import SeasonBar from "@/src/components/SeasonBar";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDateLong, daysBetween } from "@/src/utils/format";
@@ -57,9 +59,10 @@ export default function CompetitionsScreen() {
     setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
 
+  const { filterSeasonId } = useSeason();
   const load = useCallback(async () => {
     try {
-      const res = await api.get<Competition[]>("/competitions");
+      const res = await api.get<Competition[]>("/competitions", filterSeasonId ? { params: { season_id: filterSeasonId } } : undefined);
       setItems(res.data);
       try {
         const [a, t] = await Promise.all([api.get<Athlete[]>("/athletes"), api.get<Team[]>("/teams")]);
@@ -69,7 +72,7 @@ export default function CompetitionsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => {
     load();

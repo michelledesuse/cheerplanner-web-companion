@@ -9,6 +9,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
+import SeasonBar from "@/src/components/SeasonBar";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDate } from "@/src/utils/format";
@@ -58,14 +60,15 @@ export default function ScheduleTab() {
     setSelectedIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   };
 
+  const { filterSeasonId } = useSeason();
   const load = useCallback(async () => {
     try {
-      const [s, a] = await Promise.all([api.get<Evt[]>("/schedule"), api.get<Athlete[]>("/athletes")]);
+      const [s, a] = await Promise.all([api.get<Evt[]>("/schedule", filterSeasonId ? { params: { season_id: filterSeasonId } } : undefined), api.get<Athlete[]>("/athletes")]);
       setEvents(s.data); setAthletes(a.data);
       try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
       try { const ht = await api.get("/household/custom-types"); setCustomTypes(ht.data.event_types || []); } catch (_) { /* ignore */ }
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => {
     load();

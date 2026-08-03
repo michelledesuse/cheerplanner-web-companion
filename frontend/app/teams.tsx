@@ -6,6 +6,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
+import SeasonBar from "@/src/components/SeasonBar";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
@@ -30,12 +32,13 @@ export default function TeamsScreen() {
   const [logoImage, setLogoImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const { filterSeasonId } = useSeason();
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Team[]>("/teams");
+      const r = await api.get<Team[]>("/teams", filterSeasonId ? { params: { season_id: filterSeasonId } } : undefined);
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -88,7 +91,7 @@ export default function TeamsScreen() {
       if (editing) {
         await api.patch(`/teams/${editing.id}`, payload);
       } else {
-        await api.post("/teams", payload);
+        await api.post("/teams", { ...payload, ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
       }
       closeForm();
       await load();

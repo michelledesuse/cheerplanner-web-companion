@@ -1,20 +1,20 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.db import db
 from core.models import Athlete, AthleteCreate, AthleteUpdate
 from core.security import get_current_user
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, season_query, apply_scoped_update
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/athletes", response_model=List[Athlete])
-async def list_athletes(current_user=Depends(get_current_user)):
+async def list_athletes(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
     docs = await db.athletes.find(
-        {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
-        {"_id": 0},
+        season_query(member_ids, season_id), {"_id": 0},
     ).sort("created_at", 1).to_list(500)
     return [Athlete(**d) for d in docs]
 
@@ -30,9 +30,11 @@ async def create_athlete(payload: AthleteCreate, current_user=Depends(get_curren
 
 @router.patch("/athletes/{athlete_id}", response_model=Athlete)
 async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
     # Honor explicit nulls for nullable fields so users can clear them (e.g. remove avatar)
     nullable_fields = {"team", "gym", "avatar_image"}
     sent = payload.model_dump(exclude_unset=True)
+    scope = sent.pop("edit_scope", None)
     updates: dict = {}
     for k, v in sent.items():
         if v is None and k not in nullable_fields:
@@ -40,12 +42,9 @@ async def update_athlete(athlete_id: str, payload: AthleteUpdate, current_user=D
         updates[k] = v
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    res = await db.athletes.update_one(
-        {"id": athlete_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"$set": updates}
-    )
-    if res.matched_count == 0:
+    doc = await apply_scoped_update(db.athletes, member_ids, athlete_id, updates, scope)
+    if doc is None:
         raise HTTPException(status_code=404, detail="Athlete not found")
-    doc = await db.athletes.find_one({"id": athlete_id}, {"_id": 0})
     return Athlete(**doc)
 
 

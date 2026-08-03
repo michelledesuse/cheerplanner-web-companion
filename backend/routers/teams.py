@@ -1,20 +1,20 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from core.db import db
 from core.models import Team, TeamCreate, TeamUpdate
 from core.security import get_current_user
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, season_query, apply_scoped_update
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/teams", response_model=List[Team])
-async def list_teams(current_user=Depends(get_current_user)):
+async def list_teams(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
     docs = await db.teams.find(
-        {"user_id": {"$in": await _household_user_ids(current_user["id"])}},
-        {"_id": 0},
+        season_query(member_ids, season_id), {"_id": 0},
     ).sort("created_at", 1).to_list(500)
     return [Team(**d) for d in docs]
 
@@ -28,16 +28,15 @@ async def create_team(payload: TeamCreate, current_user=Depends(get_current_user
 
 @router.patch("/teams/{team_id}", response_model=Team)
 async def update_team(team_id: str, payload: TeamUpdate, current_user=Depends(get_current_user)):
-    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
+    member_ids = await _household_user_ids(current_user["id"])
+    sent = payload.model_dump(exclude_unset=True)
+    scope = sent.pop("edit_scope", None)
+    updates = {k: v for k, v in sent.items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
-    res = await db.teams.update_one(
-        {"id": team_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}},
-        {"$set": updates},
-    )
-    if res.matched_count == 0:
+    doc = await apply_scoped_update(db.teams, member_ids, team_id, updates, scope)
+    if doc is None:
         raise HTTPException(status_code=404, detail="Team not found")
-    doc = await db.teams.find_one({"id": team_id}, {"_id": 0})
     return Team(**doc)
 
 

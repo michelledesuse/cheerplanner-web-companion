@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
@@ -30,6 +31,7 @@ type Team = { id: string; name: string; color?: string; season?: string; logo_im
 export default function AthleteForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ id?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
@@ -127,7 +129,7 @@ export default function AthleteForm() {
       if (isEdit) {
         await api.patch(`/athletes/${editingId}`, payload);
       } else {
-        await api.post("/athletes", payload);
+        await api.post("/athletes", { ...payload, ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
       }
       router.back();
     } catch (e: any) {

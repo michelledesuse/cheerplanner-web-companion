@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { todayISO } from "@/src/utils/format";
@@ -57,6 +58,7 @@ function dowFromISO(iso: string): number {
 export default function ScheduleForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const isEdit = !!params.id;
 
@@ -200,7 +202,7 @@ export default function ScheduleForm() {
       if (isEdit) {
         await api.patch(`/schedule/${params.id}?scope=${scope}`, buildPayload(false));
       } else {
-        await api.post("/schedule", buildPayload(true));
+        await api.post("/schedule", { ...buildPayload(true), ...(filterSeasonId ? { season_ids: [filterSeasonId] } : {}) });
       }
       router.back();
     } catch (e: any) {

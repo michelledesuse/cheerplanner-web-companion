@@ -128,6 +128,7 @@ class ScheduleEvent(BaseModel):
     series_id: Optional[str] = None  # all events of a recurring series share this id
     recurrence_rule: Optional[RecurrenceRule] = None  # stored on every instance for convenience
     links: List[ExternalLink] = Field(default_factory=list)
+    season_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -145,6 +146,7 @@ class ScheduleEventCreate(BaseModel):
     recurrence_rule: Optional[RecurrenceRule] = None
     end_date: Optional[str] = None
     links: List[ExternalLink] = Field(default_factory=list)
+    season_ids: Optional[List[str]] = None
 
 
 class ScheduleEventUpdate(BaseModel):
@@ -160,6 +162,8 @@ class ScheduleEventUpdate(BaseModel):
     notes: Optional[str] = None
     end_date: Optional[str] = None
     links: Optional[List[ExternalLink]] = None
+    season_ids: Optional[List[str]] = None
+    edit_scope: Optional[Literal["this", "forward", "all"]] = None
 
 
 # ============================================================
@@ -176,6 +180,7 @@ class Athlete(BaseModel):
     avatar_image: Optional[str] = None  # base64 data URL (e.g. data:image/jpeg;base64,...)
     competition_ids: List[str] = Field(default_factory=list)
     team_ids: List[str] = Field(default_factory=list)  # NEW: structured team memberships
+    season_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -188,6 +193,7 @@ class AthleteCreate(BaseModel):
     avatar_image: Optional[str] = None
     competition_ids: Optional[List[str]] = None
     team_ids: Optional[List[str]] = None
+    season_ids: Optional[List[str]] = None
 
 
 class AthleteUpdate(BaseModel):
@@ -199,6 +205,8 @@ class AthleteUpdate(BaseModel):
     avatar_image: Optional[str] = None
     competition_ids: Optional[List[str]] = None
     team_ids: Optional[List[str]] = None
+    season_ids: Optional[List[str]] = None
+    edit_scope: Optional[Literal["this", "forward", "all"]] = None
 
 
 # ============================================================
@@ -336,6 +344,7 @@ class Team(BaseModel):
     name: str
     color: Optional[str] = "#0EA5E9"  # default team color
     season: Optional[str] = None  # e.g. "2025-2026"
+    season_ids: List[str] = Field(default_factory=list)
     logo_image: Optional[str] = None  # base64 data URL (data:image/jpeg;base64,...) - v1.0.8
     logo_shape: Optional[Literal["square", "circle"]] = "square"  # v1.0.8 crop preference
     created_at: str = Field(default_factory=utcnow_iso)
@@ -345,6 +354,7 @@ class TeamCreate(BaseModel):
     name: str
     color: Optional[str] = "#0EA5E9"
     season: Optional[str] = None
+    season_ids: Optional[List[str]] = None
     logo_image: Optional[str] = None
     logo_shape: Optional[Literal["square", "circle"]] = "square"
 
@@ -353,8 +363,10 @@ class TeamUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
     season: Optional[str] = None
+    season_ids: Optional[List[str]] = None
     logo_image: Optional[str] = None
     logo_shape: Optional[Literal["square", "circle"]] = None
+    edit_scope: Optional[Literal["this", "forward", "all"]] = None
 
 
 class TeamMeetTime(BaseModel):
@@ -370,6 +382,40 @@ class TeamToWatch(BaseModel):
     date: Optional[str] = None  # ISO date
     location: Optional[str] = None
     performance_time: Optional[str] = None  # "HH:MM" 24h
+
+
+# ============================================================
+# Seasons
+# ============================================================
+class Season(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    name: str  # e.g. "2025–2026"
+    start_date: Optional[str] = None  # ISO date (used for "this season forward" ordering)
+    end_date: Optional[str] = None
+    is_active: bool = False  # the currently-selected season for this household
+    order: int = 0
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class SeasonCreate(BaseModel):
+    name: str
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    make_active: bool = False
+
+
+class SeasonUpdate(BaseModel):
+    name: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+
+
+class SeasonRollover(BaseModel):
+    target_season_id: str
+    kinds: List[Literal["athletes", "teams", "competitions", "events"]] = Field(
+        default_factory=lambda: ["athletes", "teams", "competitions", "events"]
+    )
 
 
 # ============================================================
@@ -392,6 +438,7 @@ class Competition(BaseModel):
     team_meet_times: List[TeamMeetTime] = Field(default_factory=list)
     teams_to_watch: List[TeamToWatch] = Field(default_factory=list)
     links: List[ExternalLink] = Field(default_factory=list)
+    season_ids: List[str] = Field(default_factory=list)
     # S1: minutes-before offsets for SMS reminders on the stay-to-play booking opening.
     sms_reminder_offsets: List[int] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
@@ -431,6 +478,8 @@ class CompetitionUpdate(BaseModel):
     teams_to_watch: Optional[List[TeamToWatch]] = None
     links: Optional[List[ExternalLink]] = None
     sms_reminder_offsets: Optional[List[int]] = None
+    season_ids: Optional[List[str]] = None
+    edit_scope: Optional[Literal["this", "forward", "all"]] = None
 
 
 # ============================================================

@@ -14,6 +14,8 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
+import { useSeason } from "@/src/context/SeasonContext";
+import SeasonBar from "@/src/components/SeasonBar";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency } from "@/src/utils/format";
@@ -42,9 +44,10 @@ export default function AthletesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const { filterSeasonId } = useSeason();
   const load = useCallback(async () => {
     try {
-      const list = await api.get<Athlete[]>("/athletes");
+      const list = await api.get<Athlete[]>("/athletes", filterSeasonId ? { params: { season_id: filterSeasonId } } : undefined);
       setAthletes(list.data);
       try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* ignore */ }
       const [exp, pay] = await Promise.all([api.get("/expenses"), api.get("/payments")]);
@@ -63,7 +66,7 @@ export default function AthletesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [filterSeasonId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);

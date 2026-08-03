@@ -8,7 +8,7 @@ from core.models import (
     ScheduleEvent, ScheduleEventCreate, ScheduleEventUpdate, RecurrenceRule,
 )
 from core.security import get_current_user
-from core.helpers import _household_user_ids, _expand_recurrence, _date_range
+from core.helpers import _household_user_ids, _expand_recurrence, _date_range, season_query
 
 router = APIRouter(prefix="/api")
 
@@ -16,9 +16,11 @@ router = APIRouter(prefix="/api")
 @router.get("/schedule", response_model=List[ScheduleEvent])
 async def list_schedule(
     athlete_id: Optional[str] = None,
+    season_id: Optional[str] = None,
     current_user=Depends(get_current_user),
 ):
-    q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
+    member_ids = await _household_user_ids(current_user["id"])
+    q = season_query(member_ids, season_id)
     if athlete_id:
         q["athlete_ids"] = athlete_id
     docs = await db.schedule_events.find(q, {"_id": 0}).sort("date", 1).to_list(5000)
@@ -79,6 +81,7 @@ async def update_schedule(
     current_user=Depends(get_current_user),
 ):
     sent = payload.model_dump(exclude_unset=True)
+    sent.pop("edit_scope", None)  # not used for events (they use recurrence scope below)
     nullable = {"location", "start_time", "end_time", "notes", "team_id", "end_date"}
     updates = {k: v for k, v in sent.items() if v is not None or k in nullable}
     if not updates:

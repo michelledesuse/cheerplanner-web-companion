@@ -457,3 +457,66 @@ def _checklist_from_template_items(items: List[PackingItem]) -> List[PackingChec
         PackingChecklistItem(label=i.label, category=i.category, order=i.order)
         for i in items
     ]
+
+
+# ============================================================
+# Seasons: filtering + scoped edits
+# ============================================================
+def season_query(member_ids: List[str], season_id: Optional[str]) -> dict:
+    """Base household query, optionally narrowed to one season. Items with NO
+    season assigned always appear (so legacy/unassigned data is never hidden)."""
+    q: Dict[str, Any] = {"user_id": {"$in": member_ids}}
+    if season_id:
+        q["$or"] = [
+            {"season_ids": season_id},
+            {"season_ids": {"$in": [None, []]}},
+            {"season_ids": {"$exists": False}},
+        ]
+    return q
+
+
+async def apply_scoped_update(collection, member_ids: List[str], entity_id: str,
+                              updates: dict, scope: Optional[str]) -> dict:
+    """Apply an entity update honoring a season scope.
+
+    - scope None / "all": update the record in place (affects every season it's in).
+    - scope "this": fork a season-specific copy for the ACTIVE season with the edits;
+      the original keeps the other seasons.
+    - scope "forward": fork a copy for the active season + all later seasons (by
+      start_date); the original keeps the earlier seasons.
+
+    Returns the document the caller should serialize/return.
+    """
+    doc = await collection.find_one({"id": entity_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        return None
+    season_ids = list(doc.get("season_ids") or [])
+    active = await db.seasons.find_one({"user_id": {"$in": member_ids}, "is_active": True}, {"_id": 0})
+
+    # No forking needed: single/zero season, no active season, or explicit "all".
+    if scope in (None, "all") or not active or len(season_ids) <= 1 or active["id"] not in season_ids:
+        await collection.update_one({"id": entity_id}, {"$set": updates})
+        return await collection.find_one({"id": entity_id}, {"_id": 0})
+
+    # Determine which seasons the fork should own.
+    seasons = await db.seasons.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(200)
+    smap = {s["id"]: s for s in seasons}
+
+    def sort_key(sid):
+        s = smap.get(sid, {})
+        return (s.get("start_date") or "", s.get("order", 0))
+
+    if scope == "forward":
+        active_key = sort_key(active["id"])
+        fork_ids = [sid for sid in season_ids if sort_key(sid) >= active_key]
+    else:  # "this"
+        fork_ids = [active["id"]]
+
+    remaining = [sid for sid in season_ids if sid not in fork_ids]
+
+    import uuid as _uuid
+    fork = {**doc, **updates, "id": str(_uuid.uuid4()), "season_ids": fork_ids}
+    await collection.insert_one(fork)
+    await collection.update_one({"id": entity_id}, {"$set": {"season_ids": remaining}})
+    fork.pop("_id", None)
+    return fork

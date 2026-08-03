@@ -182,6 +182,57 @@ async def remind_signup(sheet_id: str, current_user=Depends(get_current_user)):
         await db.signup_sheets.update_one({"id": sheet_id}, {"$set": {"last_reminded_at": utcnow_iso()}})
     return {"sent": sent, "no_phone": no_phone, "failed": failed}
 
+@router.post("/signups/{sheet_id}/remind-claimed")
+async def remind_signed_up(sheet_id: str, current_user=Depends(get_current_user)):
+    """Text everyone who HAS signed up on this sheet, reminding them exactly what
+    they signed up to bring/do (e.g. 'You signed up to bring: Water x2, Snacks x1')."""
+    await assert_premium(current_user["id"], "mass_sms_reminders")
+    if not is_configured():
+        raise HTTPException(status_code=400, detail="SMS isn't configured. Add your Twilio number in settings.")
+    member_ids = await _household_user_ids(current_user["id"])
+    doc = await db.signup_sheets.find_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Sign-up sheet not found")
+
+    sheet_name = doc.get("name") or "sign-up"
+    links = doc.get("links") or []
+    links_txt = (" Details: " + join_links(links)) if join_links(links) else ""
+
+    # Group each roster member's claims across all slots into a readable list.
+    per_member: dict = {}
+    for s in (doc.get("slots") or []):
+        label = s.get("label") or "item"
+        for c in (s.get("claims") or []):
+            mid = c.get("member_id")
+            if not mid:
+                continue  # guests have no phone on file
+            qty = int(c.get("qty") or 1)
+            per_member.setdefault(mid, []).append(f"{label} x{qty}" if qty > 1 else label)
+
+    roster = await db.roster.find({"user_id": {"$in": member_ids}}, {"_id": 0}).to_list(2000)
+    roster_by_id = {m["id"]: m for m in roster}
+
+    sent, no_phone, failed = 0, [], []
+    for mid, items in per_member.items():
+        m = roster_by_id.get(mid)
+        if not m:
+            continue
+        phone = (m.get("parent_phone") or m.get("phone")) if m.get("role") == "athlete" else (m.get("phone") or m.get("parent_phone"))
+        if not normalize_us_phone(phone):
+            no_phone.append(m.get("name"))
+            continue
+        first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
+        body = f"Hi {first}, reminder for '{sheet_name}': you signed up to bring/do — {', '.join(items)}.{links_txt} Thank you!"
+        if send_sms(phone, body):
+            sent += 1
+        else:
+            failed.append(m.get("name"))
+    if sent > 0:
+        await db.signup_sheets.update_one({"id": sheet_id}, {"$set": {"last_reminded_at": utcnow_iso()}})
+    return {"sent": sent, "no_phone": no_phone, "failed": failed}
+
+
+
 
 @router.post("/signups/{sheet_id}/slots", response_model=SignupSheet)
 async def add_slot(sheet_id: str, payload: SignupSlotCreate, current_user=Depends(get_current_user)):

@@ -51,6 +51,7 @@ from routers import (
     revenuecat_webhook,
     analytics,
     realtime,
+    seasons,
 )
 
 
@@ -109,6 +110,7 @@ for r in (
     revenuecat_webhook.router,
     analytics.router,
     realtime.router,
+    seasons.router,
 ):
     app.include_router(r)
 

@@ -8,6 +8,7 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
 import { PremiumProvider } from "@/src/context/PremiumContext";
 import { RealtimeProvider } from "@/src/context/RealtimeContext";
+import { SeasonProvider } from "@/src/context/SeasonContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
 
 // Keep the native splash visible from cold start until icon fonts register.
@@ -42,7 +43,9 @@ export default function RootLayout() {
         <ThemeProvider>
           <PremiumProvider>
             <RealtimeProvider>
-              <ThemedStack />
+              <SeasonProvider>
+                <ThemedStack />
+              </SeasonProvider>
             </RealtimeProvider>
           </PremiumProvider>
         </ThemeProvider>
