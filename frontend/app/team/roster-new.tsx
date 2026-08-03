@@ -414,7 +414,7 @@ const makeStyles = (c: ThemePalette) => ({
   colLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   addColRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   addColBtn: { width: 46, height: 46, borderRadius: radius.md, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
-  saveBtn: { marginTop: spacing.xxl, backgroundColor: c.primary, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
+  saveBtn: { marginTop: spacing.xxl, backgroundColor: c.accent, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.lg, paddingVertical: 12 },
   deleteText: { color: c.danger, fontWeight: "700" },
