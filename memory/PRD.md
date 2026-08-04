@@ -381,7 +381,14 @@ Get exact current paths from user before building W2.
 - DONE: **Hide a sheet from a Team Hub person.** Surfaced the existing `routers/blocks.py` via new `src/components/ManageAccessButton.tsx` (owner-only people icon) on the payment/signup/paperwork/attendance detail screens — toggles per-member Hidden/Visible; blocked members no longer see that tracker/sheet in their lists. Hardened PUT /api/team/blocks to reject blocking the owner. (Renders null when the household has no other members.)
 - Follow-up: to fully verify "blocked viewer can't see it", invite a 2nd Team Hub member (household was solo in test).
 
-## Session update 17 (Roadmap enhancements — comments, ship-notify, sort/filter, merge)
+## Session update 18 (Team Forms + roadmap "In Development")
+- DONE (iter86, backend 10/10 + frontend PASS): **Custom Team Forms** — new Team Hub tool (`routers/team_forms.py`, `app/team/forms.tsx` + `form-detail.tsx`, card in `app/(tabs)/team.tsx`).
+  - Coaches build named forms with typed questions: single-choice, multi-select, yes/no, number, short text, paragraph. Questions edited in the detail screen (add/edit/delete; options for choice/multi; required toggle).
+  - **Lock Form** toggle freezes submissions & edits — enforced on coach upsert AND public submit (HTTP 400 when locked).
+  - **Coach fills responses in-app** per member (one-tap chips for choice/yesno/multi); parents fill via **public share link** (`share.py` kind="form", pre-filled with prior answers, no app) or get the link via **SMS** (`POST /api/team/forms/{id}/remind`, texts non-responders).
+  - **Real-time tally** mirrors the Sizes tally: choice/yesno/multi → value+count rows, number → total/avg, text/paragraph → answer list; plus a per-member response list with green-check status. Season-scoped (SeasonBar) + hide-from-member via `ManageAccessButton resource="form"`. Forms attachable to competitions/events (competition_ids/event_ids). Collections `team_forms` + `team_form_responses` (startup indexes).
+- DONE: Roadmap — added **Custom Team Forms** as an **In Development** item; renamed the roadmap `in_progress` status label from "In progress" → "In Development" everywhere (badge + filter chip). Also added planned items Website Companion (In Development) + In-App Team Chat (Planned) earlier.
+
 - DONE (iter85, backend 17/17 + frontend PASS): Extended the community roadmap (`routers/roadmap.py`, `app/settings/roadmap.tsx`):
   - **Notify on Ship** — when an admin PATCHes an item's status to `completed`, `_notify_shipped` writes a `roadmap_notifications` doc for every upvoter. `GET /api/roadmap/notifications` (unseen) + `POST /api/roadmap/notifications/seen`; screen shows a dismissible "It shipped! 🎉" banner.
   - **Comment Threads** — `roadmap_comments` collection; `GET/POST /api/roadmap/{id}/comments`, `DELETE /api/roadmap/comments/{cid}` (author or admin). `comment_count` returned per item; card has a 💬 chip opening a comments modal.

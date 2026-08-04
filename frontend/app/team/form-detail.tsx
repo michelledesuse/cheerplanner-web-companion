@@ -263,7 +263,7 @@ export default function FormDetailScreen() {
           <View style={styles.modalSheet}>
             <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>{qIndex >= 0 ? "Edit question" : "Add question"}</Text>
-              <TextInput style={styles.input} value={editingQ?.label} onChangeText={(t) => setEditingQ((q) => (q ? { ...q, label: t } : q))} placeholder="Question text" placeholderTextColor={colors.textTertiary} testID="form-q-label" />
+              <TextInput style={styles.input} value={editingQ?.label ?? ""} onChangeText={(t) => setEditingQ((q) => (q ? { ...q, label: t } : q))} placeholder="Question text" placeholderTextColor={colors.textTertiary} testID="form-q-label" />
               <Text style={styles.fieldLabel}>Answer type</Text>
               <View style={styles.typeWrap}>
                 {TYPES.map((tp) => (
