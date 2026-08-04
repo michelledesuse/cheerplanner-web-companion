@@ -55,6 +55,7 @@ from routers import (
     music,
     broadcast,
     twilio_hooks,
+    roadmap,
 )
 
 
@@ -117,6 +118,7 @@ for r in (
     music.router,
     broadcast.router,
     twilio_hooks.router,
+    roadmap.router,
 ):
     app.include_router(r)
 
@@ -199,6 +201,14 @@ async def startup_db_client():
         await db.analytics_events.create_index("at")
     except Exception as exc:
         logger.warning(f"Could not create entitlement indexes: {exc}")
+
+    # Community roadmap — one vote per user per item.
+    try:
+        await db.roadmap_votes.create_index([("item_id", 1), ("user_id", 1)], unique=True)
+        await db.roadmap_votes.create_index("user_id")
+        await db.roadmap_items.create_index("type")
+    except Exception as exc:
+        logger.warning(f"Could not create roadmap indexes: {exc}")
 
     # Phase 1 — seed admin accounts from ADMIN_EMAILS (idempotent).
     try:

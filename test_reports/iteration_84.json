@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 84 — Community Roadmap feature (planned features + user suggestions + upvotes) fully verified end-to-end. Backend: 16/16 pytest cases pass (GET /api/roadmap auth-gated, correct shape with is_admin=false for applereview, all 3 seeded planned items present with correct statuses; POST /roadmap/suggestions auto-upvotes to 1 with voted=true; POST /roadmap/{id}/vote toggles correctly and never goes below 0; unknown id -> 404; admin POST/PATCH/DELETE all return 403 for applereview). Frontend: settings-roadmap row navigates to /settings/roadmap; PLANNED FEATURES + COMMUNITY SUGGESTIONS sections render; seeded items 'Weather on event dates' (In progress), 'Smart autofill for forms' (Planned), 'CSV import wizard' (Shipped) all visible; suggestion composer creates a new item that appears immediately with count 1; vote toggle updates count 1→0 and persists across a full page reload; admin controls (roadmap-add-planned, roadmap-status-*, roadmap-delete-*) correctly HIDDEN for the non-admin applereview account.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter84_roadmap.py",
+    "/app/test_reports/pytest/pytest_iter84.xml"
+  ],
+  "action_items": [
+    "Optional: admin should delete TEST_ suggestions accumulated by the test runs from the roadmap_items collection (non-admin cannot clean these up)."
+  ],
+  "critical_code_review_comments": [
+    "roadmap.py suggestions list sort uses reverse=False against negated key which is fine (asc of -upvotes = desc by upvotes), but the extra reverse=False is redundant/confusing — minor.",
+    "roadmap.py has a dead-code branch: after 'count = max(0, ...)' the following 'if count < 0' can never execute. Safe to remove."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter84_roadmap.py (new)"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (all flows verified)"},
+  "seed_data_creation": "3 TEST_ community suggestions were created by pytest and 1 by the UI flow. All persist under applereview's user_id.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "EXPO_PUBLIC_BACKEND_URL (not EXPO_BACKEND_URL) is the frontend env key. Login response returns 'access_token' (not 'token'). Roadmap router lives at /api/roadmap. Seeded planned items are 3: Weather on event dates (in_progress), Smart autofill for forms (planned), CSV import wizard (completed). applereview is NOT admin — 403 on POST/PATCH/DELETE is correct.",
+  "rca_of_issue": "N/A — no bugs found. All acceptance criteria met."
+}
