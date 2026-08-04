@@ -12,6 +12,7 @@ import SeasonBar from "@/src/components/SeasonBar";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import ColorField from "@/src/components/ColorField";
+import AttachedMusic from "@/src/components/AttachedMusic";
 
 type Team = { id: string; name: string; color?: string; season?: string; logo_image?: string | null };
 
@@ -193,6 +194,7 @@ export default function TeamsScreen() {
                 </TouchableOpacity>
               </View>
 
+              <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: spacing.md }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
               <Text style={styles.label}>Name</Text>
               <TextInput
                 style={styles.input}
@@ -250,9 +252,12 @@ export default function TeamsScreen() {
                 onScopeChange={setScope}
               />
 
+              {editing && <AttachedMusic contextKey="team_ids" contextId={editing.id} standalone />}
+
               <TouchableOpacity onPress={save} disabled={saving} style={[styles.saveBtn, saving && { opacity: 0.7 }]} testID="team-save-btn">
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{editing ? "Save changes" : "Add team"}</Text>}
               </TouchableOpacity>
+              </ScrollView>
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -288,7 +293,7 @@ const makeStyles = () => ({
   rowName: { ...typography.bodyMedium, color: colors.textPrimary, fontWeight: "700" },
   rowMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, paddingBottom: spacing.xxl },
+  modalCard: { backgroundColor: colors.bg, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: spacing.lg, paddingBottom: spacing.xxl, maxHeight: "90%" },
   modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md },
   modalTitle: { ...typography.h2, color: colors.textPrimary },
   label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md, marginBottom: 6 },
