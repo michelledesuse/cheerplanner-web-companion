@@ -218,6 +218,25 @@ async def public_data(token: str):
         members.sort(key=lambda m: (m["name"] or "").lower())
         return {"kind": "sizes", "title": "Team Sizes",
                 "columns": [{"id": c["id"], "label": c["label"]} for c in cols], "members": members}
+    if link["kind"] == "form":
+        form = await db.team_forms.find_one({"id": link["ref_id"], "user_id": {"$in": member_ids}}, {"_id": 0})
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        members = []
+        async for m in db.roster.find({"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0, "id": 1, "name": 1}):
+            members.append({"id": m["id"], "name": m.get("name")})
+        members.sort(key=lambda m: (m["name"] or "").lower())
+        # answers keyed by member so parents can edit their prior response
+        answers_by_member = {}
+        async for r in db.team_form_responses.find({"form_id": form["id"]}, {"_id": 0, "member_id": 1, "answers": 1}):
+            if r.get("member_id"):
+                answers_by_member[r["member_id"]] = r.get("answers") or {}
+        return {
+            "kind": "form", "title": form.get("name"), "description": form.get("description") or "",
+            "locked": bool(form.get("locked")),
+            "questions": sorted(form.get("questions") or [], key=lambda q: q.get("order", 0)),
+            "members": members, "answers_by_member": answers_by_member,
+        }
     raise HTTPException(status_code=400, detail="Unsupported link")
 
 
@@ -351,6 +370,38 @@ async def public_submit(token: str, payload: dict = Body(...)):
         await db.size_sheets.update_one({"id": doc["id"]}, {"$set": {"values": values}})
         return {"ok": True}
 
+    if link["kind"] == "form":
+        member_id = payload.get("member_id")
+        answers = payload.get("answers") or {}
+        if not member_id:
+            raise HTTPException(status_code=400, detail="Please choose your name.")
+        form = await db.team_forms.find_one({"id": link["ref_id"], "user_id": {"$in": member_ids}}, {"_id": 0})
+        if not form:
+            raise HTTPException(status_code=404, detail="Form not found")
+        if form.get("locked"):
+            raise HTTPException(status_code=400, detail="This form is locked — submissions are closed.")
+        rm = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1})
+        if not rm:
+            raise HTTPException(status_code=404, detail="Member not found")
+        # keep only answers for known question ids
+        valid_qids = {q["id"] for q in (form.get("questions") or [])}
+        clean = {k: v for k, v in answers.items() if k in valid_qids}
+        from core.models import utcnow_iso as _now
+        now = _now()
+        existing = await db.team_form_responses.find_one({"form_id": form["id"], "member_id": member_id}, {"_id": 0, "id": 1})
+        if existing:
+            await db.team_form_responses.update_one(
+                {"id": existing["id"]},
+                {"$set": {"answers": clean, "respondent_name": rm.get("name"), "updated_at": now, "source": "public"}},
+            )
+        else:
+            await db.team_form_responses.insert_one({
+                "id": secrets.token_urlsafe(9), "form_id": form["id"], "user_id": link["user_id"],
+                "member_id": member_id, "respondent_name": rm.get("name"), "answers": clean,
+                "source": "public", "created_at": now, "updated_at": now,
+            })
+        return {"ok": True}
+
     raise HTTPException(status_code=400, detail="Unsupported link")
 
 
@@ -404,10 +455,12 @@ function render(d){{
   if(KIND==="signup") return renderSignup(d);
   if(KIND==="roster"||KIND==="roster_member") return renderRoster(d);
   if(KIND==="sizes") return renderSizes(d);
+  if(KIND==="form") return renderForm(d);
 }}
 {_JS_SIGNUP}
 {_JS_ROSTER}
 {_JS_SIZES}
+{_JS_FORM}
 load();
 </script>
 """
@@ -552,5 +605,69 @@ async function saveSizes(btn){
   const values={}; (window._cols||[]).forEach(id=>{values[id]=document.getElementById("c_"+id).value;});
   const ok=await submit({member_id:mid,values:values},btn);
   if(ok){document.getElementById("ok").textContent="Thanks! Your sizes were submitted.";btn.textContent="Submitted";}
+}
+"""
+
+_JS_FORM = """
+function renderForm(d){
+  window._q=d.questions||[]; window._abm=d.answers_by_member||{}; window._locked=!!d.locked;
+  let h="<h1>"+esc(d.title)+"</h1>";
+  if(d.description) h+="<p class='meta'>"+esc(d.description)+"</p>";
+  h+="<p class='sub'>"+(d.locked?"This form is locked — submissions are closed.":"Fill out & submit")+"</p>";
+  h+="<label>Your name</label><select id='member' onchange='onMember()'><option value=''>Choose your name…</option>";
+  (d.members||[]).forEach(m=>{h+="<option value='"+m.id+"'>"+esc(m.name)+"</option>";});
+  h+="</select><div id='qs'></div>";
+  if(!d.locked) h+="<button onclick='saveForm(this)'>Submit</button>";
+  h+="<div class='ok' id='ok'></div>";
+  document.getElementById("app").innerHTML="<div class='card'>"+h+"</div>";
+  renderQs({});
+}
+function onMember(){
+  const mid=document.getElementById("member").value;
+  renderQs((window._abm||{})[mid]||{});
+}
+function renderQs(ans){
+  let h="";
+  (window._q||[]).forEach(q=>{
+    const dis=window._locked?" disabled":"";
+    const v=ans[q.id];
+    h+="<label>"+esc(q.label)+(q.required?" *":"")+"</label>";
+    if(q.type==="paragraph"){
+      h+="<textarea id='f_"+q.id+"' rows='4' style='width:100%;box-sizing:border-box;padding:10px;border:1px solid #CBD5E1;border-radius:8px;font-size:15px'"+dis+">"+esc(v||"")+"</textarea>";
+    } else if(q.type==="number"){
+      h+="<input id='f_"+q.id+"' type='number' value=\\""+esc(v==null?"":v)+"\\""+dis+"/>";
+    } else if(q.type==="choice"){
+      h+="<select id='f_"+q.id+"'"+dis+"><option value=''>Choose…</option>"+(q.options||[]).map(o=>"<option value=\\""+esc(o)+"\\""+(v===o?" selected":"")+">"+esc(o)+"</option>").join("")+"</select>";
+    } else if(q.type==="yesno"){
+      h+="<select id='f_"+q.id+"'"+dis+"><option value=''>Choose…</option><option value='Yes'"+(v==="Yes"?" selected":"")+">Yes</option><option value='No'"+(v==="No"?" selected":"")+">No</option></select>";
+    } else if(q.type==="multi"){
+      const arr=Array.isArray(v)?v:[];
+      (q.options||[]).forEach((o,i)=>{h+="<div style='display:flex;align-items:center;gap:8px;margin:6px 0'><input type='checkbox' id='f_"+q.id+"_"+i+"' data-q='"+q.id+"' value=\\""+esc(o)+"\\""+(arr.indexOf(o)>=0?" checked":"")+dis+" style='width:auto'/><span>"+esc(o)+"</span></div>";});
+    } else {
+      h+="<input id='f_"+q.id+"' value=\\""+esc(v||"")+"\\""+dis+"/>";
+    }
+  });
+  document.getElementById("qs").innerHTML=h;
+}
+function readAnswers(){
+  const out={};
+  (window._q||[]).forEach(q=>{
+    if(q.type==="multi"){
+      const sel=[];document.querySelectorAll("input[data-q='"+q.id+"']:checked").forEach(el=>sel.push(el.value));
+      if(sel.length) out[q.id]=sel;
+    } else {
+      const el=document.getElementById("f_"+q.id); if(el&&String(el.value).trim()!=="") out[q.id]=el.value;
+    }
+  });
+  return out;
+}
+async function saveForm(btn){
+  const mid=document.getElementById("member").value; if(!mid){alert("Please choose your name.");return;}
+  const answers=readAnswers();
+  const missing=(window._q||[]).filter(q=>q.required&&(answers[q.id]==null||answers[q.id]===""||(Array.isArray(answers[q.id])&&!answers[q.id].length)));
+  if(missing.length){alert("Please answer: "+missing.map(q=>q.label).join(", "));return;}
+  const ok=await submit({member_id:mid,answers:answers},btn);
+  if(ok){document.getElementById("ok").textContent="Thanks! Your response was submitted.";btn.textContent="Submitted";
+    if(!window._abm)window._abm={};window._abm[mid]=answers;}
 }
 """

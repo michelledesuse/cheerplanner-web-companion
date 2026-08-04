@@ -23,6 +23,7 @@ const TOOLS: Tool[] = [
   { key: "payments", title: "Payment Tracking", desc: "Team bonding, gifts, meals & dues — track who's paid.", icon: "cash-outline", route: "/team/payments" },
   { key: "sizes", title: "Sizes", desc: "Uniform, apparel & shoe sizes for each member.", icon: "shirt-outline", route: "/team/sizes" },
   { key: "paperwork", title: "Paperwork / Other", desc: "Waivers, forms & any other check-off items.", icon: "document-text-outline", route: "/team/paperwork" },
+  { key: "forms", title: "Team Forms", desc: "Custom forms — meal orders, T-shirt sizes & more. Parents fill via a link.", icon: "clipboard-outline", route: "/team/forms" },
   { key: "signup", title: "Sign-Up Sheet", desc: "Let parents sign up to volunteer or bring items for events.", icon: "hand-left-outline", route: "/team/signups" },
   { key: "attendance", title: "Attendance", desc: "Check off who's present at practices & events.", icon: "checkmark-done-outline", route: "/team/attendance" },
   { key: "todos", title: "To-Do List", desc: "A shared checklist for your team's tasks.", icon: "checkbox-outline", route: "/team/todos" },

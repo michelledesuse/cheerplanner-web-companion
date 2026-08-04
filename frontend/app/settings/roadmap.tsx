@@ -27,14 +27,14 @@ type Comment = { id: string; author_name?: string; body: string; created_at?: st
 type ShipNote = { id: string; item_title: string };
 
 const STATUS_META: Record<string, { label: string; kind: "accent" | "success" | "muted" }> = {
-  in_progress: { label: "In progress", kind: "accent" },
+  in_progress: { label: "In Development", kind: "accent" },
   planned: { label: "Planned", kind: "muted" },
   completed: { label: "Shipped", kind: "success" },
 };
 const PLANNED_CYCLE = ["planned", "in_progress", "completed"];
 const STATUS_FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "in_progress", label: "In progress" },
+  { key: "in_progress", label: "In Development" },
   { key: "planned", label: "Planned" },
   { key: "completed", label: "Shipped" },
 ];

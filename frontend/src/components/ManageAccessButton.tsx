@@ -6,7 +6,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 
 type Member = { id: string; name?: string; email?: string; team_access?: boolean; blocked: boolean };
-type Props = { resource: "payment" | "signup" | "paperwork" | "attendance"; resourceId: string };
+type Props = { resource: "payment" | "signup" | "paperwork" | "attendance" | "form"; resourceId: string };
 
 /**
  * Owner-only control to hide a specific sheet/tracker from individual Team Hub

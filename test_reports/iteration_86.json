@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 86 — Team Forms feature + roadmap 'In Development' rename. Backend: 10/10 pytest tests pass (form CRUD, all 6 question types, coach upsert, tally 2 Chicken/1 Pasta → then public-parent switch to 2 Chicken/1 Veggie, share link create + public /api/public/s/<token> HTML renders, public submit updates tally, lock blocks both public submit AND coach upsert with 400, /remind Twilio LIVE returns 200 with {sent,no_phone,failed,url,token}, /api/roadmap contains 'Custom Team Forms' with status='in_progress'). Frontend: Team tab shows 'Team Forms' card → /team/forms; 'Banquet Meal' existing form visible under active season; create modal (forms-add → forms-name/desc → forms-create) opens form-detail; add-question flow (form-add-question → form-q-type-choice → form-q-label + form-q-opt-0/1 → form-q-save) renders 'Multiple choice · Chicken, Pasta'; Responses tab lists all 3 roster members (Ava/Bella/Cara), tapping opens response modal, tapping Chicken chip + form-resp-save marks green check with 'Chicken' summary; Tally tab shows '1 Chicken'; form-lock-toggle flips; form-delete cleans up; /settings/roadmap shows 'Custom Team Forms' card with 'In Development' badge and filter chip is 'In Development' (verified 'In progress' string does NOT appear anywhere on roadmap). All acceptance criteria met.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "form-detail question editor modal", "issue": "Console warning: 'A component is changing a controlled input to be uncontrolled. This is likely caused by the value changing from a defined to undefined'. Triggered when opening the Add Question modal — editingQ.label is initialized as '' but the value={editingQ?.label} can be undefined before state settles. Cosmetic React warning; functionality unaffected. Reference: /app/frontend/app/team/form-detail.tsx:266 (use value={editingQ?.label ?? ''}).", "testID": "form-q-label", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "TouchableOpacity/View props", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Emitted on every screen (login, team hub, roadmap). Not from this iteration's new code — likely a shared component. Non-blocking but should be cleaned up across the app."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter86_team_forms.py",
+    "/app/test_reports/pytest/pytest_iter86.xml"
+  ],
+  "action_items": [
+    "(Optional/low) Guard TextInput value in form-detail.tsx line 266 against undefined: value={editingQ?.label ?? ''} to silence the controlled→uncontrolled React warning.",
+    "(Optional) Global pointerEvents deprecation — migrate props.pointerEvents to style.pointerEvents in shared components (not blocking this iteration)."
+  ],
+  "critical_code_review_comments": [
+    "team_forms.py:33 — router-level Depends(require_team_access) correctly gates every endpoint including /remind and /response.",
+    "team_forms.py:257-258 & 282-283 — coach upsert & clear both correctly return 400 when form is locked (matches spec).",
+    "share.py:381-382 — public submit correctly rejects with 400 when form.locked=True.",
+    "share.py:387-388 — public submit filters answers to known question ids only (defense against stale/removed questions). Good.",
+    "team_forms.py:295-296 — /remind rejects non-https base_url early; good safety for Twilio LIVE.",
+    "team_forms.py:172-173 — created form auto-tags to active season via active_season_id(); confirmed on UI (form appears under active season chip).",
+    "form-detail.tsx:74 — new questions default to type='choice' with options=['','']; UX-friendly, matches spec.",
+    "form-detail.tsx:145-154 — answerSummary joins array answers with commas and multi-question answers with ' · '; renders 'Chicken' for the Ava row as expected."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter86_team_forms.py (new)"
+  ],
+  "success_rate": {"backend": "100% (10/10)", "frontend": "100% of tested flows"},
+  "seed_data_creation": "None persisted — each test creates and cleans up its own 'TEST_' prefixed form. UI test also deletes its 'TEST_UI Iter86' form on completion.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Team Forms feature is fully working end-to-end (backend + web UI + public share HTML). Roadmap 'In Development' rename is consistently applied (status label, filter chip, planned item badge). Only two non-blocking console warnings noted (controlled-input in question editor, and app-wide pointerEvents deprecation).",
+  "rca_of_issue": "N/A — feature works as specified."
+}

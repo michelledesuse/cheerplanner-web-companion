@@ -56,6 +56,7 @@ from routers import (
     broadcast,
     twilio_hooks,
     roadmap,
+    team_forms,
 )
 
 
@@ -119,6 +120,7 @@ for r in (
     broadcast.router,
     twilio_hooks.router,
     roadmap.router,
+    team_forms.router,
 ):
     app.include_router(r)
 
@@ -209,6 +211,8 @@ async def startup_db_client():
         await db.roadmap_items.create_index("type")
         await db.roadmap_comments.create_index("item_id")
         await db.roadmap_notifications.create_index([("user_id", 1), ("seen", 1)])
+        await db.team_forms.create_index("user_id")
+        await db.team_form_responses.create_index([("form_id", 1), ("member_id", 1)])
     except Exception as exc:
         logger.warning(f"Could not create roadmap indexes: {exc}")
 
