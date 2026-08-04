@@ -297,9 +297,9 @@ export default function PaperworkSheetScreen() {
       {/* Tally */}
       <Modal visible={tallyOpen} transparent animationType="slide" onRequestClose={() => setTallyOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setTallyOpen(false)}>
-          <Pressable style={styles.sheetModal} onPress={() => {}}>
+          <Pressable style={[styles.sheetModal, styles.tallySheet]} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Completion</Text>
-            <ScrollView style={{ maxHeight: 420 }} testID="paperwork-tally">
+            <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator testID="paperwork-tally">
               {tally.length === 0 ? <Text style={styles.emptyText}>No items yet.</Text> : tally.map(({ item, done, total }) => {
                 const pct = total > 0 ? Math.round((done / total) * 100) : 0;
                 return (
@@ -411,6 +411,7 @@ const makeStyles = (c: ThemePalette) => ({
   emptyBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheetModal: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
+  tallySheet: { maxHeight: "82%" },
   sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
