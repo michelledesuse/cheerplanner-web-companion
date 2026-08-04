@@ -129,6 +129,11 @@ export default function PremiumScreen() {
                 <Ionicons name="sparkles" size={18} color="#16A34A" />
                 <Text style={styles.infoText}>Good news — every CheerPlanner feature, including the full Team Hub, is unlocked for free during our launch period. Premium plans start later; we&apos;ll let you know before anything changes.</Text>
               </View>
+              {purchasesSupported ? (
+                <TouchableOpacity style={styles.doneRow} onPress={onRestore} disabled={buying} testID="restore-purchases">
+                  <Text style={styles.linkText}>Restore Purchases</Text>
+                </TouchableOpacity>
+              ) : null}
               {Platform.OS === "web" ? (
                 <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/redeem" as any)} testID="redeem-link">
                   <Ionicons name="gift-outline" size={18} color={styles._icon.color} />
