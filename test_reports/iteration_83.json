@@ -1,0 +1,47 @@
+{
+  "summary": "Iter 83 frontend-only verification of SMS Broadcast advanced features (Schedule, Replies, Resend Failed, Delivered/Undelivered counts). Mobile viewport 390x844, logged in as applereview@cheerplanner.app via login-submit-button. All primary flows PASS. Composer at /team/broadcast renders all 13 required testIDs (broadcast-back/replies/history, broadcast-mode-all|team|members, broadcast-message, broadcast-add-photo, broadcast-add-music, broadcast-schedule-toggle, broadcast-review, broadcast-templates-open, broadcast-template-save-open). Send later toggle correctly reveals broadcast-sched-date + broadcast-sched-time and footer label swaps to 'Review & schedule'. Review & send (dry_run) opens Confirm sheet with '1 parent will get a text.', 'Preview to Jamie (•••• 0000)', 'Hi Jamie, iter83 dry run — please ignore.' and broadcast-confirm-send button. Send now NOT pressed (Twilio live). Replies screen (/team/replies) renders a real inbound reply card from Jamie (Aug 4 · 2:27 PM · 'We will be there!') and 'Tap to reply'. Broadcast history screen (/team/broadcast-history) loads correctly but shows 'No texts sent yet.' empty state — the applereview owner has no persisted (non-dry-run) broadcasts, so delivered/undelivered counts pills and history-resend-* button could not be exercised via UI; code path in broadcast-history.tsx L143-168 renders them conditionally on b.failed>0 and after GET /api/team/broadcast/{id}/statuses on row expand. Templates modal shows empty-state; Save-template modal correctly exposes broadcast-template-name + broadcast-template-save (no template persisted to keep DB clean).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/team/replies (or a companion mark-read)", "issue": "One 404 console error observed while /team/replies loads (cards still render). Verify no side call to a missing endpoint (e.g., mark-as-read/unread-count) from the replies screen."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/team/broadcast", "issues": ["'Send later' Date/Time fields sit tight against the sticky footer on small screens; when both are visible the ScrollView paddingBottom (120) is sufficient but the Time field's AM/PM toggle can visually overlap the Review button shadow on 390x844 — minor."]}
+    ],
+    "react_native_issues": [
+      {"component": "console warnings", "issue": "Legacy 'props.pointerEvents is deprecated. Use style.pointerEvents' warning surfaces on the composer render. Reference: broadcast.tsx via a nested lib. Non-blocking, pre-existing."}
+    ]
+  },
+  "test_report_links": [
+    "/tmp/bcy_00_after_login.png",
+    "/tmp/bcy_01_broadcast.png",
+    "/tmp/bcy_02_sendlater_on.png",
+    "/tmp/bcy_03_review_sheet.png",
+    "/tmp/bcy_04_history.png",
+    "/tmp/bcy_06_replies.png"
+  ],
+  "action_items": [
+    "Delivered/Undelivered counts + Resend failed button in /team/broadcast-history could not be visually exercised because the applereview account has no persisted broadcast history (all prior tests used dry_run=true). To fully cover, either (a) seed a synthetic broadcast doc with failed_recipients + sent counts into the applereview user's history via a test-only script, OR (b) once Twilio is safe/sandboxed, send one real broadcast to a test number. Backend endpoints /statuses and /resend-failed are already verified 200 by main agent via curl.",
+    "Investigate the single 404 console error emitted while navigating to /team/replies (screen still renders correctly with reply cards). Likely a side call from the shell (unread count) — non-blocking.",
+    "Consider adding testID='broadcast-schedule-toggle-input' on the inner Switch input to make the RN Switch reliably toggleable from Playwright on web (current wrapper testID lands on a DIV; only the nested <input type=checkbox> flips state). Not user-facing but improves regression coverage."
+  ],
+  "critical_code_review_comments": [
+    "broadcast.tsx L102-106: schedISO() correctly guards against NaN date via isNaN(getTime()). Good.",
+    "broadcast.tsx L142-144: on scheduled response, Alert shows the localized send_at and only navigates back on OK — good UX, matches spec.",
+    "broadcast-history.tsx L53-62: onExpand fetches /statuses lazily and caches in statuses[b.id] — good; but if the expand fetch fails silently (catch is a no-op), the user sees the expanded row without the delivered/undelivered line and no error hint. Consider a subtle 'couldn't load status' line for observability.",
+    "broadcast-history.tsx L64-73: cancelScheduled optimistically removes the row and only reloads on error. Fine for now, but with slow networks a user could double-tap and race with the DELETE. Consider disabling the row's cancel button while the request is in flight.",
+    "replies.tsx L37-41: On web, replying is stubbed with an Alert; on native it uses Linking.openURL('sms:...'). Good progressive enhancement.",
+    "broadcast.tsx L152-162: resendFailed slices failed_recipients by still_failed count — this assumes the surviving failures are the *first* still_failed items in the array. If the backend returns which specific numbers still failed, prefer intersecting by name/phone rather than slice."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only run; main agent verified via curl)", "frontend": "100% for reachable flows (composer, schedule toggle, dry-run review sheet, replies, templates, save-template modal). Delivered/Undelivered + Resend-failed history UI unverified due to lack of seeded broadcast history for applereview."},
+  "seed_data_creation": "None. Cancelled out of Review sheet — no real send. Did not persist a template.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Log in with data-testid='login-submit-button' (Enter key alone won't submit). RN <Switch> on web = DIV wrapping <input type='checkbox'>; click the child input to flip state (`await page.query_selector('[data-testid=\"broadcast-schedule-toggle\"] input[type=\"checkbox\"]').click(force=True)`). NEVER click broadcast-confirm-send — Twilio is LIVE. applereview owner has NO persisted broadcast history; if you need to see history_delivered/undelivered/resend UI, seed a doc into broadcasts collection with sent>0, failed>0, failed_recipients=[{name,phone}], created_by=<applereview uid>, or (safer) mock a synthetic history entry via a test-only backend fixture.",
+  "rca_of_issue": "N/A — feature works. The unverifiable delivered/undelivered counts + resend button in history are due to empty seed data, not a code defect."
+}
