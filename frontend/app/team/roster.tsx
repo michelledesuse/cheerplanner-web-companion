@@ -30,21 +30,46 @@ const ROLE_LABEL: Record<string, string> = {
   athlete: "Athlete", parent: "Parent", coach: "Coach", team_rep: "Team Rep", staff: "Staff",
 };
 
+/** Strip formatting so tel:/sms: URLs are valid (keep digits and a leading +). */
+function cleanPhone(raw?: string | null): string {
+  const s = String(raw || "").trim();
+  const plus = s.startsWith("+") ? "+" : "";
+  return plus + s.replace(/[^\d]/g, "");
+}
+
 /** Open the phone's native Messages app pre-filled to the member's number.
  * Athletes → parent's phone; staff → own phone. Web can't open sms:. */
-function openMemberText(m: { role: string; name: string; first_name?: string | null; phone?: string | null; parent_phone?: string | null; parent_first_name?: string | null }) {
+async function openMemberText(m: { role: string; name: string; first_name?: string | null; phone?: string | null; parent_phone?: string | null; parent_first_name?: string | null }) {
   const isAthlete = m.role === "athlete";
-  const ph = isAthlete ? (m.parent_phone || m.phone) : (m.phone || m.parent_phone);
+  const ph = cleanPhone(isAthlete ? (m.parent_phone || m.phone) : (m.phone || m.parent_phone));
   if (!ph) { Alert.alert("No phone", "There's no phone number on file for this person."); return; }
   if (Platform.OS === "web") {
     Alert.alert("Open on your phone", "Texting opens your phone's Messages app. Use CheerPlanner on your phone to send a text.");
     return;
   }
   const greet = isAthlete ? (m.parent_first_name || "there") : (m.first_name || (m.name || "").split(" ")[0] || "there");
-  const body = `Hi ${greet}, `;
+  const body = encodeURIComponent(`Hi ${greet}, `);
   const sep = Platform.OS === "ios" ? "&" : "?";
-  Linking.openURL(`sms:${ph}${sep}body=${encodeURIComponent(body)}`).catch(() => {
-    Alert.alert("Couldn't open Messages", "Your device couldn't open the Messages app.");
+  try {
+    await Linking.openURL(`sms:${ph}${sep}body=${body}`);
+  } catch {
+    // Some devices reject the body param — fall back to opening the thread only.
+    Linking.openURL(`sms:${ph}`).catch(() => {
+      Alert.alert("Couldn't open Messages", "Your device couldn't open the Messages app.");
+    });
+  }
+}
+
+/** Open the native dialer to the member's number. */
+function openMemberCall(raw?: string | null) {
+  const ph = cleanPhone(raw);
+  if (!ph) return;
+  if (Platform.OS === "web") {
+    Alert.alert("Open on your phone", "Calling opens your phone's dialer. Use CheerPlanner on your phone to call.");
+    return;
+  }
+  Linking.openURL(`tel:${ph}`).catch(() => {
+    Alert.alert("Couldn't start call", "Your device couldn't open the dialer.");
   });
 }
 
@@ -351,7 +376,7 @@ export default function RosterScreen() {
                           {isAthlete && !!parentName && <Text style={styles.parentLine}>Parent: {parentName}</Text>}
                           <View style={styles.contactRow}>
                             {!!ph && (
-                              <TouchableOpacity onPress={() => Linking.openURL(`tel:${ph}`)} style={styles.contactChip} testID={`roster-call-${m.id}`} disabled={selectMode}>
+                              <TouchableOpacity onPress={() => openMemberCall(ph)} style={styles.contactChip} testID={`roster-call-${m.id}`} disabled={selectMode}>
                                 <Ionicons name="call-outline" size={12} color={colors.accent} />
                                 <Text style={styles.contactText}>{ph}</Text>
                               </TouchableOpacity>

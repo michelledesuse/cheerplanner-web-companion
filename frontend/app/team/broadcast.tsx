@@ -43,18 +43,27 @@ export default function BroadcastScreen() {
   const [uploading, setUploading] = useState(false);
   const [sending, setSending] = useState(false);
 
+  type Template = { id: string; name: string; message: string; links: ExternalLink[] };
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [result, setResult] = useState<null | { sent: number; failed: number; failed_recipients: { name: string; phone: string }[]; no_phone_count: number; no_phone: string[] }>(null);
+
   const [review, setReview] = useState<null | { recipient_count: number; no_phone_count: number; preview: { name: string; phone: string; body: string }[] }>(null);
 
   const load = useCallback(async () => {
     try {
-      const [r, t, m] = await Promise.all([
+      const [r, t, m, tpl] = await Promise.all([
         api.get<Member[]>("/roster"),
         api.get<Team[]>("/teams").catch(() => ({ data: [] as Team[] })),
         api.get<Track[]>("/team/music").catch(() => ({ data: [] as Track[] })),
+        api.get<Template[]>("/team/broadcast/templates").catch(() => ({ data: [] as Template[] })),
       ]);
       setRoster(r.data || []);
       setTeams(t.data || []);
       setTracks(m.data || []);
+      setTemplates(tpl.data || []);
     } finally { setLoading(false); }
   }, []);
 
@@ -113,18 +122,38 @@ export default function BroadcastScreen() {
   const doSend = async () => {
     try {
       setSending(true);
-      const r = await api.post<{ sent: number; failed: number; no_phone_count: number }>("/team/broadcast/send", buildPayload(false));
+      const r = await api.post("/team/broadcast/send", buildPayload(false));
       setReview(null);
-      Alert.alert(
-        "Sent",
-        `Texted ${r.data.sent} parent${r.data.sent === 1 ? "" : "s"}.` +
-          (r.data.failed ? ` ${r.data.failed} failed.` : "") +
-          (r.data.no_phone_count ? ` ${r.data.no_phone_count} had no phone on file.` : ""),
-        [{ text: "OK", onPress: () => router.back() }],
-      );
+      setResult(r.data);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not send.");
     } finally { setSending(false); }
+  };
+
+  const applyTemplate = (t: { message: string; links: ExternalLink[] }) => {
+    setMessage(t.message || "");
+    setLinks(t.links || []);
+    setTemplatesOpen(false);
+  };
+
+  const saveTemplate = async () => {
+    const name = templateName.trim();
+    if (!name) { Alert.alert("Name required", "Give this template a name."); return; }
+    try {
+      const r = await api.post<{ id: string; name: string; message: string; links: ExternalLink[] }>("/team/broadcast/templates", {
+        name, message: message.trim(), links: cleanLinks(links),
+      });
+      setTemplates((p) => [r.data, ...p]);
+      setSaveOpen(false); setTemplateName("");
+      Alert.alert("Saved", "Template saved.");
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not save template.");
+    }
+  };
+
+  const deleteTemplate = async (id: string) => {
+    setTemplates((p) => p.filter((x) => x.id !== id));
+    try { await api.delete(`/team/broadcast/templates/${id}`); } catch { load(); }
   };
 
   if (loading) {
@@ -138,7 +167,9 @@ export default function BroadcastScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Message parents</Text>
-        <View style={{ width: 38 }} />
+        <TouchableOpacity onPress={() => router.push("/team/broadcast-history" as any)} style={styles.iconBtn} testID="broadcast-history" hitSlop={8}>
+          <Ionicons name="time-outline" size={20} color={colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -170,7 +201,17 @@ export default function BroadcastScreen() {
             </TouchableOpacity>
           )}
 
-          <Text style={[styles.label, { marginTop: spacing.lg }]}>Message</Text>
+          <View style={styles.msgHeadRow}>
+            <Text style={styles.label}>Message</Text>
+            <View style={{ flexDirection: "row", gap: 14 }}>
+              <TouchableOpacity onPress={() => setTemplatesOpen(true)} testID="broadcast-templates-open">
+                <Text style={styles.linkAction}>Templates</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => { setTemplateName(""); setSaveOpen(true); }} disabled={!message.trim()} testID="broadcast-template-save-open">
+                <Text style={[styles.linkAction, !message.trim() && { opacity: 0.4 }]}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           <Text style={styles.hint}>Each parent gets a personalized text starting with their first name.</Text>
           <TextInput
             style={styles.textArea}
@@ -305,7 +346,96 @@ export default function BroadcastScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+      {/* Templates */}
+      <Modal visible={templatesOpen} transparent animationType="slide" onRequestClose={() => setTemplatesOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setTemplatesOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Saved templates</Text>
+            <ScrollView style={{ maxHeight: 420 }}>
+              {templates.length === 0 ? (
+                <Text style={styles.hint}>No templates yet. Write a message, then tap “Save”.</Text>
+              ) : templates.map((t) => (
+                <View key={t.id} style={styles.pickRow}>
+                  <TouchableOpacity style={{ flex: 1 }} onPress={() => applyTemplate(t)} testID={`broadcast-template-${t.id}`}>
+                    <Text style={styles.pickName} numberOfLines={1}>{t.name}</Text>
+                    <Text style={styles.noPhone2} numberOfLines={1}>{t.message || "(no message)"}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => deleteTemplate(t.id)} hitSlop={8} testID={`broadcast-template-del-${t.id}`}>
+                    <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.done} onPress={() => setTemplatesOpen(false)}><Text style={styles.doneText}>Done</Text></TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Save template */}
+      <Modal visible={saveOpen} transparent animationType="fade" onRequestClose={() => setSaveOpen(false)}>
+        <Pressable style={styles.centerBackdrop} onPress={() => setSaveOpen(false)}>
+          <Pressable style={styles.dialog} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Save as template</Text>
+            <TextInput
+              style={styles.dialogInput}
+              value={templateName}
+              onChangeText={setTemplateName}
+              placeholder="e.g. Comp day reminder"
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+              testID="broadcast-template-name"
+            />
+            <TouchableOpacity style={styles.done} onPress={saveTemplate} testID="broadcast-template-save"><Text style={styles.doneText}>Save</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.cancel} onPress={() => setSaveOpen(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Delivery summary */}
+      <Modal visible={!!result} transparent animationType="slide" onRequestClose={() => { setResult(null); router.back(); }}>
+        <Pressable style={styles.backdrop} onPress={() => { setResult(null); router.back(); }}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Delivery summary</Text>
+            <View style={styles.summaryRow}>
+              <SummaryStat label="Sent" value={result?.sent || 0} color={colors.success} />
+              <SummaryStat label="Failed" value={result?.failed || 0} color={colors.danger} />
+              <SummaryStat label="No phone" value={result?.no_phone_count || 0} color={colors.textTertiary} />
+            </View>
+            <ScrollView style={{ maxHeight: 300, marginTop: spacing.md }}>
+              {!!result?.failed_recipients?.length && (
+                <>
+                  <Text style={styles.summaryHead}>Failed — try again or contact directly</Text>
+                  {result.failed_recipients.map((f, i) => (
+                    <Text key={`f${i}`} style={styles.summaryItem}>• {f.name} ({f.phone})</Text>
+                  ))}
+                </>
+              )}
+              {!!result?.no_phone?.length && (
+                <>
+                  <Text style={styles.summaryHead}>No phone on file</Text>
+                  {result.no_phone.map((n, i) => (
+                    <Text key={`n${i}`} style={styles.summaryItem}>• {n}</Text>
+                  ))}
+                </>
+              )}
+              {!result?.failed_recipients?.length && !result?.no_phone?.length && (
+                <Text style={styles.hint}>Everyone with a phone on file received the text. 🎉</Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity style={styles.done} onPress={() => { setResult(null); router.back(); }} testID="broadcast-summary-done"><Text style={styles.doneText}>Done</Text></TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
+  );
+}
+
+function SummaryStat({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={{ alignItems: "center", flex: 1 }}>
+      <Text style={{ fontSize: 26, fontWeight: "800", color }}>{value}</Text>
+      <Text style={{ ...typography.caption, color: colors.textSecondary }}>{label}</Text>
+    </View>
   );
 }
 
@@ -316,6 +446,8 @@ const makeStyles = (c: ThemePalette) => ({
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h2, color: c.textPrimary },
   label: { ...typography.caption, color: c.textSecondary, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 },
+  msgHeadRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg },
+  linkAction: { ...typography.caption, color: c.accent, fontWeight: "800" },
   hint: { ...typography.caption, color: c.textTertiary, marginBottom: 6 },
   segment: { flexDirection: "row", backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: 3 },
   segBtn: { flex: 1, paddingVertical: 9, borderRadius: radius.sm, alignItems: "center" },
@@ -354,4 +486,11 @@ const makeStyles = (c: ThemePalette) => ({
   previewBox: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 12, marginTop: spacing.md },
   previewLabel: { ...typography.caption, color: c.textTertiary, marginBottom: 6 },
   previewBody: { ...typography.body, color: c.textPrimary },
+  noPhone2: { ...typography.caption, color: c.textTertiary, marginTop: 1 },
+  centerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center", padding: spacing.lg },
+  dialog: { backgroundColor: c.bg, borderRadius: radius.xl, padding: spacing.lg, width: "100%", maxWidth: 400 },
+  dialogInput: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 14, fontSize: 15, color: c.textPrimary, marginTop: spacing.md },
+  summaryRow: { flexDirection: "row", marginTop: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, paddingVertical: spacing.md },
+  summaryHead: { ...typography.caption, color: c.textSecondary, fontWeight: "800", marginTop: spacing.md, marginBottom: 4 },
+  summaryItem: { ...typography.body, color: c.textPrimary, paddingVertical: 2 },
 });

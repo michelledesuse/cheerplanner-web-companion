@@ -172,21 +172,73 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
     if not to_send:
         raise HTTPException(status_code=400, detail="No recipients have a phone number on file.")
 
-    sent, failed = 0, 0
+    sent, failed_recipients = 0, []
     for phone, name in to_send:
         ok = send_sms(phone, compose(name))
         if ok:
             sent += 1
         else:
-            failed += 1
+            failed_recipients.append({"name": name or "(no name)", "phone": _mask(phone)})
+    failed = len(failed_recipients)
 
+    creator = current_user.get("name") or current_user.get("email") or ""
     await db.broadcasts.insert_one({
-        "id": secrets.token_urlsafe(9), "user_id": current_user["id"], "message": msg,
-        "recipient_count": len(to_send), "sent": sent, "failed": failed,
-        "track_ids": payload.track_ids, "attachment_tokens": payload.attachment_tokens,
+        "id": secrets.token_urlsafe(9), "user_id": current_user["id"], "created_by_name": creator,
+        "message": msg, "recipient_count": len(to_send), "sent": sent, "failed": failed,
+        "failed_recipients": failed_recipients, "no_phone": no_phone,
+        "track_count": len(payload.track_ids), "attachment_count": len(payload.attachment_tokens),
         "created_at": utcnow_iso(),
     })
-    return {"sent": sent, "failed": failed, "no_phone_count": len(no_phone), "no_phone": no_phone[:50]}
+    return {
+        "sent": sent, "failed": failed, "failed_recipients": failed_recipients,
+        "no_phone_count": len(no_phone), "no_phone": no_phone[:100],
+    }
+
+
+# ---------- saved message templates ----------
+class BroadcastTemplateCreate(BaseModel):
+    name: str
+    message: str = ""
+    links: List[ExternalLink] = Field(default_factory=list)
+
+
+@router.get("/team/broadcast/templates", dependencies=[Depends(require_team_access)])
+async def list_templates(current_user=Depends(get_current_user)):
+    scope = await _team_hub_scope_user_ids(current_user["id"])
+    docs = await db.broadcast_templates.find({"user_id": {"$in": scope}}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return docs
+
+
+@router.post("/team/broadcast/templates", dependencies=[Depends(require_team_access)])
+async def create_template(payload: BroadcastTemplateCreate, current_user=Depends(get_current_user)):
+    name = (payload.name or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Template name is required.")
+    doc = {
+        "id": secrets.token_urlsafe(9), "user_id": current_user["id"], "name": name,
+        "message": (payload.message or "").strip(),
+        "links": [l.model_dump() for l in payload.links],
+        "created_at": utcnow_iso(),
+    }
+    await db.broadcast_templates.insert_one({**doc})
+    return doc
+
+
+@router.delete("/team/broadcast/templates/{template_id}", dependencies=[Depends(require_team_access)])
+async def delete_template(template_id: str, current_user=Depends(get_current_user)):
+    scope = await _team_hub_scope_user_ids(current_user["id"])
+    r = await db.broadcast_templates.delete_one({"id": template_id, "user_id": {"$in": scope}})
+    if not r.deleted_count:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"deleted": True}
+
+
+# ---------- broadcast history ----------
+@router.get("/team/broadcast/history", dependencies=[Depends(require_team_access)])
+async def broadcast_history(current_user=Depends(get_current_user)):
+    scope = await _team_hub_scope_user_ids(current_user["id"])
+    docs = await db.broadcasts.find({"user_id": {"$in": scope}}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return docs
 
 
 def _mask(phone: str) -> str:
