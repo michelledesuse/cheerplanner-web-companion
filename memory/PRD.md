@@ -403,3 +403,9 @@ Get exact current paths from user before building W2.
 - DONE: **Saved message templates** — broadcast_templates collection + GET/POST/DELETE /api/team/broadcast/templates; composer has Templates (load/delete) and Save actions.
 - DONE: **Broadcast history** — GET /api/team/broadcast/history; new screen app/team/broadcast-history.tsx (reachable from composer header clock icon) lists past texts with sent/failed pills and an expandable Failed / No-phone breakdown.
 - Verified: authenticated CRUD of templates + history + dry_run send all 200; UI screenshots confirm composer templates modal, template load, history list + expanded detail. Twilio NOT triggered (dry_run only).
+
+## Session update 19 (Bug fix: event photos wouldn't save + version 2.0.0 + demo account)
+- FIXED: Adding a photo to an event (or any PhotoGallery entity) failed on the LIVE app with a long spinner + "Could not save". Root cause: photos were stored as FULL-RESOLUTION base64 inline (no resize, quality 0.5), producing multi-MB request bodies that exceed the production ingress body-size limit (preview accepts 5MB so it didn't repro there). Fix in `src/components/PhotoGallery.tsx`: pick without base64, then `expo-image-manipulator` resizes the longest edge to <=1280px + recompresses JPEG q0.5 to base64 (~150-250KB each). Applies to events, competitions, payments, paperwork, sign-ups, fundraisers. Added dep expo-image-manipulator@14.0.8. REQUIRES REDEPLOY to reach the live app.
+- App version bumped to 2.0.0 (iOS build 114, Android versionCode 2) in app.json.
+- Team Forms deadline "Clear" fixed (send "" not null).
+- Marketing/demo account `demo@cheerplanner.app` / `CheerDemo2026!` (Free plan, Blue & White "cheerplanner" theme) seeded via scripts/seed_marketing_demo.py for clean App Store screenshots.

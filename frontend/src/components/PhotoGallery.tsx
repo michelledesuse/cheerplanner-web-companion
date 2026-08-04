@@ -2,8 +2,30 @@ import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, Image, StyleSheet, Alert, Modal, Pressable, Linking, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
+
+// Cap the longest edge so a single photo stays small (a few hundred KB of
+// base64) — large full-res images otherwise blow past the API/proxy body limit
+// and the save fails with a long spinner. Keeps the inline-base64 storage model.
+const MAX_EDGE = 1280;
+
+async function shrinkToBase64(uri: string, width?: number, height?: number): Promise<string> {
+  const longest = Math.max(width || 0, height || 0);
+  const actions =
+    longest > MAX_EDGE
+      ? [(width || 0) >= (height || 0)
+          ? { resize: { width: MAX_EDGE } }
+          : { resize: { height: MAX_EDGE } }]
+      : [];
+  const result = await manipulateAsync(uri, actions, {
+    compress: 0.5,
+    base64: true,
+    format: SaveFormat.JPEG,
+  });
+  return `data:image/jpeg;base64,${result.base64}`;
+}
 
 /**
  * Reusable multi-photo gallery. Stores photos as base64 data URLs (consistent
@@ -43,15 +65,21 @@ export default function PhotoGallery({
       setBusy(true);
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.5,
-        base64: true,
+        quality: 1,
+        base64: false,
         allowsMultipleSelection: true,
         selectionLimit: max - list.length,
       });
       if (!res.canceled && res.assets?.length) {
         const next = [...list];
         for (const a of res.assets) {
-          if (a.base64 && next.length < max) next.push(`data:${a.mimeType || "image/jpeg"};base64,${a.base64}`);
+          if (next.length >= max) break;
+          try {
+            next.push(await shrinkToBase64(a.uri, a.width, a.height));
+          } catch {
+            // if resizing fails but the picker gave us base64, fall back to it
+            if (a.base64) next.push(`data:${a.mimeType || "image/jpeg"};base64,${a.base64}`);
+          }
         }
         onChange(next);
       }
