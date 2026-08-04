@@ -49,6 +49,8 @@ async def set_block(payload: SheetBlockCreate, blocked: bool = True, current_use
     owner_id = _household_owner_id(h)
     if owner_id != current_user["id"]:
         raise HTTPException(status_code=403, detail="Only the account owner can manage sheet access")
+    if payload.blocked_user_id == owner_id:
+        raise HTTPException(status_code=400, detail="You can't hide a sheet from yourself")
     if payload.blocked_user_id not in (h.get("member_user_ids") or []):
         raise HTTPException(status_code=404, detail="That member isn't in your household")
     key = {"user_id": owner_id, "blocked_user_id": payload.blocked_user_id,
