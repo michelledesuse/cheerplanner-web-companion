@@ -1283,7 +1283,7 @@ class AttendanceSession(BaseModel):
     date: Optional[str] = None  # ISO YYYY-MM-DD
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)  # links to schedule events
-    # member_id -> "present" | "absent" | "excused"
+    # member_id -> "present" | "absent" | "excused" | "tardy"
     records: Dict[str, str] = Field(default_factory=dict)
     created_at: str = Field(default_factory=utcnow_iso)
 
@@ -1304,7 +1304,7 @@ class AttendanceSessionUpdate(BaseModel):
 
 class AttendanceMarkPayload(BaseModel):
     member_id: str
-    status: Optional[Literal["present", "absent", "excused"]] = None  # None clears the mark
+    status: Optional[Literal["present", "absent", "excused", "tardy"]] = None  # None clears the mark
 
 
 # ============================================================

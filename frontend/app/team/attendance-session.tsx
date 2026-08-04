@@ -10,10 +10,11 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 
 type Member = { id: string; name: string; role: string; team_ids?: string[] | null };
 type Session = { id: string; title: string; date?: string | null; season_ids?: string[]; records: Record<string, string> };
-type Status = "present" | "absent" | "excused";
+type Status = "present" | "absent" | "excused" | "tardy";
 
 const STATUSES: { key: Status; label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: "present", label: "P", icon: "checkmark" },
+  { key: "tardy", label: "T", icon: "time" },
   { key: "absent", label: "A", icon: "close" },
   { key: "excused", label: "E", icon: "remove" },
 ];
@@ -179,6 +180,7 @@ const makeStyles = (c: ThemePalette) => ({
   statusRow: { flexDirection: "row", gap: 8 },
   statusBtn: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: c.bg, borderWidth: 1, borderColor: c.border },
   presentOn: { backgroundColor: c.success || c.accent, borderColor: c.success || c.accent },
+  tardyOn: { backgroundColor: c.accent, borderColor: c.accent },
   absentOn: { backgroundColor: c.danger, borderColor: c.danger },
   excusedOn: { backgroundColor: c.warningText, borderColor: c.warningText },
   empty: { ...typography.caption, color: c.textSecondary, textAlign: "center", marginTop: spacing.xl },

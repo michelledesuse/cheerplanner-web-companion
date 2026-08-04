@@ -13,7 +13,7 @@ import { useSeason } from "@/src/context/SeasonContext";
 
 type Session = {
   id: string; title: string; date?: string | null;
-  summary: { present: number; absent: number; excused: number; member_total: number; unmarked: number };
+  summary: { present: number; absent: number; excused: number; tardy: number; member_total: number; unmarked: number };
 };
 
 const fmtDate = (iso?: string | null) => {
@@ -70,7 +70,7 @@ export default function AttendanceScreen() {
               <Text style={styles.emptyText}>Create a session for a practice or event, then check off who&apos;s here.</Text>
             </View>
           ) : items.map((s) => {
-            const { present, absent, excused, member_total } = s.summary;
+            const { present, absent, excused, tardy, member_total } = s.summary;
             const pct = member_total > 0 ? Math.round((present / member_total) * 100) : 0;
             return (
               <TouchableOpacity key={s.id} style={styles.card} onPress={() => router.push({ pathname: "/team/attendance-session", params: { id: s.id } })} testID={`attendance-row-${s.id}`}>
@@ -81,6 +81,7 @@ export default function AttendanceScreen() {
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
                 <View style={styles.pillRow}>
                   <Text style={[styles.statPill, styles.presentPill]}>{present} present</Text>
+                  {tardy > 0 && <Text style={[styles.statPill, styles.tardyPill]}>{tardy} tardy</Text>}
                   {absent > 0 && <Text style={[styles.statPill, styles.absentPill]}>{absent} absent</Text>}
                   {excused > 0 && <Text style={[styles.statPill, styles.excusedPill]}>{excused} excused</Text>}
                   <Text style={styles.cardMeta}>of {member_total}</Text>
@@ -111,6 +112,7 @@ const makeStyles = (c: ThemePalette) => ({
   pillRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" },
   statPill: { ...typography.micro, fontWeight: "800", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, overflow: "hidden" },
   presentPill: { backgroundColor: (c.success || c.accent) + "22", color: c.success || c.accent },
+  tardyPill: { backgroundColor: c.accent + "22", color: c.accent },
   absentPill: { backgroundColor: c.danger + "22", color: c.danger },
   excusedPill: { backgroundColor: c.warningText + "22", color: c.warningText },
   emptyBlock: { alignItems: "center", padding: spacing.xxl, gap: spacing.sm },

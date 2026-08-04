@@ -36,9 +36,10 @@ def _summary(sess: dict, roster_total: int) -> dict:
     present = sum(1 for v in records.values() if v == "present")
     absent = sum(1 for v in records.values() if v == "absent")
     excused = sum(1 for v in records.values() if v == "excused")
+    tardy = sum(1 for v in records.values() if v == "tardy")
     return {
-        "present": present, "absent": absent, "excused": excused,
-        "member_total": roster_total, "unmarked": max(0, roster_total - present - absent - excused),
+        "present": present, "absent": absent, "excused": excused, "tardy": tardy,
+        "member_total": roster_total, "unmarked": max(0, roster_total - present - absent - excused - tardy),
     }
 
 
