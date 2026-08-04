@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 85 — Community Roadmap enhancements fully verified end-to-end. Backend: 17/17 pytest cases pass. Verified (1) new planned items 'Website Companion' (in_progress) and 'In-App Team Chat' (planned) present via GET /api/roadmap; (2) every roadmap item exposes an integer comment_count field; (3) POST /api/roadmap/{id}/comments creates a comment with is_mine=true and author_name populated, GET lists them, empty body → 400, unknown item → 404, DELETE /api/roadmap/comments/{cid} removes the author's own comment and unknown id → 404; (4) GET /api/roadmap/notifications returns unseen ship-notes (shape validated: seen=false, item_title present), POST /api/roadmap/notifications/seen returns {marked:n} and subsequent GET returns []; endpoint requires auth; (5) admin gating solid — POST /api/roadmap/{target}/merge and PATCH /api/roadmap/{id} both return 403 for applereview (non-admin). Frontend: /settings/roadmap loads correctly for applereview; ship-notification banner (roadmap-ship-banner) renders at top with text 'CSV import wizard you upvoted is now live.', dismiss (roadmap-ship-dismiss) clears it and stays gone after full page reload; 'Website Companion' and 'In-App Team Chat' both visible with correct In-progress / Planned badges; status filter chips (all/in_progress/planned/completed) filter Planned Features correctly; sort toggles (roadmap-sort-votes / -new) work; comment chip opens modal, roadmap-comment-input + roadmap-comment-send posts a new comment which appears in the list, and roadmap-comment-del-<id> deletes own comment; all admin-only testIDs (roadmap-add-planned, roadmap-status-*, roadmap-merge-*, roadmap-delete-*) are HIDDEN (count=0) for the non-admin applereview account as expected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter85_roadmap_enh.py",
+    "/app/test_reports/pytest/pytest_iter85.xml"
+  ],
+  "action_items": [
+    "Optional: admin can clean up leftover TEST_ suggestions accumulated by pytest runs (created by non-admin applereview, so this suite cannot self-clean).",
+    "The frontend test intentionally re-seeded a ship notification for applereview/'CSV import wizard' (unseen=false) before running the UI banner flow. Backend seen-marking API worked correctly during pytest before the reseed; UI dismiss also correctly marks-seen (banner stays gone after refresh). No action needed unless E1 wants pytest to reseed too."
+  ],
+  "critical_code_review_comments": [
+    "roadmap.py list_roadmap aggregation on roadmap_comments has no index hint — fine at current scale, but a compound index on (item_id) would help once comments grow.",
+    "merge_items: source_id validation happens after target/source lookups; if source_id equals target_id but only one exists, current code raises 404 first — acceptable.",
+    "Frontend deleteComment: on API error, it re-opens the modal via openComments(commentsFor as Item) which is fine but does not restore optimistic state until the network completes; low risk."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter85_roadmap_enh.py (new)"
+  ],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100% (all flows verified)"},
+  "seed_data_creation": "pytest created 1 TEST_ suggestion for comment CRUD and 1 short-lived TEST_ comment (deleted in-test). Testing agent re-seeded 1 unseen ship-notification for applereview/'CSV import wizard' to enable the UI banner check (dismissed at test end).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Frontend env key is EXPO_PUBLIC_BACKEND_URL. Login: applereview@cheerplanner.app / Review2026! (NON-admin). Login button label is 'Sign in' (2 occurrences on /login: nav link + submit — click the last). Roadmap seeded planned items are now 5: 'Weather on event dates' (in_progress), 'Smart autofill for forms' (planned), 'CSV import wizard' (completed), 'Website Companion' (in_progress), 'In-App Team Chat' (planned). Ship-notifications survive across page reload only after marked-seen; use POST /api/roadmap/notifications/seen to clear. Merge/PATCH/DELETE/POST-planned all require admin.",
+  "rca_of_issue": "N/A — no bugs found. All acceptance criteria met."
+}

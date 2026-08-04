@@ -207,6 +207,8 @@ async def startup_db_client():
         await db.roadmap_votes.create_index([("item_id", 1), ("user_id", 1)], unique=True)
         await db.roadmap_votes.create_index("user_id")
         await db.roadmap_items.create_index("type")
+        await db.roadmap_comments.create_index("item_id")
+        await db.roadmap_notifications.create_index([("user_id", 1), ("seen", 1)])
     except Exception as exc:
         logger.warning(f"Could not create roadmap indexes: {exc}")
 
