@@ -1403,6 +1403,7 @@ class TeamTrack(BaseModel):
     size: int = 0
     team_ids: List[str] = Field(default_factory=list)
     competition_ids: List[str] = Field(default_factory=list)
+    event_ids: List[str] = Field(default_factory=list)
     gridfs_id: Optional[str] = None
     status: Literal["uploading", "ready"] = "uploading"
     uploaded_by_name: Optional[str] = None
@@ -1415,9 +1416,11 @@ class TeamTrackInit(BaseModel):
     content_type: Optional[str] = "audio/mpeg"
     team_ids: Optional[List[str]] = None
     competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None
 
 
 class TeamTrackUpdate(BaseModel):
     title: Optional[str] = None
     team_ids: Optional[List[str]] = None
     competition_ids: Optional[List[str]] = None
+    event_ids: Optional[List[str]] = None

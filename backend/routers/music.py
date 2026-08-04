@@ -33,13 +33,15 @@ def _full_name(u: dict) -> str:
 
 @router.get("/team/music", response_model=List[TeamTrack], dependencies=[Depends(require_team_access)])
 async def list_music(team_id: Optional[str] = None, competition_id: Optional[str] = None,
-                     current_user=Depends(get_current_user)):
+                     event_id: Optional[str] = None, current_user=Depends(get_current_user)):
     scope = await _team_hub_scope_user_ids(current_user["id"])
     q = {"user_id": {"$in": scope}, "status": "ready"}
     if team_id:
         q["team_ids"] = team_id
     if competition_id:
         q["competition_ids"] = competition_id
+    if event_id:
+        q["event_ids"] = event_id
     docs = await db.team_music.find(q, {"_id": 0}).sort("created_at", -1).to_list(500)
     return [TeamTrack(**d) for d in docs]
 
@@ -53,6 +55,7 @@ async def init_upload(payload: TeamTrackInit, current_user=Depends(get_current_u
         content_type=payload.content_type or "audio/mpeg",
         team_ids=payload.team_ids or [],
         competition_ids=payload.competition_ids or [],
+        event_ids=payload.event_ids or [],
         uploaded_by_name=_full_name(current_user),
         status="uploading",
     )
@@ -118,6 +121,8 @@ async def update_track(track_id: str, payload: TeamTrackUpdate, current_user=Dep
         updates["team_ids"] = sent["team_ids"]
     if "competition_ids" in sent and sent["competition_ids"] is not None:
         updates["competition_ids"] = sent["competition_ids"]
+    if "event_ids" in sent and sent["event_ids"] is not None:
+        updates["event_ids"] = sent["event_ids"]
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     res = await db.team_music.update_one({"id": track_id, "user_id": {"$in": scope}}, {"$set": updates})

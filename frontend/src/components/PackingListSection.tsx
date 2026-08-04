@@ -196,12 +196,12 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
     setTemplates(t.data || []);
   };
 
-  const deleteTemplate = async (t: Template) => {
+  const bulkDeleteTemplates = async (ids: string[]) => {
     try {
-      await api.delete(`/packing-templates/${t.id}`);
+      await Promise.all(ids.map((id) => api.delete(`/packing-templates/${id}`)));
       await refreshTemplates();
     } catch (e: any) {
-      Alert.alert("Error", e?.response?.data?.detail || "Could not delete template");
+      Alert.alert("Error", e?.response?.data?.detail || "Could not delete templates");
     }
   };
 
@@ -290,7 +290,7 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
           onClose={() => setTemplatePickerOpen(false)}
           templates={templates}
           onPick={applyTemplate}
-          onDelete={deleteTemplate}
+          onBulkDelete={bulkDeleteTemplates}
           onRename={renameTemplate}
           onSeedDefault={async () => {
             const t = await ensureDefaultTemplate();
@@ -420,7 +420,7 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
         onClose={() => setTemplatePickerOpen(false)}
         templates={templates}
         onPick={applyTemplate}
-        onDelete={deleteTemplate}
+        onBulkDelete={bulkDeleteTemplates}
         onRename={renameTemplate}
         onSeedDefault={async () => {
           const t = await ensureDefaultTemplate();
@@ -432,33 +432,55 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
 }
 
 function TemplatePicker({
-  open, onClose, templates, onPick, onSeedDefault, onDelete, onRename,
+  open, onClose, templates, onPick, onSeedDefault, onBulkDelete, onRename,
 }: {
   open: boolean;
   onClose: () => void;
   templates: Template[];
   onPick: (t: Template) => void;
   onSeedDefault: () => void;
-  onDelete: (t: Template) => Promise<void> | void;
+  onBulkDelete: (ids: string[]) => Promise<void> | void;
   onRename: (t: Template, name: string) => Promise<void> | void;
 }) {
   const styles = useThemedStyles(makeStyles);
   const [manageMode, setManageMode] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [selected, setSelected] = useState<string[]>([]);
 
-  const editableCount = templates.filter(t => !t.is_default).length;
+  const editableTemplates = templates.filter(t => !t.is_default);
+  const editableCount = editableTemplates.length;
+
+  const exitManage = () => { setManageMode(false); setEditingId(null); setSelected([]); };
+  const toggleSelect = (id: string) =>
+    setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  const allSelected = editableCount > 0 && selected.length === editableCount;
+  const toggleSelectAll = () => setSelected(allSelected ? [] : editableTemplates.map(t => t.id));
+
+  const confirmBulkDelete = () => {
+    if (selected.length === 0) return;
+    const n = selected.length;
+    const doDelete = async () => { await onBulkDelete(selected); setSelected([]); };
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Delete ${n} template${n > 1 ? "s" : ""}? This cannot be undone.`)) doDelete();
+      return;
+    }
+    Alert.alert(`Delete ${n} template${n > 1 ? "s" : ""}?`, "This cannot be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: doDelete },
+    ]);
+  };
 
   const confirmDelete = (t: Template) => {
     if (Platform.OS === "web") {
       if (typeof window !== "undefined" && window.confirm(`Delete template "${t.name}"? This cannot be undone.`)) {
-        onDelete(t);
+        onBulkDelete([t.id]);
       }
       return;
     }
     Alert.alert("Delete template?", `"${t.name}" will be removed. This cannot be undone.`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => onDelete(t) },
+      { text: "Delete", style: "destructive", onPress: () => onBulkDelete([t.id]) },
     ]);
   };
 
@@ -475,8 +497,13 @@ function TemplatePicker({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>{manageMode ? "Manage templates" : "Pick a template"}</Text>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 14 }}>
+              {manageMode && editableCount > 0 && (
+                <TouchableOpacity onPress={toggleSelectAll} testID="packing-select-all">
+                  <Text style={styles.manageLink}>{allSelected ? "Clear all" : "Select all"}</Text>
+                </TouchableOpacity>
+              )}
               {editableCount > 0 && (
-                <TouchableOpacity onPress={() => { setManageMode(m => !m); setEditingId(null); }} testID="packing-manage-toggle">
+                <TouchableOpacity onPress={() => { manageMode ? exitManage() : setManageMode(true); }} testID="packing-manage-toggle">
                   <Text style={styles.manageLink}>{manageMode ? "Done" : "Manage"}</Text>
                 </TouchableOpacity>
               )}
@@ -485,7 +512,7 @@ function TemplatePicker({
               </TouchableOpacity>
             </View>
           </View>
-          <ScrollView style={{ maxHeight: 400 }} contentContainerStyle={{ paddingBottom: 16 }}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator>
             {templates.length === 0 && (
               <View style={{ padding: spacing.lg, alignItems: "center" }}>
                 <Text style={{ ...typography.body, color: colors.textSecondary, textAlign: "center", marginBottom: 12 }}>
@@ -500,9 +527,9 @@ function TemplatePicker({
             {templates.map(t => {
               const isEditing = editingId === t.id;
               if (manageMode) {
-                return (
-                  <View key={t.id} style={styles.templateRow}>
-                    {isEditing ? (
+                if (isEditing) {
+                  return (
+                    <View key={t.id} style={styles.templateRow}>
                       <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8 }}>
                         <TextInput
                           style={[styles.addInput, { flex: 1 }]}
@@ -521,27 +548,40 @@ function TemplatePicker({
                           <Ionicons name="close-circle-outline" size={24} color={colors.textTertiary} />
                         </TouchableOpacity>
                       </View>
+                    </View>
+                  );
+                }
+                const isSel = selected.includes(t.id);
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    style={styles.templateRow}
+                    activeOpacity={t.is_default ? 1 : 0.6}
+                    onPress={() => { if (!t.is_default) toggleSelect(t.id); }}
+                    testID={`packing-manage-row-${t.id}`}
+                  >
+                    {t.is_default ? (
+                      <Ionicons name="lock-closed" size={20} color={colors.textTertiary} style={{ marginRight: 4 }} />
                     ) : (
-                      <>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.templateName}>{t.name}</Text>
-                          <Text style={styles.templateMeta}>{t.items.length} items{t.is_default ? " • Standard (locked)" : ""}</Text>
-                        </View>
-                        {t.is_default ? (
-                          <Ionicons name="lock-closed" size={16} color={colors.textTertiary} />
-                        ) : (
-                          <View style={{ flexDirection: "row", gap: 14 }}>
-                            <TouchableOpacity onPress={() => startRename(t)} hitSlop={8} testID={`packing-rename-${t.id}`}>
-                              <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => confirmDelete(t)} hitSlop={8} testID={`packing-delete-${t.id}`}>
-                              <Ionicons name="trash-outline" size={20} color="#DC2626" />
-                            </TouchableOpacity>
-                          </View>
-                        )}
-                      </>
+                      <View style={[styles.selectBox, isSel && styles.selectBoxOn]} testID={`packing-select-${t.id}`}>
+                        {isSel && <Ionicons name="checkmark" size={16} color="white" />}
+                      </View>
                     )}
-                  </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.templateName}>{t.name}</Text>
+                      <Text style={styles.templateMeta}>{t.items.length} items{t.is_default ? " • Standard (locked)" : ""}</Text>
+                    </View>
+                    {!t.is_default && (
+                      <View style={{ flexDirection: "row", gap: 14 }}>
+                        <TouchableOpacity onPress={() => startRename(t)} hitSlop={8} testID={`packing-rename-${t.id}`}>
+                          <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => confirmDelete(t)} hitSlop={8} testID={`packing-delete-${t.id}`}>
+                          <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </TouchableOpacity>
                 );
               }
               return (
@@ -560,6 +600,17 @@ function TemplatePicker({
               );
             })}
           </ScrollView>
+          {manageMode && selected.length > 0 && (
+            <View style={styles.bulkBar}>
+              <TouchableOpacity onPress={() => setSelected([])} hitSlop={8}>
+                <Text style={styles.bulkClear}>Clear</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.bulkDeleteBtn} onPress={confirmBulkDelete} testID="packing-bulk-delete">
+                <Ionicons name="trash-outline" size={18} color="white" />
+                <Text style={styles.bulkDeleteText}>Delete {selected.length}</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </View>
     </Modal>
@@ -663,4 +714,20 @@ const makeStyles = () => ({
   },
   templateName: { ...typography.body, color: colors.textPrimary, fontWeight: "600" },
   templateMeta: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  selectBox: {
+    width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: colors.border,
+    alignItems: "center", justifyContent: "center", backgroundColor: colors.card, marginRight: 4,
+  },
+  selectBoxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  bulkBar: {
+    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    paddingHorizontal: spacing.lg, paddingVertical: 12,
+    borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg,
+  },
+  bulkClear: { ...typography.body, color: colors.textSecondary, fontWeight: "700" },
+  bulkDeleteBtn: {
+    flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#DC2626",
+    paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.md,
+  },
+  bulkDeleteText: { color: "white", fontWeight: "800", fontSize: 14 },
 });
