@@ -81,9 +81,9 @@ async def run() -> None:
 
     today = datetime.now(timezone.utc).date()
 
-    # ---- Teams
+    # ---- Teams (Blue & White branding)
     team_ids = {}
-    for name, color in [("Senior Elite Coed 5", "#E11D48"), ("Youth Level 2", "#0EA5E9")]:
+    for name, color in [("Senior Elite Coed 5", "#2563EB"), ("Youth Level 2", "#0EA5E9")]:
         doc = server.Team(user_id=user_id, name=name, color=color, season="2025-2026").model_dump()
         await db.teams.insert_one(doc)
         team_ids[name] = doc["id"]
@@ -91,7 +91,7 @@ async def run() -> None:
     # ---- Athletes (household view: 2 athletes)
     ava_id = await _insert(db, "athletes", server.Athlete(
         user_id=user_id, name="Ava Johnson", role="athlete", team="Senior Elite Coed 5",
-        gym="California Allstars", avatar_color="#E11D48", team_ids=[team_ids["Senior Elite Coed 5"]],
+        gym="California Allstars", avatar_color="#2563EB", team_ids=[team_ids["Senior Elite Coed 5"]],
     ))
     mia_id = await _insert(db, "athletes", server.Athlete(
         user_id=user_id, name="Mia Johnson", role="athlete", team="Youth Level 2",
@@ -232,6 +232,13 @@ async def run() -> None:
             "respondent_name": name, "answers": {qid_meal: meal}, "source": "coach",
             "created_at": now_iso(), "updated_at": now_iso(),
         })
+
+    # ---- Set the household theme to Blue & White (brand palette)
+    await db.households.update_one(
+        {"member_user_ids": user_id},
+        {"$set": {"theme": {"preset_id": "cheerplanner", "custom": None, "saved": []}}},
+    )
+    print("Household theme set → Blue & White (cheerplanner preset).")
 
     print("\n=================================================")
     print("MARKETING DEMO ACCOUNT READY")
