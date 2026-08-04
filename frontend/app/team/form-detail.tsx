@@ -152,11 +152,11 @@ export default function FormDetailScreen() {
   };
 
   const saveDeadline = () => {
-    if (!closeDate) { patch({ close_at: null }); return; }
+    if (!closeDate) { patch({ close_at: "" }); return; }
     const close_at = `${closeDate}T${closeTime || "23:59"}:00`;
     patch({ close_at });
   };
-  const clearDeadline = () => { setCloseDate(""); setCloseTime(""); patch({ close_at: null }); };
+  const clearDeadline = () => { setCloseDate(""); setCloseTime(""); patch({ close_at: "" }); };
 
   const exportResponses = async () => {
     if (!data) return;
