@@ -73,7 +73,7 @@ async def list_roadmap(current_user=Depends(get_current_user)):
     order = {"in_progress": 0, "planned": 1, "completed": 2}
     planned.sort(key=lambda x: (order.get(x.get("status"), 1), -x["upvotes"], x.get("created_at", "")))
     # Suggestions: most upvoted first, then newest.
-    suggestions.sort(key=lambda x: (-x["upvotes"], x.get("created_at", "")), reverse=False)
+    suggestions.sort(key=lambda x: (-x["upvotes"], x.get("created_at", "")))
 
     return {"planned": planned, "suggestions": suggestions, "is_admin": bool(current_user.get("is_admin"))}
 
@@ -126,9 +126,6 @@ async def toggle_vote(item_id: str, current_user=Depends(get_current_user)):
         voted = True
     fresh = await db.roadmap_items.find_one({"id": item_id}, {"_id": 0, "upvotes": 1})
     count = max(0, int((fresh or {}).get("upvotes") or 0))
-    if count < 0:
-        await db.roadmap_items.update_one({"id": item_id}, {"$set": {"upvotes": 0}})
-        count = 0
     return {"voted": voted, "upvotes": count}
 
 
