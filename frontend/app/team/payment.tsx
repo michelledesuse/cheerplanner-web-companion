@@ -7,6 +7,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { formatCurrency, formatDate, formatDateTime12, todayISO } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import ManageAccessButton from "@/src/components/ManageAccessButton";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import DateField from "@/src/components/DateField";
 import AttachSection from "@/src/components/AttachSection";
@@ -242,6 +243,7 @@ export default function PaymentDetail() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{tracker.name}</Text>
+        <ManageAccessButton resource="payment" resourceId={tracker.id} />
         <TouchableOpacity onPress={openEdit} style={styles.iconBtn} testID="payment-edit" hitSlop={8}>
           <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>

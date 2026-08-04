@@ -53,6 +53,7 @@ from routers import (
     realtime,
     seasons,
     music,
+    broadcast,
 )
 
 
@@ -113,6 +114,7 @@ for r in (
     realtime.router,
     seasons.router,
     music.router,
+    broadcast.router,
 ):
     app.include_router(r)
 

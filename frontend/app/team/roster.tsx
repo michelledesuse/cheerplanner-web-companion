@@ -400,6 +400,10 @@ export default function RosterScreen() {
         <Pressable style={styles.menuBackdrop} onPress={() => setActionsOpen(false)}>
           <Pressable style={styles.menuSheet} onPress={() => {}}>
             <View style={styles.menuHandle} />
+            <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); router.push("/team/broadcast" as any); }} testID="roster-menu-broadcast">
+              <Ionicons name="chatbubbles-outline" size={19} color={colors.accent} />
+              <Text style={styles.menuText}>Message parents (text)</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); openImport(); }} testID="roster-menu-household">
               <Ionicons name="people-outline" size={19} color={colors.accent} />
               <Text style={styles.menuText}>Add from my household</Text>

@@ -6,6 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import ManageAccessButton from "@/src/components/ManageAccessButton";
 import { formatDateTime12 } from "@/src/utils/format";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
@@ -240,6 +241,7 @@ export default function SignupSheetScreen() {
             </Text>
           )}
         </View>
+        <ManageAccessButton resource="signup" resourceId={sheet.id} />
         <TouchableOpacity onPress={() => shareTeamLink("signup", sheet.id)} style={styles.iconBtn} testID="signup-share" hitSlop={8}>
           <Ionicons name="share-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>

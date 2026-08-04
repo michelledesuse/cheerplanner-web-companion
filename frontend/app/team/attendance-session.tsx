@@ -6,6 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import ManageAccessButton from "@/src/components/ManageAccessButton";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 type Member = { id: string; name: string; role: string; team_ids?: string[] | null };
@@ -101,6 +102,7 @@ export default function AttendanceSessionScreen() {
           <Text style={styles.headerTitle} numberOfLines={1}>{session?.title}</Text>
           <Text style={styles.headerSub}>{present}/{filtered.length} present</Text>
         </View>
+        <ManageAccessButton resource="attendance" resourceId={String(params.id)} />
         <TouchableOpacity onPress={() => router.push({ pathname: "/team/attendance-new", params: { id: String(params.id) } })} style={styles.iconBtn} testID="att-session-edit" hitSlop={8}>
           <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>

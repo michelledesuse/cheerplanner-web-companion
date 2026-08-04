@@ -1,0 +1,43 @@
+{
+  "summary": "Iter 82 broadcast + blocks: 19/19 backend tests pass. Broadcast dry_run correctly personalizes with parent first name, dedupes by phone (Ava/Jamie, Mia/Robin → 2 recipients), skips NoPhone Kid (no_phone_count=1), and appends links, music (🎵 with /api/public/media/<token>) and attachment (📎) trailers. Attachment upload + public HTML/raw endpoints work (no auth) and support HTTP Range (206). Blocks GET/PUT contract confirmed for payment/signup/paperwork/attendance including owner-only enforcement, non-member 404, and persist/clear round-trip via GET. Frontend smoke on mobile viewport passed: Roster → ⋯ menu → 'Message parents (text)' → /team/broadcast composer → 'Review & send' shows Confirm sheet with '2 parents will get a text', 'Hi Jamie, …' preview and masked phone (•••• 1111). Send-now NOT pressed (Twilio live).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/team/broadcast/send", "issue": "Docstring/spec says 'links block' is appended, but backend uses core.sms.join_links which produces a single space-separated line (e.g. 'Waiver: https://... https://...'). Works but visually reads as one long line in the SMS body; consider newline-separated for readability."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/team/broadcast", "issues": ["Photo attachment container renders empty (no visible upload spinner/hint) while ImagePicker permission dialog is pending on web — minor.", "The 'Attach music' button is disabled when tracks.length===0 but the hint 'No music uploaded yet' is only shown inline; a dedicated empty-state row would be clearer."]}
+    ],
+    "react_native_issues": [
+      {"component": "console warnings", "issue": "Web preview logs 'shadow* style props are deprecated. Use boxShadow' and 'props.pointerEvents is deprecated. Use style.pointerEvents'. Legacy warnings unrelated to iter 82 files but visible in this feature."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter82_broadcast_and_blocks.py",
+    "/app/test_reports/pytest/pytest_iter82.xml"
+  ],
+  "action_items": [
+    "Blocks feature: the Manage-access UI (ManageAccessButton) intentionally renders null when the household has no other Team Hub members. Full end-to-end verification (blocked member gets the tracker filtered from GET /api/team/payments) requires a 2nd household member. Owner-side GET/PUT contract already verified with the owner's own user_id as the blocked_user_id and via /api/team/blocks/<resource>/<id> round-trip; the filter logic in team_payments.py (`docs = [d for d in docs if d['id'] not in blocked]`) is not tested against a real blocked *viewer* — needs a second Team Hub member to fully cover.",
+    "Consider newline-separating link entries in the SMS body for readability (currently join_links joins with a single space).",
+    "The applereview account has no payment_trackers/signup_sheets of its own (the seeded ones belong to another user_id), so end-to-end blocks-on-real-tracker could not be exercised against a live listing endpoint for this owner. Confirmed with data inspection."
+  ],
+  "critical_code_review_comments": [
+    "broadcast.py send() correctly dedupes on the normalized parent phone before compose(); NoPhone rows are collected with the member's display name — good.",
+    "public/media/{token}/raw reads the entire file into memory before range slicing (data = await grid_out.read()); acceptable for ≤6 MB attachments but risky for large future audio. Consider streaming with `open_download_stream_by_name` + seek if track sizes grow.",
+    "blocks.py PUT relies on membership check against household.member_user_ids; a self-block by the owner is allowed by the schema. In practice UI filters out the owner via GET (excluded server-side), but PUT could still accept owner_id → owner shouldn't be able to block themself. Consider rejecting `blocked_user_id == owner_id`.",
+    "broadcast.py `_music_public_url` reuses an existing public_media doc by (kind=music, source_id) — good idempotency; note it will keep the first-generated token forever, which is fine for the current 'share' model."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter82_broadcast_and_blocks.py (new)"
+  ],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "100% (smoke: navigation + dry-run + confirm sheet)"},
+  "seed_data_creation": "None — used existing seeded BC_TEST_* roster (Ava→Jamie 5550001111, Mia→Robin 5550002222, NoPhone Kid) and BCMUS_TEST_116a69 track. No sends were performed with dry_run=false.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "For blocks: to fully verify hiding, invite a 2nd Team Hub member via /team-access (POST /api/team-access/invite), have them accept, then PUT /api/team/blocks?blocked=true with their user_id and confirm their GET /api/team/payments no longer includes that tracker. For broadcast SEND: NEVER call POST /api/team/broadcast/send with dry_run=false — Twilio is live and the seeded numbers (5550001111, 5550002222) normalize to valid E.164 US numbers.",
+  "rca_of_issue": "N/A — all tested paths pass. Two failing tests during the run were caused by MY test assumptions (assumed the applereview account had payment_trackers/signups; it doesn't). Corrected tests use synthetic resource_ids and self-blocked user_id which is a valid path since the blocks endpoints don't validate resource_id existence."
+}

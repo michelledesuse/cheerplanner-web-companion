@@ -6,6 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
+import ManageAccessButton from "@/src/components/ManageAccessButton";
 import { formatDateTime12 } from "@/src/utils/format";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import TrackerGrid from "@/src/components/TrackerGrid";
@@ -194,6 +195,7 @@ export default function PaperworkSheetScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{sheet.name}</Text>
+        <ManageAccessButton resource="paperwork" resourceId={sheet.id} />
         <TouchableOpacity onPress={() => setTallyOpen(true)} style={styles.iconBtn} testID="paperwork-tally-open" hitSlop={8}>
           <Ionicons name="stats-chart-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
