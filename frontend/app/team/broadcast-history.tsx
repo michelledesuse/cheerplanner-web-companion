@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -7,6 +7,10 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+
+const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+
+type Scheduled = { id: string; message: string; send_at: string; recipient_count: number };
 
 type Broadcast = {
   id: string; message: string; created_by_name?: string;
@@ -27,18 +31,56 @@ export default function BroadcastHistoryScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
   const [items, setItems] = useState<Broadcast[]>([]);
+  const [scheduled, setScheduled] = useState<Scheduled[]>([]);
+  const [statuses, setStatuses] = useState<Record<string, { delivered: number; sent: number; undelivered: number }>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Broadcast[]>("/team/broadcast/history");
-      setItems(r.data || []);
+      const [h, s] = await Promise.all([
+        api.get<Broadcast[]>("/team/broadcast/history"),
+        api.get<Scheduled[]>("/team/broadcast/scheduled").catch(() => ({ data: [] as Scheduled[] })),
+      ]);
+      setItems(h.data || []);
+      setScheduled(s.data || []);
     } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const onExpand = async (b: Broadcast) => {
+    const open = expanded === b.id;
+    setExpanded(open ? null : b.id);
+    if (!open && !statuses[b.id]) {
+      try {
+        const r = await api.get<{ counts: any }>(`/team/broadcast/${b.id}/statuses`);
+        setStatuses((prev) => ({ ...prev, [b.id]: r.data.counts }));
+      } catch { /* ignore */ }
+    }
+  };
+
+  const cancelScheduled = (id: string) => {
+    const doCancel = async () => {
+      setScheduled((p) => p.filter((x) => x.id !== id));
+      try { await api.delete(`/team/broadcast/scheduled/${id}`); } catch { load(); }
+    };
+    Alert.alert("Cancel scheduled text?", "This won't be sent.", [
+      { text: "Keep", style: "cancel" },
+      { text: "Cancel it", style: "destructive", onPress: doCancel },
+    ]);
+  };
+
+  const resend = async (b: Broadcast) => {
+    try {
+      const r = await api.post<{ resent: number; still_failed: number }>(`/team/broadcast/${b.id}/resend-failed`, {}, { params: { base_url: BASE } });
+      Alert.alert("Resent", `Retried ${r.data.resent}. ${r.data.still_failed} still failed.`);
+      load();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not resend.");
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -57,6 +99,22 @@ export default function BroadcastHistoryScreen() {
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
         >
+          {scheduled.length > 0 && (
+            <View style={{ marginBottom: spacing.lg }}>
+              <Text style={styles.sectionHead}>Scheduled</Text>
+              {scheduled.map((s) => (
+                <View key={s.id} style={styles.schedCard} testID={`sched-row-${s.id}`}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.date}>{fmt(s.send_at)} · {s.recipient_count} recipient{s.recipient_count === 1 ? "" : "s"}</Text>
+                    <Text style={styles.msg} numberOfLines={1}>{s.message || "(no message)"}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => cancelScheduled(s.id)} hitSlop={8} testID={`sched-cancel-${s.id}`}>
+                    <Ionicons name="close-circle" size={22} color={colors.danger} />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          )}
           {items.length === 0 ? (
             <View style={styles.empty}>
               <Ionicons name="chatbubbles-outline" size={40} color={colors.textTertiary} />
@@ -65,7 +123,7 @@ export default function BroadcastHistoryScreen() {
           ) : items.map((b) => {
             const open = expanded === b.id;
             return (
-              <TouchableOpacity key={b.id} style={styles.card} activeOpacity={0.7} onPress={() => setExpanded(open ? null : b.id)} testID={`history-row-${b.id}`}>
+              <TouchableOpacity key={b.id} style={styles.card} activeOpacity={0.7} onPress={() => onExpand(b)} testID={`history-row-${b.id}`}>
                 <View style={styles.cardTop}>
                   <Text style={styles.date}>{fmt(b.created_at)}</Text>
                   <View style={styles.pills}>
@@ -82,6 +140,11 @@ export default function BroadcastHistoryScreen() {
                 </Text>
                 {open && (
                   <View style={styles.details}>
+                    {!!statuses[b.id] && (
+                      <Text style={styles.detailItem}>
+                        📬 {statuses[b.id].delivered} delivered · {statuses[b.id].sent} sent · {statuses[b.id].undelivered} undelivered
+                      </Text>
+                    )}
                     {!!b.failed_recipients?.length && (
                       <>
                         <Text style={styles.detailHead}>Failed</Text>
@@ -96,6 +159,12 @@ export default function BroadcastHistoryScreen() {
                     )}
                     {!b.failed_recipients?.length && !b.no_phone?.length && (
                       <Text style={styles.detailItem}>Delivered to everyone with a phone on file. 🎉</Text>
+                    )}
+                    {b.failed > 0 && (
+                      <TouchableOpacity style={styles.resendBtn} onPress={() => resend(b)} testID={`history-resend-${b.id}`}>
+                        <Ionicons name="refresh" size={15} color="white" />
+                        <Text style={styles.resendText}>Resend to {b.failed} failed</Text>
+                      </TouchableOpacity>
                     )}
                   </View>
                 )}
@@ -128,4 +197,8 @@ const makeStyles = (c: ThemePalette) => ({
   details: { marginTop: spacing.md, borderTopWidth: 1, borderTopColor: c.border, paddingTop: spacing.sm },
   detailHead: { ...typography.caption, color: c.textSecondary, fontWeight: "800", marginTop: 6, marginBottom: 2 },
   detailItem: { ...typography.body, color: c.textPrimary, paddingVertical: 1 },
+  sectionHead: { ...typography.caption, color: c.textSecondary, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 },
+  schedCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accentBorder, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm },
+  resendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 11, marginTop: spacing.md },
+  resendText: { color: "white", fontWeight: "800", fontSize: 14 },
 });

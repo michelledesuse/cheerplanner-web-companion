@@ -54,6 +54,7 @@ from routers import (
     seasons,
     music,
     broadcast,
+    twilio_hooks,
 )
 
 
@@ -115,6 +116,7 @@ for r in (
     seasons.router,
     music.router,
     broadcast.router,
+    twilio_hooks.router,
 ):
     app.include_router(r)
 

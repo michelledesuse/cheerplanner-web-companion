@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
-  KeyboardAvoidingView, Platform, Modal, Pressable, Image,
+  KeyboardAvoidingView, Platform, Modal, Pressable, Image, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -10,6 +10,8 @@ import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
+import DateField from "@/src/components/DateField";
+import TimeField from "@/src/components/TimeField";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -48,7 +50,11 @@ export default function BroadcastScreen() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
-  const [result, setResult] = useState<null | { sent: number; failed: number; failed_recipients: { name: string; phone: string }[]; no_phone_count: number; no_phone: string[] }>(null);
+  const [result, setResult] = useState<null | { id?: string; sent: number; failed: number; failed_recipients: { name: string; phone: string }[]; no_phone_count: number; no_phone: string[] }>(null);
+  const [resending, setResending] = useState(false);
+  const [sendLater, setSendLater] = useState(false);
+  const [schedDate, setSchedDate] = useState("");
+  const [schedTime, setSchedTime] = useState("");
 
   const [review, setReview] = useState<null | { recipient_count: number; no_phone_count: number; preview: { name: string; phone: string; body: string }[] }>(null);
 
@@ -93,6 +99,12 @@ export default function BroadcastScreen() {
     } finally { setUploading(false); }
   };
 
+  const schedISO = () => {
+    if (!sendLater || !schedDate || !schedTime) return undefined;
+    const d = new Date(`${schedDate}T${schedTime}:00`);
+    return isNaN(d.getTime()) ? undefined : d.toISOString();
+  };
+
   const buildPayload = (dry: boolean) => ({
     message: message.trim(),
     recipients: { mode, team_id: teamId || undefined, member_ids: memberIds },
@@ -101,6 +113,7 @@ export default function BroadcastScreen() {
     attachment_tokens: attachments.map((a) => a.token),
     base_url: BASE,
     dry_run: dry,
+    send_at: dry ? undefined : schedISO(),
   });
 
   const openReview = async () => {
@@ -120,14 +133,32 @@ export default function BroadcastScreen() {
   };
 
   const doSend = async () => {
+    if (sendLater && !schedISO()) { Alert.alert("Pick a date & time", "Choose when to send, or turn off “Send later”."); return; }
     try {
       setSending(true);
       const r = await api.post("/team/broadcast/send", buildPayload(false));
       setReview(null);
+      if (r.data?.scheduled) {
+        const when = new Date(r.data.send_at);
+        Alert.alert("Scheduled", `Your text will go out on ${when.toLocaleString()}.`, [{ text: "OK", onPress: () => router.back() }]);
+        return;
+      }
       setResult(r.data);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not send.");
     } finally { setSending(false); }
+  };
+
+  const resendFailed = async () => {
+    if (!result?.id) return;
+    try {
+      setResending(true);
+      const r = await api.post<{ resent: number; still_failed: number }>(`/team/broadcast/${result.id}/resend-failed`, {}, { params: { base_url: BASE } });
+      setResult((prev) => prev ? { ...prev, sent: prev.sent + r.data.resent, failed: r.data.still_failed, failed_recipients: prev.failed_recipients.slice(0, r.data.still_failed) } : prev);
+      Alert.alert("Resent", `Retried ${r.data.resent}. ${r.data.still_failed} still failed.`);
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not resend.");
+    } finally { setResending(false); }
   };
 
   const applyTemplate = (t: { message: string; links: ExternalLink[] }) => {
@@ -167,9 +198,14 @@ export default function BroadcastScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Message parents</Text>
-        <TouchableOpacity onPress={() => router.push("/team/broadcast-history" as any)} style={styles.iconBtn} testID="broadcast-history" hitSlop={8}>
-          <Ionicons name="time-outline" size={20} color={colors.textPrimary} />
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <TouchableOpacity onPress={() => router.push("/team/replies" as any)} style={styles.iconBtn} testID="broadcast-replies" hitSlop={8}>
+            <Ionicons name="chatbubble-ellipses-outline" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push("/team/broadcast-history" as any)} style={styles.iconBtn} testID="broadcast-history" hitSlop={8}>
+            <Ionicons name="time-outline" size={20} color={colors.textPrimary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -265,14 +301,28 @@ export default function BroadcastScreen() {
             {uploading ? <ActivityIndicator size="small" color={colors.accent} /> : <Ionicons name="camera-outline" size={16} color={colors.accent} />}
             <Text style={styles.addChipText}>{uploading ? "Uploading…" : "Attach photo"}</Text>
           </TouchableOpacity>
+
+          <View style={styles.schedRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Send later</Text>
+              <Text style={styles.hint}>Schedule this text for a future date & time.</Text>
+            </View>
+            <Switch value={sendLater} onValueChange={setSendLater} trackColor={{ true: colors.accent, false: colors.border }} testID="broadcast-schedule-toggle" />
+          </View>
+          {sendLater && (
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <View style={{ flex: 1 }}><DateField value={schedDate} onChange={setSchedDate} placeholder="Date" testID="broadcast-sched-date" /></View>
+              <View style={{ flex: 1 }}><TimeField value={schedTime} onChange={setSchedTime} placeholder="Time" testID="broadcast-sched-time" /></View>
+            </View>
+          )}
         </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.sendBtn} onPress={openReview} disabled={sending} testID="broadcast-review">
             {sending ? <ActivityIndicator color="white" /> : (
               <>
-                <Ionicons name="paper-plane-outline" size={18} color="white" />
-                <Text style={styles.sendBtnText}>Review &amp; send</Text>
+                <Ionicons name={sendLater ? "calendar-outline" : "paper-plane-outline"} size={18} color="white" />
+                <Text style={styles.sendBtnText}>{sendLater ? "Review & schedule" : "Review & send"}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -340,7 +390,7 @@ export default function BroadcastScreen() {
               </View>
             )}
             <TouchableOpacity style={[styles.done, (review?.recipient_count || 0) === 0 && { opacity: 0.5 }]} onPress={doSend} disabled={sending || (review?.recipient_count || 0) === 0} testID="broadcast-confirm-send">
-              {sending ? <ActivityIndicator color="white" /> : <Text style={styles.doneText}>Send now</Text>}
+              {sending ? <ActivityIndicator color="white" /> : <Text style={styles.doneText}>{sendLater ? "Schedule" : "Send now"}</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancel} onPress={() => setReview(null)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
           </Pressable>
@@ -422,6 +472,11 @@ export default function BroadcastScreen() {
                 <Text style={styles.hint}>Everyone with a phone on file received the text. 🎉</Text>
               )}
             </ScrollView>
+            {!!result?.failed && (
+              <TouchableOpacity style={styles.resendBtn} onPress={resendFailed} disabled={resending} testID="broadcast-resend-failed">
+                {resending ? <ActivityIndicator color="white" /> : (<><Ionicons name="refresh" size={16} color="white" /><Text style={styles.doneText}>Resend to {result.failed} failed</Text></>)}
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.done} onPress={() => { setResult(null); router.back(); }} testID="broadcast-summary-done"><Text style={styles.doneText}>Done</Text></TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -493,4 +548,6 @@ const makeStyles = (c: ThemePalette) => ({
   summaryRow: { flexDirection: "row", marginTop: spacing.md, backgroundColor: c.card, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, paddingVertical: spacing.md },
   summaryHead: { ...typography.caption, color: c.textSecondary, fontWeight: "800", marginTop: spacing.md, marginBottom: 4 },
   summaryItem: { ...typography.body, color: c.textPrimary, paddingVertical: 2 },
+  schedRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.lg, marginBottom: spacing.sm },
+  resendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 13, marginTop: spacing.md },
 });

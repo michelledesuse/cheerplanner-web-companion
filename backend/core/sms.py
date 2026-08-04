@@ -66,21 +66,30 @@ def normalize_us_phone(raw: Optional[str]) -> Optional[str]:
 
 def send_sms(to: str, body: str) -> bool:
     """Send an SMS via Twilio. Returns True on success, False otherwise. Never raises."""
+    return send_sms_ex(to, body) is not None
+
+
+def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None) -> Optional[str]:
+    """Send an SMS and return the Twilio message SID (or None on failure). Never raises."""
     client = _get_client()
     from_number = os.getenv("TWILIO_PHONE_NUMBER")
     if not client or not from_number:
-        return False
+        return None
     dest = normalize_us_phone(to)
     if not dest:
         logger.warning("send_sms: invalid destination number")
-        return False
+        return None
     try:
-        msg = client.messages.create(to=dest, from_=from_number, body=body)
-        logger.info("SMS sent sid=%s to=%s", getattr(msg, "sid", "?"), dest)
-        return True
+        kwargs = {"to": dest, "from_": from_number, "body": body}
+        if status_callback:
+            kwargs["status_callback"] = status_callback
+        msg = client.messages.create(**kwargs)
+        sid = getattr(msg, "sid", None)
+        logger.info("SMS sent sid=%s to=%s", sid, dest)
+        return sid
     except Exception as exc:  # noqa: BLE001
         logger.warning("send_sms failed: %s", exc)
-        return False
+        return None
 
 
 def join_links(links) -> str:

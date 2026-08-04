@@ -61,6 +61,13 @@ def start_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=120,
     )
+    _scheduler.add_job(
+        send_scheduled_broadcasts_tick,
+        CronTrigger(second=0),
+        id="scheduled_broadcasts_tick",
+        replace_existing=True,
+        misfire_grace_time=120,
+    )
     _scheduler.start()
     logger.info("Scheduler started \u2014 digest tick hourly at :05 UTC, timed-SMS tick every minute")
     return _scheduler
@@ -124,6 +131,48 @@ def _checkin_sms(leg_id: str, dep_ap: Any, arr_ap: Any, off: int) -> str:
         f"CheerPlanner: Check-in for your {leg}flight {route} opens in {_fmt_offset(off)}. "
         f"Get ready to check in.\nReply STOP to opt out."
     )
+
+
+async def send_scheduled_broadcasts_tick() -> None:
+    """Every minute: send any roster text broadcasts whose scheduled time has passed."""
+    from datetime import datetime, timezone
+    from core.db import db
+    from core.helpers import _team_hub_scope_user_ids
+    from routers.broadcast import BroadcastSend, _resolve_context, _perform_send, _base
+
+    now = datetime.now(timezone.utc)
+    due = await db.scheduled_broadcasts.find({"status": "scheduled"}).to_list(200)
+    for d in due:
+        try:
+            when = datetime.fromisoformat(str(d.get("send_at", "")).replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if when > now:
+            continue
+        claimed = await db.scheduled_broadcasts.update_one(
+            {"id": d["id"], "status": "scheduled"}, {"$set": {"status": "sending"}}
+        )
+        if not claimed.modified_count:
+            continue
+        try:
+            payload = BroadcastSend(**(d.get("payload") or {}))
+            base = _base(payload.base_url)
+            scope = await _team_hub_scope_user_ids(d["user_id"])
+            to_send, no_phone, trailer = await _resolve_context(payload, base, scope, d["user_id"])
+            if to_send:
+                await _perform_send(
+                    d["user_id"], base, to_send, no_phone, (payload.message or "").strip(),
+                    trailer, d.get("created_by_name") or "", payload,
+                )
+            await db.scheduled_broadcasts.update_one(
+                {"id": d["id"]}, {"$set": {"status": "sent", "sent_at": now.isoformat()}}
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("scheduled broadcast %s failed: %s", d.get("id"), exc)
+            await db.scheduled_broadcasts.update_one(
+                {"id": d["id"]}, {"$set": {"status": "error", "error": str(exc)}}
+            )
+
 
 
 async def send_timed_sms_tick() -> None:
