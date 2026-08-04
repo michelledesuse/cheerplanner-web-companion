@@ -215,12 +215,12 @@ export default function SizesScreen() {
       {/* Size tally by item */}
       <Modal visible={tallyOpen} transparent animationType="slide" onRequestClose={() => setTallyOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setTallyOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+          <Pressable style={[styles.sheet, styles.tallySheet]} onPress={() => {}}>
             <View style={styles.tallyHeader}>
               <Text style={styles.sheetTitle}>Size tally</Text>
               <Text style={styles.tallySub}>{total} {total === 1 ? "person" : "people"}{teamFilter && teamFilter !== "none" ? " · this team" : ""}</Text>
             </View>
-            <ScrollView style={{ maxHeight: 460 }} contentContainerStyle={{ paddingBottom: spacing.md }} testID="sizes-tally">
+            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator testID="sizes-tally">
               {tally.map(({ column, rows: trows, notSet, filled, eligible }) => (
                 <View key={column.id} style={styles.tallyBlock}>
                   <View style={styles.tallyTitleRow}>
@@ -307,6 +307,7 @@ const makeStyles = (c: ThemePalette) => ({
   emptyText: { ...typography.caption, color: c.textSecondary, textAlign: "center" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
+  tallySheet: { maxHeight: "82%" },
   sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
