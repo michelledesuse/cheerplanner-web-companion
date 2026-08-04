@@ -31,7 +31,7 @@ def _full_name(u: dict) -> str:
     return n or (u.get("email") or "").split("@")[0] or "Someone"
 
 
-@router.get("/team/music", response_model=List[TeamTrack], dependencies=[Depends(require_team_access)])
+@router.get("/team/music", response_model=List[TeamTrack])
 async def list_music(team_id: Optional[str] = None, competition_id: Optional[str] = None,
                      event_id: Optional[str] = None, current_user=Depends(get_current_user)):
     scope = await _team_hub_scope_user_ids(current_user["id"])
@@ -160,7 +160,7 @@ async def stream_track(track_id: str, token: str, request: Request):
     if not u:
         raise HTTPException(status_code=401, detail="Not authorized")
     user = await db.users.find_one({"id": u["id"]}, {"_id": 0, "password_hash": 0})
-    if not user or not user.get("team_access"):
+    if not user:
         raise HTTPException(status_code=401, detail="Not authorized")
     scope = await _team_hub_scope_user_ids(user["id"])
     track = await db.team_music.find_one(

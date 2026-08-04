@@ -27,7 +27,7 @@ const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL || "";
  */
 export default function AttachedMusic({ contextKey, contextId, standalone }: Props) {
   const { user } = useAuth();
-  const enabled = !!user?.team_access;
+  const canManage = !!user?.team_access;
 
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +41,7 @@ export default function AttachedMusic({ contextKey, contextId, standalone }: Pro
   useEffect(() => { setAudioModeAsync({ playsInSilentMode: true }).catch(() => {}); }, []);
 
   const load = useCallback(async () => {
-    if (!enabled || !contextId) { setLoading(false); return; }
+    if (!contextId) { setLoading(false); return; }
     try {
       const [r, tok] = await Promise.all([
         api.get<Track[]>("/team/music").then((x) => x.data).catch(() => [] as Track[]),
@@ -50,7 +50,7 @@ export default function AttachedMusic({ contextKey, contextId, standalone }: Pro
       setTracks(r || []);
       setToken(typeof tok === "string" ? tok : "");
     } finally { setLoading(false); }
-  }, [enabled, contextId]);
+  }, [contextId]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -80,16 +80,18 @@ export default function AttachedMusic({ contextKey, contextId, standalone }: Pro
     try { await api.patch(`/team/music/${t.id}`, { [contextKey]: next }); } catch { load(); }
   };
 
-  if (!enabled || !contextId) return null;
+  if (!contextId) return null;
+  // Viewers with no attached tracks: hide the section entirely (nothing to show).
+  if (!canManage && !loading && attached.length === 0) return null;
 
   const isPlaying = (t: Track) => playingId === t.id && status.playing;
 
-  const body = (
-    <View style={standalone ? undefined : styles.toolBlock}>
+  return (
+    <View style={standalone ? styles.standaloneWrap : styles.toolBlock}>
       <View style={styles.toolHead}>
         <Ionicons name="musical-notes-outline" size={16} color={colors.textSecondary} />
         <Text style={styles.toolLabel}>Team music</Text>
-        {unattached.length > 0 && (
+        {canManage && unattached.length > 0 && (
           <TouchableOpacity onPress={() => setPicker(true)} hitSlop={8} testID="music-attach-open">
             <Text style={styles.attachLink}>＋ Attach</Text>
           </TouchableOpacity>
@@ -108,9 +110,11 @@ export default function AttachedMusic({ contextKey, contextId, standalone }: Pro
             <Text style={styles.rowName} numberOfLines={1}>{t.title}</Text>
             {!!t.uploaded_by_name && <Text style={styles.rowMeta} numberOfLines={1}>{t.uploaded_by_name}</Text>}
           </View>
-          <TouchableOpacity onPress={() => toggleAttach(t, false)} hitSlop={8} style={styles.unlink} testID={`music-unlink-${t.id}`}>
-            <Ionicons name="close-circle" size={19} color={colors.textTertiary} />
-          </TouchableOpacity>
+          {canManage && (
+            <TouchableOpacity onPress={() => toggleAttach(t, false)} hitSlop={8} style={styles.unlink} testID={`music-unlink-${t.id}`}>
+              <Ionicons name="close-circle" size={19} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
         </View>
       ))}
 
@@ -137,21 +141,10 @@ export default function AttachedMusic({ contextKey, contextId, standalone }: Pro
       </Modal>
     </View>
   );
-
-  if (standalone) {
-    return (
-      <View style={styles.standaloneWrap}>
-        <Text style={styles.header}>Team music</Text>
-        {body}
-      </View>
-    );
-  }
-  return body;
 }
 
 const styles = StyleSheet.create({
   standaloneWrap: { marginTop: spacing.xl },
-  header: { ...typography.h3, color: colors.textPrimary, marginBottom: spacing.md },
   toolBlock: { marginBottom: spacing.md },
   toolHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
   toolLabel: { ...typography.caption, fontWeight: "800", color: colors.textSecondary, flex: 1, textTransform: "uppercase", letterSpacing: 0.4 },

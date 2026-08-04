@@ -15,6 +15,7 @@ import TimeField from "@/src/components/TimeField";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import TodoList from "@/src/components/TodoList";
 import LinkedTools from "@/src/components/LinkedTools";
+import AttachedMusic from "@/src/components/AttachedMusic";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import PhotoGallery from "@/src/components/PhotoGallery";
 import AddTypeModal from "@/src/components/AddTypeModal";
@@ -469,6 +470,9 @@ export default function ScheduleForm() {
 
           {isEdit && !!params.id && (
             <LinkedTools eventId={String(params.id)} />
+          )}
+          {isEdit && !!params.id && (
+            <AttachedMusic contextKey="event_ids" contextId={String(params.id)} standalone />
           )}
         </ScrollView>
       </KeyboardAvoidingView>

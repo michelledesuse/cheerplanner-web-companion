@@ -6,7 +6,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
-import AttachedMusic from "@/src/components/AttachedMusic";
 
 type Item = { id: string; name?: string; title?: string; competition_ids?: string[]; event_ids?: string[] };
 type Props = { competitionId?: string; eventId?: string };
@@ -94,8 +93,6 @@ export default function LinkedTools({ competitionId, eventId }: Props) {
           );
         })
       )}
-
-      {!loading && <AttachedMusic contextKey={ctxKey} contextId={ctxId} />}
 
       <Modal visible={!!picker} transparent animationType="slide" onRequestClose={() => setPicker(null)}>
         <Pressable style={styles.backdrop} onPress={() => setPicker(null)}>
