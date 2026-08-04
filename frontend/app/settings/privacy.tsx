@@ -45,8 +45,11 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.p}>
           If you use Team Hub (see below), you may also provide information about other people —
           such as team members, athletes, and their parents/guardians — including names, contact
-          details, uniform/apparel sizes, paperwork completion status, and payment tracking notes.
-          You may enter this manually or upload it by importing a spreadsheet (CSV or Excel) file.
+          details, uniform/apparel sizes, paperwork completion status, payment tracking notes, and
+          answers submitted to custom Team Forms (for example meal choices, apparel sizes, or
+          consent responses). You may enter this manually or upload it by importing a spreadsheet
+          (CSV or Excel) file. When you share a public form or roster link, a parent or guardian can
+          submit that information themselves without creating an account.
         </Text>
         <Text style={styles.p}>
           You may also add photos (for example, an athlete or staff profile photo, or photos
@@ -60,9 +63,10 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.h}>Team Hub (for coaches &amp; team staff)</Text>
         <Text style={styles.p}>
           Team Hub is an optional workspace for coaches, team reps, and staff to organize a team
-          roster, sizes, paperwork, payment tracking, volunteer sign-ups, and shared team music.
-          Access is controlled by the account owner, who grants Team Hub access to specific people
-          and can invite others by email.
+          roster, sizes, paperwork, payment tracking, volunteer sign-ups, custom forms, and shared
+          team music. Access is controlled by the account owner, who grants Team Hub access to
+          specific people and can invite others by email. Coaches may also share public links (for
+          roster info, sizes, or Team Forms) that parents can fill in without an account.
         </Text>
         <Text style={styles.p}>
           If you enter or upload information about other individuals — including photos or audio —

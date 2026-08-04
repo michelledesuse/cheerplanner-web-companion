@@ -172,7 +172,7 @@ const FAQ: Section[] = [
       {
         q: "What is the Team Hub?",
         a:
-          "A private workspace on the Team tab for team personnel. It centers on a team Roster with tracking tools built on top: Payment Tracking, Sizes, Paperwork / Other, a Sign-Up Sheet, and a Custom Roster Export.",
+          "A private workspace on the Team tab for team personnel. It centers on a team Roster with tracking tools built on top: Payment Tracking, Sizes, Paperwork / Other, a Sign-Up Sheet, Custom Team Forms, and a Custom Roster Export.",
       },
       {
         q: "Who can see the Team Hub?",
@@ -208,6 +208,16 @@ const FAQ: Section[] = [
         q: "What can I do with Custom Roster Export?",
         a:
           "Pick exactly which columns to include — contact info, any Sizes column, any Paperwork item, any Payment tracker's status — filter by team, optionally label it with a competition, preview it on screen, and download the whole thing as a CSV you can open in Excel or Google Sheets.",
+      },
+      {
+        q: "What are Team Forms and how do parents fill them out?",
+        a:
+          "Team Forms let you build custom forms — meal orders, T-shirt sizes, media consent, anything — with questions of any type: multiple choice, multi-select, yes/no, number, short text, and paragraph. Open Team → Team Forms to create one and add questions. You can fill in a member's answers yourself, or tap Share link / Remind to send parents a link they open with no login — pre-filled with their prior answers so they can edit until you close it. As responses come in you get a live tally (e.g. '10 Chicken, 5 Pasta') plus a per-member list, and you can Download everything as a CSV for your caterer or vendor.",
+      },
+      {
+        q: "Can I stop people from changing a form after I've placed the order?",
+        a:
+          "Yes. Flip the Lock Form toggle to immediately close a form to new submissions and edits — for everyone, including the parent link. You can also set a Deadline: the form auto-locks at the date and time you choose, and parents see a 'closes in 2 days' countdown on their link. Use the Remind button any time to text only the parents who still haven't responded.",
       },
       {
         q: "Can I share music with my team?",

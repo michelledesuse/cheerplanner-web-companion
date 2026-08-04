@@ -106,33 +106,40 @@ const STEPS: Step[] = [
   },
   {
     num: 15,
+    title: "Collect answers with Team Forms",
+    body:
+      "Open Team → Team Forms to build custom forms — meal orders, T-shirt sizes, media consent — with questions of any type (multiple choice, multi-select, yes/no, number, short text, and paragraph). Fill in a member's answers yourself, or tap Share link / Remind to send parents a no-login link pre-filled with their info. Watch a live tally build (e.g. \"10 Chicken, 5 Pasta\"), see every individual response, and Download it all as a CSV for your caterer or vendor.",
+    tip: "Flip Lock Form (or set a Deadline) to auto-close a form once your order is final — parents even see a countdown on their link.",
+  },
+  {
+    num: 16,
     title: "Share team music",
     body:
       "Open Team → Team Music to upload competition mixes or music (audio files up to 15 MB each). Everyone with Team Hub access can play them in the app, and you can attach a track to a specific team or competition so it's easy to find. Only team personnel can upload, edit, or delete tracks.",
     tip: "Background and locked-screen playback works on the installed app build (TestFlight / App Store), not in Expo Go.",
   },
   {
-    num: 16,
+    num: 17,
     title: "Import from a spreadsheet (optional)",
     body:
       "Already track expenses in Excel or Google Sheets? Open Settings → Import. Download the CSV template, paste your data, and import in one tap. The same flow works for athletes, competitions, payments, and schedule events.",
   },
   {
-    num: 17,
+    num: 18,
     title: "Personalize your theme",
     body:
       "Open Settings → Appearance to recolor the whole app for your household. Pick one of the ready-made presets (Red & White, Royal Blue, Green & Black and more — including dark themes), or scroll to Build your own to create a custom theme. The custom builder gives you a full color picker and up to 4 colors — Accent, Background, Surface, and Text — so you can match your gym's colors exactly. Changes apply instantly across every screen.",
     tip: "Themes are shared household-wide and sync to every member's phone, so pick something everyone likes.",
   },
   {
-    num: 18,
+    num: 19,
     title: "Organize by season",
     body:
       "Open Settings → Seasons to create seasons (e.g. \"2025–26\"). Mark one active and the whole app filters to it — new athletes, competitions, schedule events, expenses, payments and fundraisers you add are automatically tagged to the active season. Use the season bar on the dashboard to switch between seasons or view All. When a new season starts, use Roll over to carry teams and athletes forward.",
     tip: "Items you created before making a season stay visible in every season, so nothing gets hidden.",
   },
   {
-    num: 19,
+    num: 20,
     title: "Go Premium (optional)",
     body:
       "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full Team Hub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",

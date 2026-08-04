@@ -13,6 +13,7 @@ Tally logic mirrors the Sizes tally: per-question value → count breakdown
 (plus number sum/avg and a text answer list).
 """
 import secrets
+from datetime import datetime
 from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -51,6 +52,7 @@ class FormCreate(BaseModel):
     questions: List[Question] = Field(default_factory=list)
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)
+    close_at: Optional[str] = None
 
 
 class FormUpdate(BaseModel):
@@ -61,6 +63,7 @@ class FormUpdate(BaseModel):
     competition_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
     photos: Optional[List[str]] = None
+    close_at: Optional[str] = None
 
 
 class ResponseUpsert(BaseModel):
@@ -69,6 +72,26 @@ class ResponseUpsert(BaseModel):
 
 
 # ---------- helpers ----------
+def _deadline_passed(close_at: Optional[str]) -> bool:
+    if not close_at:
+        return False
+    try:
+        dt = datetime.fromisoformat(str(close_at).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return False
+    now = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+    return now >= dt
+
+
+async def apply_form_autolock(doc: dict) -> dict:
+    """If a form has a close_at deadline that has passed, flip it to locked
+    (persisted once). Returns the (possibly mutated) doc."""
+    if doc and not doc.get("locked") and _deadline_passed(doc.get("close_at")):
+        doc["locked"] = True
+        await db.team_forms.update_one({"id": doc["id"]}, {"$set": {"locked": True}})
+    return doc
+
+
 async def _roster_total(member_ids: List[str], season_id: Optional[str] = None) -> int:
     q = await roster_season_query(member_ids, season_id)
     q["role"] = {"$ne": "parent"}
@@ -155,6 +178,7 @@ async def list_forms(season_id: Optional[str] = None, current_user=Depends(get_c
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
     out = []
     for d in docs:
+        await apply_form_autolock(d)
         rc = await db.team_form_responses.count_documents({"form_id": d["id"]})
         rt = await _roster_total(member_ids, (d.get("season_ids") or [None])[0])
         out.append({**d, "summary": {"response_count": rc, "member_total": rt}})
@@ -176,7 +200,7 @@ async def create_form(payload: FormCreate, current_user=Depends(get_current_user
         "description": (payload.description or "").strip(), "locked": False,
         "questions": questions, "photos": [],
         "competition_ids": payload.competition_ids or [], "event_ids": payload.event_ids or [],
-        "season_ids": [sid] if sid else [],
+        "season_ids": [sid] if sid else [], "close_at": payload.close_at or None,
         "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
     }
     await db.team_forms.insert_one({**doc})
@@ -189,6 +213,7 @@ async def get_form(form_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="You don't have access to this form")
     member_ids = await _household_user_ids(current_user["id"])
     doc = await _get_form(form_id, current_user)
+    await apply_form_autolock(doc)
     return await _detail(doc, member_ids)
 
 
@@ -215,6 +240,8 @@ async def update_form(form_id: str, payload: FormUpdate, current_user=Depends(ge
         updates["event_ids"] = payload.event_ids
     if payload.photos is not None:
         updates["photos"] = payload.photos
+    if payload.close_at is not None:
+        updates["close_at"] = payload.close_at or None
     if not updates:
         raise HTTPException(status_code=400, detail="Nothing to update.")
     updates["updated_at"] = utcnow_iso()
@@ -254,6 +281,7 @@ async def duplicate_form(form_id: str, current_user=Depends(get_current_user)):
 async def upsert_response(form_id: str, payload: ResponseUpsert, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     doc = await _get_form(form_id, current_user)
+    await apply_form_autolock(doc)
     if doc.get("locked"):
         raise HTTPException(status_code=400, detail="This form is locked — no more changes allowed.")
     rm = await db.roster.find_one({"id": payload.member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1})

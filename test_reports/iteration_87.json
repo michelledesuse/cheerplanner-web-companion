@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 87 — Team Forms Deadline/auto-lock + CSV Export + Remind-pending-count + doc updates. Backend: 5/5 pytest tests pass (future deadline stays unlocked & GET returns close_at; past deadline auto-locks on GET; public /api/public/share/{token}/data reports locked=true + close_at; public submit → 400 when auto-locked; PATCH close_at with truthy string works). Frontend: form-detail renders the Deadline & auto-lock card with testIDs form-deadline-date, form-deadline-time, form-deadline-save; saving a date + Save PERSISTS close_at (form-deadline-clear appears afterward). Action row shows three buttons: form-share, form-remind (text 'Remind (3)' — matches 3 unanswered roster members), form-export. Download tap fires exportAoa without any error banner or crash. Docs render clean: FAQ contains both new Team Forms Q&As, Setup step 15 'Collect answers with Team Forms' present and step chips are 1..20 sequentially, Privacy Policy renders and mentions Team Forms + custom form info. CRITICAL BUG FOUND: Clear deadline path is BROKEN. Frontend clearDeadline() calls patch({close_at: null}); backend update_form checks `if payload.close_at is not None` which is False when null → close_at is never cleared, and since no other updates present, backend returns HTTP 400 'Nothing to update.' The UI Clear button stays visible after tap (auto-reload restores prior state). Remind endpoint was NOT clicked (Twilio LIVE, roster has real phone numbers) — only verified button/testID/pending-count text.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "PATCH /api/team/forms/{id} with body {close_at: null}", "issue": "Cannot clear an existing close_at. Model FormUpdate.close_at defaults to None, and the handler uses `if payload.close_at is not None` — so an explicit JSON null is indistinguishable from an omitted field. When only close_at:null is sent, updates dict is empty → 400 'Nothing to update.' Fix: use pydantic model_fields_set (e.g. 'close_at' in payload.model_fields_set) OR accept empty-string '' as clear (frontend sends '' instead of null). Reference: /app/backend/routers/team_forms.py:243-246.", "priority": "HIGH"}
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "form-detail Clear deadline (form-deadline-clear)", "issue": "Tapping Clear posts {close_at: null} → backend returns 400 → catch triggers load() which restores prior close_at, so the Clear button stays visible and the deadline is NOT removed. Simplest client-side fix: send empty string instead of null (patch({ close_at: '' })). Reference: /app/frontend/app/team/form-detail.tsx:159 and :155.", "testID": "form-deadline-clear", "priority": "HIGH"}
+    ],
+    "integration_issues": [
+      {"flow": "Clear form deadline end-to-end", "issue": "Frontend sends null; backend can't distinguish null from unset field; PATCH 400; UI silently keeps old value.", "affected_testIDs": ["form-deadline-clear", "form-deadline-save"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "props.pointerEvents (shared)", "issue": "Console warning 'props.pointerEvents is deprecated. Use style.pointerEvents' still emitted on every screen. Not new to this iteration; carried over from iter 86. Non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter87_deadline_export.py",
+    "/app/test_reports/pytest/pytest_iter87.xml"
+  ],
+  "action_items": [
+    "HIGH — Fix Clear deadline. Preferred: frontend swap `patch({ close_at: null })` → `patch({ close_at: '' })` in /app/frontend/app/team/form-detail.tsx clearDeadline (and inside saveDeadline when !closeDate). Backend already handles empty string via `payload.close_at or None`. Alternate: backend use pydantic `model_fields_set` to detect explicit null.",
+    "(Optional) Migrate props.pointerEvents → style.pointerEvents across shared components (pre-existing, non-blocking).",
+    "(Optional) The `_deadline_passed` helper in team_forms.py returns naive `datetime.now()` when the stored ISO has no tz. This can be slightly off for coach-set close_at strings like '2099-12-31T23:59:00' (no tz). Consider always normalising to UTC to avoid ambiguity."
+  ],
+  "critical_code_review_comments": [
+    "team_forms.py:243-246 — `if payload.close_at is not None` prevents clearing close_at via null; combined with 'Nothing to update' 400 this makes Clear impossible. Bug.",
+    "team_forms.py:75-92 — apply_form_autolock persists locked=true once passed. Correct and idempotent. tz handling could be tighter (see action items).",
+    "share.py:225-226 — public data path re-imports apply_form_autolock lazily to avoid a circular import. OK.",
+    "share.py:383-386 — public submit correctly re-runs autolock then rejects with 400. Verified by pytest.",
+    "form-detail.tsx:154-159 — saveDeadline builds 'YYYY-MM-DDTHH:MM:00'; if user clears the date via the DateField it also sends null (same bug path).",
+    "form-detail.tsx:161-173 — exportResponses uses exportAoa util. On web this triggers a file download; on native it would need expo-sharing. No crash observed on web.",
+    "form-detail.tsx:145-152 — Remind flow correctly short-circuits when pendingCount==0 with 'All caught up' Alert; otherwise POSTs to /remind. Not exercised end-to-end here (Twilio LIVE)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter87_deadline_export.py (new)"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "88% — Deadline SAVE, Export, Share/Remind buttons, docs all work; Deadline CLEAR is broken"},
+  "seed_data_creation": "Test forms created and cleaned up per test. No lingering TEST_ forms in DB after run. 'Banquet Meal' untouched.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Deadline auto-lock (past→locked, future→unlocked, public data/submit gating) is fully working end-to-end. CSV Export works. Remind button shows correct pending count 'Remind (3)'. Remind endpoint NOT clicked (Twilio LIVE) — iter 86 already verified it. Docs (FAQ, Setup 1..20, Privacy) all render and include the required new copy. THE ONE BUG: Clear deadline sends null → backend 400 → UI silently keeps old date. One-line fix in form-detail.tsx (send '' instead of null) OR small backend tweak (use model_fields_set).",
+  "rca_of_issue": "ROOT CAUSE — PATCH /api/team/forms/{id}: `FormUpdate.close_at: Optional[str] = None`. Handler filters updates with `if payload.close_at is not None`. An explicitly-null JSON body is identical to an omitted field, so null-to-clear is dropped. When null is the ONLY key in the payload, updates dict ends up empty → 400 'Nothing to update.' REPRO: PATCH /api/team/forms/{form_id} with body `{\"close_at\": null}` after a close_at was previously set → returns 400 and close_at remains. MITIGATION (1-liner, frontend): change clearDeadline & the null branch of saveDeadline to send `close_at: ''`. Backend already normalises via `payload.close_at or None`. MITIGATION (backend alt): use `if 'close_at' in payload.model_fields_set` for that field."
+}

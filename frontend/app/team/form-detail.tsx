@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl,
   TextInput, Alert, Modal, Switch, KeyboardAvoidingView, Platform, Share,
@@ -11,13 +11,16 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import ManageAccessButton from "@/src/components/ManageAccessButton";
+import DateField from "@/src/components/DateField";
+import TimeField from "@/src/components/TimeField";
+import { exportAoa } from "@/src/utils/exportFile";
 
 type QType = "text" | "paragraph" | "choice" | "multi" | "yesno" | "number";
 type Question = { id?: string; label: string; type: QType; options: string[]; required: boolean };
 type Member = { id: string; name: string; answered: boolean; answers: Record<string, any>; submitted_at?: string };
 type Tally = { question_id: string; label: string; type: QType; counts?: { value: string; count: number }[]; answers?: string[]; sum?: number; avg?: number; answered: number };
 type Detail = {
-  id: string; name: string; description?: string; locked?: boolean;
+  id: string; name: string; description?: string; locked?: boolean; close_at?: string | null;
   questions: Question[]; tally: Tally[]; members: Member[];
   summary: { response_count: number; member_total: number };
 };
@@ -35,6 +38,15 @@ export default function FormDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [tab, setTab] = useState<"tally" | "responses">("tally");
+
+  // deadline
+  const [closeDate, setCloseDate] = useState("");
+  const [closeTime, setCloseTime] = useState("");
+  useEffect(() => {
+    const ca = data?.close_at;
+    if (ca) { const [d, t] = String(ca).split("T"); setCloseDate(d || ""); setCloseTime((t || "").slice(0, 5)); }
+    else { setCloseDate(""); setCloseTime(""); }
+  }, [data?.close_at]);
 
   // question editor modal
   const [qOpen, setQOpen] = useState(false);
@@ -131,10 +143,33 @@ export default function FormDetailScreen() {
     } catch (e: any) { Alert.alert("Couldn't create link", e?.response?.data?.detail || ""); }
   };
   const remind = async () => {
+    const pending = data?.members.filter((m) => !m.answered).length ?? 0;
+    if (pending === 0) { Alert.alert("All caught up", "Everyone has already responded."); return; }
     try {
       const r = await api.post<{ sent: number; no_phone: string[] }>(`/team/forms/${id}/remind`, { base_url: BASE });
-      Alert.alert("Reminders sent", `Texted ${r.data.sent} parent${r.data.sent === 1 ? "" : "s"} who haven't responded.${(r.data.no_phone || []).length ? `\n\nNo phone on file: ${r.data.no_phone.join(", ")}` : ""}`);
+      Alert.alert("Reminders sent", `Texted ${r.data.sent} parent${r.data.sent === 1 ? "" : "s"} who haven't responded yet.${(r.data.no_phone || []).length ? `\n\nNo phone on file: ${r.data.no_phone.join(", ")}` : ""}`);
     } catch (e: any) { Alert.alert("Couldn't send", e?.response?.data?.detail || ""); }
+  };
+
+  const saveDeadline = () => {
+    if (!closeDate) { patch({ close_at: null }); return; }
+    const close_at = `${closeDate}T${closeTime || "23:59"}:00`;
+    patch({ close_at });
+  };
+  const clearDeadline = () => { setCloseDate(""); setCloseTime(""); patch({ close_at: null }); };
+
+  const exportResponses = async () => {
+    if (!data) return;
+    const fmt = (v: any) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v));
+    const header = ["Member", ...data.questions.map((q) => q.label), "Responded"];
+    const rows = data.members.map((m) => [
+      m.name,
+      ...data.questions.map((q) => fmt(m.answers?.[q.id as string])),
+      m.answered ? "Yes" : "No",
+    ]);
+    const safe = (data.name || "form").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+    try { await exportAoa(`${safe}_responses`, [header, ...rows]); }
+    catch (e: any) { Alert.alert("Couldn't export", e?.message || "Please try again."); }
   };
   const del = () => {
     const doIt = async () => { await api.delete(`/team/forms/${id}`); router.back(); };
@@ -156,6 +191,8 @@ export default function FormDetailScreen() {
   if (loading || !data) {
     return <SafeAreaView style={styles.safe} edges={["top"]}><View style={styles.center}><ActivityIndicator color={colors.accent} /></View></SafeAreaView>;
   }
+
+  const pendingCount = data.members.filter((m) => !m.answered).length;
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -188,7 +225,22 @@ export default function FormDetailScreen() {
         </View>
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.actionBtn} onPress={shareLink} testID="form-share"><Ionicons name="share-outline" size={16} color={colors.accent} /><Text style={styles.actionText}>Share link</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={remind} testID="form-remind"><Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.accent} /><Text style={styles.actionText}>Text parents</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={remind} testID="form-remind"><Ionicons name="chatbubble-ellipses-outline" size={16} color={colors.accent} /><Text style={styles.actionText}>Remind{pendingCount ? ` (${pendingCount})` : ""}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.actionBtn} onPress={exportResponses} testID="form-export"><Ionicons name="download-outline" size={16} color={colors.accent} /><Text style={styles.actionText}>Download</Text></TouchableOpacity>
+        </View>
+
+        {/* Deadline & auto-lock */}
+        <View style={styles.deadlineCard}>
+          <View style={styles.sectionHeadRow}>
+            <Text style={styles.deadlineTitle}>⏰ Deadline &amp; auto-lock</Text>
+            {data.close_at ? <TouchableOpacity onPress={clearDeadline} testID="form-deadline-clear"><Text style={styles.clearLink}>Clear</Text></TouchableOpacity> : null}
+          </View>
+          <Text style={styles.deadlineHint}>{data.close_at ? "The form locks automatically at this time. Parents see a countdown." : "Optional — set a date/time to automatically stop submissions."}</Text>
+          <View style={styles.deadlineRow}>
+            <View style={{ flex: 1.3 }}><DateField value={closeDate} onChange={setCloseDate} testID="form-deadline-date" /></View>
+            <View style={{ flex: 1 }}><TimeField value={closeTime} onChange={setCloseTime} testID="form-deadline-time" /></View>
+          </View>
+          <TouchableOpacity style={styles.deadlineSave} onPress={saveDeadline} testID="form-deadline-save"><Text style={styles.deadlineSaveText}>{closeDate ? "Save deadline" : "No deadline"}</Text></TouchableOpacity>
         </View>
 
         {/* Questions */}
@@ -378,6 +430,14 @@ const makeStyles = (c: ThemePalette) => ({
   actionRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 11, borderRadius: radius.md, borderWidth: 1, borderColor: c.accent, backgroundColor: c.bg },
   actionText: { ...typography.caption, color: c.accent, fontWeight: "800" },
+
+  deadlineCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, padding: spacing.md, marginTop: spacing.sm },
+  deadlineTitle: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
+  deadlineHint: { ...typography.caption, color: c.textSecondary, marginTop: 2, marginBottom: spacing.sm, lineHeight: 16 },
+  deadlineRow: { flexDirection: "row", gap: spacing.sm },
+  deadlineSave: { marginTop: spacing.sm, backgroundColor: c.bg, borderWidth: 1, borderColor: c.accent, borderRadius: radius.md, paddingVertical: 10, alignItems: "center" },
+  deadlineSaveText: { ...typography.caption, color: c.accent, fontWeight: "800" },
+  clearLink: { ...typography.caption, color: c.danger, fontWeight: "800", marginTop: 6 },
 
   sectionHeadRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.lg, marginBottom: spacing.sm },
   sectionHead: { ...typography.micro, color: c.textTertiary },

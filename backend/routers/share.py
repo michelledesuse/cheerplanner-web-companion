@@ -222,6 +222,8 @@ async def public_data(token: str):
         form = await db.team_forms.find_one({"id": link["ref_id"], "user_id": {"$in": member_ids}}, {"_id": 0})
         if not form:
             raise HTTPException(status_code=404, detail="Form not found")
+        from routers.team_forms import apply_form_autolock
+        await apply_form_autolock(form)
         members = []
         async for m in db.roster.find({"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}}, {"_id": 0, "id": 1, "name": 1}):
             members.append({"id": m["id"], "name": m.get("name")})
@@ -233,7 +235,7 @@ async def public_data(token: str):
                 answers_by_member[r["member_id"]] = r.get("answers") or {}
         return {
             "kind": "form", "title": form.get("name"), "description": form.get("description") or "",
-            "locked": bool(form.get("locked")),
+            "locked": bool(form.get("locked")), "close_at": form.get("close_at"),
             "questions": sorted(form.get("questions") or [], key=lambda q: q.get("order", 0)),
             "members": members, "answers_by_member": answers_by_member,
         }
@@ -378,6 +380,8 @@ async def public_submit(token: str, payload: dict = Body(...)):
         form = await db.team_forms.find_one({"id": link["ref_id"], "user_id": {"$in": member_ids}}, {"_id": 0})
         if not form:
             raise HTTPException(status_code=404, detail="Form not found")
+        from routers.team_forms import apply_form_autolock
+        await apply_form_autolock(form)
         if form.get("locked"):
             raise HTTPException(status_code=400, detail="This form is locked — submissions are closed.")
         rm = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1})
@@ -614,6 +618,15 @@ function renderForm(d){
   let h="<h1>"+esc(d.title)+"</h1>";
   if(d.description) h+="<p class='meta'>"+esc(d.description)+"</p>";
   h+="<p class='sub'>"+(d.locked?"This form is locked — submissions are closed.":"Fill out & submit")+"</p>";
+  if(!d.locked && d.close_at){
+    var cd=new Date(d.close_at);
+    if(!isNaN(cd.getTime())){
+      var ms=cd.getTime()-Date.now();
+      var note = ms<=0 ? "Closed" : ("Closes "+cd.toLocaleDateString(undefined,{month:'short',day:'numeric'})+" · "+
+        (ms<86400000 ? "closes today" : ("closes in "+Math.ceil(ms/86400000)+" day"+(Math.ceil(ms/86400000)===1?"":"s"))));
+      h+="<p class='meta' style='color:#B45309;font-weight:600'>⏰ "+note+"</p>";
+    }
+  }
   h+="<label>Your name</label><select id='member' onchange='onMember()'><option value=''>Choose your name…</option>";
   (d.members||[]).forEach(m=>{h+="<option value='"+m.id+"'>"+esc(m.name)+"</option>";});
   h+="</select><div id='qs'></div>";
