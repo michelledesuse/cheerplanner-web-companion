@@ -409,3 +409,8 @@ Get exact current paths from user before building W2.
 - App version bumped to 2.0.0 (iOS build 114, Android versionCode 2) in app.json.
 - Team Forms deadline "Clear" fixed (send "" not null).
 - Marketing/demo account `demo@cheerplanner.app` / `CheerDemo2026!` (Free plan, Blue & White "cheerplanner" theme) seeded via scripts/seed_marketing_demo.py for clean App Store screenshots.
+
+## Session update 20 (Twilio webhook path correction + Restore Purchases)
+- CLARIFIED (no code change): The Twilio inbound/status webhook paths are `/api/twilio/inbound` and `/api/twilio/status` (router prefix "/api" + "/twilio/..."), NOT `/api/webhooks/twilio/...` as the earlier handoff summary stated. Verified 200/204 on BOTH preview and production (https://spirit-finance-2.emergent.host). User's replies weren't arriving because Twilio was pointed at the wrong `/webhooks/` path. Production domain = https://spirit-finance-2.emergent.host.
+- Restore Purchases now always shows on the Membership/paywall screen on iOS/Android even during the free launch period (app/premium.tsx), gated by purchasesSupported (native only) — for App Store compliance.
+- Reminder to user: they exposed their production Mongo Atlas string in chat; advised to email support@emergent.sh to rotate it.
