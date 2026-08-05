@@ -885,6 +885,16 @@ class ResetPasswordPayload(BaseModel):
 # Team Hub — Roster (Phase C)
 # ============================================================
 ROSTER_ROLES = ("athlete", "parent", "coach", "team_rep", "staff")
+CARETAKER_RELATIONSHIPS = ("Mother", "Father", "Guardian", "Grandparent", "Other")
+
+
+class Caretaker(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    relationship: Optional[str] = None  # Mother/Father/Guardian/Grandparent/Other
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    include_in_texts: bool = True
 
 
 class RosterMember(BaseModel):
@@ -900,6 +910,11 @@ class RosterMember(BaseModel):
     parent_last_name: Optional[str] = None
     parent_phone: Optional[str] = None
     parent_email: Optional[str] = None
+    parent_relationship: Optional[str] = None
+    parent_include_in_texts: bool = True
+    caretakers: List[Caretaker] = Field(default_factory=list)
+    dob: Optional[str] = None  # Date of birth (MM/DD/YYYY)
+    adult_athlete: Optional[bool] = None  # if true, athlete's own phone is included in broadcasts
     team_ids: List[str] = Field(default_factory=list)  # a person can be on multiple teams
     notes: Optional[str] = None
     # Public-link submissions: flag so coaches see who just filled in their info.
@@ -929,6 +944,11 @@ class RosterMemberCreate(BaseModel):
     parent_last_name: Optional[str] = None
     parent_phone: Optional[str] = None
     parent_email: Optional[str] = None
+    parent_relationship: Optional[str] = None
+    parent_include_in_texts: Optional[bool] = None
+    caretakers: Optional[List[Caretaker]] = None
+    dob: Optional[str] = None
+    adult_athlete: Optional[bool] = None
     team_ids: Optional[List[str]] = None
     notes: Optional[str] = None
     preferred_name: Optional[str] = None
@@ -951,6 +971,11 @@ class RosterMemberUpdate(BaseModel):
     parent_last_name: Optional[str] = None
     parent_phone: Optional[str] = None
     parent_email: Optional[str] = None
+    parent_relationship: Optional[str] = None
+    parent_include_in_texts: Optional[bool] = None
+    caretakers: Optional[List[Caretaker]] = None
+    dob: Optional[str] = None
+    adult_athlete: Optional[bool] = None
     team_ids: Optional[List[str]] = None
     notes: Optional[str] = None
     preferred_name: Optional[str] = None

@@ -13,7 +13,7 @@ import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
 import { exportAoa, type ExportFormat } from "@/src/utils/exportFile";
 
-type Member = GridMember & { role: string; phone?: string | null; email?: string | null; parent_first_name?: string | null; parent_last_name?: string | null; parent_phone?: string | null; parent_email?: string | null };
+type Member = GridMember & { role: string; phone?: string | null; email?: string | null; parent_first_name?: string | null; parent_last_name?: string | null; parent_phone?: string | null; parent_email?: string | null; parent_relationship?: string | null; dob?: string | null; adult_athlete?: boolean | null; caretakers?: { first_name?: string | null; last_name?: string | null; relationship?: string | null; phone?: string | null; email?: string | null }[] | null };
 type Team = { id: string; name: string };
 type SizeSheet = { columns: { id: string; label: string }[]; values: Record<string, Record<string, string>> };
 type PwSheet = { id: string; name: string; items: { id: string; label: string }[]; values: Record<string, Record<string, { done?: boolean; note?: string | null }>> };
@@ -66,9 +66,11 @@ export default function ExportScreen() {
     const cols: ExportCol[] = [];
     cols.push({ key: "role", label: "Role", group: "Contact", get: (m) => roleLabel(m.role) });
     cols.push({ key: "teams", label: "Team(s)", group: "Contact", get: (m) => (m.team_ids || []).map((id) => teams.find((t) => t.id === id)?.name || "").filter(Boolean).join(", ") });
+    cols.push({ key: "dob", label: "DOB", group: "Contact", get: (m) => isPersonnel(m.role) ? "" : (m.dob || "") });
     cols.push({ key: "phone", label: "Phone", group: "Contact", get: (m) => (isPersonnel(m.role) ? (m.phone || m.parent_phone) : (m.parent_phone || m.phone)) || "" });
     cols.push({ key: "email", label: "Email", group: "Contact", get: (m) => (isPersonnel(m.role) ? (m.email || m.parent_email) : (m.parent_email || m.email)) || "" });
     cols.push({ key: "parent", label: "Parent", group: "Contact", get: (m) => isPersonnel(m.role) ? "" : `${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim() });
+    cols.push({ key: "caretakers", label: "Other Caretakers", group: "Contact", get: (m) => isPersonnel(m.role) ? "" : (m.caretakers || []).map((c) => `${[c.first_name, c.last_name].filter(Boolean).join(" ")}${c.relationship ? ` (${c.relationship})` : ""}${c.phone ? ` ${c.phone}` : ""}`.trim()).filter(Boolean).join("; ") });
 
     (sizeSheet?.columns || []).forEach((c) => {
       cols.push({

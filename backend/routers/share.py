@@ -201,6 +201,11 @@ async def public_data(token: str):
                 "parent_last_name": m.get("parent_last_name") or "",
                 "parent_phone": m.get("parent_phone") or "",
                 "parent_email": m.get("parent_email") or "",
+                "parent_relationship": m.get("parent_relationship") or "",
+                "parent_include_in_texts": m.get("parent_include_in_texts", True),
+                "caretakers": m.get("caretakers") or [],
+                "dob": m.get("dob") or "",
+                "adult_athlete": bool(m.get("adult_athlete")),
                 "food_allergies": m.get("food_allergies") or "",
                 "other_allergies": m.get("other_allergies") or "",
                 "medical_concerns": m.get("medical_concerns") or "",
@@ -293,6 +298,8 @@ async def public_submit(token: str, payload: dict = Body(...)):
             "parent_last_name": (payload.get("parent_last_name") or "").strip() or None,
             "parent_phone": (payload.get("parent_phone") or "").strip() or None,
             "parent_email": (payload.get("parent_email") or "").strip() or None,
+            "parent_relationship": (payload.get("parent_relationship") or "").strip() or None,
+            "dob": (payload.get("dob") or "").strip() or None,
             "food_allergies": (payload.get("food_allergies") or "").strip() or None,
             "other_allergies": (payload.get("other_allergies") or "").strip() or None,
             "medical_concerns": (payload.get("medical_concerns") or "").strip() or None,
@@ -312,6 +319,29 @@ async def public_submit(token: str, payload: dict = Body(...)):
         host = payload.get("host_bonding_opt_in")
         if isinstance(host, bool):
             extras["host_bonding_opt_in"] = host
+        pit = payload.get("parent_include_in_texts")
+        if isinstance(pit, bool):
+            extras["parent_include_in_texts"] = pit
+        aa = payload.get("adult_athlete")
+        if isinstance(aa, bool):
+            extras["adult_athlete"] = aa
+        cts = payload.get("caretakers")
+        if isinstance(cts, list):
+            clean_cts = []
+            for ct in cts:
+                if not isinstance(ct, dict):
+                    continue
+                if not ((ct.get("first_name") or "").strip() or (ct.get("phone") or "").strip()):
+                    continue
+                clean_cts.append({
+                    "first_name": (ct.get("first_name") or "").strip() or None,
+                    "last_name": (ct.get("last_name") or "").strip() or None,
+                    "relationship": (ct.get("relationship") or "").strip() or None,
+                    "phone": (ct.get("phone") or "").strip() or None,
+                    "email": (ct.get("email") or "").strip() or None,
+                    "include_in_texts": bool(ct.get("include_in_texts", True)),
+                })
+            extras["caretakers"] = clean_cts
         # Flag as a fresh parent submission for coaches to review.
         from core.models import utcnow_iso as _now
         extras["pending_review"] = True
@@ -538,8 +568,17 @@ function renderRoster(d){
     (d.teams||[]).forEach(t=>{h+="<div style='display:flex;align-items:center;gap:8px;margin:6px 0'><input type='checkbox' id='tm_"+t.id+"'"+(mt.indexOf(t.id)>=0?" checked":"")+" style='width:auto'/><span>"+esc(t.name)+"</span></div>";});
   }
   h+="<label>Phone</label><input id='phone' value=\\""+esc(val('phone'))+"\\"/><label>Email</label><input id='email' value=\\""+esc(val('email'))+"\\"/>";
-  h+="<label>Parent/Guardian first name</label><input id='pfirst' value=\\""+esc(val('parent_first_name'))+"\\"/><label>Parent/Guardian last name</label><input id='plast' value=\\""+esc(val('parent_last_name'))+"\\"/>";
-  h+="<label>Parent phone</label><input id='pphone' value=\\""+esc(val('parent_phone'))+"\\"/><label>Parent email</label><input id='pemail' value=\\""+esc(val('parent_email'))+"\\"/>";
+  h+="<label>Date of birth</label><input id='dob' placeholder='MM/DD/YYYY' value=\\""+esc(val('dob'))+"\\"/>";
+  h+="<label style='display:flex;align-items:center;gap:8px;margin-top:12px'><input type='checkbox' id='adult' style='width:auto'"+(mem&&mem.adult_athlete?" checked":"")+"/><span>Adult athlete — include the athlete's own phone in team texts</span></label>";
+  h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Caretaker 1 (parent / guardian)</div>";
+  h+="<div class='row'><div><label>First name</label><input id='pfirst' value=\\""+esc(val('parent_first_name'))+"\\"/></div><div><label>Last name</label><input id='plast' value=\\""+esc(val('parent_last_name'))+"\\"/></div></div>";
+  const REL=['','Mother','Father','Guardian','Grandparent','Other'];
+  h+="<label>Relationship</label><select id='prel'>"+REL.map(r=>"<option value='"+r+"'"+((val('parent_relationship')||'')===r?" selected":"")+">"+(r||'Relationship…')+"</option>").join("")+"</select>";
+  h+="<label>Phone</label><input id='pphone' value=\\""+esc(val('parent_phone'))+"\\"/><label>Email</label><input id='pemail' value=\\""+esc(val('parent_email'))+"\\"/>";
+  const pit=mem?mem.parent_include_in_texts!==false:true;
+  h+="<label style='display:flex;align-items:center;gap:8px;margin-top:8px'><input type='checkbox' id='pit' style='width:auto'"+(pit?" checked":"")+"/><span>Include in team texts</span></label>";
+  h+="<div id='cts'></div>";
+  h+="<button type='button' id='addCt' onclick='addCt()' style='background:#EFF6FF;color:#2563EB;margin-top:10px'>+ Add another caretaker</button>";
   h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Health & extra info</div>";
   h+="<label>Food allergies</label><input id='food' value=\\""+esc(val('food_allergies'))+"\\"/>";
   h+="<label>Other allergies</label><input id='oallergy' value=\\""+esc(val('other_allergies'))+"\\"/>";
@@ -560,7 +599,38 @@ function renderRoster(d){
   h+="<button onclick='saveRoster(this)'>Submit</button><div class='ok' id='ok'></div>";
   document.getElementById("app").innerHTML="<div class='card'>"+h+"</div>";
   document.getElementById("app").className="";
+  window._cts=(mem&&Array.isArray(mem.caretakers))?mem.caretakers.slice(0,3):[];
+  renderCts();
 }
+function ctBlock(idx,c){
+  c=c||{};
+  const rel=['','Mother','Father','Guardian','Grandparent','Other'];
+  const relOpts=rel.map(r=>"<option value='"+r+"'"+((c.relationship||'')===r?" selected":"")+">"+(r||'Relationship…')+"</option>").join("");
+  return "<div class='ctBlock' style='border:1px solid #E2E8F0;border-radius:10px;padding:10px;margin-top:10px'>"
+    +"<div style='display:flex;justify-content:space-between;align-items:center'><b>Caretaker "+(idx+2)+"</b>"
+    +"<button type='button' onclick='removeCt(this)' style='background:#FEF2F2;color:#DC2626;padding:4px 10px;width:auto'>Remove</button></div>"
+    +"<div class='row'><div><label>First name</label><input class='ct_first' value=\\""+esc(c.first_name||'')+"\\"/></div><div><label>Last name</label><input class='ct_last' value=\\""+esc(c.last_name||'')+"\\"/></div></div>"
+    +"<label>Relationship</label><select class='ct_rel'>"+relOpts+"</select>"
+    +"<label>Phone</label><input class='ct_phone' value=\\""+esc(c.phone||'')+"\\"/>"
+    +"<label>Email</label><input class='ct_email' value=\\""+esc(c.email||'')+"\\"/>"
+    +"<label style='display:flex;align-items:center;gap:8px;margin-top:8px'><input type='checkbox' class='ct_texts' style='width:auto'"+(c.include_in_texts!==false?" checked":"")+"/><span>Include in team texts</span></label>"
+    +"</div>";
+}
+function collectCts(){
+  const out=[];
+  document.querySelectorAll('#cts .ctBlock').forEach(b=>{
+    const g=cls=>{const el=b.querySelector('.'+cls);return el?el.value:'';};
+    out.push({first_name:g('ct_first'),last_name:g('ct_last'),relationship:g('ct_rel'),phone:g('ct_phone'),email:g('ct_email'),include_in_texts:b.querySelector('.ct_texts').checked});
+  });
+  return out;
+}
+function renderCts(){
+  const box=document.getElementById('cts'); if(!box)return; box.innerHTML="";
+  (window._cts||[]).forEach((c,i)=>{box.insertAdjacentHTML('beforeend',ctBlock(i,c));});
+  const btn=document.getElementById('addCt'); if(btn) btn.style.display=((window._cts||[]).length>=3)?'none':'block';
+}
+function addCt(){ window._cts=collectCts(); if(window._cts.length>=3)return; window._cts.push({include_in_texts:true}); renderCts(); }
+function removeCt(btn){ const blocks=[...document.querySelectorAll('#cts .ctBlock')]; const i=blocks.indexOf(btn.closest('.ctBlock')); window._cts=collectCts(); if(i>=0){window._cts.splice(i,1);} renderCts(); }
 async function saveRoster(btn){
   const g=id=>document.getElementById(id).value;
   if(!g('first').trim()||!g('last').trim()){alert("Please enter a first and last name.");return;}
@@ -568,8 +638,11 @@ async function saveRoster(btn){
   const teamIds=(window._teams||[]).map(t=>t.id).filter(id=>{const el=document.getElementById("tm_"+id);return el&&el.checked;});
   const hv=g('host'); let host=null; if(hv==='yes')host=true; else if(hv==='no')host=false;
   const ok=await submit({first_name:g('first'),last_name:g('last'),preferred_name:g('pref'),role:g('role'),
-    team_ids:teamIds,phone:g('phone'),email:g('email'),
+    team_ids:teamIds,phone:g('phone'),email:g('email'),dob:g('dob'),
+    adult_athlete:(document.getElementById('adult')||{}).checked||false,
     parent_first_name:g('pfirst'),parent_last_name:g('plast'),parent_phone:g('pphone'),parent_email:g('pemail'),
+    parent_relationship:g('prel'),parent_include_in_texts:(document.getElementById('pit')||{}).checked!==false,
+    caretakers:collectCts(),
     food_allergies:g('food'),other_allergies:g('oallergy'),medical_concerns:g('medical'),host_bonding_opt_in:host,
     photo:window._photo||null,sizes:sizes},btn);
   if(ok){document.getElementById("ok").textContent="Thanks! Your info was submitted.";btn.textContent="Submitted";}

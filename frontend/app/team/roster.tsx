@@ -21,6 +21,9 @@ type RosterMember = {
   phone?: string | null; email?: string | null;
   parent_first_name?: string | null; parent_last_name?: string | null;
   parent_phone?: string | null; parent_email?: string | null;
+  parent_relationship?: string | null;
+  caretakers?: { first_name?: string | null; last_name?: string | null; relationship?: string | null; phone?: string | null; email?: string | null; include_in_texts?: boolean }[] | null;
+  dob?: string | null; adult_athlete?: boolean | null;
   team_ids?: string[] | null; notes?: string | null; source?: string; linked_id?: string | null;
   pending_review?: boolean; photo?: string | null;
 };
@@ -143,14 +146,16 @@ export default function RosterScreen() {
     setActionsOpen(false);
     const seen = new Set<string>();
     const unique = members.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-    const header = ["Name", "Role", "Team(s)", "Phone", "Email", "Parent First", "Parent Last", "Parent Phone", "Parent Email", "Notes"];
+    const header = ["Name", "Role", "Team(s)", "DOB", "Phone", "Email", "Parent First", "Parent Last", "Parent Relationship", "Parent Phone", "Parent Email", "Other Caretakers", "Notes"];
     const roleLabel: Record<string, string> = { athlete: "Athlete", coach: "Coach", team_rep: "Team Rep", staff: "Staff", parent: "Parent" };
     const rows = unique.map((m) => [
       m.name,
       roleLabel[m.role] || m.role,
       (m.team_ids || []).map((tid) => teamName(tid)).filter(Boolean).join(", "),
+      m.dob || "",
       m.phone || "", m.email || "",
-      m.parent_first_name || "", m.parent_last_name || "", m.parent_phone || "", m.parent_email || "",
+      m.parent_first_name || "", m.parent_last_name || "", m.parent_relationship || "", m.parent_phone || "", m.parent_email || "",
+      (m.caretakers || []).map((c) => `${[c.first_name, c.last_name].filter(Boolean).join(" ")}${c.relationship ? ` (${c.relationship})` : ""}${c.phone ? ` ${c.phone}` : ""}`.trim()).filter(Boolean).join("; "),
       m.notes || "",
     ]);
     try {
@@ -373,7 +378,10 @@ export default function RosterScreen() {
                       const parentName = `${m.parent_first_name || ""} ${m.parent_last_name || ""}`.trim();
                       return (
                         <>
-                          {isAthlete && !!parentName && <Text style={styles.parentLine}>Parent: {parentName}</Text>}
+                          {isAthlete && !!parentName && <Text style={styles.parentLine}>Parent: {parentName}{m.parent_relationship ? ` (${m.parent_relationship})` : ""}</Text>}
+                          {isAthlete && !!m.dob && <Text style={styles.parentLine}>DOB: {m.dob}</Text>}
+                          {isAthlete && (m.caretakers?.length || 0) > 0 && <Text style={styles.parentLine}>+{m.caretakers!.length} more caretaker{m.caretakers!.length === 1 ? "" : "s"}</Text>}
+                          {isAthlete && m.adult_athlete && <Text style={styles.parentLine}>Adult athlete</Text>}
                           <View style={styles.contactRow}>
                             {!!ph && (
                               <TouchableOpacity onPress={() => openMemberCall(ph)} style={styles.contactChip} testID={`roster-call-${m.id}`} disabled={selectMode}>

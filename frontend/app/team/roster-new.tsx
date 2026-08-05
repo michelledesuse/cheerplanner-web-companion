@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Linking } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Image, Linking, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -16,6 +16,11 @@ const ROLES: { value: string; label: string; icon: keyof typeof Ionicons.glyphMa
   { value: "staff", label: "Staff", icon: "briefcase-outline" },
 ];
 
+const RELATIONSHIPS = ["Mother", "Father", "Guardian", "Grandparent", "Other"];
+
+type Caretaker = { first_name: string; last_name: string; relationship: string; phone: string; email: string; include_in_texts: boolean };
+const emptyCaretaker = (): Caretaker => ({ first_name: "", last_name: "", relationship: "", phone: "", email: "", include_in_texts: true });
+
 export default function RosterMemberForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -31,6 +36,11 @@ export default function RosterMemberForm() {
   const [parentLast, setParentLast] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [parentRelationship, setParentRelationship] = useState("");
+  const [parentIncludeTexts, setParentIncludeTexts] = useState(true);
+  const [caretakers, setCaretakers] = useState<Caretaker[]>([]);
+  const [dob, setDob] = useState("");
+  const [adultAthlete, setAdultAthlete] = useState(false);
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
@@ -82,6 +92,11 @@ export default function RosterMemberForm() {
           setParentLast(m.parent_last_name || "");
           setParentPhone(m.parent_phone || "");
           setParentEmail(m.parent_email || "");
+          setParentRelationship(m.parent_relationship || "");
+          setParentIncludeTexts(m.parent_include_in_texts !== false);
+          setCaretakers(Array.isArray(m.caretakers) ? m.caretakers.map((c: any) => ({ ...emptyCaretaker(), ...c })) : []);
+          setDob(m.dob || "");
+          setAdultAthlete(!!m.adult_athlete);
           setPhone(m.phone || "");
           setEmail(m.email || "");
           setNotes(m.notes || "");
@@ -102,6 +117,16 @@ export default function RosterMemberForm() {
     setSaving(true);
     try {
       const isAthlete = role === "athlete";
+      const cleanCaretakers = caretakers
+        .filter((c) => c.first_name.trim() || c.phone.trim())
+        .map((c) => ({
+          first_name: c.first_name.trim() || null,
+          last_name: c.last_name.trim() || null,
+          relationship: c.relationship || null,
+          phone: c.phone.trim() || null,
+          email: c.email.trim() || null,
+          include_in_texts: c.include_in_texts,
+        }));
       const payload = {
         first_name: firstName.trim() || null,
         last_name: lastName.trim() || null,
@@ -111,7 +136,12 @@ export default function RosterMemberForm() {
         parent_last_name: isAthlete ? (parentLast.trim() || null) : null,
         parent_phone: isAthlete ? (parentPhone.trim() || null) : null,
         parent_email: isAthlete ? (parentEmail.trim() || null) : null,
-        phone: isAthlete ? null : (phone.trim() || null),
+        parent_relationship: isAthlete ? (parentRelationship || null) : null,
+        parent_include_in_texts: isAthlete ? parentIncludeTexts : true,
+        caretakers: isAthlete ? cleanCaretakers : [],
+        dob: isAthlete ? (dob.trim() || null) : null,
+        adult_athlete: isAthlete ? adultAthlete : false,
+        phone: isAthlete ? (adultAthlete ? (phone.trim() || null) : null) : (phone.trim() || null),
         email: isAthlete ? null : (email.trim() || null),
         notes: notes.trim() || null,
         preferred_name: preferredName.trim() || null,
@@ -133,6 +163,11 @@ export default function RosterMemberForm() {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save.");
     } finally { setSaving(false); }
   };
+
+  const updateCaretaker = (i: number, key: keyof Caretaker, val: any) =>
+    setCaretakers((prev) => prev.map((c, idx) => (idx === i ? { ...c, [key]: val } : c)));
+  const addCaretaker = () => setCaretakers((prev) => (prev.length >= 3 ? prev : [...prev, emptyCaretaker()]));
+  const removeCaretaker = (i: number) => setCaretakers((prev) => prev.filter((_, idx) => idx !== i));
 
   const pickPhoto = async () => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -267,7 +302,24 @@ export default function RosterMemberForm() {
 
           {role === "athlete" ? (
             <>
-              <Text style={styles.sectionLabel}>Parent / guardian</Text>
+              <Text style={styles.label}>Date of birth</Text>
+              <TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder="MM/DD/YYYY" placeholderTextColor={colors.textTertiary} keyboardType="numbers-and-punctuation" testID="roster-dob-input" />
+
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.toggleTitle}>Adult athlete</Text>
+                  <Text style={styles.toggleHint}>Include the athlete&apos;s own phone in team texts</Text>
+                </View>
+                <Switch value={adultAthlete} onValueChange={setAdultAthlete} trackColor={{ true: colors.accent }} testID="roster-adult-toggle" />
+              </View>
+              {adultAthlete && (
+                <>
+                  <Text style={styles.label}>Athlete phone</Text>
+                  <TextInput style={styles.input} value={phone} onChangeText={setPhone} placeholder="e.g. 555-123-4567" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" testID="roster-athlete-phone-input" />
+                </>
+              )}
+
+              <Text style={styles.sectionLabel}>Caretaker 1 (parent / guardian)</Text>
               <View style={styles.nameRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.label}>First name</Text>
@@ -279,11 +331,75 @@ export default function RosterMemberForm() {
                 </View>
               </View>
 
-              <Text style={styles.label}>Parent phone</Text>
+              <Text style={styles.label}>Relationship</Text>
+              <View style={styles.roleRow}>
+                {RELATIONSHIPS.map((rel) => {
+                  const on = parentRelationship === rel;
+                  return (
+                    <TouchableOpacity key={rel} onPress={() => setParentRelationship(on ? "" : rel)} style={[styles.relChip, on && styles.roleChipOn]} testID={`roster-parent-rel-${rel}`}>
+                      <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{rel}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.label}>Phone</Text>
               <TextInput style={styles.input} value={parentPhone} onChangeText={setParentPhone} placeholder="e.g. 555-123-4567" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" testID="roster-parent-phone-input" />
 
-              <Text style={styles.label}>Parent email</Text>
+              <Text style={styles.label}>Email</Text>
               <TextInput style={styles.input} value={parentEmail} onChangeText={setParentEmail} placeholder="e.g. jen@example.com" placeholderTextColor={colors.textTertiary} keyboardType="email-address" autoCapitalize="none" testID="roster-parent-email-input" />
+
+              <View style={styles.toggleRow}>
+                <Text style={[styles.toggleTitle, { flex: 1 }]}>Include in team texts</Text>
+                <Switch value={parentIncludeTexts} onValueChange={setParentIncludeTexts} trackColor={{ true: colors.accent }} testID="roster-parent-texts-toggle" />
+              </View>
+
+              {caretakers.map((c, i) => (
+                <View key={i} style={styles.ctCard}>
+                  <View style={styles.ctHeader}>
+                    <Text style={styles.ctTitle}>Caretaker {i + 2}</Text>
+                    <TouchableOpacity onPress={() => removeCaretaker(i)} hitSlop={8} testID={`roster-caretaker-remove-${i}`}>
+                      <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.nameRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>First name</Text>
+                      <TextInput style={styles.input} value={c.first_name} onChangeText={(v) => updateCaretaker(i, "first_name", v)} placeholder="First" placeholderTextColor={colors.textTertiary} testID={`roster-caretaker-first-${i}`} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.label}>Last name</Text>
+                      <TextInput style={styles.input} value={c.last_name} onChangeText={(v) => updateCaretaker(i, "last_name", v)} placeholder="Last" placeholderTextColor={colors.textTertiary} testID={`roster-caretaker-last-${i}`} />
+                    </View>
+                  </View>
+                  <Text style={styles.label}>Relationship</Text>
+                  <View style={styles.roleRow}>
+                    {RELATIONSHIPS.map((rel) => {
+                      const on = c.relationship === rel;
+                      return (
+                        <TouchableOpacity key={rel} onPress={() => updateCaretaker(i, "relationship", on ? "" : rel)} style={[styles.relChip, on && styles.roleChipOn]} testID={`roster-caretaker-rel-${i}-${rel}`}>
+                          <Text style={[styles.roleChipText, on && styles.roleChipTextOn]}>{rel}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.label}>Phone</Text>
+                  <TextInput style={styles.input} value={c.phone} onChangeText={(v) => updateCaretaker(i, "phone", v)} placeholder="e.g. 555-123-4567" placeholderTextColor={colors.textTertiary} keyboardType="phone-pad" testID={`roster-caretaker-phone-${i}`} />
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput style={styles.input} value={c.email} onChangeText={(v) => updateCaretaker(i, "email", v)} placeholder="e.g. grandma@example.com" placeholderTextColor={colors.textTertiary} keyboardType="email-address" autoCapitalize="none" testID={`roster-caretaker-email-${i}`} />
+                  <View style={styles.toggleRow}>
+                    <Text style={[styles.toggleTitle, { flex: 1 }]}>Include in team texts</Text>
+                    <Switch value={c.include_in_texts} onValueChange={(v) => updateCaretaker(i, "include_in_texts", v)} trackColor={{ true: colors.accent }} testID={`roster-caretaker-texts-${i}`} />
+                  </View>
+                </View>
+              ))}
+
+              {caretakers.length < 3 && (
+                <TouchableOpacity style={styles.addCtBtn} onPress={addCaretaker} testID="roster-caretaker-add">
+                  <Ionicons name="person-add-outline" size={16} color={colors.accent} />
+                  <Text style={styles.addCtText}>Add another caretaker</Text>
+                </TouchableOpacity>
+              )}
             </>
           ) : (
             <>
@@ -408,6 +524,15 @@ const makeStyles = (c: ThemePalette) => ({
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   roleRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   roleChip: { flexBasis: "48%", flexGrow: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, paddingHorizontal: 6, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  relChip: { flexDirection: "row", alignItems: "center", justifyContent: "center", paddingVertical: 10, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  toggleRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.lg, paddingVertical: 4 },
+  toggleTitle: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700" },
+  toggleHint: { ...typography.caption, color: c.textTertiary, marginTop: 2 },
+  ctCard: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
+  ctHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  ctTitle: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
+  addCtBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.md, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderStyle: "dashed", borderColor: c.accent, backgroundColor: c.accentSubtle },
+  addCtText: { ...typography.bodyMedium, color: c.accent, fontWeight: "700" },
   roleChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   roleChipText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700", fontSize: 14 },
   roleChipTextOn: { color: "white" },

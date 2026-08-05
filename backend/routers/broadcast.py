@@ -182,15 +182,34 @@ async def _resolve_context(payload: BroadcastSend, base: str, scope: List[str], 
 
     seen, to_send, no_phone = set(), [], []
     for m in roster:
-        name = (m.get("parent_first_name") or "").strip() or (m.get("first_name") or "").strip() or (m.get("name") or "").split(" ")[0]
-        phone = normalize_us_phone(m.get("parent_phone") or m.get("phone"))
-        if not phone:
-            no_phone.append(m.get("name") or name or "Unknown")
+        role = m.get("role") or "parent"
+        targets: List[tuple] = []  # (raw_phone, name)
+        if role == "athlete":
+            athlete_name = (m.get("first_name") or "").strip() or (m.get("name") or "").split(" ")[0]
+            # Primary caretaker (legacy parent fields)
+            if m.get("parent_include_in_texts", True) and m.get("parent_phone"):
+                targets.append((m.get("parent_phone"), (m.get("parent_first_name") or "").strip() or athlete_name))
+            # Additional caretakers
+            for ct in (m.get("caretakers") or []):
+                if ct.get("include_in_texts", True) and ct.get("phone"):
+                    targets.append((ct.get("phone"), (ct.get("first_name") or "").strip() or athlete_name))
+            # Adult athlete's own phone
+            if m.get("adult_athlete") and m.get("phone"):
+                targets.append((m.get("phone"), athlete_name))
+        else:
+            # Coach / rep / staff — their own contact
+            own = m.get("phone") or m.get("parent_phone")
+            if own:
+                targets.append((own, (m.get("first_name") or "").strip() or (m.get("name") or "").split(" ")[0]))
+        if not targets:
+            no_phone.append(m.get("name") or "Unknown")
             continue
-        if phone in seen:
-            continue
-        seen.add(phone)
-        to_send.append((phone, name))
+        for raw, name in targets:
+            phone = normalize_us_phone(raw)
+            if not phone or phone in seen:
+                continue
+            seen.add(phone)
+            to_send.append((phone, name))
     return to_send, no_phone, trailer
 
 
