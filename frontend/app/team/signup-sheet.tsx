@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -51,6 +51,7 @@ export default function SignupSheetScreen() {
   const [editSlotTime, setEditSlotTime] = useState("");
 
   const [sheetMenuOpen, setSheetMenuOpen] = useState(false);
+  const [includeUnclaimed, setIncludeUnclaimed] = useState(true);
   const [editName, setEditName] = useState("");
   const [editLinks, setEditLinks] = useState<ExternalLink[]>([]);
   const [editPhotos, setEditPhotos] = useState<string[]>([]);
@@ -172,12 +173,17 @@ export default function SignupSheetScreen() {
     for (const slot of slots) {
       const claims = slot.claims || [];
       if (claims.length === 0) {
+        if (!includeUnclaimed) continue;
         aoa.push([slot.label, slot.kind || "item", slot.time_label || "", slot.qty_needed, "(unclaimed)", "", ""]);
       } else {
         for (const cl of claims) {
           aoa.push([slot.label, slot.kind || "item", slot.time_label || "", slot.qty_needed, claimName(cl), cl.qty || 1, cl.note || ""]);
         }
       }
+    }
+    if (aoa.length === 1) {
+      Alert.alert("Nothing to export", includeUnclaimed ? "This sheet has no slots yet." : "No one has signed up yet. Turn on \u201cInclude unclaimed slots\u201d to export the blank sheet.");
+      return;
     }
     try {
       const safe = (sheet.name || "signup").replace(/[^a-z0-9]+/gi, "-").toLowerCase();
@@ -439,6 +445,13 @@ export default function SignupSheetScreen() {
               {sheet && <AttachSection endpoint={`/team/signups/${sheet.id}`} competitionIds={sheet.competition_ids || []} eventIds={sheet.event_ids || []} onChange={(c, e) => setSheet((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveSheet} testID="signup-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
               <Text style={styles.downloadLabel}>Download list</Text>
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1, paddingRight: 12 }}>
+                  <Text style={styles.toggleTitle}>Include unclaimed slots</Text>
+                  <Text style={styles.toggleHint}>Off = only rows people actually signed up for</Text>
+                </View>
+                <Switch value={includeUnclaimed} onValueChange={setIncludeUnclaimed} trackColor={{ true: colors.accent }} testID="signup-include-unclaimed" />
+              </View>
               <View style={styles.actionRow}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => { setSheetMenuOpen(false); downloadList("xlsx"); }} testID="signup-download-xlsx">
                   <Ionicons name="download-outline" size={16} color={colors.accent} />
@@ -526,6 +539,9 @@ const makeStyles = (c: ThemePalette) => ({
   actionBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
   actionText: { ...typography.caption, fontWeight: "800", color: c.accent },
   downloadLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: spacing.lg },
+  toggleRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.sm, paddingVertical: 4 },
+  toggleTitle: { ...typography.caption, color: c.textPrimary, fontWeight: "800" },
+  toggleHint: { ...typography.micro, color: c.textTertiary, marginTop: 2 },
   remindWide: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.sm, paddingVertical: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "33" },
   lastReminded: { ...typography.micro, color: c.textTertiary, textAlign: "center", marginTop: 8 },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
