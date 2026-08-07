@@ -123,42 +123,30 @@ export default function PremiumScreen() {
         </View>
 
         {!isPremium ? (
-          !monetizationActive ? (
-            <>
+          <>
+            {!monetizationActive ? (
               <View style={styles.infoBox}>
                 <Ionicons name="sparkles" size={18} color="#16A34A" />
-                <Text style={styles.infoText}>Good news — every CheerPlanner feature, including the full Team Hub, is unlocked for free during our launch period. Premium plans start later; we&apos;ll let you know before anything changes.</Text>
+                <Text style={styles.infoText}>Good news — every CheerPlanner feature, including the full Team Hub, is unlocked for free during our launch period. You can start a plan below any time; otherwise everything stays free until premium plans begin, and we&apos;ll let you know before anything changes.</Text>
               </View>
-              {purchasesSupported ? (
-                <TouchableOpacity style={styles.doneRow} onPress={onRestore} disabled={buying} testID="restore-purchases">
-                  <Text style={styles.linkText}>Restore Purchases</Text>
-                </TouchableOpacity>
-              ) : null}
-              {Platform.OS === "web" ? (
-                <TouchableOpacity style={styles.linkRow} onPress={() => router.push("/redeem" as any)} testID="redeem-link">
-                  <Ionicons name="gift-outline" size={18} color={styles._icon.color} />
-                  <Text style={styles.linkText}>Have a Lifetime Premium code? Redeem it</Text>
-                </TouchableOpacity>
-              ) : null}
-            </>
-          ) : (
-          <>
-            <Text style={styles.sectionTitle}>Upgrade to Premium</Text>
+            ) : null}
+
+            <Text style={styles.sectionTitle}>{monetizationActive ? "Upgrade to Premium" : "CheerPlanner Premium plans"}</Text>
             <Text style={styles.blurb}>Unlock the full Team Hub, advanced roster, sizes, paperwork, team payments, sign-ups, attendance, spreadsheet import/export, parent share links, automated SMS reminders, and up to 6 household members.</Text>
 
             {/* Annual (best value) */}
             <TouchableOpacity style={[styles.priceCard, styles.priceCardBest]} onPress={() => buy("annual")} disabled={buying} testID="upgrade-annual">
               {savingsPct > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>SAVE {savingsPct}%</Text></View> : null}
-              <Text style={styles.priceTitle}>Annual</Text>
-              <Text style={styles.priceValue}>{offerings?.annual?.product?.priceString || `$${annual.toFixed(2)}`}<Text style={styles.pricePer}>/year</Text></Text>
-              <Text style={styles.priceHint}>{trialDays > 0 ? `${trialDays}-day free trial · ` : ""}Best value (${annualMonthEq.toFixed(2)}/mo)</Text>
+              <Text style={styles.priceTitle}>CheerPlanner Premium — Annual</Text>
+              <Text style={styles.priceValue}>{offerings?.annual?.product?.priceString || `$${annual.toFixed(2)}`}<Text style={styles.pricePer}> / year</Text></Text>
+              <Text style={styles.priceHint}>{trialDays > 0 ? `${trialDays}-day free trial · ` : ""}Auto-renews yearly · Best value (${annualMonthEq.toFixed(2)}/mo)</Text>
             </TouchableOpacity>
 
             {/* Monthly */}
             <TouchableOpacity style={styles.priceCard} onPress={() => buy("monthly")} disabled={buying} testID="upgrade-monthly">
-              <Text style={styles.priceTitle}>Monthly</Text>
-              <Text style={styles.priceValue}>{offerings?.monthly?.product?.priceString || `$${monthly.toFixed(2)}`}<Text style={styles.pricePer}>/month</Text></Text>
-              {monthlyTrialDays > 0 ? <Text style={styles.priceHint}>{monthlyTrialDays}-day free trial</Text> : null}
+              <Text style={styles.priceTitle}>CheerPlanner Premium — Monthly</Text>
+              <Text style={styles.priceValue}>{offerings?.monthly?.product?.priceString || `$${monthly.toFixed(2)}`}<Text style={styles.pricePer}> / month</Text></Text>
+              <Text style={styles.priceHint}>{monthlyTrialDays > 0 ? `${monthlyTrialDays}-day free trial · ` : ""}Auto-renews monthly</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cta} onPress={() => buy("annual")} disabled={buying} testID="upgrade-cta">
@@ -184,7 +172,6 @@ export default function PremiumScreen() {
               </View>
             )}
           </>
-          )
         ) : (
           <>
             {plan === "lifetime" ? (
