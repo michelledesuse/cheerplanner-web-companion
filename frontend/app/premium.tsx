@@ -210,6 +210,23 @@ export default function PremiumScreen() {
             )}
           </>
         )}
+
+        {!isPremium ? (
+          <View style={styles.legalWrap}>
+            <Text style={styles.legalIntro}>
+              Payment is charged to your Apple ID at confirmation of purchase. Subscriptions renew automatically unless canceled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store account settings.
+            </Text>
+            <View style={styles.legalRow}>
+              <TouchableOpacity onPress={() => Linking.openURL("https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")} testID="eula-link">
+                <Text style={styles.legalLink}>Terms of Use (EULA)</Text>
+              </TouchableOpacity>
+              <Text style={styles.legalDot}>·</Text>
+              <TouchableOpacity onPress={() => router.push("/privacy" as any)} testID="privacy-link">
+                <Text style={styles.legalLink}>Privacy Policy</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
@@ -228,6 +245,11 @@ const makeStyles = (c: ThemePalette) => ({
   planSub: { ...typography.body, color: c.textSecondary, marginTop: 2 },
   planNote: { ...typography.caption, color: c.textSecondary, marginTop: spacing.sm },
   sectionTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
+  legalWrap: { marginTop: spacing.xl, paddingTop: spacing.lg, borderTopWidth: 1, borderTopColor: c.borderSoft, alignItems: "center" },
+  legalIntro: { ...typography.caption, color: c.textTertiary, textAlign: "center", lineHeight: 16 },
+  legalRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.md },
+  legalLink: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  legalDot: { ...typography.caption, color: c.textTertiary },
   blurb: { ...typography.body, color: c.textSecondary, lineHeight: 20, marginBottom: spacing.lg },
   priceCard: { backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.lg, borderWidth: 1, borderColor: c.border, marginBottom: spacing.md },
   priceCardBest: { borderColor: c.accent, borderWidth: 2 },
