@@ -130,6 +130,7 @@ class ScheduleEvent(BaseModel):
     recurrence_rule: Optional[RecurrenceRule] = None  # stored on every instance for convenience
     links: List[ExternalLink] = Field(default_factory=list)
     season_ids: List[str] = Field(default_factory=list)
+    event_reminder_offsets: List[int] = Field(default_factory=list)  # minutes before start to text
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -149,6 +150,7 @@ class ScheduleEventCreate(BaseModel):
     end_date: Optional[str] = None
     links: List[ExternalLink] = Field(default_factory=list)
     season_ids: Optional[List[str]] = None
+    event_reminder_offsets: Optional[List[int]] = None
 
 
 class ScheduleEventUpdate(BaseModel):
@@ -166,6 +168,7 @@ class ScheduleEventUpdate(BaseModel):
     end_date: Optional[str] = None
     links: Optional[List[ExternalLink]] = None
     season_ids: Optional[List[str]] = None
+    event_reminder_offsets: Optional[List[int]] = None
     edit_scope: Optional[Literal["this", "forward", "all"]] = None
 
 
@@ -451,6 +454,8 @@ class Competition(BaseModel):
     season_ids: List[str] = Field(default_factory=list)
     # S1: minutes-before offsets for SMS reminders on the stay-to-play booking opening.
     sms_reminder_offsets: List[int] = Field(default_factory=list)
+    # Minutes-before offsets for SMS reminders on the competition event date/time.
+    event_reminder_offsets: List[int] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -471,6 +476,7 @@ class CompetitionCreate(BaseModel):
     teams_to_watch: Optional[List[TeamToWatch]] = None
     links: Optional[List[ExternalLink]] = None
     sms_reminder_offsets: Optional[List[int]] = None
+    event_reminder_offsets: Optional[List[int]] = None
 
 
 class CompetitionUpdate(BaseModel):
@@ -490,6 +496,7 @@ class CompetitionUpdate(BaseModel):
     teams_to_watch: Optional[List[TeamToWatch]] = None
     links: Optional[List[ExternalLink]] = None
     sms_reminder_offsets: Optional[List[int]] = None
+    event_reminder_offsets: Optional[List[int]] = None
     season_ids: Optional[List[str]] = None
     edit_scope: Optional[Literal["this", "forward", "all"]] = None
 

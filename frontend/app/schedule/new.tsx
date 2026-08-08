@@ -18,6 +18,7 @@ import LinkedTools from "@/src/components/LinkedTools";
 import AttachedMusic from "@/src/components/AttachedMusic";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import PhotoGallery from "@/src/components/PhotoGallery";
+import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 import AddTypeModal from "@/src/components/AddTypeModal";
 
 const TYPES = [
@@ -72,6 +73,7 @@ export default function ScheduleForm() {
   const [date, setDate] = useState(params.date || todayISO());
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [eventOffsets, setEventOffsets] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -122,6 +124,7 @@ export default function ScheduleForm() {
             setDate(e.date || todayISO());
             setStartTime(e.start_time || "");
             setEndTime(e.end_time || "");
+            setEventOffsets(Array.isArray(e.event_reminder_offsets) ? e.event_reminder_offsets : []);
             setNotes(e.notes || "");
             setSelectedIds(new Set(e.athlete_ids || []));
             setTeamId(e.team_id || null);
@@ -189,6 +192,7 @@ export default function ScheduleForm() {
     date,
     start_time: startTime.trim() || null,
     end_time: endTime.trim() || null,
+    event_reminder_offsets: eventOffsets,
     notes: notes.trim() || null,
     athlete_ids: Array.from(selectedIds),
     links: cleanLinks(links),
@@ -373,6 +377,13 @@ export default function ScheduleForm() {
 
           <Text style={styles.label}>End time</Text>
           <TimeField value={endTime} onChange={setEndTime} testID="schedule-end-time" />
+
+          <SmsReminderPicker
+            value={eventOffsets}
+            onChange={setEventOffsets}
+            title="Text me before this event"
+            testIDPrefix="schedule-event-sms-offset"
+          />
 
           {/* Repeat section — hidden for series edits so the rule can't be re-expanded */}
           {!isPartOfSeries && (

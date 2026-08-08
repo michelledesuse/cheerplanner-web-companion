@@ -33,7 +33,7 @@ async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get
     rule = base.pop("recurrence_rule", None)
     # Normalize Optional[List] fields: None -> [] so ScheduleEvent (which
     # requires lists) doesn't 500 when the client omits these keys.
-    for k in ("photos", "season_ids", "athlete_ids", "links"):
+    for k in ("photos", "season_ids", "athlete_ids", "links", "event_reminder_offsets"):
         if base.get(k) is None:
             base[k] = []
 

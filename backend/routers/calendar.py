@@ -6,6 +6,7 @@ from core.db import db
 from core.security import get_current_user
 from core.helpers import (
     _household_user_ids, _build_paid_map, _fmt_time_12h, _extract_hhmm,
+    _team_hub_scope_user_ids,
 )
 
 router = APIRouter(prefix="/api")
@@ -94,6 +95,22 @@ async def calendar_feed(
 
     items: List[dict] = []
 
+    # Music attachments — which competitions/events have a track attached (v2.x)
+    music_comp_ids: set = set()
+    music_event_ids: set = set()
+    try:
+        _scope = await _team_hub_scope_user_ids(user_id)
+        async for _tr in db.team_music.find(
+            {"user_id": {"$in": _scope}, "status": "ready"},
+            {"_id": 0, "competition_ids": 1, "event_ids": 1},
+        ):
+            for _cid in (_tr.get("competition_ids") or []):
+                music_comp_ids.add(_cid)
+            for _eid in (_tr.get("event_ids") or []):
+                music_event_ids.add(_eid)
+    except Exception:
+        pass
+
     # Athletes map for names
     athletes = {
         a["id"]: a
@@ -154,6 +171,7 @@ async def calendar_feed(
                     else c.get("location") or ""
                 ),
                 "color": "#007CFF",
+                "has_music": c["id"] in music_comp_ids,
                 "link": f"/competitions/{c['id']}",
             })
 
@@ -324,6 +342,7 @@ async def calendar_feed(
                     "event_type": et,
                     "link": f"/schedule/new?id={s['id']}",
                     "links": s.get("links", []),
+                    "has_music": s["id"] in music_event_ids,
                 })
         elif in_range(day):
             items.append({
@@ -337,6 +356,7 @@ async def calendar_feed(
                 "event_type": et,
                 "link": f"/schedule/new?id={s['id']}",
                 "links": s.get("links", []),
+                "has_music": s["id"] in music_event_ids,
             })
 
     # Team meet/performance times (per-team multi-day schedule per competition)

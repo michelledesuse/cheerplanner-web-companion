@@ -32,7 +32,10 @@ type CalEvent = {
   logo_image?: string | null;
   link?: string;
   links?: { label: string; url: string }[];
+  has_music?: boolean;
 };
+
+const MUSIC_DOT = "#F59E0B";
 
 const BUILTIN_TYPE_LABEL: Record<string, string> = {
   practice: "Practice", team_bonding: "Team Bonding", private_lesson: "Private Lesson",
@@ -143,8 +146,10 @@ export default function CalendarTab() {
   const markedDates = useMemo(() => {
     const map: Record<string, { dots: Array<{ key: string; color: string }>; marked?: boolean; selected?: boolean; selectedColor?: string }> = {};
     const seen: Record<string, Set<string>> = {};
+    const musicDays = new Set<string>();
     for (const e of events) {
       if (!passesType(e)) continue;
+      if (e.has_music) musicDays.add(e.date);
       if (!seen[e.date]) seen[e.date] = new Set();
       if (!seen[e.date].has(e.color)) {
         seen[e.date].add(e.color);
@@ -152,6 +157,12 @@ export default function CalendarTab() {
         map[e.date].dots.push({ key: `${e.kind}-${map[e.date].dots.length}`, color: e.color });
         map[e.date].marked = true;
       }
+    }
+    // Music indicator dot (v2.x) — a distinct dot on any day that has attached music
+    for (const d of musicDays) {
+      if (!map[d]) map[d] = { dots: [] };
+      map[d].dots.push({ key: "music", color: MUSIC_DOT });
+      map[d].marked = true;
     }
     // Selection style
     map[selected] = {
@@ -179,7 +190,14 @@ export default function CalendarTab() {
           </View>
         )}
         <View style={{ flex: 1, marginLeft: spacing.md }}>
-          <Text style={styles.eventTitle}>{e.title}</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.eventTitle} numberOfLines={1}>{e.title}</Text>
+            {e.has_music && (
+              <View style={styles.musicBadge} testID={`event-music-${e.id}`}>
+                <Ionicons name="musical-notes" size={12} color={MUSIC_DOT} />
+              </View>
+            )}
+          </View>
           {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
         </View>
         {e.amount != null && (
@@ -326,6 +344,7 @@ export default function CalendarTab() {
                 { color: "#007CFF", label: "Comp" },
                 { color: "#7C3AED", label: "Travel" },
                 { color: "#16A34A", label: "Fundraiser" },
+                { color: MUSIC_DOT, label: "🎵 Music" },
               ].map((l) => (
                 <View key={l.label} style={styles.legendItem}>
                   <View style={[styles.legendDot, { backgroundColor: l.color }]} />
@@ -411,7 +430,9 @@ const makeStyles = (c: ThemePalette) => ({
   linkChip: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, maxWidth: 200 },
   linkChipText: { ...typography.caption, fontWeight: "700", flexShrink: 1 },
   eventIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  eventTitle: { ...typography.bodyMedium, color: c.textPrimary },
+  eventTitle: { ...typography.bodyMedium, color: c.textPrimary, flexShrink: 1 },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  musicBadge: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: MUSIC_DOT + "22" },
   eventMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   eventAmount: { ...typography.h3, fontWeight: "800" },
 });

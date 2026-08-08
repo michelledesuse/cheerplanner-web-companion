@@ -1,0 +1,28 @@
+{
+  "summary": "Verified CheerPlanner 2.0 three-feature bundle. Backend: 4/4 pytest cases passed against public URL — (A) team forms accept & persist links[] and base64 photos, and the public /api/public/share/{token}/data returns them; (B) /api/calendar has_music flips from false → true on competitions and schedule events once a ready team_music track is attached via init+chunk+finish; (C) POST/PATCH /api/competitions and /api/schedule persist event_reminder_offsets (subset of [60,30,15,1]). Frontend UI probe (unauth navigation, but testIDs and static labels rendered from JS bundle): competitions/new shows 4 chips with testIDPrefix comp-event-sms-offset and the 'Text me before this competition' label; schedule/new shows 4 chips with testIDPrefix schedule-event-sms-offset and 'Text me before this event' label; Calendar tab renders the '🎵 Music' legend row. event-music-* badges rely on a competition/event having has_music=true from a ready track — verified in code path (calendar.tsx:196 & backend calendar.py) and via backend test. All TEST_* records created were deleted at the end of each test.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter88b_forms_music_sms.py",
+    "/app/test_reports/pytest/pytest_iter88b.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Deep-linking to /competitions/new or /schedule/new while unauthenticated shows a red Axios 401 error overlay (dev-mode) because the screens fire API calls before auth-gating. Not a regression from this bundle, but worth an auth-guard for shared links. (Not blocking).",
+    "Console warnings observed on schedule/new: 'props.pointerEvents is deprecated. Use style.pointerEvents' and 'Image: style.tintColor is deprecated. Please use props.tintColor.' — RN deprecations to clean up eventually."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter88b_forms_music_sms.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100% (static probe of testIDs + labels)"},
+  "seed_data_creation": "None persisted — every TEST_* competition/schedule event/form/music track created was deleted at the end of its test. Demo account left clean.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file test_iter88b_forms_music_sms.py logs in with demo@cheerplanner.app / CheerDemo2026! against EXPO_PUBLIC_BACKEND_URL. The music test uses /api/team/music/init + chunk + finish (base64 payload). Reuse as a regression suite for these three feature areas. The frontend has NO explicit auth guard on /competitions/new or /schedule/new — if you deep-link there logged-out, the app shows an Axios 401 overlay in dev; login first (via marketing landing 'Sign in' link) before UI-testing those routes.",
+  "rca_of_issue": "N/A — all three features verified working."
+}

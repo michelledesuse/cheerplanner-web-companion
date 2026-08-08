@@ -35,6 +35,7 @@ export default function CompetitionForm() {
   const [bookingLink, setBookingLink] = useState("");
   const [bookingReleaseAt, setBookingReleaseAt] = useState("");
   const [smsOffsets, setSmsOffsets] = useState<number[]>([]);
+  const [eventOffsets, setEventOffsets] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -60,6 +61,7 @@ export default function CompetitionForm() {
         setBookingLink(c.booking_link || "");
         setBookingReleaseAt(c.booking_release_at || "");
         setSmsOffsets(Array.isArray(c.sms_reminder_offsets) ? c.sms_reminder_offsets : []);
+        setEventOffsets(Array.isArray(c.event_reminder_offsets) ? c.event_reminder_offsets : []);
         setNotes(c.notes || "");
         setLinks(Array.isArray(c.links) ? c.links : []);
         setPhotos(Array.isArray(c.photos) ? c.photos : []);
@@ -88,6 +90,7 @@ export default function CompetitionForm() {
         booking_link: bookingLink.trim() || null,
         booking_release_at: bookingReleaseAt || null,
         sms_reminder_offsets: bookingReleaseAt ? smsOffsets : [],
+        event_reminder_offsets: eventOffsets,
         notes: notes.trim() || null,
         links: cleanLinks(links),
         photos,
@@ -151,6 +154,13 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Team performance time (optional)</Text>
           <TimeField value={eventTime} onChange={setEventTime} testID="comp-time-input" />
+
+          <SmsReminderPicker
+            value={eventOffsets}
+            onChange={setEventOffsets}
+            title="Text me before this competition"
+            testIDPrefix="comp-event-sms-offset"
+          />
 
           <Text style={styles.label}>End date (optional)</Text>
           <DateField value={endDate} onChange={setEndDate} />

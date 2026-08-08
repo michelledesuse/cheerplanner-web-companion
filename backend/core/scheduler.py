@@ -133,6 +133,13 @@ def _checkin_sms(leg_id: str, dep_ap: Any, arr_ap: Any, off: int) -> str:
     )
 
 
+def _event_reminder_sms(name: str, off: int, location: Any = None) -> str:
+    where = f" at {location}" if location else ""
+    return (
+        f"CheerPlanner: {name} starts in {_fmt_offset(off)}{where}.\nReply STOP to opt out."
+    )
+
+
 async def send_scheduled_broadcasts_tick() -> None:
     """Every minute: send any roster text broadcasts whose scheduled time has passed."""
     from datetime import datetime, timezone
@@ -258,6 +265,53 @@ async def send_timed_sms_tick() -> None:
                         if send_sms(phone, _checkin_sms(leg_id, dep_ap, arr_ap, off)):
                             await _record_sent(key, user_id, "sms_checkin")
                             sent += 1
+
+            # --- Event/competition date reminders (before event start) ---
+            def _combine_dt(d: Any, t: Any):
+                if not d:
+                    return None
+                tt = (str(t or "")).strip()
+                if len(tt) < 4:
+                    tt = "09:00"
+                return parse_local_datetime(f"{str(d)[:10]}T{tt[:5]}")
+
+            async for c in db.competitions.find(
+                {"user_id": {"$in": member_ids},
+                 "event_reminder_offsets": {"$exists": True, "$ne": []}},
+                {"_id": 0},
+            ):
+                offsets = _valid_offsets(c.get("event_reminder_offsets"))
+                target_dt = _combine_dt(c.get("event_date"), c.get("event_time"))
+                if not offsets or not target_dt:
+                    continue
+                for off in offsets:
+                    if not _due(local_now, target_dt - timedelta(minutes=off)):
+                        continue
+                    key = f"{user_id}:comp:{c['id']}:event_reminder:{off}"
+                    if await _already_sent(key):
+                        continue
+                    if send_sms(phone, _event_reminder_sms(c.get("name") or "Competition", off, c.get("location"))):
+                        await _record_sent(key, user_id, "sms_event_reminder")
+                        sent += 1
+
+            async for ev in db.schedule_events.find(
+                {"user_id": {"$in": member_ids},
+                 "event_reminder_offsets": {"$exists": True, "$ne": []}},
+                {"_id": 0},
+            ):
+                offsets = _valid_offsets(ev.get("event_reminder_offsets"))
+                target_dt = _combine_dt(ev.get("date"), ev.get("start_time"))
+                if not offsets or not target_dt:
+                    continue
+                for off in offsets:
+                    if not _due(local_now, target_dt - timedelta(minutes=off)):
+                        continue
+                    key = f"{user_id}:sched:{ev['id']}:event_reminder:{off}"
+                    if await _already_sent(key):
+                        continue
+                    if send_sms(phone, _event_reminder_sms(ev.get("title") or "Event", off, ev.get("location"))):
+                        await _record_sent(key, user_id, "sms_event_reminder")
+                        sent += 1
         except Exception as exc:  # noqa: BLE001
             logger.exception("timed sms tick failure for user %s: %s", u.get("id"), exc)
     if sent:
