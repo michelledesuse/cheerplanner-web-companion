@@ -52,6 +52,7 @@ class FormCreate(BaseModel):
     questions: List[Question] = Field(default_factory=list)
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)
+    links: List[ExternalLink] = Field(default_factory=list)
     close_at: Optional[str] = None
 
 
@@ -63,6 +64,7 @@ class FormUpdate(BaseModel):
     competition_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
     photos: Optional[List[str]] = None
+    links: Optional[List[ExternalLink]] = None
     close_at: Optional[str] = None
 
 
@@ -199,6 +201,7 @@ async def create_form(payload: FormCreate, current_user=Depends(get_current_user
         "id": secrets.token_urlsafe(9), "user_id": current_user["id"], "name": name,
         "description": (payload.description or "").strip(), "locked": False,
         "questions": questions, "photos": [],
+        "links": [l.model_dump() for l in payload.links],
         "competition_ids": payload.competition_ids or [], "event_ids": payload.event_ids or [],
         "season_ids": [sid] if sid else [], "close_at": payload.close_at or None,
         "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
@@ -240,6 +243,8 @@ async def update_form(form_id: str, payload: FormUpdate, current_user=Depends(ge
         updates["event_ids"] = payload.event_ids
     if payload.photos is not None:
         updates["photos"] = payload.photos
+    if payload.links is not None:
+        updates["links"] = [l.model_dump() for l in payload.links]
     if payload.close_at is not None:
         updates["close_at"] = payload.close_at or None
     if not updates:
@@ -268,6 +273,7 @@ async def duplicate_form(form_id: str, current_user=Depends(get_current_user)):
         "id": secrets.token_urlsafe(9), "user_id": current_user["id"],
         "name": f"{doc.get('name')} (copy)", "description": doc.get("description") or "",
         "locked": False, "questions": list(doc.get("questions") or []), "photos": [],
+        "links": list(doc.get("links") or []),
         "competition_ids": list(doc.get("competition_ids") or []),
         "event_ids": list(doc.get("event_ids") or []),
         "season_ids": list(doc.get("season_ids") or []),

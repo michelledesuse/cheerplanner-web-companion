@@ -242,6 +242,7 @@ async def public_data(token: str):
             "kind": "form", "title": form.get("name"), "description": form.get("description") or "",
             "locked": bool(form.get("locked")), "close_at": form.get("close_at"),
             "questions": sorted(form.get("questions") or [], key=lambda q: q.get("order", 0)),
+            "photos": form.get("photos") or [], "links": form.get("links") or [],
             "members": members, "answers_by_member": answers_by_member,
         }
     raise HTTPException(status_code=400, detail="Unsupported link")
@@ -690,6 +691,8 @@ function renderForm(d){
   window._q=d.questions||[]; window._abm=d.answers_by_member||{}; window._locked=!!d.locked;
   let h="<h1>"+esc(d.title)+"</h1>";
   if(d.description) h+="<p class='meta'>"+esc(d.description)+"</p>";
+  if(d.photos&&d.photos.length){h+="<div style='margin:10px 0'>"+d.photos.map(p=>"<img src='"+p+"' style='width:100%;max-width:340px;border-radius:10px;margin-bottom:8px;border:1px solid #E2E8F0;display:block'/>").join("")+"</div>";}
+  if(d.links&&d.links.length){h+="<div style='margin:8px 0'>"+d.links.map(l=>"<a href='"+esc(l.url)+"' target='_blank' rel='noopener' style='display:inline-block;margin:0 8px 8px 0;color:#2563EB;font-weight:600;text-decoration:none'>\\uD83D\\uDD17 "+esc(l.label||l.url)+"</a>").join("")+"</div>";}
   h+="<p class='sub'>"+(d.locked?"This form is locked — submissions are closed.":"Fill out & submit")+"</p>";
   if(!d.locked && d.close_at){
     var cd=new Date(d.close_at);

@@ -13,6 +13,8 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import ManageAccessButton from "@/src/components/ManageAccessButton";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
+import PhotoGallery from "@/src/components/PhotoGallery";
+import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import { exportAoa } from "@/src/utils/exportFile";
 
 type QType = "text" | "paragraph" | "choice" | "multi" | "yesno" | "number";
@@ -22,6 +24,7 @@ type Tally = { question_id: string; label: string; type: QType; counts?: { value
 type Detail = {
   id: string; name: string; description?: string; locked?: boolean; close_at?: string | null;
   questions: Question[]; tally: Tally[]; members: Member[];
+  photos?: string[]; links?: ExternalLink[];
   summary: { response_count: number; member_total: number };
 };
 
@@ -47,6 +50,16 @@ export default function FormDetailScreen() {
     if (ca) { const [d, t] = String(ca).split("T"); setCloseDate(d || ""); setCloseTime((t || "").slice(0, 5)); }
     else { setCloseDate(""); setCloseTime(""); }
   }, [data?.close_at]);
+
+  // photos & links
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [links, setLinks] = useState<ExternalLink[]>([]);
+  const [savingAttach, setSavingAttach] = useState(false);
+  useEffect(() => {
+    setPhotos(data?.photos || []);
+    setLinks(data?.links || []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.id]);
 
   // question editor modal
   const [qOpen, setQOpen] = useState(false);
@@ -158,6 +171,17 @@ export default function FormDetailScreen() {
   };
   const clearDeadline = () => { setCloseDate(""); setCloseTime(""); patch({ close_at: "" }); };
 
+  const saveAttachments = async () => {
+    setSavingAttach(true);
+    try {
+      const r = await api.patch<Detail>(`/team/forms/${id}`, { photos, links: cleanLinks(links) });
+      setData(r.data);
+      Alert.alert("Saved", "Photos & links updated. They'll show on the form and in the shared link.");
+    } catch (e: any) {
+      Alert.alert("Couldn't save", e?.response?.data?.detail || "Please try again.");
+    } finally { setSavingAttach(false); }
+  };
+
   const exportResponses = async () => {
     if (!data) return;
     const fmt = (v: any) => (v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v));
@@ -214,6 +238,17 @@ export default function FormDetailScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}
       >
         {data.description ? <Text style={styles.desc}>{data.description}</Text> : null}
+
+        {/* Photos & links */}
+        <View style={styles.attachCard}>
+          <Text style={styles.attachTitle}>📎 Photos &amp; links</Text>
+          <Text style={styles.attachHint}>Add reference photos (menus, size charts, flyers) and links. Photos show as images on the form and in the shared link.</Text>
+          <PhotoGallery photos={photos} onChange={setPhotos} testIDPrefix="form-photo" />
+          <LinksEditor value={links} onChange={setLinks} testIDPrefix="form-link" />
+          <TouchableOpacity style={[styles.attachSave, savingAttach && { opacity: 0.6 }]} onPress={saveAttachments} disabled={savingAttach} testID="form-attach-save">
+            {savingAttach ? <ActivityIndicator color="white" /> : <Text style={styles.attachSaveText}>Save photos &amp; links</Text>}
+          </TouchableOpacity>
+        </View>
 
         {/* Lock + actions */}
         <View style={styles.lockRow}>
@@ -423,6 +458,12 @@ const makeStyles = (c: ThemePalette) => ({
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   headerTitle: { ...typography.h3, color: c.textPrimary, flex: 1, textAlign: "center" },
   desc: { ...typography.body, color: c.textSecondary, marginBottom: spacing.md, lineHeight: 20 },
+
+  attachCard: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm },
+  attachTitle: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
+  attachHint: { ...typography.caption, color: c.textSecondary, marginTop: 2, marginBottom: spacing.sm, lineHeight: 16 },
+  attachSave: { marginTop: spacing.sm, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 11, alignItems: "center" },
+  attachSaveText: { color: "white", fontWeight: "800", fontSize: 14 },
 
   lockRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, padding: spacing.md },
   lockLabel: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
