@@ -23,7 +23,7 @@ from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 from core.db import db
 from core.models import ExternalLink, utcnow_iso
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids
+from core.helpers import _team_hub_scope_user_ids, _hub_owner_id
 from core.sms import send_sms, send_sms_ex, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api")
@@ -114,6 +114,7 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
         raise HTTPException(status_code=400, detail="Add a message or something to share.")
     base = _base(payload.base_url)
     scope = await _team_hub_scope_user_ids(current_user["id"])
+    hub_owner = await _hub_owner_id(current_user["id"])
     to_send, no_phone, trailer = await _resolve_context(payload, base, scope, current_user["id"])
 
     def compose(name: str) -> str:
@@ -134,7 +135,7 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid schedule time.")
         doc = {
-            "id": secrets.token_urlsafe(9), "user_id": current_user["id"],
+            "id": secrets.token_urlsafe(9), "user_id": hub_owner,
             "created_by_name": current_user.get("name") or current_user.get("email") or "",
             "send_at": when.astimezone(timezone.utc).isoformat(), "status": "scheduled",
             "message": msg, "recipient_count": len(to_send),
@@ -151,7 +152,7 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
         raise HTTPException(status_code=400, detail="No recipients have a phone number on file.")
 
     creator = current_user.get("name") or current_user.get("email") or ""
-    return await _perform_send(current_user["id"], base, to_send, no_phone, msg, trailer, creator, payload)
+    return await _perform_send(hub_owner, base, to_send, no_phone, msg, trailer, creator, payload)
 
 
 async def _resolve_context(payload: BroadcastSend, base: str, scope: List[str], user_id: str):
@@ -275,7 +276,7 @@ async def resend_failed(broadcast_id: str, base_url: str = "", current_user=Depe
         if sid:
             sent += 1
             new_docs.append({
-                "id": secrets.token_urlsafe(9), "broadcast_id": broadcast_id, "user_id": current_user["id"],
+                "id": secrets.token_urlsafe(9), "broadcast_id": broadcast_id, "user_id": b.get("user_id"),
                 "member_name": t.get("name") or "", "phone": t["phone"], "sid": sid, "status": "sent",
                 "direction": "out", "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
             })
@@ -363,7 +364,7 @@ async def create_template(payload: BroadcastTemplateCreate, current_user=Depends
     if not name:
         raise HTTPException(status_code=400, detail="Template name is required.")
     doc = {
-        "id": secrets.token_urlsafe(9), "user_id": current_user["id"], "name": name,
+        "id": secrets.token_urlsafe(9), "user_id": await _hub_owner_id(current_user["id"]), "name": name,
         "message": (payload.message or "").strip(),
         "links": [l.model_dump() for l in payload.links],
         "created_at": utcnow_iso(),

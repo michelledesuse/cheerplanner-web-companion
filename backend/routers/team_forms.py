@@ -24,6 +24,7 @@ from core.models import ExternalLink, utcnow_iso
 from core.security import get_current_user, require_team_access
 from core.helpers import (
     _team_hub_scope_user_ids as _household_user_ids,
+    _hub_owner_id,
     _blocked_resource_ids,
     season_query,
     roster_season_query,
@@ -197,8 +198,9 @@ async def create_form(payload: FormCreate, current_user=Depends(get_current_user
     questions = [q.model_dump() for q in payload.questions]
     for i, q in enumerate(questions):
         q["order"] = i
+    hub_owner = await _hub_owner_id(current_user["id"])
     doc = {
-        "id": secrets.token_urlsafe(9), "user_id": current_user["id"], "name": name,
+        "id": secrets.token_urlsafe(9), "user_id": hub_owner, "name": name,
         "description": (payload.description or "").strip(), "locked": False,
         "questions": questions, "photos": [],
         "links": [l.model_dump() for l in payload.links],
@@ -270,7 +272,7 @@ async def delete_form(form_id: str, current_user=Depends(get_current_user)):
 async def duplicate_form(form_id: str, current_user=Depends(get_current_user)):
     doc = await _get_form(form_id, current_user)
     copy = {
-        "id": secrets.token_urlsafe(9), "user_id": current_user["id"],
+        "id": secrets.token_urlsafe(9), "user_id": await _hub_owner_id(current_user["id"]),
         "name": f"{doc.get('name')} (copy)", "description": doc.get("description") or "",
         "locked": False, "questions": list(doc.get("questions") or []), "photos": [],
         "links": list(doc.get("links") or []),

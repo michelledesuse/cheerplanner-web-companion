@@ -16,6 +16,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import (
     _team_hub_scope_user_ids as _household_user_ids,
+    _hub_owner_id,
     _blocked_resource_ids,
     season_query,
     roster_season_query,
@@ -70,7 +71,7 @@ async def create_signup(payload: SignupSheetCreate, current_user=Depends(get_cur
     await assert_under_count(current_user["id"], "team_hub_signup_sheets", len(existing))
     order = min([s.get("order", 0) for s in existing], default=1) - 1  # new sheet floats to the top
     sid = await active_season_id(member_ids)
-    sheet = SignupSheet(user_id=current_user["id"], name=payload.name.strip(),
+    sheet = SignupSheet(user_id=await _hub_owner_id(current_user["id"]), name=payload.name.strip(),
                         links=[l.model_dump() for l in (payload.links or [])],
                         competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [], order=order,
                         season_ids=[sid] if sid else [])
@@ -139,7 +140,7 @@ async def duplicate_signup(sheet_id: str, current_user=Depends(get_current_user)
                    qty_needed=s.get("qty_needed", 1), order=s.get("order", 0))
         for s in (doc.get("slots") or [])
     ]
-    copy = SignupSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)",
+    copy = SignupSheet(user_id=await _hub_owner_id(current_user["id"]), name=f"{doc.get('name')} (copy)",
                        links=list(doc.get("links") or []),
                        competition_ids=doc.get("competition_ids") or [], event_ids=doc.get("event_ids") or [],
                        order=doc.get("order", 0) - 1, slots=slots,

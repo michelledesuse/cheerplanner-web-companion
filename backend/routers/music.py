@@ -16,7 +16,7 @@ from motor.motor_asyncio import AsyncIOMotorGridFSBucket
 from core.db import db
 from core.models import TeamTrack, TeamTrackInit, TeamTrackUpdate
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids
+from core.helpers import _team_hub_scope_user_ids, _hub_owner_id
 from core.realtime import _user_from_token
 
 router = APIRouter(prefix="/api")
@@ -49,7 +49,7 @@ async def list_music(team_id: Optional[str] = None, competition_id: Optional[str
 @router.post("/team/music/init", dependencies=[Depends(require_team_access)])
 async def init_upload(payload: TeamTrackInit, current_user=Depends(get_current_user)):
     track = TeamTrack(
-        user_id=current_user["id"],
+        user_id=await _hub_owner_id(current_user["id"]),
         title=(payload.title or "Untitled").strip()[:120] or "Untitled",
         filename=payload.filename,
         content_type=payload.content_type or "audio/mpeg",

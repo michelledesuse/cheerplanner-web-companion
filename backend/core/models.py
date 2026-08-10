@@ -64,6 +64,8 @@ class Household(BaseModel):
     # Team Hub. Kept SEPARATE from member_user_ids so they do NOT consume a
     # household seat and do NOT see the family's personal data. (requirement #4)
     team_hub_member_user_ids: List[str] = Field(default_factory=list)
+    # Team Hub switcher — the owner-editable display name for this hub/team.
+    hub_name: Optional[str] = None
     # Grandfathering: if a household already exceeds a future Free member limit
     # at migration time, we store the current count so they keep all members
     # but can't ADD new ones until under limit or Premium. (requirement #24)

@@ -15,6 +15,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import (
     _team_hub_scope_user_ids as _household_user_ids,
+    _hub_owner_id,
     _blocked_resource_ids,
     season_query,
     roster_season_query,
@@ -129,7 +130,7 @@ async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Dep
     await assert_premium(current_user["id"], "team_payments")
     if not (payload.name or "").strip():
         raise HTTPException(status_code=400, detail="Name is required")
-    tracker = PaymentTracker(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
+    tracker = PaymentTracker(user_id=await _hub_owner_id(current_user["id"]), **payload.model_dump(exclude_none=True))
     tracker.name = payload.name.strip()
     member_ids = await _household_user_ids(current_user["id"])
     sid = await active_season_id(member_ids)
@@ -254,7 +255,7 @@ async def duplicate_payment_tracker(tracker_id: str, current_user=Depends(get_cu
         raise HTTPException(status_code=404, detail="Tracker not found")
     # Fresh tracker: keep name/amount/exemptions & per-member amounts due, clear who's paid.
     copy = PaymentTracker(
-        user_id=current_user["id"],
+        user_id=await _hub_owner_id(current_user["id"]),
         name=f"{doc.get('name')} (copy)",
         amount=doc.get("amount"),
         note=doc.get("note"),

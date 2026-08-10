@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from core.db import db
 from core.models import Todo, TodoCreate, TodoUpdate, utcnow_iso
 from core.security import get_current_user
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids
+from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _hub_owner_id
 
 router = APIRouter(prefix="/api")
 
@@ -30,7 +30,7 @@ async def create_todo(payload: TodoCreate, current_user=Depends(get_current_user
     text = (payload.text or "").strip()
     if not text:
         raise HTTPException(status_code=400, detail="Add some text.")
-    todo = Todo(user_id=current_user["id"], text=text, scope=payload.scope, ref_id=payload.ref_id,
+    todo = Todo(user_id=await _hub_owner_id(current_user["id"]), text=text, scope=payload.scope, ref_id=payload.ref_id,
                 order=int(utcnow_iso()[11:19].replace(":", "")))
     await db.todos.insert_one(todo.model_dump())
     return todo

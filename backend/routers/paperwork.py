@@ -16,6 +16,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import (
     _team_hub_scope_user_ids as _household_user_ids,
+    _hub_owner_id,
     _blocked_resource_ids,
     season_query,
     roster_season_query,
@@ -73,7 +74,7 @@ async def create_paperwork(payload: PaperworkSheetCreate, current_user=Depends(g
         raise HTTPException(status_code=400, detail="Name is required")
     member_ids = await _household_user_ids(current_user["id"])
     sid = await active_season_id(member_ids)
-    sheet = PaperworkSheet(user_id=current_user["id"], name=payload.name.strip(),
+    sheet = PaperworkSheet(user_id=await _hub_owner_id(current_user["id"]), name=payload.name.strip(),
                            season_ids=[sid] if sid else [])
     await db.paperwork_sheets.insert_one(sheet.model_dump())
     return sheet
@@ -125,7 +126,7 @@ async def duplicate_paperwork(sheet_id: str, current_user=Depends(get_current_us
     # Copy the columns (items) with fresh ids; start with no checkmarks.
     items = [PaperworkItem(label=it["label"], order=it.get("order", i), links=list(it.get("links") or [])).model_dump()
              for i, it in enumerate(doc.get("items") or [])]
-    copy = PaperworkSheet(user_id=current_user["id"], name=f"{doc.get('name')} (copy)", items=items,
+    copy = PaperworkSheet(user_id=await _hub_owner_id(current_user["id"]), name=f"{doc.get('name')} (copy)", items=items,
                           season_ids=list(doc.get("season_ids") or []))
     await db.paperwork_sheets.insert_one(copy.model_dump())
     return copy

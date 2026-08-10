@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import HomeButton from "@/src/components/HomeButton";
+import TeamHubSwitcher from "@/src/components/TeamHubSwitcher";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { usePremium } from "@/src/context/PremiumContext";
@@ -87,6 +88,8 @@ export default function TeamScreen() {
         </ScrollView>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="team-screen">
+          <TeamHubSwitcher />
+
           <View style={styles.introCard}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
             <Text style={styles.introText}>

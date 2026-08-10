@@ -15,6 +15,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import (
     _team_hub_scope_user_ids as _household_user_ids,
+    _hub_owner_id,
     _blocked_resource_ids,
     season_query,
     roster_season_query,
@@ -76,7 +77,7 @@ async def create_attendance(payload: AttendanceSessionCreate, current_user=Depen
     await assert_under_count(current_user["id"], "team_hub_attendance_sessions", cnt)
     sid = await active_season_id(member_ids)
     sess = AttendanceSession(
-        user_id=current_user["id"], title=payload.title.strip(), date=payload.date,
+        user_id=await _hub_owner_id(current_user["id"]), title=payload.title.strip(), date=payload.date,
         competition_ids=payload.competition_ids or [], event_ids=payload.event_ids or [],
         season_ids=[sid] if sid else [],
     )

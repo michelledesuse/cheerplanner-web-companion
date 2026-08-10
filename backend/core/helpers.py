@@ -47,23 +47,63 @@ async def _household_user_ids(user_id: str) -> List[str]:
     return h.get("member_user_ids", [user_id])
 
 
-async def _team_hub_scope_user_ids(user_id: str) -> List[str]:
-    """Return the set of user_ids whose Team Hub data this user may access.
+async def _accessible_hubs(user_id: str) -> List[dict]:
+    """All households (hubs) this user may access: their own + any where they're a Team Hub collaborator."""
+    hubs: List[dict] = []
+    seen = set()
+    own = await _get_or_create_household(user_id)
+    if own:
+        hubs.append(own); seen.add(own["id"])
+    async for h in db.households.find({"team_hub_member_user_ids": user_id}, {"_id": 0}):
+        if h["id"] not in seen:
+            hubs.append(h); seen.add(h["id"])
+    return hubs
 
-    A user's Team Hub is the household they belong to. Team Hub COLLABORATORS
-    (invited coaches/reps/staff) are stored in the household's
-    `team_hub_member_user_ids` and do NOT count as household members — but they
-    can view/manage that household's Team Hub. This helper unions household
-    members + team-hub collaborators.
 
-    Backward-compatible: when a household has no collaborators (all current
-    households), this returns exactly the same list as `_household_user_ids`.
+async def _resolve_active_household(user_id: str) -> dict:
+    """Return the household (hub) whose Team Hub data this user is currently viewing.
+
+    Honours the user's stored `active_hub_id` when it points at a hub they can
+    access; otherwise defaults to their own household (or the first hub they
+    collaborate on). This is what powers the Team Hub switcher.
     """
-    # If the user is a collaborator on someone else's hub, prefer that hub.
-    collab = await db.households.find_one({"team_hub_member_user_ids": user_id}, {"_id": 0})
-    h = collab or await _get_or_create_household(user_id)
-    scope = set(h.get("member_user_ids") or []) | set(h.get("team_hub_member_user_ids") or [])
-    scope.add(user_id)
+    hubs = await _accessible_hubs(user_id)
+    if not hubs:
+        return await _get_or_create_household(user_id)
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "active_hub_id": 1})
+    active_id = (u or {}).get("active_hub_id")
+    if active_id:
+        for h in hubs:
+            if h["id"] == active_id:
+                return h
+    return hubs[0]
+
+
+async def _hub_owner_id(user_id: str) -> str:
+    """The owner user_id of this user's active hub — new Team Hub data is anchored here
+    so each team's data stays isolated even when a coach belongs to several hubs."""
+    h = await _resolve_active_household(user_id)
+    return h.get("owner_user_id") or (h.get("member_user_ids") or [user_id])[0]
+
+
+async def _team_hub_scope_user_ids(user_id: str) -> List[str]:
+    """Return the set of user_ids whose Team Hub data this user may access, for the
+    user's CURRENTLY ACTIVE hub (see `_resolve_active_household`).
+
+    Scope = the active hub's household members + its Team Hub collaborators + the
+    requester. Because different teams are owned by different rep/manager accounts,
+    scoping to the active hub keeps each team's data cleanly separated.
+    """
+    h = await _resolve_active_household(user_id)
+    scope = set(h.get("member_user_ids") or [])
+    if h.get("owner_user_id"):
+        scope.add(h["owner_user_id"])
+    # NOTE: Team Hub COLLABORATORS (coaches) are authorised to view this hub, but
+    # they do NOT own its data — new hub data is anchored to the owner (see
+    # _hub_owner_id). So we deliberately scope data to the hub's household only,
+    # which keeps each team's data isolated when a coach belongs to several hubs.
+    if not scope:
+        scope.add(user_id)
     return list(scope)
 
 

@@ -15,7 +15,7 @@ from core.models import (
     RosterColumnUpdate,
 )
 from core.security import get_current_user, require_team_access
-from core.helpers import _team_hub_scope_user_ids as _household_user_ids, roster_season_query
+from core.helpers import _team_hub_scope_user_ids as _household_user_ids, _hub_owner_id, roster_season_query
 from core.gating import assert_premium, assert_under_count
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_team_access)])
@@ -67,7 +67,7 @@ async def create_roster_member(payload: RosterMemberCreate, current_user=Depends
         )
         await assert_under_count(current_user["id"], "team_hub_personnel", cnt)
     data.pop("name", None)
-    member = RosterMember(user_id=current_user["id"], name=name, **data)
+    member = RosterMember(user_id=await _hub_owner_id(current_user["id"]), name=name, **data)
     await db.roster.insert_one(member.model_dump())
     return member
 
@@ -166,6 +166,7 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
     linked = {d["linked_id"] for d in existing if d.get("linked_id")}
 
     created: List[RosterMember] = []
+    hub_owner = await _hub_owner_id(current_user["id"])
 
     if payload.athlete_ids:
         async for a in db.athletes.find(
@@ -177,7 +178,7 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
             team_ids = a.get("team_ids") or []
             fn, ln = _split_name(a.get("name") or "Athlete")
             m = RosterMember(
-                user_id=current_user["id"], name=a.get("name") or "Athlete", role=role,
+                user_id=hub_owner, name=a.get("name") or "Athlete", role=role,
                 first_name=fn, last_name=ln,
                 team_ids=team_ids, source="athlete", linked_id=a["id"],
             )
@@ -192,7 +193,7 @@ async def roster_import(payload: RosterImportPayload, current_user=Depends(get_c
             uname = u.get("name") or (u.get("email") or "Member").split("@")[0]
             fn, ln = _split_name(uname)
             m = RosterMember(
-                user_id=current_user["id"],
+                user_id=hub_owner,
                 name=uname,
                 first_name=fn, last_name=ln,
                 role="parent", email=u.get("email"), source="household", linked_id=u["id"],
@@ -224,7 +225,7 @@ async def create_roster_column(payload: RosterColumnCreate, current_user=Depends
     member_ids = await _household_user_ids(current_user["id"])
     existing = await db.roster_columns.find({"user_id": {"$in": member_ids}}, {"_id": 0, "order": 1}).to_list(1000)
     order = max([c.get("order", 0) for c in existing], default=-1) + 1
-    col = RosterColumn(user_id=current_user["id"], label=label, order=order)
+    col = RosterColumn(user_id=await _hub_owner_id(current_user["id"]), label=label, order=order)
     await db.roster_columns.insert_one(col.model_dump())
     return col
 
