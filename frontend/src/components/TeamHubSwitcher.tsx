@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, Modal, Pressable, TextInput, ActivityIndicator, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, Modal, Pressable, TextInput, ActivityIndicator, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 
@@ -71,6 +71,7 @@ export default function TeamHubSwitcher({ onChange }: { onChange?: () => void })
             <Text style={styles.sheetTitle}>{multi ? "Switch team" : "Your team"}</Text>
             <Text style={styles.sheetSub}>{multi ? "Pick which team's hub to view." : "Rename your team hub anytime."}</Text>
 
+            <ScrollView style={styles.hubList} contentContainerStyle={{ paddingBottom: spacing.sm }} showsVerticalScrollIndicator>
             {hubs.map((h) => (
               <View key={h.id} style={[styles.row, h.is_active && styles.rowSelected]}>
                 {renamingId === h.id ? (
@@ -107,6 +108,7 @@ export default function TeamHubSwitcher({ onChange }: { onChange?: () => void })
                 )}
               </View>
             ))}
+            </ScrollView>
 
             {busy ? <ActivityIndicator style={{ marginTop: spacing.sm }} color={styles._accent.color} /> : null}
           </Pressable>
@@ -127,6 +129,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   grabber: { alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: c.border, marginBottom: spacing.md },
   sheetTitle: { ...typography.h3, color: c.textPrimary },
   sheetSub: { ...typography.caption, color: c.textSecondary, marginTop: 2, marginBottom: spacing.md },
+  hubList: { maxHeight: 380 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingVertical: 14, paddingHorizontal: spacing.md, marginTop: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.background },
   rowSelected: { borderColor: c.accent, borderWidth: 2, backgroundColor: c.accentSubtle },
   rowMain: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, minWidth: 0 },
