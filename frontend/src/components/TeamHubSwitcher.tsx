@@ -67,11 +67,12 @@ export default function TeamHubSwitcher({ onChange }: { onChange?: () => void })
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => { setOpen(false); setRenamingId(null); }}>
           <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.grabber} />
             <Text style={styles.sheetTitle}>{multi ? "Switch team" : "Your team"}</Text>
             <Text style={styles.sheetSub}>{multi ? "Pick which team's hub to view." : "Rename your team hub anytime."}</Text>
 
             {hubs.map((h) => (
-              <View key={h.id} style={styles.row}>
+              <View key={h.id} style={[styles.row, h.is_active && styles.rowSelected]}>
                 {renamingId === h.id ? (
                   <View style={styles.renameRow}>
                     <TextInput
@@ -91,15 +92,15 @@ export default function TeamHubSwitcher({ onChange }: { onChange?: () => void })
                   <>
                     <TouchableOpacity style={styles.rowMain} onPress={() => switchTo(h)} disabled={busy} testID={`hub-option-${h.id}`}>
                       <Ionicons
-                        name={h.is_active ? "radio-button-on" : "radio-button-off"}
-                        size={20}
+                        name={h.is_active ? "checkmark-circle" : "ellipse-outline"}
+                        size={24}
                         color={h.is_active ? styles._accent.color : styles._muted.color}
                       />
                       <Text style={[styles.rowName, h.is_active && styles.rowNameActive]} numberOfLines={1}>{h.name}</Text>
                     </TouchableOpacity>
                     {h.is_owner ? (
-                      <TouchableOpacity onPress={() => { setRenamingId(h.id); setNameDraft(h.name); }} hitSlop={10} testID={`hub-rename-${h.id}`}>
-                        <Ionicons name="pencil" size={16} color={styles._muted.color} />
+                      <TouchableOpacity style={styles.pencilBtn} onPress={() => { setRenamingId(h.id); setNameDraft(h.name); }} hitSlop={10} testID={`hub-rename-${h.id}`}>
+                        <Ionicons name="pencil" size={16} color={styles._accent.color} />
                       </TouchableOpacity>
                     ) : null}
                   </>
@@ -121,14 +122,17 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   pill: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, paddingVertical: 10, paddingHorizontal: 14, marginBottom: spacing.md },
   pillLabel: { ...typography.micro, color: c.textTertiary, textTransform: "uppercase", letterSpacing: 0.5 },
   pillName: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  sheet: { backgroundColor: c.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.lg, paddingBottom: spacing.xl },
+  backdrop: { flex: 1, backgroundColor: "rgba(15,23,42,0.72)", justifyContent: "flex-end" },
+  sheet: { backgroundColor: c.card, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: spacing.lg, paddingBottom: spacing.xl, borderTopWidth: 1, borderColor: c.border },
+  grabber: { alignSelf: "center", width: 40, height: 5, borderRadius: 3, backgroundColor: c.border, marginBottom: spacing.md },
   sheetTitle: { ...typography.h3, color: c.textPrimary },
   sheetSub: { ...typography.caption, color: c.textSecondary, marginTop: 2, marginBottom: spacing.md },
-  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
+  row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingVertical: 14, paddingHorizontal: spacing.md, marginTop: spacing.sm, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.background },
+  rowSelected: { borderColor: c.accent, borderWidth: 2, backgroundColor: c.accentSubtle },
   rowMain: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1, minWidth: 0 },
-  rowName: { ...typography.body, color: c.textPrimary, flexShrink: 1 },
-  rowNameActive: { fontWeight: "800" },
+  rowName: { ...typography.body, color: c.textPrimary, flexShrink: 1, fontWeight: "600" },
+  rowNameActive: { fontWeight: "800", color: c.accent },
+  pencilBtn: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: c.accentSubtle },
   renameRow: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1 },
   input: { flex: 1, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, color: c.textPrimary },
   saveBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 16 },
