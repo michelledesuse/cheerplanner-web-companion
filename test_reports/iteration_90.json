@@ -1,0 +1,29 @@
+{
+  "summary": "Verified the DOB-for-all-roster-roles fix end-to-end. Backend (11/11 pytests): POST /api/roster with role='staff' + dob='05/12' persists; PATCH with an unrelated field (phone) DOES NOT wipe dob (previously null-wiped); PATCH updating dob works; GET /api/roster returns saved dob for staff; athlete accepts full MM/DD/YYYY dob; public share /api/public/s/{token} HTML contains an id='dob' input, a dobLabel element, both 'Date of birth' and 'Birthday (month / day)' strings, and the onRoleChange() handler; POST /api/public/share/{token}/submit with role='staff' + dob='09/23' saves dob on the roster member. Frontend UI (Expo web, applereview account): opening /team/roster-new and selecting Role=Staff renders label 'Birthday (month / day)' with placeholder 'MM/DD'; entering 05/12 and tapping 'Add to roster' created the staff row; roster list card now shows 'DOB: 05/12' for the staff member (previously athletes-only); re-opening the staff profile shows the DOB field prefilled with '05/12' — persistence confirmed. Selecting an athlete row (Ava) shows label 'Date of birth' with placeholder 'MM/DD/YYYY'. Test data cleaned up.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter91_dob_all_roles.py",
+    "/app/test_reports/pytest/pytest_iter91.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "roster-new.tsx now saves dob unconditionally (dob.trim() || null). Confirmed no other role gating on dob paths.",
+    "share.py public form: DOB label id='dobLabel' + onRoleChange() correctly toggles label between 'Date of birth' and 'Birthday (month / day)' and placeholder between MM/DD/YYYY and MM/DD.",
+    "Note (pre-existing, unrelated to this fix): PATCH /api/roster/{id} in routers/roster.py filters updates via 'v is not None' via model_dump(exclude_unset=True) then explicitly drops None values (line 77). This means a client sending {\"dob\": null} to CLEAR a DOB is silently ignored. Not part of this bug but worth noting for future 'clear DOB' UX."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter91_dob_all_roles.py (new)"
+  ],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (all requested flows)"},
+  "seed_data_creation": "None persisted. A test staff roster member was created via UI then deleted via API; a few pytest members were auto-deleted in their cleanup tests.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend BASE_URL should be loaded from /app/frontend/.env EXPO_PUBLIC_BACKEND_URL (not process env). Login: POST /api/auth/login {email,password} → returns {token, user}. Auth header: Bearer <token>. The applereview account is FREE tier but has team_access=true so /api/team/share for kind='roster_member' works (parent_share_links premium check passed in this run — do not assume 402). Roster card DOB line is rendered inside styles.parentLine only when m.dob is truthy for ALL roles (roster.tsx:382).",
+  "rca_of_issue": "Root cause: frontend gating in roster-new.tsx sent 'dob: isAthlete ? (dob.trim()||null) : null' on save, so editing any non-athlete row overwrote dob to null in Mongo; simultaneously the DOB TextInput and the roster list card's DOB line were nested in `role==='athlete'` conditionals, so non-athlete DOBs were never displayed or editable. Fix (applied by main agent, verified here): (1) roster-new.tsx renders DOB field for all roles with dynamic label/placeholder and saves `dob: dob.trim() || null` unconditionally; (2) roster.tsx card renders `DOB:` line for any m.dob regardless of role; (3) share.py public HTML has role-aware label/placeholder driven by onRoleChange(). Backend RosterMember model already had dob field so no model change was needed."
+}

@@ -379,7 +379,7 @@ export default function RosterScreen() {
                       return (
                         <>
                           {isAthlete && !!parentName && <Text style={styles.parentLine}>Parent: {parentName}{m.parent_relationship ? ` (${m.parent_relationship})` : ""}</Text>}
-                          {isAthlete && !!m.dob && <Text style={styles.parentLine}>DOB: {m.dob}</Text>}
+                          {!!m.dob && <Text style={styles.parentLine}>DOB: {m.dob}</Text>}
                           {isAthlete && (m.caretakers?.length || 0) > 0 && <Text style={styles.parentLine}>+{m.caretakers!.length} more caretaker{m.caretakers!.length === 1 ? "" : "s"}</Text>}
                           {isAthlete && m.adult_athlete && <Text style={styles.parentLine}>Adult athlete</Text>}
                           <View style={styles.contactRow}>

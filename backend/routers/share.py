@@ -562,14 +562,15 @@ function renderRoster(d){
   h+="<div class='row'><div><label>First name</label><input id='first' value=\\""+esc(val('first_name'))+"\\"/></div><div><label>Last name</label><input id='last' value=\\""+esc(val('last_name'))+"\\"/></div></div>";
   h+="<label>Preferred name</label><input id='pref' value=\\""+esc(val('preferred_name'))+"\\"/>";
   const roles=['athlete','parent','coach','team_rep','staff'];const rlabels={athlete:'Athlete',parent:'Parent',coach:'Coach',team_rep:'Team Rep',staff:'Staff'};
-  h+="<label>Role</label><select id='role'>"+roles.map(r=>"<option value='"+r+"'"+((val('role')||'athlete')===r?" selected":"")+">"+rlabels[r]+"</option>").join("")+"</select>";
+  h+="<label>Role</label><select id='role' onchange='onRoleChange()'>"+roles.map(r=>"<option value='"+r+"'"+((val('role')||'athlete')===r?" selected":"")+">"+rlabels[r]+"</option>").join("")+"</select>";
   if((d.teams||[]).length){
     h+="<label>Team(s)</label>";
     const mt=(mem&&mem.team_ids)||[];
     (d.teams||[]).forEach(t=>{h+="<div style='display:flex;align-items:center;gap:8px;margin:6px 0'><input type='checkbox' id='tm_"+t.id+"'"+(mt.indexOf(t.id)>=0?" checked":"")+" style='width:auto'/><span>"+esc(t.name)+"</span></div>";});
   }
   h+="<label>Phone</label><input id='phone' value=\\""+esc(val('phone'))+"\\"/><label>Email</label><input id='email' value=\\""+esc(val('email'))+"\\"/>";
-  h+="<label>Date of birth</label><input id='dob' placeholder='MM/DD/YYYY' value=\\""+esc(val('dob'))+"\\"/>";
+  var isAth=(val('role')||'athlete')==='athlete';
+  h+="<label id='dobLabel'>"+(isAth?'Date of birth':'Birthday (month / day)')+"</label><input id='dob' placeholder='"+(isAth?'MM/DD/YYYY':'MM/DD')+"' value=\\""+esc(val('dob'))+"\\"/>";
   h+="<label style='display:flex;align-items:center;gap:8px;margin-top:12px'><input type='checkbox' id='adult' style='width:auto'"+(mem&&mem.adult_athlete?" checked":"")+"/><span>Adult athlete — include the athlete's own phone in team texts</span></label>";
   h+="<div style='margin-top:14px;font-weight:700;color:#0F172A'>Caretaker 1 (parent / guardian)</div>";
   h+="<div class='row'><div><label>First name</label><input id='pfirst' value=\\""+esc(val('parent_first_name'))+"\\"/></div><div><label>Last name</label><input id='plast' value=\\""+esc(val('parent_last_name'))+"\\"/></div></div>";
@@ -603,6 +604,13 @@ function renderRoster(d){
   window._cts=(mem&&Array.isArray(mem.caretakers))?mem.caretakers.slice(0,3):[];
   renderCts();
 }
+function onRoleChange(){
+  var r=(document.getElementById('role')||{}).value||'athlete';
+  var ath=r==='athlete';
+  var el=document.getElementById('dob'); if(el) el.placeholder=ath?'MM/DD/YYYY':'MM/DD';
+  var lbl=document.getElementById('dobLabel'); if(lbl) lbl.textContent=ath?'Date of birth':'Birthday (month / day)';
+}
+
 function ctBlock(idx,c){
   c=c||{};
   const rel=['','Mother','Father','Guardian','Grandparent','Other'];

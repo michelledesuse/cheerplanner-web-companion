@@ -139,7 +139,7 @@ export default function RosterMemberForm() {
         parent_relationship: isAthlete ? (parentRelationship || null) : null,
         parent_include_in_texts: isAthlete ? parentIncludeTexts : true,
         caretakers: isAthlete ? cleanCaretakers : [],
-        dob: isAthlete ? (dob.trim() || null) : null,
+        dob: dob.trim() || null,
         adult_athlete: isAthlete ? adultAthlete : false,
         phone: isAthlete ? (adultAthlete ? (phone.trim() || null) : null) : (phone.trim() || null),
         email: isAthlete ? null : (email.trim() || null),
@@ -300,11 +300,11 @@ export default function RosterMemberForm() {
             })}
           </View>
 
+          <Text style={styles.label}>{role === "athlete" ? "Date of birth" : "Birthday (month / day)"}</Text>
+          <TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder={role === "athlete" ? "MM/DD/YYYY" : "MM/DD"} placeholderTextColor={colors.textTertiary} keyboardType="numbers-and-punctuation" testID="roster-dob-input" />
+
           {role === "athlete" ? (
             <>
-              <Text style={styles.label}>Date of birth</Text>
-              <TextInput style={styles.input} value={dob} onChangeText={setDob} placeholder="MM/DD/YYYY" placeholderTextColor={colors.textTertiary} keyboardType="numbers-and-punctuation" testID="roster-dob-input" />
-
               <View style={styles.toggleRow}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
                   <Text style={styles.toggleTitle}>Adult athlete</Text>
