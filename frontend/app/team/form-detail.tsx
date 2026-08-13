@@ -64,6 +64,16 @@ export default function FormDetailScreen() {
   // question editor modal
   const [qOpen, setQOpen] = useState(false);
   const [editingQ, setEditingQ] = useState<Question | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [descDraft, setDescDraft] = useState("");
+  const openDetails = () => { setNameDraft(data?.name || ""); setDescDraft(data?.description || ""); setDetailsOpen(true); };
+  const saveDetails = async () => {
+    const nm = nameDraft.trim();
+    if (!nm) { Alert.alert("Name required", "Please enter a form name."); return; }
+    await patch({ name: nm, description: descDraft.trim() });
+    setDetailsOpen(false);
+  };
   const [qIndex, setQIndex] = useState<number>(-1);
 
   // response modal
@@ -226,12 +236,31 @@ export default function FormDetailScreen() {
         </TouchableOpacity>
         <Text style={styles.headerTitle} numberOfLines={1}>{data.name}</Text>
         <View style={{ flexDirection: "row", gap: 6 }}>
+          <TouchableOpacity onPress={openDetails} style={styles.iconBtn} testID="form-edit-details" hitSlop={8}>
+            <Ionicons name="create-outline" size={18} color={colors.accent} />
+          </TouchableOpacity>
           <ManageAccessButton resource="form" resourceId={data.id} />
           <TouchableOpacity onPress={del} style={styles.iconBtn} testID="form-delete" hitSlop={8}>
             <Ionicons name="trash-outline" size={18} color={colors.danger} />
           </TouchableOpacity>
         </View>
       </View>
+
+      <Modal visible={detailsOpen} transparent animationType="slide" onRequestClose={() => setDetailsOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Edit form</Text>
+            <Text style={styles.fieldLabel}>Form name</Text>
+            <TextInput style={styles.input} value={nameDraft} onChangeText={setNameDraft} placeholder="e.g. Banquet Meal Order" placeholderTextColor={colors.textTertiary} testID="form-name-input" />
+            <Text style={styles.fieldLabel}>Description</Text>
+            <TextInput style={[styles.input, styles.inputMulti]} value={descDraft} onChangeText={setDescDraft} placeholder="Optional details for your team" placeholderTextColor={colors.textTertiary} multiline testID="form-desc-input" />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setDetailsOpen(false)} testID="form-details-cancel"><Text style={styles.modalCancelText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.submitBtn} onPress={saveDetails} testID="form-details-save"><Text style={styles.submitText}>Save</Text></TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 90 }}
