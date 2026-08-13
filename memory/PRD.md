@@ -444,3 +444,22 @@ Get exact current paths from user before building W2.
   - New router routers/hubs.py (prefix /api/team/hubs): GET (list), POST /active {hub_id} (403 if not a member), PATCH /{hub_id} {name} (owner-only rename). Registered in server.py.
   - Frontend: src/components/TeamHubSwitcher.tsx (pill testID team-hub-switcher + bottom-sheet with radio switch + owner rename) mounted at top of app/(tabs)/team.tsx. Switching persists server-side; other hub screens reflect the active hub on next focus (scope is server-side).
   - Verified via API: switching active hub shows only that hub's roster and hides the other's; creates anchor to hub owner. Regression: all Team Hub tools load/CRUD fine for single-hub owner.
+
+---
+
+## BACKLOG (requested "for later" — not yet built)
+
+### Backlog A: Household Privacy Controls (per-member)
+- Per-member visibility toggles for **Expenses/Payments** and **Travel/Bookings** only (confirmed scope).
+- Per-member (each household member configured individually), NOT a kids/adults mode.
+- Enforce in UI AND at backend/API so hidden data is truly private.
+- Route through auth/integration playbook (access-control change). Medium feature.
+
+### Backlog B: Community Reviews of Cheer-Friendly Places (global, cross-account)
+- GLOBAL shared data (like Community Roadmap): a reviewer in Dallas posts; a user in California sees it, independent of households/accounts.
+- Submit a place: name, city/location, category, 1–5 star rating, written review. Show rolled-up average rating per place.
+- Browse/filter by city + category so users find spots near a competition.
+- Safeguards: one rating per user per place (editable), report/flag for moderation. Medium feature.
+- Reviewer identity (user choice per review): **Anonymous** OR **First name + Last initial**.
+- Categories (seed list): Restaurants/Eateries, Coffee Shops, Hotels/Lodging, Things to Do, Gyms/Practice Facilities, Shopping/Malls, Hair & Makeup Artists, Hairpieces, Makeup (lipstick/blush/foundation/etc), Training Programs, Competitions, Other.
+- Users may ADD categories; ADMIN can then reorganize. Mirror Roadmap admin powers: admin can ADD categories AND COMBINE/merge duplicate places (same merge UX as the Community Roadmap).
