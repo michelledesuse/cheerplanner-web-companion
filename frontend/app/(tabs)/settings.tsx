@@ -212,6 +212,17 @@ export default function SettingsScreen() {
           <SettingRow label="Fundraisers" onPress={() => router.push("/fundraisers")} chevron />
         </View>
 
+        <Text style={styles.sectionHead}>Community</Text>
+        <View style={styles.group}>
+          <SettingRow
+            label="Community Reviews"
+            subtitle="Rate &amp; discover cheer-friendly restaurants, hotels, gyms and more"
+            onPress={() => router.push("/reviews" as any)}
+            chevron
+            testID="settings-reviews"
+          />
+        </View>
+
         <Text style={styles.sectionHead}>Suggest a Feature</Text>
         <View style={styles.group}>
           <SettingRow

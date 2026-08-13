@@ -455,7 +455,7 @@ Get exact current paths from user before building W2.
 - Enforce in UI AND at backend/API so hidden data is truly private.
 - Route through auth/integration playbook (access-control change). Medium feature.
 
-### Backlog B: Community Reviews of Cheer-Friendly Places (global, cross-account)
+### Backlog B: Community Reviews of Cheer-Friendly Places (global, cross-account) — ✅ DONE (iter93)
 - GLOBAL shared data (like Community Roadmap): a reviewer in Dallas posts; a user in California sees it, independent of households/accounts.
 - Submit a place: name, city/location, category, 1–5 star rating, written review. Show rolled-up average rating per place.
 - Browse/filter by city + category so users find spots near a competition.

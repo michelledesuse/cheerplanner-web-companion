@@ -58,6 +58,7 @@ from routers import (
     twilio_hooks,
     roadmap,
     team_forms,
+    reviews,
 )
 
 
@@ -123,6 +124,7 @@ for r in (
     twilio_hooks.router,
     roadmap.router,
     team_forms.router,
+    reviews.router,
 ):
     app.include_router(r)
 
@@ -217,6 +219,19 @@ async def startup_db_client():
         await db.team_form_responses.create_index([("form_id", 1), ("member_id", 1)])
     except Exception as exc:
         logger.warning(f"Could not create roadmap indexes: {exc}")
+
+    # Community reviews — global cross-account place directory.
+    try:
+        await db.place_reviews.create_index([("place_id", 1), ("user_id", 1)], unique=True)
+        await db.place_reviews.create_index("place_id")
+        await db.review_places.create_index([("name_norm", 1), ("city_norm", 1)])
+        await db.review_places.create_index("category")
+        await db.review_categories.create_index("label_norm", unique=True)
+        await db.review_flags.create_index([("review_id", 1), ("user_id", 1)], unique=True)
+        from routers.reviews import seed_review_categories
+        await seed_review_categories()
+    except Exception as exc:
+        logger.warning(f"Could not create review indexes: {exc}")
 
     # Phase 1 — seed admin accounts from ADMIN_EMAILS (idempotent).
     try:
