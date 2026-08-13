@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from core.db import db
 from core.models import Household, HouseholdInvite, HouseholdJoinRequest, utcnow_iso, EXPENSE_CATEGORIES
 from core.security import get_current_user
-from core.helpers import _get_or_create_household
+from core.helpers import _get_or_create_household, _household_owner_id, _member_visibility, PRIVACY_AREAS
 from core.theme_presets import THEME_PRESETS, DEFAULT_THEME
 
 router = APIRouter(prefix="/api")
@@ -15,15 +15,60 @@ router = APIRouter(prefix="/api")
 @router.get("/household")
 async def get_household(current_user=Depends(get_current_user)):
     h = await _get_or_create_household(current_user["id"])
+    owner_id = _household_owner_id(h)
+    member_privacy = h.get("member_privacy") or {}
     members = []
     async for u in db.users.find({"id": {"$in": h["member_user_ids"]}}, {"_id": 0, "id": 1, "email": 1, "name": 1}):
+        priv = member_privacy.get(u["id"]) or {}
+        u["is_owner"] = u["id"] == owner_id
+        # Owner always sees everything; others default to visible unless hidden.
+        u["privacy"] = {
+            a: (True if u["id"] == owner_id else bool(priv.get(a, True)))
+            for a in PRIVACY_AREAS
+        }
         members.append(u)
     return {
         "id": h["id"],
         "members": members,
+        "owner_user_id": owner_id,
+        "is_owner": current_user["id"] == owner_id,
+        "visibility": await _member_visibility(current_user["id"]),
         "theme": h.get("theme") or dict(DEFAULT_THEME),
         "custom_expense_categories": h.get("custom_expense_categories") or [],
         "custom_event_types": h.get("custom_event_types") or [],
+    }
+
+
+@router.patch("/household/privacy/{member_user_id}")
+async def update_member_privacy(
+    member_user_id: str,
+    payload: Dict[str, Any] = Body(...),
+    current_user=Depends(get_current_user),
+):
+    """Owner-only: set which data areas a household member may view.
+
+    Body accepts any of the PRIVACY_AREAS as booleans, e.g.
+    `{"expenses": false, "travel": true}`.
+    """
+    h = await _get_or_create_household(current_user["id"])
+    owner_id = _household_owner_id(h)
+    if current_user["id"] != owner_id:
+        raise HTTPException(status_code=403, detail="Only the household owner can change privacy settings.")
+    if member_user_id == owner_id:
+        raise HTTPException(status_code=400, detail="The owner always has full access.")
+    if member_user_id not in (h.get("member_user_ids") or []):
+        raise HTTPException(status_code=404, detail="That member is not in your household.")
+
+    member_privacy = h.get("member_privacy") or {}
+    current = dict(member_privacy.get(member_user_id) or {})
+    for area in PRIVACY_AREAS:
+        if area in payload:
+            current[area] = bool(payload[area])
+    member_privacy[member_user_id] = current
+    await db.households.update_one({"id": h["id"]}, {"$set": {"member_privacy": member_privacy}})
+    return {
+        "member_user_id": member_user_id,
+        "privacy": {a: bool(current.get(a, True)) for a in PRIVACY_AREAS},
     }
 
 

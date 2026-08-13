@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from core.db import db
 from core.models import Booking, BookingCreate, BookingUpdate
-from core.security import get_current_user
+from core.security import get_current_user, require_visibility
 from core.helpers import _household_user_ids
 
 router = APIRouter(prefix="/api")
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api")
 @router.get("/bookings", response_model=List[Booking])
 async def list_bookings(
     competition_id: Optional[str] = None,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_visibility("travel")),
 ):
     q = {"user_id": {"$in": await _household_user_ids(current_user["id"])}}
     if competition_id:
@@ -23,7 +23,7 @@ async def list_bookings(
 
 
 @router.post("/bookings", response_model=Booking)
-async def create_booking(payload: BookingCreate, current_user=Depends(get_current_user)):
+async def create_booking(payload: BookingCreate, current_user=Depends(require_visibility("travel"))):
     if payload.type not in ("hotel", "car", "flight"):
         raise HTTPException(status_code=400, detail="Invalid booking type")
     data = payload.model_dump()
@@ -43,7 +43,7 @@ async def create_booking(payload: BookingCreate, current_user=Depends(get_curren
 
 
 @router.patch("/bookings/{booking_id}", response_model=Booking)
-async def update_booking(booking_id: str, payload: BookingUpdate, current_user=Depends(get_current_user)):
+async def update_booking(booking_id: str, payload: BookingUpdate, current_user=Depends(require_visibility("travel"))):
     sent = payload.model_dump(exclude_unset=True)
     nullable = {
         "provider", "confirmation", "balance_due_date", "notes",
@@ -76,7 +76,7 @@ async def update_booking(booking_id: str, payload: BookingUpdate, current_user=D
 
 
 @router.delete("/bookings/{booking_id}")
-async def delete_booking(booking_id: str, current_user=Depends(get_current_user)):
+async def delete_booking(booking_id: str, current_user=Depends(require_visibility("travel"))):
     res = await db.bookings.delete_one({
         "id": booking_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}
     })

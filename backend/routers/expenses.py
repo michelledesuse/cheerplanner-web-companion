@@ -11,7 +11,7 @@ from core.models import (
     ApplyPaymentRequest,
     EXPENSE_CATEGORIES,
 )
-from core.security import get_current_user
+from core.security import get_current_user, require_visibility
 from core.helpers import (
     _household_user_ids, _build_paid_map, _expense_with_balance, season_query,
 )
@@ -28,7 +28,7 @@ async def expense_categories():
 async def list_expenses(
     athlete_id: Optional[str] = None,
     season_id: Optional[str] = None,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_visibility("expenses")),
 ):
     q = season_query(await _household_user_ids(current_user["id"]), season_id)
     if athlete_id:
@@ -39,7 +39,7 @@ async def list_expenses(
 
 
 @router.post("/expenses", response_model=List[ExpenseEntry])
-async def create_expense(payload: ExpenseCreate, current_user=Depends(get_current_user)):
+async def create_expense(payload: ExpenseCreate, current_user=Depends(require_visibility("expenses"))):
     from datetime import datetime as _dt, timedelta as _td
     data = payload.model_dump()
     # Strip response-only / non-stored fields
@@ -98,7 +98,7 @@ async def create_expense(payload: ExpenseCreate, current_user=Depends(get_curren
 
 
 @router.post("/expenses/bulk", response_model=List[ExpenseEntry])
-async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(get_current_user)):
+async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(require_visibility("expenses"))):
     user_id = current_user["id"]
     if not payload.athlete_ids:
         raise HTTPException(status_code=400, detail="Select at least one athlete")
@@ -147,7 +147,7 @@ async def create_expenses_bulk(payload: ExpenseBulkCreate, current_user=Depends(
 
 
 @router.patch("/expenses/{expense_id}", response_model=ExpenseEntry)
-async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=Depends(get_current_user)):
+async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=Depends(require_visibility("expenses"))):
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -162,7 +162,7 @@ async def update_expense(expense_id: str, payload: ExpenseUpdate, current_user=D
 
 
 @router.delete("/expenses/{expense_id}")
-async def delete_expense(expense_id: str, current_user=Depends(get_current_user)):
+async def delete_expense(expense_id: str, current_user=Depends(require_visibility("expenses"))):
     res = await db.expenses.delete_one({
         "id": expense_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}
     })
@@ -175,7 +175,7 @@ async def delete_expense(expense_id: str, current_user=Depends(get_current_user)
 async def apply_payment_to_expense(
     expense_id: str,
     payload: ApplyPaymentRequest,
-    current_user=Depends(get_current_user),
+    current_user=Depends(require_visibility("expenses")),
 ):
     user_id = current_user["id"]
     if payload.amount is None or payload.amount <= 0:
@@ -250,7 +250,7 @@ async def apply_payment_to_expense(
 
 
 @router.post("/expenses/{expense_id}/apply-available-payments")
-async def apply_available_payments(expense_id: str, current_user=Depends(get_current_user)):
+async def apply_available_payments(expense_id: str, current_user=Depends(require_visibility("expenses"))):
     """Pull leftover funds from this athlete's existing payments and apply
     them to the given expense.
     """

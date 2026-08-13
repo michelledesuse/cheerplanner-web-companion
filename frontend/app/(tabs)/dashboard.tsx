@@ -49,6 +49,8 @@ type ReminderItem = {
 
 export default function DashboardScreen() {
   const { user } = useAuth();
+  const canExpenses = user?.visibility?.expenses !== false;
+  const canTravel = user?.visibility?.travel !== false;
   const router = useRouter();
   const { refreshPresets } = useTheme(); // subscribe + sync the household theme on first mount
   const styles = useThemedStyles(makeStyles);
@@ -133,6 +135,7 @@ export default function DashboardScreen() {
         <View style={{ marginBottom: spacing.md }}><SeasonBar /></View>
 
         {/* Stat tiles — tappable, each routes to its primary tab */}
+        {canExpenses && (
         <View style={styles.tileRow}>
           <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/expenses")} testID="tile-this-month">
             <View style={[styles.tileIcon, { backgroundColor: colors.accentSubtle }]}>
@@ -149,6 +152,7 @@ export default function DashboardScreen() {
             <Text style={styles.tileLabel}>Paid YTD</Text>
           </TouchableOpacity>
         </View>
+        )}
         <View style={styles.tileRow}>
           <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/athletes")} testID="tile-athletes">
             <View style={[styles.tileIcon, { backgroundColor: colors.divider }]}>
@@ -157,6 +161,7 @@ export default function DashboardScreen() {
             <Text style={styles.tileValue}>{data?.athletes_count || 0}</Text>
             <Text style={styles.tileLabel}>Athletes</Text>
           </TouchableOpacity>
+          {canExpenses && (
           <TouchableOpacity activeOpacity={0.7} style={styles.tile} onPress={() => router.push("/(tabs)/expenses?tab=fundraisers")} testID="tile-raised">
             <View style={[styles.tileIcon, { backgroundColor: colors.warningBg }]}>
               <Ionicons name="gift" size={18} color={colors.warningText} />
@@ -164,13 +169,14 @@ export default function DashboardScreen() {
             <Text style={styles.tileValue}>{formatCurrency(data?.total_raised || 0)}</Text>
             <Text style={styles.tileLabel}>Raised</Text>
           </TouchableOpacity>
+          )}
         </View>
 
         {(data?.due_today || 0) > 0 && (
           <TouchableOpacity
             style={styles.dueTodayCard}
             activeOpacity={0.85}
-            onPress={() => router.push("/(tabs)/expenses?filter=open")}
+            onPress={() => router.push(canExpenses ? "/(tabs)/expenses?filter=open" : "/(tabs)/competitions")}
             testID="due-today-card"
           >
             <View style={styles.dueTodayIcon}>
@@ -265,6 +271,7 @@ export default function DashboardScreen() {
         )}
 
         {/* Minimized balance summary — moved to bottom */}
+        {(canExpenses || canTravel) && (
         <TouchableOpacity
           style={styles.miniBalanceCard}
           testID="dashboard-balance-card"
@@ -275,17 +282,26 @@ export default function DashboardScreen() {
             <Text style={styles.miniBalanceLabel}>Outstanding</Text>
             <Text style={styles.miniBalanceValue}>{formatCurrency(data?.outstanding_balance || 0)}</Text>
           </View>
+          {canExpenses && (
+          <>
           <View style={styles.miniDivider} />
           <View style={styles.miniBalanceItem}>
             <Text style={styles.miniBalanceLabel}>Expenses due</Text>
             <Text style={styles.miniBalanceValueSm}>{formatCurrency(data?.unpaid_expense_balance || 0)}</Text>
           </View>
+          </>
+          )}
+          {canTravel && (
+          <>
           <View style={styles.miniDivider} />
           <View style={styles.miniBalanceItem}>
             <Text style={styles.miniBalanceLabel}>Travel</Text>
             <Text style={styles.miniBalanceValueSm}>{formatCurrency(data?.booking_balance || 0)}</Text>
           </View>
+          </>
+          )}
         </TouchableOpacity>
+        )}
 
         <View style={{ height: 80 }} />
       </ScrollView>

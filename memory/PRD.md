@@ -449,7 +449,7 @@ Get exact current paths from user before building W2.
 
 ## BACKLOG (requested "for later" — not yet built)
 
-### Backlog A: Household Privacy Controls (per-member)
+### Backlog A: Household Privacy Controls (per-member) — ✅ DONE (iter92)
 - Per-member visibility toggles for **Expenses/Payments** and **Travel/Bookings** only (confirmed scope).
 - Per-member (each household member configured individually), NOT a kids/adults mode.
 - Enforce in UI AND at backend/API so hidden data is truly private.

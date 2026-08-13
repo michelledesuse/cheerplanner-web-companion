@@ -4,6 +4,7 @@ import { Platform, View, useWindowDimensions } from "react-native";
 
 import { colors } from "@/src/theme";
 import { useTheme } from "@/src/context/ThemeContext";
+import { useAuth } from "@/src/context/AuthContext";
 import WebSidebar from "@/src/components/WebSidebar";
 
 /**
@@ -13,6 +14,8 @@ import WebSidebar from "@/src/components/WebSidebar";
  */
 export default function TabsLayout() {
   useTheme(); // subscribe to theme version so this layout re-renders on theme change
+  const { user } = useAuth();
+  const canViewExpenses = user?.visibility?.expenses !== false;
   const { width } = useWindowDimensions();
   const isDesktopWeb = Platform.OS === "web" && width >= 900;
 
@@ -45,6 +48,7 @@ export default function TabsLayout() {
         name="expenses"
         options={{
           title: "Expenses",
+          href: canViewExpenses ? undefined : null,
           tabBarIcon: ({ color, size }) => <Ionicons name="wallet" size={size} color={color} />,
         }}
       />

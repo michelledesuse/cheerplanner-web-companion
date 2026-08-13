@@ -36,6 +36,8 @@ class UserPublic(BaseModel):
     created_at: str
     team_access: bool = False
     is_admin: bool = False
+    # Household data areas this user may view: {"expenses": bool, "travel": bool}.
+    visibility: Optional[Dict[str, bool]] = None
 
 
 class TeamAccessPayload(BaseModel):
@@ -75,6 +77,10 @@ class Household(BaseModel):
     # v2.3 custom types — household-wide, reusable in create forms.
     custom_expense_categories: List[str] = Field(default_factory=list)
     custom_event_types: List[Dict[str, Any]] = Field(default_factory=list)  # [{id, label, color}]
+    # Per-member privacy: owner decides which data areas each non-owner member
+    # can see. Shape: {user_id: {"expenses": bool, "travel": bool}}. A missing
+    # user or area defaults to visible (True). The owner always sees everything.
+    member_privacy: Dict[str, Dict[str, bool]] = Field(default_factory=dict)
     created_at: str = Field(default_factory=utcnow_iso)
 
 

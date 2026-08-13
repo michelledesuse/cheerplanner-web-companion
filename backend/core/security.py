@@ -63,6 +63,18 @@ async def require_team_access(current_user=Depends(get_current_user)) -> dict:
     return current_user
 
 
+def require_visibility(area: str):
+    """Dependency factory: raise 403 if the household owner has hidden `area`
+    (e.g. 'expenses' or 'travel') from the current user. Owners always pass."""
+    async def _dep(current_user=Depends(get_current_user)) -> dict:
+        from core.helpers import _member_visibility
+        vis = await _member_visibility(current_user["id"])
+        if not vis.get(area, True):
+            raise HTTPException(status_code=403, detail="You don't have access to this section.")
+        return current_user
+    return _dep
+
+
 async def require_admin(current_user=Depends(get_current_user)) -> dict:
     """Gate admin-only endpoints. Admin status is set server-side only
     (seeded from ADMIN_EMAILS); the client can never self-grant it."""

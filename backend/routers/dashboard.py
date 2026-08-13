@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 
 from core.db import db
 from core.security import get_current_user
-from core.helpers import _build_paid_map, parse_date
+from core.helpers import _build_paid_map, parse_date, _member_visibility
 
 router = APIRouter(prefix="/api")
 
@@ -13,6 +13,9 @@ router = APIRouter(prefix="/api")
 async def dashboard(current_user=Depends(get_current_user)):
     user_id = current_user["id"]
     today = datetime.now(timezone.utc).date()
+    vis = await _member_visibility(user_id)
+    can_expenses = vis.get("expenses", True)
+    can_travel = vis.get("travel", True)
 
     athletes_count = await db.athletes.count_documents({"user_id": user_id})
     comps_count = await db.competitions.count_documents({"user_id": user_id})
@@ -23,7 +26,8 @@ async def dashboard(current_user=Depends(get_current_user)):
         total_expenses += float(d.get("amount") or 0)
 
     today_iso = today.isoformat()
-    due_today = 0.0
+    due_today_bookings = 0.0
+    due_today_expenses = 0.0
 
     # Booking balances
     booking_balance = 0.0
@@ -32,7 +36,7 @@ async def dashboard(current_user=Depends(get_current_user)):
         booking_balance += bal
         _bdd = str(d.get("balance_due_date") or "")[:10]
         if bal > 0 and _bdd and _bdd <= today_iso:
-            due_today += bal
+            due_today_bookings += bal
 
     # Unpaid expense balance + total paid YTD — derived from canonical paid_map.
     paid_map = await _build_paid_map(user_id)
@@ -51,7 +55,7 @@ async def dashboard(current_user=Depends(get_current_user)):
         unpaid_expense_balance += bal
         _dd = str(d.get("due_date") or "")[:10]
         if bal > 0 and _dd and _dd <= today_iso:
-            due_today += bal
+            due_today_expenses += bal
 
     # Next competition
     next_comp = None
@@ -78,13 +82,18 @@ async def dashboard(current_user=Depends(get_current_user)):
     return {
         "athletes_count": athletes_count,
         "competitions_count": comps_count,
-        "total_expenses_ytd": round(total_expenses, 2),
-        "total_payments_ytd": round(paid_from_expenses, 2),
-        "outstanding_balance": round(unpaid_expense_balance + booking_balance, 2),
-        "due_today": round(due_today, 2),
-        "booking_balance": round(booking_balance, 2),
-        "unpaid_expense_balance": round(unpaid_expense_balance, 2),
-        "month_spend": round(month_spend, 2),
+        "total_expenses_ytd": round(total_expenses, 2) if can_expenses else 0.0,
+        "total_payments_ytd": round(paid_from_expenses, 2) if can_expenses else 0.0,
+        "outstanding_balance": round(
+            (unpaid_expense_balance if can_expenses else 0.0)
+            + (booking_balance if can_travel else 0.0), 2),
+        "due_today": round((due_today_expenses if can_expenses else 0.0)
+                           + (due_today_bookings if can_travel else 0.0), 2),
+        "booking_balance": round(booking_balance, 2) if can_travel else 0.0,
+        "unpaid_expense_balance": round(unpaid_expense_balance, 2) if can_expenses else 0.0,
+        "month_spend": round(month_spend, 2) if can_expenses else 0.0,
         "total_raised": round(total_raised, 2),
         "next_competition": next_comp,
+        "can_view_expenses": can_expenses,
+        "can_view_travel": can_travel,
     }

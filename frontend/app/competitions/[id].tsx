@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import { useAuth } from "@/src/context/AuthContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
@@ -69,6 +70,8 @@ type Booking = {
 
 export default function CompetitionDetail() {
   const styles = useThemedStyles(makeStyles);
+  const { user } = useAuth();
+  const canTravel = user?.visibility?.travel !== false;
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [comp, setComp] = useState<Competition | null>(null);
@@ -83,13 +86,13 @@ export default function CompetitionDetail() {
     try {
       const [c, b, a] = await Promise.all([
         api.get<Competition>(`/competitions/${id}`),
-        api.get<Booking[]>(`/bookings?competition_id=${id}`),
+        canTravel ? api.get<Booking[]>(`/bookings?competition_id=${id}`) : Promise.resolve({ data: [] as Booking[] }),
         api.get<Athlete[]>("/athletes"),
       ]);
       setComp(c.data); setBookings(b.data); setAthletes(a.data);
     } catch (e) {}
     finally { setLoading(false); setRefreshing(false); }
-  }, [id]);
+  }, [id, canTravel]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -192,7 +195,7 @@ export default function CompetitionDetail() {
           )}
         </View>
 
-        {bookings.length > 0 && (
+        {canTravel && bookings.length > 0 && (
           <View style={styles.balanceCard}>
             <View>
               <Text style={styles.smallLabel}>TRAVEL BUDGET</Text>
@@ -241,6 +244,8 @@ export default function CompetitionDetail() {
           onChanged={load}
         />
 
+        {canTravel && (
+        <>
         <Text style={styles.sectionHead}>Travel & accommodations</Text>
 
         <View style={styles.addTypes}>
@@ -259,6 +264,8 @@ export default function CompetitionDetail() {
             onEdit={() => router.push({ pathname: "/bookings/new", params: { id: b.id } })}
           />
         ))}
+        </>
+        )}
 
         {Array.isArray(comp.links) && comp.links.length > 0 && (
           <>

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
-  TextInput, Alert, Share, KeyboardAvoidingView, Platform,
+  TextInput, Alert, Share, KeyboardAvoidingView, Platform, Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,13 +13,16 @@ import { useAuth } from "@/src/context/AuthContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
-type Member = { id: string; email: string; name?: string | null };
+type MemberPrivacy = { expenses: boolean; travel: boolean };
+type Member = { id: string; email: string; name?: string | null; is_owner?: boolean; privacy?: MemberPrivacy };
 
 export default function HouseholdScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
   const { user } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
+  const [isOwner, setIsOwner] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [invite, setInvite] = useState<{ code: string; expires_at: string } | null>(null);
   const [generating, setGenerating] = useState(false);
@@ -30,11 +33,25 @@ export default function HouseholdScreen() {
     try {
       const r = await api.get("/household");
       setMembers(r.data.members || []);
+      setIsOwner(!!r.data.is_owner);
     } catch (_e) {} finally { setLoading(false); }
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);
+
+  const togglePrivacy = async (memberId: string, area: keyof MemberPrivacy, next: boolean) => {
+    setMembers((prev) => prev.map((m) => m.id === memberId
+      ? { ...m, privacy: { expenses: true, travel: true, ...(m.privacy || {}), [area]: next } }
+      : m));
+    setSavingPrivacy(`${memberId}:${area}`);
+    try {
+      await api.patch(`/household/privacy/${memberId}`, { [area]: next });
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not update privacy");
+      await load();
+    } finally { setSavingPrivacy(null); }
+  };
 
   const generateInvite = async () => {
     setGenerating(true);
@@ -112,17 +129,53 @@ export default function HouseholdScreen() {
             <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.md }} />
           ) : (
             <View style={styles.card}>
-              {members.map((m, i) => (
-                <View key={m.id} style={[styles.memberRow, i > 0 && styles.memberDivider]}>
-                  <View style={styles.memberDot}>
-                    <Text style={styles.memberDotText}>{(m.name || m.email)[0].toUpperCase()}</Text>
+              {members.map((m, i) => {
+                const showPrivacy = isOwner && !m.is_owner && m.id !== user?.id;
+                const priv = m.privacy || { expenses: true, travel: true };
+                return (
+                <View key={m.id} style={[i > 0 && styles.memberDivider]}>
+                  <View style={styles.memberRow}>
+                    <View style={styles.memberDot}>
+                      <Text style={styles.memberDotText}>{(m.name || m.email)[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={{ flex: 1, marginLeft: spacing.md }}>
+                      <Text style={styles.memberName}>{m.name || m.email.split("@")[0]}{m.is_owner ? "  •  owner" : ""}</Text>
+                      <Text style={styles.memberMeta}>{m.email}{m.id === user?.id ? "  •  you" : ""}</Text>
+                    </View>
                   </View>
-                  <View style={{ flex: 1, marginLeft: spacing.md }}>
-                    <Text style={styles.memberName}>{m.name || m.email.split("@")[0]}</Text>
-                    <Text style={styles.memberMeta}>{m.email}{m.id === user?.id ? "  •  you" : ""}</Text>
-                  </View>
+                  {showPrivacy && (
+                    <View style={styles.privacyBox}>
+                      <Text style={styles.privacyHead}>What {(m.name || m.email.split("@")[0])} can see</Text>
+                      <View style={styles.privacyRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.privacyLabel}>Expenses & payments</Text>
+                        </View>
+                        <Switch
+                          value={priv.expenses !== false}
+                          onValueChange={(v) => togglePrivacy(m.id, "expenses", v)}
+                          disabled={savingPrivacy === `${m.id}:expenses`}
+                          trackColor={{ true: colors.accent }}
+                          testID={`privacy-expenses-${m.id}`}
+                        />
+                      </View>
+                      <View style={styles.privacyRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.privacyLabel}>Travel & bookings</Text>
+                        </View>
+                        <Switch
+                          value={priv.travel !== false}
+                          onValueChange={(v) => togglePrivacy(m.id, "travel", v)}
+                          disabled={savingPrivacy === `${m.id}:travel`}
+                          trackColor={{ true: colors.accent }}
+                          testID={`privacy-travel-${m.id}`}
+                        />
+                      </View>
+                      <Text style={styles.privacyHint}>Turn off to hide that section from this member.</Text>
+                    </View>
+                  )}
                 </View>
-              ))}
+              );
+              })}
             </View>
           )}
 
@@ -197,6 +250,11 @@ const makeStyles = () => ({
   card: { backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
   memberRow: { flexDirection: "row", alignItems: "center", paddingVertical: spacing.sm },
   memberDivider: { borderTopWidth: 1, borderTopColor: colors.border },
+  privacyBox: { backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.sm, marginLeft: 50 },
+  privacyHead: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", marginBottom: 4 },
+  privacyRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
+  privacyLabel: { ...typography.bodyMedium, color: colors.textPrimary },
+  privacyHint: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
   memberDot: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   memberDotText: { color: "white", fontWeight: "800", fontSize: 14 },
   memberName: { ...typography.bodyMedium, color: colors.textPrimary },

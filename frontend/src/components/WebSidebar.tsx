@@ -36,6 +36,9 @@ export default function WebSidebar() {
 
   const isActive = (route: string) => pathname === route || pathname.startsWith(route + "/");
 
+  const canViewExpenses = user?.visibility?.expenses !== false;
+  const primaryItems = PRIMARY.filter((i) => i.route !== "/expenses" || canViewExpenses);
+
   const Item = ({ item }: { item: NavItem }) => {
     const active = isActive(item.route);
     return (
@@ -58,7 +61,7 @@ export default function WebSidebar() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.lg }}>
-        {PRIMARY.map((i) => <Item key={i.route} item={i} />)}
+        {primaryItems.map((i) => <Item key={i.route} item={i} />)}
         <View style={styles.divider} />
         {SECONDARY.map((i) => <Item key={i.route} item={i} />)}
       </ScrollView>

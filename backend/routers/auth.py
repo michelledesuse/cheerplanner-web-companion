@@ -42,7 +42,7 @@ async def signup(request: Request, payload: UserSignup):
     token = create_access_token(user_id, email)
     return TokenResponse(
         access_token=token,
-        user=UserPublic(id=user_id, email=email, name=payload.name, created_at=user_doc["created_at"], is_admin=user_doc["is_admin"]),
+        user=UserPublic(id=user_id, email=email, name=payload.name, created_at=user_doc["created_at"], is_admin=user_doc["is_admin"], visibility={"expenses": True, "travel": True}),
     )
 
 
@@ -54,18 +54,23 @@ async def login(request: Request, payload: UserLogin):
     if not user_doc or not verify_password(payload.password, user_doc.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = create_access_token(user_doc["id"], email)
+    from core.helpers import _member_visibility
+    visibility = await _member_visibility(user_doc["id"])
     return TokenResponse(
         access_token=token,
         user=UserPublic(
             id=user_doc["id"], email=email, name=user_doc.get("name"), created_at=user_doc["created_at"],
             team_access=bool(user_doc.get("team_access")),
             is_admin=bool(user_doc.get("is_admin")),
+            visibility=visibility,
         ),
     )
 
 
 @router.get("/auth/me", response_model=UserPublic)
 async def me(current_user=Depends(get_current_user)):
+    from core.helpers import _member_visibility
+    visibility = await _member_visibility(current_user["id"])
     return UserPublic(
         id=current_user["id"],
         email=current_user["email"],
@@ -73,6 +78,7 @@ async def me(current_user=Depends(get_current_user)):
         created_at=current_user["created_at"],
         team_access=bool(current_user.get("team_access")),
         is_admin=bool(current_user.get("is_admin")),
+        visibility=visibility,
     )
 
 

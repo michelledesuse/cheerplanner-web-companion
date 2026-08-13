@@ -47,6 +47,24 @@ async def _household_user_ids(user_id: str) -> List[str]:
     return h.get("member_user_ids", [user_id])
 
 
+PRIVACY_AREAS = ("expenses", "travel")
+
+
+async def _member_visibility(user_id: str) -> Dict[str, bool]:
+    """Which household data areas this user may view.
+
+    The household OWNER always sees everything. Non-owner members default to
+    visible unless the owner has turned an area OFF for them via
+    `household.member_privacy` (shape: {user_id: {"expenses": bool, "travel": bool}}).
+    """
+    h = await _get_or_create_household(user_id)
+    owner = _household_owner_id(h)
+    if user_id == owner:
+        return {a: True for a in PRIVACY_AREAS}
+    mp = (h.get("member_privacy") or {}).get(user_id) or {}
+    return {a: bool(mp.get(a, True)) for a in PRIVACY_AREAS}
+
+
 async def _accessible_hubs(user_id: str) -> List[dict]:
     """All households (hubs) this user may access: their own + any where they're a Team Hub collaborator."""
     hubs: List[dict] = []

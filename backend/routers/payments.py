@@ -6,7 +6,7 @@ from core.db import db
 from core.models import (
     PaymentEntry, PaymentCreate, PaymentUpdate, PaymentBulkCreate, PaymentAllocation,
 )
-from core.security import get_current_user
+from core.security import get_current_user, require_visibility
 from core.helpers import (
     _household_user_ids, _waterfall_allocations, _refresh_expense_paid_flags, season_query,
 )
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api")
 
 
 @router.get("/payments", response_model=List[PaymentEntry])
-async def list_payments(athlete_id: Optional[str] = None, season_id: Optional[str] = None, current_user=Depends(get_current_user)):
+async def list_payments(athlete_id: Optional[str] = None, season_id: Optional[str] = None, current_user=Depends(require_visibility("expenses"))):
     q = season_query(await _household_user_ids(current_user["id"]), season_id)
     if athlete_id:
         q["athlete_id"] = athlete_id
@@ -24,7 +24,7 @@ async def list_payments(athlete_id: Optional[str] = None, season_id: Optional[st
 
 
 @router.post("/payments", response_model=PaymentEntry)
-async def create_payment(payload: PaymentCreate, current_user=Depends(get_current_user)):
+async def create_payment(payload: PaymentCreate, current_user=Depends(require_visibility("expenses"))):
     entry = PaymentEntry(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
     # If caller picked expenses but didn't supply explicit allocations,
     # waterfall-allocate in due-date order so each expense gets paid IN FULL.
@@ -45,7 +45,7 @@ async def create_payment(payload: PaymentCreate, current_user=Depends(get_curren
 
 
 @router.post("/payments/bulk", response_model=List[PaymentEntry])
-async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(get_current_user)):
+async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(require_visibility("expenses"))):
     user_id = current_user["id"]
     if not payload.athlete_ids:
         raise HTTPException(status_code=400, detail="Select at least one athlete")
@@ -90,7 +90,7 @@ async def create_payments_bulk(payload: PaymentBulkCreate, current_user=Depends(
 
 
 @router.patch("/payments/{payment_id}", response_model=PaymentEntry)
-async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=Depends(get_current_user)):
+async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=Depends(require_visibility("expenses"))):
     updates = {k: v for k, v in payload.model_dump().items() if v is not None}
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
@@ -139,7 +139,7 @@ async def update_payment(payment_id: str, payload: PaymentUpdate, current_user=D
 
 
 @router.delete("/payments/{payment_id}")
-async def delete_payment(payment_id: str, current_user=Depends(get_current_user)):
+async def delete_payment(payment_id: str, current_user=Depends(require_visibility("expenses"))):
     member_ids = await _household_user_ids(current_user["id"])
     # Snapshot which expenses this payment touched BEFORE deleting it.
     doc = await db.payments.find_one(

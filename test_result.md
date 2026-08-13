@@ -374,3 +374,9 @@ No production code modified by testing agent.
 ## Iteration 66 — Individual payment reminders (Twilio), roster download+cleanup, public page palette+roster dropdown, full-slots-to-bottom. 7/7 backend + frontend PASS.
 
 ## Iteration 67 — Duplicate (signups/paperwork/payments) + per-member Amount Due. 7/7 backend + frontend PASS.
+
+## Iteration 92 — Household Privacy Controls (per-member) [main agent implemented]
+Feature: Owner decides which household members can see Expenses/Payments and Travel/Bookings.
+Backend (curl-verified 12/12): Household.member_privacy map; helpers._member_visibility; security.require_visibility(area) dependency gates all /expenses,/payments (area=expenses) and /bookings (area=travel) reads+writes (403 when blocked); dashboard zeroes hidden areas + returns can_view_expenses/can_view_travel; auth /me,/login,/signup include user.visibility; GET /household returns members[].privacy + is_owner + owner_user_id; PATCH /household/privacy/{user_id} owner-only (400 self, 403 non-owner, 404 not-in-household).
+Frontend: (tabs)/_layout hides Expenses tab when visibility.expenses false; WebSidebar hides Expenses; dashboard hides finance tiles/mini-balance/due-today per visibility; competitions/[id] hides Travel section + skips /bookings fetch when travel hidden; household.tsx owner sees per-member toggles (privacy-expenses-<id>, privacy-travel-<id>).
+Creds: applereview@cheerplanner.app / Review2026! (owner of solo household).
