@@ -53,6 +53,20 @@ export default function HouseholdScreen() {
     } finally { setSavingPrivacy(null); }
   };
 
+  const applyPreset = async (memberId: string, preset: "kids" | "full") => {
+    const next = preset === "kids"
+      ? { expenses: false, travel: true }
+      : { expenses: true, travel: true };
+    setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, privacy: { ...next } } : m));
+    setSavingPrivacy(`${memberId}:preset`);
+    try {
+      await api.patch(`/household/privacy/${memberId}`, next);
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not update privacy");
+      await load();
+    } finally { setSavingPrivacy(null); }
+  };
+
   const generateInvite = async () => {
     setGenerating(true);
     try {
@@ -146,6 +160,26 @@ export default function HouseholdScreen() {
                   {showPrivacy && (
                     <View style={styles.privacyBox}>
                       <Text style={styles.privacyHead}>What {(m.name || m.email.split("@")[0])} can see</Text>
+                      <View style={styles.presetRow}>
+                        <TouchableOpacity
+                          style={[styles.presetBtn, !priv.expenses && priv.travel !== false && styles.presetBtnActive]}
+                          onPress={() => applyPreset(m.id, "kids")}
+                          disabled={savingPrivacy === `${m.id}:preset`}
+                          testID={`preset-kids-${m.id}`}
+                        >
+                          <Ionicons name="happy-outline" size={15} color={!priv.expenses && priv.travel !== false ? "#fff" : colors.accent} />
+                          <Text style={[styles.presetText, !priv.expenses && priv.travel !== false && styles.presetTextActive]}>Kids (no finances)</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.presetBtn, priv.expenses !== false && priv.travel !== false && styles.presetBtnActive]}
+                          onPress={() => applyPreset(m.id, "full")}
+                          disabled={savingPrivacy === `${m.id}:preset`}
+                          testID={`preset-full-${m.id}`}
+                        >
+                          <Ionicons name="checkmark-circle-outline" size={15} color={priv.expenses !== false && priv.travel !== false ? "#fff" : colors.accent} />
+                          <Text style={[styles.presetText, priv.expenses !== false && priv.travel !== false && styles.presetTextActive]}>Full access</Text>
+                        </TouchableOpacity>
+                      </View>
                       <View style={styles.privacyRow}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.privacyLabel}>Expenses & payments</Text>
@@ -170,7 +204,7 @@ export default function HouseholdScreen() {
                           testID={`privacy-travel-${m.id}`}
                         />
                       </View>
-                      <Text style={styles.privacyHint}>Turn off to hide that section from this member.</Text>
+                      <Text style={styles.privacyHint}>Kids preset hides finances but keeps schedule &amp; travel. Or fine-tune with the switches above.</Text>
                     </View>
                   )}
                 </View>
@@ -252,6 +286,11 @@ const makeStyles = () => ({
   memberDivider: { borderTopWidth: 1, borderTopColor: colors.border },
   privacyBox: { backgroundColor: colors.bg, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginBottom: spacing.sm, marginLeft: 50 },
   privacyHead: { ...typography.caption, color: colors.textSecondary, fontWeight: "700", marginBottom: 4 },
+  presetRow: { flexDirection: "row", gap: 8, marginBottom: 6 },
+  presetBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: colors.accent, backgroundColor: colors.card },
+  presetBtnActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  presetText: { ...typography.caption, color: colors.accent, fontWeight: "700" },
+  presetTextActive: { color: "#fff" },
   privacyRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
   privacyLabel: { ...typography.bodyMedium, color: colors.textPrimary },
   privacyHint: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
