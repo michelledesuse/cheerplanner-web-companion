@@ -230,6 +230,7 @@ async def startup_db_client():
         await db.review_places.create_index("category")
         await db.review_categories.create_index("label_norm", unique=True)
         await db.review_flags.create_index([("review_id", 1), ("user_id", 1)], unique=True)
+        await db.review_blocks.create_index([("user_id", 1), ("blocked_user_id", 1)], unique=True)
         from routers.reviews import seed_review_categories
         await seed_review_categories()
     except Exception as exc:

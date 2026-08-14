@@ -53,7 +53,8 @@ export default function PrivacyScreen() {
       </LegalSection>
 
       <LegalSection heading="10. Community Reviews">
-        <P>CheerPlanner includes a Community Reviews directory where users can post ratings and reviews of places (such as restaurants, hotels, and gyms). Reviews you submit — including the star rating, your written comments, any photos you attach, the place and city, and the display name you choose (your first name and last initial, or "Anonymous") — are PUBLIC and visible to all CheerPlanner users across other accounts, independent of your household. Do not include sensitive personal information in a review. You can edit or delete your own reviews at any time, and you can report a review for moderation. We may remove content that violates our terms.</P>
+        <P>CheerPlanner includes a Community Reviews directory where users can post ratings and reviews of places (such as restaurants, hotels, and gyms). Reviews you submit — including the star rating, your written comments, any photos you attach, the place and city, and the display name you choose (your first name and last initial, or "Anonymous") — are PUBLIC and visible to all CheerPlanner users across other accounts, independent of your household. Do not include sensitive personal information in a review.</P>
+        <P>We do not tolerate objectionable content or abusive behavior. Before posting you must agree to our Community Guidelines; submissions are screened for objectionable language, you can report a review or block a reviewer, and content that is repeatedly reported is automatically hidden pending review. You can edit or delete your own reviews at any time, and we remove content and may eject users who violate our terms, typically within 24 hours of a report.</P>
       </LegalSection>
 
       <LegalSection heading="11. Location & Weather">

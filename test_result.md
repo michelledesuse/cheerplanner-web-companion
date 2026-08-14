@@ -417,3 +417,8 @@ Creds: applereview@cheerplanner.app / Review2026!.
 - FIXED (MEDIUM) prefill collision: openRollover now bases start date on the LATEST-ending season and infers name from it, so it won't prefill a range overlapping an existing next season.
 - FIXED banner wording: SeasonReadOnlyBanner says "(past season)" only when end_date<today, else "(inactive season)".
 - FIXED seed: applereview 2025-2026 is now the active season.
+
+## Iteration 98 — Community Reviews UGC moderation (Apple Guideline 1.2)
+Backend (curl-verified): reviews.py — (1) objectionable-language FILTER (_assert_clean) on place_name/city/category/body on submit+edit+add-category -> 400; (2) Community Guidelines GATE: submit blocked with 403 'guidelines_not_accepted' until POST /api/reviews/accept-guidelines; categories response now returns guidelines_accepted; (3) BLOCK author: POST /api/reviews/{id}/block hides that author's content from the requester (review_blocks collection, index added); place_detail excludes blocked authors + auto-hidden reviews (non-admin); (4) AUTO-HIDE: a review with >=3 distinct flags gets hidden=True and drops from public view (still visible to admins). Verified: guidelines gate 403->200, profanity 400, block hides Bob's review from Alice, guidelines flag exposed.
+Frontend: new.tsx shows guidelines agreement prompt before first post + a "Community Guidelines" link; [id].tsx editor retries after agreeing; each foreign review now has Report + Block actions. FAQ + Privacy Policy updated to describe filter/guidelines/report/block/auto-hide + 24h takedown commitment.
+Creds: applereview@cheerplanner.app / Review2026!; admin reviewsadmin@cheerplanner.app / AdminRev2026!.

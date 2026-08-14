@@ -57,6 +57,34 @@ def _display_name(user: dict, mode: str) -> str:
     return f"{parts[0]} {parts[-1][0].upper()}."[:40]
 
 
+# Objectionable-content filter (Apple Guideline 1.2). Substring match on word
+# boundaries; deliberately conservative to avoid false positives.
+_BANNED = [
+    "fuck", "shit", "bitch", "asshole", "cunt", "nigger", "nigga", "faggot",
+    "fag", "retard", "whore", "slut", "rape", "dick", "pussy", "cock",
+    "kill yourself", "kys",
+]
+_BANNED_RE = re.compile(r"(?i)(" + "|".join(re.escape(w) for w in _BANNED) + r")")
+FLAG_HIDE_THRESHOLD = 3  # distinct reports before a review is auto-hidden
+
+
+def _assert_clean(*parts: str):
+    for p in parts:
+        if p and _BANNED_RE.search(p):
+            raise HTTPException(status_code=400, detail="Your text contains language that isn't allowed. Please revise and try again.")
+
+
+async def _require_guidelines(user_id: str):
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "reviews_guidelines_accepted_at": 1})
+    if not (u or {}).get("reviews_guidelines_accepted_at"):
+        raise HTTPException(status_code=403, detail="guidelines_not_accepted")
+
+
+async def _blocked_author_ids(user_id: str) -> set:
+    rows = await db.review_blocks.find({"user_id": user_id}, {"_id": 0, "blocked_user_id": 1}).to_list(5000)
+    return {r["blocked_user_id"] for r in rows}
+
+
 async def _recompute_place(place_id: str):
     """Recompute avg_rating + review_count on a place from its review rows."""
     rows = await db.place_reviews.find({"place_id": place_id}, {"_id": 0, "rating": 1}).to_list(100000)
@@ -133,15 +161,40 @@ class FlagPayload(BaseModel):
 @router.get("/reviews/categories")
 async def list_categories(current_user=Depends(get_current_user)):
     cats = await db.review_categories.find({}, {"_id": 0}).to_list(500)
-    # place counts per category
     raw = await db.review_places.aggregate([{"$group": {"_id": "$category", "n": {"$sum": 1}}}]).to_list(1000)
     counts = {r["_id"]: r["n"] for r in raw}
     for c in cats:
         c["place_count"] = int(counts.get(c["label"], 0))
-    # defaults first (in seed order), then user-added alphabetically
     order = {label: i for i, label in enumerate(DEFAULT_CATEGORIES)}
     cats.sort(key=lambda c: (0 if c.get("is_default") else 1, order.get(c["label"], 999), c["label"].lower()))
-    return {"categories": cats, "is_admin": bool(current_user.get("is_admin"))}
+    u = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "reviews_guidelines_accepted_at": 1})
+    return {
+        "categories": cats,
+        "is_admin": bool(current_user.get("is_admin")),
+        "guidelines_accepted": bool((u or {}).get("reviews_guidelines_accepted_at")),
+    }
+
+
+@router.post("/reviews/accept-guidelines")
+async def accept_guidelines(current_user=Depends(get_current_user)):
+    await db.users.update_one({"id": current_user["id"]}, {"$set": {"reviews_guidelines_accepted_at": utcnow_iso()}})
+    return {"accepted": True}
+
+
+@router.post("/reviews/{review_id}/block")
+async def block_review_author(review_id: str, current_user=Depends(get_current_user)):
+    """Hide all content from a review's author for the requesting user, and
+    prevent that author's content from appearing to them going forward."""
+    r = await db.place_reviews.find_one({"id": review_id}, {"_id": 0, "user_id": 1})
+    if not r:
+        raise HTTPException(status_code=404, detail="Review not found")
+    if r["user_id"] == current_user["id"]:
+        raise HTTPException(status_code=400, detail="You can't block yourself.")
+    await db.review_blocks.update_one(
+        {"user_id": current_user["id"], "blocked_user_id": r["user_id"]},
+        {"$set": {"created_at": utcnow_iso()}}, upsert=True,
+    )
+    return {"blocked": True}
 
 
 @router.post("/reviews/categories")
@@ -149,6 +202,7 @@ async def add_category(payload: CategoryCreate, current_user=Depends(get_current
     label = (payload.label or "").strip()
     if not label:
         raise HTTPException(status_code=400, detail="Please enter a category name.")
+    _assert_clean(label)
     canonical = await _ensure_category(label, current_user["id"])
     return {"label": canonical}
 
@@ -251,24 +305,37 @@ async def place_detail(place_id: str, current_user=Depends(get_current_user)):
     if not place:
         raise HTTPException(status_code=404, detail="Place not found")
     reviews = await db.place_reviews.find({"place_id": place_id}, {"_id": 0}).sort("created_at", -1).to_list(5000)
+    is_admin = bool(current_user.get("is_admin"))
+    blocked = await _blocked_author_ids(current_user["id"])
     my_review = None
+    visible = []
     for r in reviews:
-        r["is_mine"] = r.get("user_id") == current_user["id"]
-        # never leak the underlying user_id to clients
+        mine = r.get("user_id") == current_user["id"]
+        author = r.get("user_id")
+        r["is_mine"] = mine
         r.pop("user_id", None)
-        if r["is_mine"]:
+        if mine:
             my_review = r
+            visible.append(r)
+            continue
+        if author in blocked:
+            continue  # user blocked this author
+        if r.get("hidden") and not is_admin:
+            continue  # auto-hidden after reports
+        visible.append(r)
     return {
         "place": place,
-        "reviews": reviews,
+        "reviews": visible,
         "my_review": my_review,
-        "is_admin": bool(current_user.get("is_admin")),
+        "is_admin": is_admin,
     }
 
 
 # ---------- submit / edit / delete a review ----------
 @router.post("/reviews")
 async def submit_review(payload: ReviewSubmit, current_user=Depends(get_current_user)):
+    await _require_guidelines(current_user["id"])
+    _assert_clean(payload.place_name, payload.city, payload.category, payload.body)
     # Resolve or create the target place.
     place = None
     if payload.place_id:
@@ -330,6 +397,8 @@ async def edit_review(review_id: str, payload: ReviewEdit, current_user=Depends(
     if r.get("user_id") != current_user["id"]:
         raise HTTPException(status_code=403, detail="You can only edit your own review.")
     updates: dict = {"updated_at": utcnow_iso()}
+    if payload.body is not None:
+        _assert_clean(payload.body)
     if payload.rating is not None:
         updates["rating"] = payload.rating
     if payload.body is not None:
@@ -372,6 +441,10 @@ async def flag_review(review_id: str, payload: FlagPayload, current_user=Depends
          "$setOnInsert": {"id": secrets.token_urlsafe(9)}},
         upsert=True,
     )
+    # Auto-hide from public view once enough distinct users report it.
+    n = await db.review_flags.count_documents({"review_id": review_id})
+    if n >= FLAG_HIDE_THRESHOLD:
+        await db.place_reviews.update_one({"id": review_id}, {"$set": {"hidden": True}})
     return {"flagged": True}
 
 

@@ -29,11 +29,20 @@ export default function NewReview() {
   const [saving, setSaving] = useState(false);
   const [newCat, setNewCat] = useState("");
   const [showNewCat, setShowNewCat] = useState(false);
+  const [guidelinesAccepted, setGuidelinesAccepted] = useState(true);
 
   const loadCats = useCallback(async () => {
-    try { const r = await api.get("/reviews/categories"); setCategories(r.data.categories || []); } catch (_e) {}
+    try { const r = await api.get("/reviews/categories"); setCategories(r.data.categories || []); setGuidelinesAccepted(!!r.data.guidelines_accepted); } catch (_e) {}
   }, []);
   useEffect(() => { loadCats(); }, [loadCats]);
+
+  const GUIDELINES = "Reviews are public to every CheerPlanner user. Post honest, respectful reviews only — no hateful, harassing, sexual, or otherwise objectionable content, and no personal attacks. Objectionable content is removed and repeat offenders are blocked.";
+  const promptGuidelines = (after: () => void) => {
+    Alert.alert("Community Guidelines", GUIDELINES, [
+      { text: "Cancel", style: "cancel" },
+      { text: "I Agree", onPress: async () => { try { await api.post("/reviews/accept-guidelines"); setGuidelinesAccepted(true); after(); } catch {} } },
+    ]);
+  };
 
   const addCategoryInline = async () => {
     const label = newCat.trim();
@@ -49,6 +58,7 @@ export default function NewReview() {
   const submit = async () => {
     if (!name.trim()) { Alert.alert("Missing info", "Please enter the place name."); return; }
     if (rating < 1) { Alert.alert("Add a rating", "Please tap 1–5 stars."); return; }
+    if (!guidelinesAccepted) { promptGuidelines(submit); return; }
     setSaving(true);
     try {
       const r = await api.post("/reviews", {
@@ -121,6 +131,9 @@ export default function NewReview() {
           <TouchableOpacity style={[styles.submit, saving && { opacity: 0.6 }]} onPress={submit} disabled={saving} testID="submit-review-btn">
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Post review</Text>}
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => Alert.alert("Community Guidelines", GUIDELINES)} testID="guidelines-link">
+            <Text style={styles.guidelinesLink}>By posting you agree to our Community Guidelines</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -151,4 +164,5 @@ const makeStyles = (c: ThemePalette) => ({
   anonText: { flex: 1, color: c.textSecondary, fontSize: 13, lineHeight: 18 },
   submit: { backgroundColor: c.accent, height: 52, borderRadius: 14, alignItems: "center" as const, justifyContent: "center" as const, marginTop: 28 },
   submitText: { color: "#fff", fontWeight: "700" as const, fontSize: 16 },
+  guidelinesLink: { color: c.textTertiary, fontSize: 12, textAlign: "center" as const, marginTop: 12, textDecorationLine: "underline" as const },
 });

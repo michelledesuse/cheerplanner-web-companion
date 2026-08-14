@@ -76,8 +76,28 @@ export default function PlaceDetail() {
       await api.post("/reviews", { place_id: id, rating, body: body.trim(), display_mode: anon ? "anonymous" : "name", photos });
       setEditing(false);
       await load();
-    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save"); }
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail;
+      if (detail === "guidelines_not_accepted") {
+        Alert.alert("Community Guidelines", "Reviews are public to every CheerPlanner user. Post honest, respectful reviews only — no hateful, harassing, sexual, or otherwise objectionable content, and no personal attacks. Objectionable content is removed and repeat offenders are blocked.", [
+          { text: "Cancel", style: "cancel" },
+          { text: "I Agree", onPress: async () => { try { await api.post("/reviews/accept-guidelines"); await saveReview(); } catch {} } },
+        ]);
+      } else {
+        Alert.alert("Error", detail || "Could not save");
+      }
+    }
     finally { setSaving(false); }
+  };
+
+  const blockAuthor = (rev: Review) => {
+    Alert.alert("Block this reviewer?", "You won't see any reviews from this person again.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Block", style: "destructive", onPress: async () => {
+        try { await api.post(`/reviews/${rev.id}/block`, {}); await load(); }
+        catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not block"); }
+      } },
+    ]);
   };
 
   const deleteMine = () => {
@@ -231,6 +251,7 @@ export default function PlaceDetail() {
               {photoStrip(r.photos)}
               <View style={styles.reviewActions}>
                 <TouchableOpacity onPress={() => flagReview(r)} testID={`flag-${r.id}`}><Text style={styles.flagLink}>Report</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => blockAuthor(r)} testID={`block-${r.id}`}><Text style={styles.flagLink}>Block</Text></TouchableOpacity>
                 {isAdmin && <TouchableOpacity onPress={() => adminDelete(r)} testID={`admin-del-${r.id}`}><Text style={styles.linkDanger}>Delete (admin)</Text></TouchableOpacity>}
               </View>
             </View>

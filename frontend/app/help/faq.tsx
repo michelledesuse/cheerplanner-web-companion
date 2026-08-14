@@ -257,7 +257,7 @@ const FAQ: Section[] = [
       {
         q: "What are Community Reviews?",
         a:
-          "A shared directory of cheer-friendly places (restaurants, hotels, gyms and more) that every CheerPlanner user can see and add to — open it from Settings → Community Reviews. Rate a spot 1–5 stars, filter by city and category, and post as your first name + last initial or anonymously. A competition's detail screen also suggests reviewed places in that city. You can edit or delete your own review and report others anytime.",
+          "A shared directory of cheer-friendly places (restaurants, hotels, gyms and more) that every CheerPlanner user can see and add to — open it from Settings → Community Reviews. Rate a spot 1–5 stars, filter by city and category, and post as your first name + last initial or anonymously. A competition's detail screen also suggests reviewed places in that city. To keep it safe, you must agree to Community Guidelines before posting, objectionable language is blocked automatically, and you can edit or delete your own review, report others, or block a reviewer at any time. Repeatedly reported reviews are hidden automatically.",
       },
     ],
   },
