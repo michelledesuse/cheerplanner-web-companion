@@ -1,9 +1,10 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
+import re
 
 from core.db import db
-from core.models import Season, SeasonCreate, SeasonUpdate, SeasonRollover
+from core.models import Season, SeasonCreate, SeasonUpdate, SeasonRollover, SeasonRolloverCreate
 from core.security import get_current_user
 from core.helpers import _household_user_ids, season_overlap
 
@@ -138,3 +139,67 @@ async def rollover_season(season_id: str, payload: SeasonRollover, current_user=
         )
         moved[kind] = res.modified_count
     return {"rolled_over": moved, "target": tgt["name"]}
+
+
+@router.post("/seasons/rollover-create")
+async def rollover_create(payload: SeasonRolloverCreate, current_user=Depends(get_current_user)):
+    """Create a NEW season and carry forward reusable scaffolding (teams +
+    selected athletes) from the source season by tagging them into the new one.
+
+    Additive-only: the source season and its data are never modified.
+    Duplicate-safe: rejects a same-name or date-overlapping season.
+    """
+    member_ids = await _household_user_ids(current_user["id"])
+    src = await db.seasons.find_one({"id": payload.source_season_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+    if not src:
+        raise HTTPException(status_code=404, detail="Source season not found")
+
+    name = (payload.name or "").strip()
+    start, end = payload.start_date, payload.end_date
+    if not name:
+        raise HTTPException(status_code=400, detail="Season name is required")
+    if not start or not end:
+        raise HTTPException(status_code=400, detail="Start date and end date are required")
+    if end[:10] <= start[:10]:
+        raise HTTPException(status_code=400, detail="End date must be after the start date")
+
+    # Duplicate-safe: same (normalized) name already exists?
+    dupe_name = await db.seasons.find_one(
+        {"user_id": {"$in": member_ids}, "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+        {"_id": 0, "name": 1},
+    )
+    if dupe_name:
+        raise HTTPException(status_code=409, detail=f"You already have a \"{dupe_name['name']}\" season. Open it instead of rolling over again.")
+    clash = await season_overlap(member_ids, start, end)
+    if clash:
+        raise HTTPException(status_code=409, detail=f"These dates overlap your \"{clash.get('name')}\" season, so it looks like next season already exists.")
+
+    count = await db.seasons.count_documents({"user_id": {"$in": member_ids}})
+    new_season = Season(
+        user_id=current_user["id"], name=name, start_date=start, end_date=end,
+        is_active=True, order=count,
+    )
+    await db.seasons.update_many({"user_id": {"$in": member_ids}}, {"$set": {"is_active": False}})
+    await db.seasons.insert_one(new_season.model_dump())
+
+    summary = {"teams": 0, "athletes": 0}
+    # Carry forward is ADDITIVE: tag each carried record with BOTH the source and
+    # the new season, so it stays in the source season and also joins the new one.
+    both = {"$each": [payload.source_season_id, new_season.id]}
+    if payload.carry_teams:
+        src_team_q = {"user_id": {"$in": member_ids}, "$or": [
+            {"season_ids": payload.source_season_id},
+            {"season_ids": {"$in": [None, []]}},
+            {"season_ids": {"$exists": False}},
+        ]}
+        team_ids = [t["id"] async for t in db.teams.find(src_team_q, {"_id": 0, "id": 1})]
+        if team_ids:
+            await db.teams.update_many({"id": {"$in": team_ids}}, {"$addToSet": {"season_ids": both}})
+        summary["teams"] = len(team_ids)
+    if payload.athlete_ids:
+        await db.athletes.update_many(
+            {"user_id": {"$in": member_ids}, "id": {"$in": payload.athlete_ids}},
+            {"$addToSet": {"season_ids": both}},
+        )
+        summary["athletes"] = len(payload.athlete_ids)
+    return {"season": new_season.model_dump(), "summary": summary}

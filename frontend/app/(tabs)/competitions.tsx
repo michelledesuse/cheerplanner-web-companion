@@ -17,6 +17,7 @@ import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { api } from "@/src/api/client";
 import { useSeason } from "@/src/context/SeasonContext";
 import SeasonBar from "@/src/components/SeasonBar";
+import SeasonReadOnlyBanner from "@/src/components/SeasonReadOnlyBanner";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDateLong, daysBetween } from "@/src/utils/format";
@@ -183,6 +184,7 @@ export default function CompetitionsScreen() {
       {!selectMode && (
         <View style={{ paddingLeft: spacing.lg, paddingVertical: 6 }}>
           <SeasonBar />
+            <SeasonReadOnlyBanner />
         </View>
       )}
 

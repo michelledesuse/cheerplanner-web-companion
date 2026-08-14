@@ -438,6 +438,15 @@ class SeasonRollover(BaseModel):
     )
 
 
+class SeasonRolloverCreate(BaseModel):
+    source_season_id: str
+    name: str
+    start_date: str
+    end_date: str
+    carry_teams: bool = True
+    athlete_ids: List[str] = Field(default_factory=list)
+
+
 # ============================================================
 # Competitions
 # ============================================================

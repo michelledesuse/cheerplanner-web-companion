@@ -11,6 +11,7 @@ import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { api } from "@/src/api/client";
 import { useSeason } from "@/src/context/SeasonContext";
 import SeasonBar from "@/src/components/SeasonBar";
+import SeasonReadOnlyBanner from "@/src/components/SeasonReadOnlyBanner";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDate } from "@/src/utils/format";
@@ -239,6 +240,7 @@ export default function ScheduleTab() {
         <View style={styles.filtersContainer}>
           <View style={{ marginBottom: spacing.sm }}>
             <SeasonBar />
+            <SeasonReadOnlyBanner />
           </View>
           <FilterChipRow
             label="Type"

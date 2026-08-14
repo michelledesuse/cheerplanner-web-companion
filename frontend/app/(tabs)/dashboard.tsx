@@ -17,6 +17,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { api } from "@/src/api/client";
 import LiveDot from "@/src/components/LiveDot";
 import SeasonBar from "@/src/components/SeasonBar";
+import SeasonReadOnlyBanner from "@/src/components/SeasonReadOnlyBanner";
+import SeasonNudge from "@/src/components/SeasonNudge";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { colors, radius, spacing, typography, shadow } from "@/src/theme";
@@ -35,6 +37,7 @@ type Dashboard = {
   month_spend: number;
   total_raised: number;
   next_competition: any | null;
+  suggest_season?: boolean;
 };
 
 type ReminderItem = {
@@ -133,6 +136,8 @@ export default function DashboardScreen() {
         </View>
 
         <View style={{ marginBottom: spacing.md }}><SeasonBar /></View>
+        <SeasonReadOnlyBanner />
+        <SeasonNudge show={!!data?.suggest_season} />
 
         {/* Stat tiles — tappable, each routes to its primary tab */}
         {canExpenses && (

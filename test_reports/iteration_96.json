@@ -1,0 +1,72 @@
+{
+  "summary": "Iter96 — Seasons Rework Phases 2–4 tested end-to-end. Backend: 4/5 pytest checks pass. rollover-create returns 200 with {season, summary}, duplicate name → 409, overlapping dates → 409, dashboard exposes suggest_season=false for applereview. FAIL: rollover-create with carry_teams=true tagged ZERO teams into the new season even though the source season has 2 teams (Senior Elite Coed 5, Youth Level 2). Root cause: backend queries `db.teams.update_many({user_id, season_ids: source_id})` but the seeded team docs have NO season_ids field at all — they surface in the source season only via Phase-1 date-based auto-bucketing. Athletes go through the id-list path so summary.athletes carries correctly. Frontend: SeasonBar renders 'All seasons' + 2 chips + manage cog (no 'Create a season' CTA on any tab, Phase 4 CTA removal verified). season-nudge correctly hidden for applereview (has seasons). Read-only banner testID='season-readonly-banner' shows 'Viewing 2025-2026 (past season)' when the inactive 2025-2026 chip is tapped, hides on 'All seasons' and after 'Return to current' (testID='season-return-current'), and reappears on Expenses/Schedule/Athletes tabs. Rollover modal exposes roll-name (prefilled '2025–2026'), roll-carry-teams switch, roll-ath-* checklist (2 athletes), and season-rollover-confirm button. UX GAP: when rolling over from 2024-2025 the modal auto-prefills name '2025–2026' AND dates 2025-07-01→2026-06-30 which exactly duplicate the existing 2025-2026 season — submitting unedited would hit BOTH 409s. Note: DB has 2024-2025 as active (not 2025-2026 as the request stated) — the read-only banner test still passes because tapping the OTHER (inactive) chip triggers the banner correctly.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "POST /api/seasons/rollover-create",
+        "issue": "carry_teams=true tags 0 teams into the new season for real seeded data. Query in /app/backend/routers/seasons.py:187 matches on `season_ids: source_id` but teams from the seed (and any team that landed in a season only via Phase-1 date-based auto-bucketing) have no season_ids field. Reproduce: login applereview, POST rollover-create with carry_teams=true → response summary.teams=0 while source season (2024-2025) shows 2 teams via /api/teams. Fix idea: fall back to the same date-bucketing predicate the /api/teams season filter uses, or backfill season_ids on team docs when a season is created that covers their creation window.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "POST /api/seasons/rollover-create",
+        "issue": "Duplicate-name check is case-insensitive on the FULL string only; whitespace-normalization not applied. Not exploitable but worth a note."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SeasonsScreen rollover modal",
+        "issue": "Auto-prefill collides with existing next season. Rolling over from 2024-2025 pre-fills name='2025–2026' AND dates 2025-07-01→2026-06-30, both of which already belong to the existing 2025-2026 season. Confirming without edits hits 409 duplicate-name AND 409 overlap. Suggest: skip prefill when the inferred name or window already exists; or show an inline warning above the confirm button.",
+        "testID": "season-rollover-confirm",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "SeasonReadOnlyBanner",
+        "issue": "Banner copy says '(past season)' for any non-active season, even a future/planned one. For applereview (active=2024-2025, inactive=2025-2026) the banner reads 'Viewing 2025-2026 (past season)' which is technically wrong. Consider 'archived / read-only / not the active season' wording, or branch on end_date vs today.",
+        "testID": "season-readonly-banner",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Roll over → new season activates but teams are NOT actually carried",
+        "issue": "UI success alert reports 'X team(s) carried forward' using summary.teams from the backend response — which is 0 for seeded/date-bucketed teams. Users toggle carry-teams ON, see 0 in the alert, and lose confidence. Root cause is the backend query above.",
+        "affected_testIDs": ["season-rollover-confirm", "roll-carry-teams"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter96_seasons_rollover.py",
+    "/app/test_reports/pytest/pytest_iter96.xml"
+  ],
+  "action_items": [
+    "HIGH: Fix rollover-create carry_teams so it tags teams that belong to the source season via Phase-1 date-based bucketing (not only teams with an explicit season_ids entry). Same treatment likely needed for any collection that uses auto-bucketing.",
+    "MEDIUM: In /app/frontend/app/seasons.tsx openRollover(), detect when the inferred next-season name/date window already exists among `seasons` and either clear the prefill or show an inline warning so the user doesn't submit into a guaranteed 409.",
+    "SEED FIX: /app/backend/scripts/seed_apple_review.py currently flips is_active — 2024-2025 is stored active and 2025-2026 is stored inactive. Re-seed so 2025-2026 (the current wall-clock season, Jan 2026) is active, matching the review-request premise and Apple-Review expectations.",
+    "LOW: Reword the SeasonReadOnlyBanner text so it doesn't call a future/inactive season 'past'; use end_date < today() to choose the wording ('past season' vs 'planned / not yet active').",
+    "OPTIONAL: For Phase 4 nudge, main agent already correctly gates on suggest_season=(zero seasons AND competition span > 365 days). Regression test that flag is included in the iter96 pytest."
+  ],
+  "critical_code_review_comments": [
+    "routers/seasons.py: rollover-create is additive-only (source untouched) and correctly rejects duplicate names (case-insensitive regex) and overlapping windows with 409s. Undo via DELETE /api/seasons/{id} correctly detaches the new season from carried entities without deleting them.",
+    "routers/seasons.py: activate/create both `$set is_active:false` across the household then $set true on the target — atomic-enough per single request. No transaction, but acceptable for single-user households.",
+    "SeasonContext.tsx: filterSeasonId defaults to the active season on first refresh and preserves user selection across refreshes when the chip still exists. Good.",
+    "SeasonBar.tsx: correctly returns null when seasons.length===0, removing the Phase-4 CTA everywhere it's mounted (dashboard, competitions, expenses, schedule, athletes, all /team/* screens, /teams).",
+    "SeasonNudge.tsx: dismissal persisted via AsyncStorage key 'season_nudge_dismissed_v1'; only rendered when parent passes show=true which the dashboard wires to dashboard.suggest_season. Good.",
+    "SeasonReadOnlyBanner.tsx: correctly hidden for filterSeasonId===null and for the active season; 'Return to current' snaps to activeSeason.id. Text label is the only nit (see above).",
+    "app/seasons.tsx: rollover modal prefill uses `inferNextName` regex `(\\d{4})\\s*[\\u2013-]\\s*(\\d{4})` — matches '2024-2025' and produces '2025–2026'. Doesn't consult existing seasons list, so it can propose duplicates."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter96_seasons_rollover.py (new)"
+  ],
+  "success_rate": { "backend": "80% (4/5 pytest)", "frontend": "90% (all testIDs render; two UX issues)" },
+  "seed_data_creation": "None — used the seeded applereview account (2024-2025 active per DB, 2025-2026 inactive, 2 teams, 2 athletes).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Regression suite: /app/backend/tests/test_iter96_seasons_rollover.py. To rerun: `EXPO_PUBLIC_BACKEND_URL=<preview> pytest backend/tests/test_iter96_seasons_rollover.py -v`. Applereview seasons in DB are: 2024-2025 (active, 2024-07-01→2025-06-30) and 2025-2026 (inactive, 2025-07-01→2026-06-30). Team docs in Mongo currently have NO season_ids field — this is the root cause of the carry_teams=0 bug. Athlete docs have season_ids:[] arrays. After the main agent fixes carry_teams to consider date-bucketed membership, re-run the failing test `TestRolloverCreate::test_rollover_creates_new_active_season_and_leaves_source_intact` — the summary.teams assertion should then equal 2.",
+  "rca_of_issue": "POST /api/seasons/rollover-create with carry_teams=true returns summary.teams=0 even when the source season has teams. RCA: routers/seasons.py line ~187 uses `db.teams.update_many({'user_id':{'$in':member_ids},'season_ids': payload.source_season_id}, {'$addToSet':{'season_ids': new_season.id}})`. Verified in Mongo: applereview's 2 team docs have no `season_ids` field at all (Phase-1 auto-bucketing is date-based on team.created_at vs season window). So the filter matches 0 docs, modified_count is 0, and no teams get tagged into the new season — but the UI still tells the user teams were carried. Reproduction: (1) login applereview, (2) POST /api/seasons/rollover-create source=2024-2025 with carry_teams=true, (3) response summary.teams=0 while /api/teams?season_id=<2024-2025> returns 2. Mitigation: replace the query with the same date-bucketing predicate used by GET /api/teams season-filter (created_at inside source.start_date..source.end_date), OR migrate the collections to explicit season_ids on write."
+}

@@ -79,6 +79,21 @@ async def dashboard(current_user=Depends(get_current_user)):
     ).limit(20000):
         month_spend += float(d.get("amount") or 0)
 
+    # Suggest creating a season only once there's data worth filtering by year:
+    # zero seasons AND competition dates span > 12 months.
+    suggest_season = False
+    seasons_count = await db.seasons.count_documents({"user_id": user_id})
+    if seasons_count == 0:
+        dates = [c.get("event_date") async for c in db.competitions.find(
+            {"user_id": user_id}, {"_id": 0, "event_date": 1}).limit(20000)]
+        dates = sorted(d[:10] for d in dates if d)
+        if len(dates) >= 2:
+            try:
+                span = (datetime.fromisoformat(dates[-1]).date() - datetime.fromisoformat(dates[0]).date()).days
+                suggest_season = span > 365
+            except Exception:
+                suggest_season = False
+
     return {
         "athletes_count": athletes_count,
         "competitions_count": comps_count,
@@ -96,4 +111,5 @@ async def dashboard(current_user=Depends(get_current_user)):
         "next_competition": next_comp,
         "can_view_expenses": can_expenses,
         "can_view_travel": can_travel,
+        "suggest_season": suggest_season,
     }

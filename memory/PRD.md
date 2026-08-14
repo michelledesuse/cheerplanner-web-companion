@@ -463,3 +463,11 @@ Get exact current paths from user before building W2.
 - Reviewer identity (user choice per review): **Anonymous** OR **First name + Last initial**.
 - Categories (seed list): Restaurants/Eateries, Coffee Shops, Hotels/Lodging, Things to Do, Gyms/Practice Facilities, Shopping/Malls, Hair & Makeup Artists, Hairpieces, Makeup (lipstick/blush/foundation/etc), Training Programs, Competitions, Other.
 - Users may ADD categories; ADMIN can then reorganize. Mirror Roadmap admin powers: admin can ADD categories AND COMBINE/merge duplicate places (same merge UX as the Community Roadmap).
+
+---
+
+## BACKLOG (Seasons follow-ups — requested "to do later", iter97)
+- **Carry More Forward**: Extend rollover to also copy staff/personnel, packing-list templates, and Team Form + sign-up-sheet STRUCTURES (definitions only, not submissions/responses) into the new season.
+- **Unassigned Group**: In any season-filtered list view, show out-of-range (no matching season) records under a tidy "Unassigned" section with a hint to extend a season's dates or tag manually. (Currently these only surface under "All seasons".)
+- **Lock Past Seasons**: Make a non-active/historical season a TRUE read-only view (hard-block create/edit/delete on its records), beyond the current visual banner signal.
+- **Season Header Chip**: Add the active-season indicator to the app header for one-tap switching from anywhere (not just the per-screen SeasonBar).

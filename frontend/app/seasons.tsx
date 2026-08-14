@@ -11,13 +11,6 @@ import { useSeason, type Season } from "@/src/context/SeasonContext";
 import DateField from "@/src/components/DateField";
 import { isoToInput } from "@/src/utils/format";
 
-const KINDS: { key: string; label: string }[] = [
-  { key: "athletes", label: "Athletes" },
-  { key: "teams", label: "Teams" },
-  { key: "competitions", label: "Competitions" },
-  { key: "events", label: "Schedule events" },
-];
-
 export default function SeasonsScreen() {
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
@@ -33,8 +26,13 @@ export default function SeasonsScreen() {
   const [menu, setMenu] = useState<Season | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [rollOpen, setRollOpen] = useState(false);
-  const [rollTarget, setRollTarget] = useState<string | null>(null);
-  const [rollKinds, setRollKinds] = useState<string[]>(KINDS.map((k) => k.key));
+  const [rollName, setRollName] = useState("");
+  const [rollStart, setRollStart] = useState("");
+  const [rollEnd, setRollEnd] = useState("");
+  const [rollCarryTeams, setRollCarryTeams] = useState(true);
+  const [rollAthletes, setRollAthletes] = useState<{ id: string; name: string }[]>([]);
+  const [checkedAthletes, setCheckedAthletes] = useState<Set<string>>(new Set());
+  const [rollBusy, setRollBusy] = useState(false);
 
   const create = async () => {
     if (!name.trim()) return;
@@ -72,22 +70,59 @@ export default function SeasonsScreen() {
     ]);
   };
 
-  const openRollover = () => { if (menu) { setRollTarget(null); setRollKinds(KINDS.map((k) => k.key)); setRollOpen(true); } };
+  const dayAfterISO = (iso: string) => { const d = new Date(iso.slice(0, 10) + "T00:00:00"); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
+  const addSpanISO = (startISO: string, srcStart: string, srcEnd: string) => {
+    const ms = new Date(srcEnd.slice(0, 10)).getTime() - new Date(srcStart.slice(0, 10)).getTime();
+    return new Date(new Date(startISO + "T00:00:00").getTime() + ms).toISOString().slice(0, 10);
+  };
+  const inferNextName = (nm: string) => nm.replace(/(\d{4})\s*[\u2013-]\s*(\d{4})/, (_m, a, b) => `${+a + 1}\u2013${+b + 1}`);
+
+  const openRollover = async () => {
+    if (!menu) return;
+    // Base the "next" slot on the LATEST-ending season so we never prefill a
+    // range that collides with an already-existing next season.
+    const latest = [...seasons].filter((s) => s.end_date).sort((a, b) => (a.end_date! < b.end_date! ? 1 : -1))[0] || menu;
+    const start = latest.end_date ? dayAfterISO(latest.end_date) : "";
+    const inferred = inferNextName(latest.name);
+    setRollName(inferred && inferred !== latest.name ? inferred : "");
+    setRollStart(start);
+    setRollEnd(start && latest.start_date && latest.end_date ? addSpanISO(start, latest.start_date, latest.end_date) : "");
+    setRollCarryTeams(true);
+    try {
+      const r = await api.get<{ id: string; name: string }[]>(`/athletes?season_id=${menu.id}`);
+      const list = (r.data || []).map((a) => ({ id: a.id, name: a.name }));
+      setRollAthletes(list);
+      setCheckedAthletes(new Set(list.map((a) => a.id)));
+    } catch { setRollAthletes([]); setCheckedAthletes(new Set()); }
+    setRollOpen(true);
+  };
+
+  const toggleAthlete = (id: string) => setCheckedAthletes((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const doRollover = async () => {
-    if (!menu || !rollTarget) { Alert.alert("Pick a season", "Choose which season to roll everything into."); return; }
+    if (!menu) return;
+    if (!rollName.trim()) { Alert.alert("Name your season", "Give the new season a name."); return; }
+    if (!rollStart || !rollEnd) { Alert.alert("Dates required", "Set the new season's start and end dates."); return; }
+    if (rollEnd <= rollStart) { Alert.alert("Check the dates", "End date must be after the start date."); return; }
+    setRollBusy(true);
     try {
-      const r = await api.post<{ rolled_over: Record<string, number>; target: string }>(`/seasons/${menu.id}/rollover`, { target_season_id: rollTarget, kinds: rollKinds });
-      const total = Object.values(r.data.rolled_over || {}).reduce((a, b) => a + b, 0);
+      const r = await api.post<{ season: Season; summary: Record<string, number> }>(`/seasons/rollover-create`, {
+        source_season_id: menu.id, name: rollName.trim(), start_date: rollStart, end_date: rollEnd,
+        carry_teams: rollCarryTeams, athlete_ids: Array.from(checkedAthletes),
+      });
+      const newId = r.data.season.id;
+      const sm = r.data.summary || {};
       setRollOpen(false); setMenu(null);
       await refresh();
-      Alert.alert("Rolled over", `${total} item${total === 1 ? "" : "s"} added to "${r.data.target}".`);
-    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not roll over."); }
+      Alert.alert("Season created 🎉", `"${r.data.season.name}" is now active with ${sm.teams || 0} team(s) and ${sm.athletes || 0} athlete(s) carried forward.`, [
+        { text: "Undo", style: "destructive", onPress: async () => { try { await api.delete(`/seasons/${newId}`); await refresh(); } catch {} } },
+        { text: "Done" },
+      ]);
+    } catch (e: any) { Alert.alert("Couldn't roll over", e?.response?.data?.detail || "Please try again."); }
+    finally { setRollBusy(false); }
   };
 
   const doActivate = async () => { if (menu) { const id = menu.id; setMenu(null); try { await activate(id); } catch {} } };
-
-  const toggleKind = (k: string) => setRollKinds((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -99,6 +134,19 @@ export default function SeasonsScreen() {
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
         <Text style={styles.intro}>Create a season with its date range (like 2025–2026), and CheerPlanner automatically sorts competitions, events, and expenses into it by date. Switch the active season anytime to filter your lists.</Text>
+
+        {(() => {
+          const active = seasons.find((s) => s.is_active);
+          if (!active || !active.end_date) return null;
+          const days = Math.ceil((new Date(active.end_date.slice(0, 10)).getTime() - Date.now()) / 86400000);
+          if (days < 0 || days > 60) return null;
+          return (
+            <TouchableOpacity style={styles.endsBanner} onPress={() => { setMenu(active); }} testID="season-ends-banner">
+              <Ionicons name="alarm-outline" size={18} color={colors.accent} />
+              <Text style={styles.endsText}>Your {active.name} season ends soon — roll over to set up next season.</Text>
+            </TouchableOpacity>
+          );
+        })()}
 
         {loading && seasons.length === 0 ? (
           <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.accent} />
@@ -149,7 +197,7 @@ export default function SeasonsScreen() {
           <Text style={styles.sheetTitle}>{menu?.name}</Text>
           {!menu?.is_active && <MenuItem icon="checkmark-circle-outline" label="Make active" onPress={doActivate} testID="season-activate" />}
           <MenuItem icon="create-outline" label="Edit name / dates" onPress={openEdit} testID="season-edit" />
-          <MenuItem icon="swap-horizontal-outline" label="Roll over into another season" onPress={openRollover} testID="season-rollover" />
+          <MenuItem icon="swap-horizontal-outline" label="Roll over to new season" onPress={openRollover} testID="season-rollover" />
           <MenuItem icon="trash-outline" label="Delete season" danger onPress={del} testID="season-delete" />
         </View>
       </Modal>
@@ -171,29 +219,48 @@ export default function SeasonsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Rollover */}
+      {/* Rollover — create next season & carry roster forward */}
       <Modal visible={rollOpen} transparent animationType="slide" onRequestClose={() => setRollOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setRollOpen(false)} />
-        <View style={styles.sheet}>
-          <Text style={styles.sheetTitle}>Roll over from “{menu?.name}”</Text>
-          <Text style={styles.intro}>Add everything from this season into another season (they’ll belong to both).</Text>
-          <Text style={styles.label}>Into which season?</Text>
-          {seasons.filter((s) => s.id !== menu?.id).map((s) => (
-            <TouchableOpacity key={s.id} style={[styles.pickRow, rollTarget === s.id && styles.pickRowOn]} onPress={() => setRollTarget(s.id)} testID={`roll-target-${s.id}`}>
-              <Ionicons name={rollTarget === s.id ? "radio-button-on" : "radio-button-off"} size={20} color={rollTarget === s.id ? colors.accent : colors.textTertiary} />
-              <Text style={styles.pickText}>{s.name}</Text>
-            </TouchableOpacity>
-          ))}
-          <Text style={[styles.label, { marginTop: spacing.md }]}>What to roll over</Text>
-          <View style={styles.kindsWrap}>
-            {KINDS.map((k) => (
-              <TouchableOpacity key={k.key} style={[styles.kindChip, rollKinds.includes(k.key) && styles.kindChipOn]} onPress={() => toggleKind(k.key)} testID={`roll-kind-${k.key}`}>
-                <Text style={[styles.kindChipText, rollKinds.includes(k.key) && styles.kindChipTextOn]}>{k.label}</Text>
+        <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <Pressable style={styles.backdrop} onPress={() => setRollOpen(false)} />
+          <View style={styles.sheetFlow}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.sheetTitle}>Roll over to new season</Text>
+              <Text style={styles.intro}>Creates the next season and carries your teams &amp; roster forward. Competitions, expenses, payments and bookings are NOT copied — those start fresh.</Text>
+
+              <Text style={styles.label}>New season name</Text>
+              <TextInput style={styles.input} value={rollName} onChangeText={setRollName} placeholder="e.g. 2026–2027" placeholderTextColor={colors.textTertiary} testID="roll-name" />
+              <View style={styles.dateRow}>
+                <View style={{ flex: 1 }}><Text style={styles.label}>Start date</Text><DateField value={rollStart} onChange={setRollStart} /></View>
+                <View style={{ flex: 1 }}><Text style={styles.label}>End date</Text><DateField value={rollEnd} onChange={setRollEnd} /></View>
+              </View>
+
+              <View style={styles.switchRow}><Text style={styles.switchLabel}>Carry forward all teams</Text><Switch value={rollCarryTeams} onValueChange={setRollCarryTeams} testID="roll-carry-teams" /></View>
+
+              <Text style={[styles.label, { marginTop: spacing.md }]}>Athletes to carry forward ({checkedAthletes.size}/{rollAthletes.length})</Text>
+              <Text style={styles.hintSm}>Uncheck graduating seniors so they don't move into the new season.</Text>
+              {rollAthletes.length === 0 ? (
+                <Text style={styles.hintSm}>No athletes in this season yet.</Text>
+              ) : rollAthletes.map((a) => {
+                const on = checkedAthletes.has(a.id);
+                return (
+                  <TouchableOpacity key={a.id} style={styles.athRow} onPress={() => toggleAthlete(a.id)} testID={`roll-ath-${a.id}`}>
+                    <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? colors.accent : colors.textTertiary} />
+                    <Text style={styles.athName}>{a.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+
+              <View style={styles.summaryBox}>
+                <Text style={styles.summaryText}>Creating <Text style={{ fontWeight: "800" }}>{rollName || "…"}</Text>{rollCarryTeams ? " with all teams" : ""} and {checkedAthletes.size} athlete{checkedAthletes.size === 1 ? "" : "s"}. It becomes your active season.</Text>
+              </View>
+
+              <TouchableOpacity style={[styles.confirm, rollBusy && { opacity: 0.6 }]} onPress={doRollover} disabled={rollBusy} testID="season-rollover-confirm">
+                {rollBusy ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create &amp; carry forward</Text>}
               </TouchableOpacity>
-            ))}
+            </ScrollView>
           </View>
-          <TouchableOpacity style={styles.confirm} onPress={doRollover} testID="season-rollover-confirm"><Text style={styles.confirmText}>Roll over</Text></TouchableOpacity>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -247,4 +314,11 @@ const makeStyles = (c: ThemePalette) => ({
   kindChipOn: { borderColor: c.accent, backgroundColor: c.accentSubtle },
   kindChipText: { ...typography.caption, fontWeight: "700", color: c.textSecondary },
   kindChipTextOn: { color: c.accent },
+  hintSm: { ...typography.micro, color: c.textTertiary, marginBottom: 6 },
+  athRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
+  athName: { ...typography.body, color: c.textPrimary },
+  summaryBox: { marginTop: spacing.md, padding: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.border },
+  summaryText: { ...typography.caption, color: c.textSecondary, lineHeight: 18 },
+  endsBanner: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent + "44", marginBottom: spacing.md },
+  endsText: { ...typography.caption, color: c.textPrimary, flex: 1, fontWeight: "600" },
 });

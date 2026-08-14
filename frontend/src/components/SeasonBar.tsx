@@ -17,12 +17,7 @@ export default function SeasonBar() {
   const { seasons, filterSeasonId, setFilterSeasonId } = useSeason();
 
   if (seasons.length === 0) {
-    return (
-      <TouchableOpacity style={styles.emptyChip} onPress={() => router.push("/seasons" as any)} testID="seasonbar-create">
-        <Ionicons name="calendar-outline" size={14} color={colors.accent} />
-        <Text style={styles.emptyText}>Create a season</Text>
-      </TouchableOpacity>
-    );
+    return null; // App works fully with zero seasons — no CTA implying otherwise.
   }
 
   return (

@@ -17,6 +17,7 @@ import ApplyPaymentSheet from "@/src/components/ApplyPaymentSheet";
 import ApplyFundraiserSheet from "@/src/components/ApplyFundraiserSheet";
 import FilterChipRow from "@/src/components/FilterChipRow";
 import SeasonBar from "@/src/components/SeasonBar";
+import SeasonReadOnlyBanner from "@/src/components/SeasonReadOnlyBanner";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 import { toggleId } from "@/src/utils/filters";
 import HomeButton from "@/src/components/HomeButton";
@@ -242,6 +243,7 @@ export default function ExpensesTab() {
 
       <View style={{ paddingLeft: spacing.lg, paddingTop: 8 }}>
         <SeasonBar />
+            <SeasonReadOnlyBanner />
       </View>
 
       <View style={styles.tabs}>
