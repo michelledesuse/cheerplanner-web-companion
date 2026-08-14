@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from core.db import db
 from core.models import Competition, CompetitionCreate, CompetitionUpdate
 from core.security import get_current_user
-from core.helpers import _household_user_ids, season_query, apply_scoped_update
+from core.helpers import _household_user_ids, season_date_query, apply_scoped_update
 
 router = APIRouter(prefix="/api")
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api")
 async def list_competitions(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     docs = await db.competitions.find(
-        season_query(member_ids, season_id), {"_id": 0},
+        await season_date_query(member_ids, season_id, "event_date"), {"_id": 0},
     ).sort("event_date", 1).to_list(500)
     return [Competition(**d) for d in docs]
 

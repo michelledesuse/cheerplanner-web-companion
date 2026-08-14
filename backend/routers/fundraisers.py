@@ -9,7 +9,7 @@ from core.models import (
     Fundraiser, FundraiserCreate, FundraiserUpdate,
 )
 from core.security import get_current_user
-from core.helpers import _household_user_ids, _fundraiser_with_available, season_query
+from core.helpers import _household_user_ids, _fundraiser_with_available, season_date_query
 
 router = APIRouter(prefix="/api")
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api")
 @router.get("/fundraisers", response_model=List[Fundraiser])
 async def list_fundraisers(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
     docs = await db.fundraisers.find(
-        season_query(await _household_user_ids(current_user["id"]), season_id),
+        await season_date_query(await _household_user_ids(current_user["id"]), season_id, "raised_on"),
         {"_id": 0},
     ).sort("raised_on", -1).to_list(1000)
     return [_fundraiser_with_available(d) for d in docs]

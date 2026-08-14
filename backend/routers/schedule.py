@@ -8,7 +8,7 @@ from core.models import (
     ScheduleEvent, ScheduleEventCreate, ScheduleEventUpdate, RecurrenceRule,
 )
 from core.security import get_current_user
-from core.helpers import _household_user_ids, _expand_recurrence, _date_range, season_query
+from core.helpers import _household_user_ids, _expand_recurrence, _date_range, season_date_query
 
 router = APIRouter(prefix="/api")
 
@@ -20,7 +20,7 @@ async def list_schedule(
     current_user=Depends(get_current_user),
 ):
     member_ids = await _household_user_ids(current_user["id"])
-    q = season_query(member_ids, season_id)
+    q = await season_date_query(member_ids, season_id, "date")
     if athlete_id:
         q["athlete_ids"] = athlete_id
     docs = await db.schedule_events.find(q, {"_id": 0}).sort("date", 1).to_list(5000)

@@ -13,7 +13,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_visibility
 from core.helpers import (
-    _household_user_ids, _build_paid_map, _expense_with_balance, season_query,
+    _household_user_ids, _build_paid_map, _expense_with_balance, season_date_query,
 )
 
 router = APIRouter(prefix="/api")
@@ -30,7 +30,7 @@ async def list_expenses(
     season_id: Optional[str] = None,
     current_user=Depends(require_visibility("expenses")),
 ):
-    q = season_query(await _household_user_ids(current_user["id"]), season_id)
+    q = await season_date_query(await _household_user_ids(current_user["id"]), season_id, "due_date")
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.expenses.find(q, {"_id": 0}).sort([("incurred_on", 1), ("created_at", 1)]).to_list(2000)

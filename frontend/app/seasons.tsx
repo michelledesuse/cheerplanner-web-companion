@@ -38,9 +38,11 @@ export default function SeasonsScreen() {
 
   const create = async () => {
     if (!name.trim()) return;
+    if (!startDate || !endDate) { Alert.alert("Dates required", "Please set both a start date and an end date."); return; }
+    if (endDate <= startDate) { Alert.alert("Check the dates", "End date must be after the start date."); return; }
     setSaving(true);
     try {
-      await api.post("/seasons", { name: name.trim(), start_date: startDate || null, end_date: endDate || null, make_active: makeActive });
+      await api.post("/seasons", { name: name.trim(), start_date: startDate, end_date: endDate, make_active: makeActive });
       setName(""); setStartDate(""); setEndDate(""); setMakeActive(true); setCreateOpen(false);
       await refresh();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not create season."); }
@@ -96,7 +98,7 @@ export default function SeasonsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg }}>
-        <Text style={styles.intro}>Create a season (like 2025–2026), then tag athletes, teams, competitions, and events to it. Switch the active season anytime — your lists filter to it automatically.</Text>
+        <Text style={styles.intro}>Create a season with its date range (like 2025–2026), and CheerPlanner automatically sorts competitions, events, and expenses into it by date. Switch the active season anytime to filter your lists.</Text>
 
         {loading && seasons.length === 0 ? (
           <ActivityIndicator style={{ marginTop: spacing.xl }} color={colors.accent} />
@@ -129,8 +131,8 @@ export default function SeasonsScreen() {
             <Text style={styles.label}>Name</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. 2025–2026" placeholderTextColor={colors.textTertiary} testID="season-name" autoFocus />
             <View style={styles.dateRow}>
-              <View style={{ flex: 1 }}><Text style={styles.label}>Start (optional)</Text><DateField value={startDate} onChange={setStartDate} /></View>
-              <View style={{ flex: 1 }}><Text style={styles.label}>End (optional)</Text><DateField value={endDate} onChange={setEndDate} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.label}>Start date</Text><DateField value={startDate} onChange={setStartDate} /></View>
+              <View style={{ flex: 1 }}><Text style={styles.label}>End date</Text><DateField value={endDate} onChange={setEndDate} /></View>
             </View>
             <View style={styles.switchRow}><Text style={styles.switchLabel}>Make this the active season</Text><Switch value={makeActive} onValueChange={setMakeActive} /></View>
             <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="season-create-btn">

@@ -533,6 +533,90 @@ def season_query(member_ids: List[str], season_id: Optional[str]) -> dict:
     return q
 
 
+async def _season_doc(member_ids: List[str], season_id: Optional[str]) -> Optional[dict]:
+    if not season_id:
+        return None
+    return await db.seasons.find_one({"id": season_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+
+
+def _date_bucket_or(season_id: str, start: str, end: str, date_field: str) -> list:
+    """OR-clauses that bucket a date-bearing record into a season: an explicit
+    season tag wins; otherwise (untagged) the record's `date_field` must fall
+    inside [start, end] inclusive. `\\uffff` upper bound tolerates datetime suffixes."""
+    return [
+        {"season_ids": season_id},
+        {"$and": [
+            {"$or": [{"season_ids": {"$in": [None, []]}}, {"season_ids": {"$exists": False}}]},
+            {date_field: {"$gte": start, "$lte": end + "\uffff"}},
+        ]},
+    ]
+
+
+async def season_date_query(member_ids: List[str], season_id: Optional[str], date_field: str) -> dict:
+    """Household query narrowed to a season by DATE. Records with an explicit
+    season tag are matched by that tag; untagged records auto-bucket when their
+    `date_field` is in the season's range. Legacy dateless seasons fall back to
+    manual-tag-or-unassigned semantics."""
+    q: Dict[str, Any] = {"user_id": {"$in": member_ids}}
+    if not season_id:
+        return q
+    s = await _season_doc(member_ids, season_id)
+    if s and s.get("start_date") and s.get("end_date"):
+        q["$or"] = _date_bucket_or(season_id, s["start_date"][:10], s["end_date"][:10], date_field)
+    else:
+        q["$or"] = [
+            {"season_ids": season_id},
+            {"season_ids": {"$in": [None, []]}},
+            {"season_ids": {"$exists": False}},
+        ]
+    return q
+
+
+async def payments_season_query(member_ids: List[str], season_id: Optional[str]) -> dict:
+    """Payments follow the season of the EXPENSE(S) they're applied to (by the
+    expense's due date), not the date the payment was made. Explicit payment
+    season tags still win."""
+    q: Dict[str, Any] = {"user_id": {"$in": member_ids}}
+    if not season_id:
+        return q
+    s = await _season_doc(member_ids, season_id)
+    if s and s.get("start_date") and s.get("end_date"):
+        start, end = s["start_date"][:10], s["end_date"][:10]
+        exp = await db.expenses.find(
+            {"user_id": {"$in": member_ids}, "$or": _date_bucket_or(season_id, start, end, "due_date")},
+            {"_id": 0, "id": 1},
+        ).to_list(20000)
+        exp_ids = [e["id"] for e in exp]
+        q["$or"] = [
+            {"season_ids": season_id},
+            {"$and": [
+                {"$or": [{"season_ids": {"$in": [None, []]}}, {"season_ids": {"$exists": False}}]},
+                {"applied_expense_ids": {"$in": exp_ids}},
+            ]},
+        ]
+    else:
+        q["$or"] = [
+            {"season_ids": season_id},
+            {"season_ids": {"$in": [None, []]}},
+            {"season_ids": {"$exists": False}},
+        ]
+    return q
+
+
+async def season_overlap(member_ids: List[str], start: str, end: str, exclude_id: Optional[str] = None) -> Optional[dict]:
+    """Return an existing DATED season whose range overlaps [start, end], else None."""
+    start, end = start[:10], end[:10]
+    async for s in db.seasons.find(
+        {"user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1, "start_date": 1, "end_date": 1}
+    ):
+        if exclude_id and s["id"] == exclude_id:
+            continue
+        ss, se = s.get("start_date"), s.get("end_date")
+        if ss and se and start <= se[:10] and ss[:10] <= end:
+            return s
+    return None
+
+
 async def active_season_id(member_ids: List[str]) -> Optional[str]:
     """Id of the household's currently-active season, or None."""
     s = await db.seasons.find_one(

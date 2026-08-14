@@ -8,7 +8,7 @@ from core.models import (
 )
 from core.security import get_current_user, require_visibility
 from core.helpers import (
-    _household_user_ids, _waterfall_allocations, _refresh_expense_paid_flags, season_query,
+    _household_user_ids, _waterfall_allocations, _refresh_expense_paid_flags, payments_season_query,
 )
 
 router = APIRouter(prefix="/api")
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api")
 
 @router.get("/payments", response_model=List[PaymentEntry])
 async def list_payments(athlete_id: Optional[str] = None, season_id: Optional[str] = None, current_user=Depends(require_visibility("expenses"))):
-    q = season_query(await _household_user_ids(current_user["id"]), season_id)
+    q = await payments_season_query(await _household_user_ids(current_user["id"]), season_id)
     if athlete_id:
         q["athlete_id"] = athlete_id
     docs = await db.payments.find(q, {"_id": 0}).sort("paid_on", -1).to_list(2000)

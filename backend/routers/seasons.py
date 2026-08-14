@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from core.db import db
 from core.models import Season, SeasonCreate, SeasonUpdate, SeasonRollover
 from core.security import get_current_user
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, season_overlap
 
 router = APIRouter(prefix="/api")
 
@@ -32,11 +32,19 @@ async def create_season(payload: SeasonCreate, current_user=Depends(get_current_
     name = (payload.name or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Season name is required")
+    start, end = payload.start_date, payload.end_date
+    if not start or not end:
+        raise HTTPException(status_code=400, detail="Start date and end date are required")
+    if end[:10] <= start[:10]:
+        raise HTTPException(status_code=400, detail="End date must be after the start date")
+    clash = await season_overlap(member_ids, start, end)
+    if clash:
+        raise HTTPException(status_code=400, detail=f"These dates overlap your \"{clash.get('name')}\" season. Pick a non-overlapping range.")
     count = await db.seasons.count_documents({"user_id": {"$in": member_ids}})
     make_active = payload.make_active or count == 0  # first season is active by default
     season = Season(
         user_id=current_user["id"], name=name,
-        start_date=payload.start_date, end_date=payload.end_date,
+        start_date=start, end_date=end,
         is_active=make_active, order=count,
     )
     if make_active:
@@ -53,6 +61,18 @@ async def update_season(season_id: str, payload: SeasonUpdate, current_user=Depe
         raise HTTPException(status_code=400, detail="Season name cannot be blank")
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
+    if "start_date" in updates or "end_date" in updates:
+        existing = await db.seasons.find_one({"id": season_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+        if not existing:
+            raise HTTPException(status_code=404, detail="Season not found")
+        start = updates.get("start_date", existing.get("start_date"))
+        end = updates.get("end_date", existing.get("end_date"))
+        if start and end:
+            if end[:10] <= start[:10]:
+                raise HTTPException(status_code=400, detail="End date must be after the start date")
+            clash = await season_overlap(member_ids, start, end, exclude_id=season_id)
+            if clash:
+                raise HTTPException(status_code=400, detail=f"These dates overlap your \"{clash.get('name')}\" season. Pick a non-overlapping range.")
     res = await db.seasons.update_one(
         {"id": season_id, "user_id": {"$in": member_ids}}, {"$set": updates}
     )
