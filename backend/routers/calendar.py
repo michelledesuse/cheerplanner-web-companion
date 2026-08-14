@@ -172,6 +172,8 @@ async def calendar_feed(
                 ),
                 "color": "#007CFF",
                 "has_music": c["id"] in music_comp_ids,
+                "location": c.get("address") or c.get("location") or "",
+                "weather_date": ev,
                 "link": f"/competitions/{c['id']}",
             })
 
@@ -343,6 +345,8 @@ async def calendar_feed(
                     "link": f"/schedule/new?id={s['id']}",
                     "links": s.get("links", []),
                     "has_music": s["id"] in music_event_ids,
+                    "location": s.get("address") or s.get("location") or "",
+                    "weather_date": ds,
                 })
         elif in_range(day):
             items.append({
@@ -357,6 +361,8 @@ async def calendar_feed(
                 "link": f"/schedule/new?id={s['id']}",
                 "links": s.get("links", []),
                 "has_music": s["id"] in music_event_ids,
+                "location": s.get("address") or s.get("location") or "",
+                "weather_date": day,
             })
 
     # Team meet/performance times (per-team multi-day schedule per competition)

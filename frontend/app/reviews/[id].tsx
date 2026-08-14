@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl,
-  TextInput, Alert, Modal, KeyboardAvoidingView, Platform,
+  TextInput, Alert, Modal, KeyboardAvoidingView, Platform, Image, Pressable,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,10 +9,11 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { Stars, StarPicker } from "@/src/components/Stars";
+import PhotoGallery from "@/src/components/PhotoGallery";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 type Review = {
-  id: string; author_name: string; rating: number; body?: string;
+  id: string; author_name: string; rating: number; body?: string; photos?: string[];
   display_mode: string; created_at?: string; updated_at?: string; is_mine?: boolean;
 };
 type Place = { id: string; name: string; city?: string; category: string; avg_rating: number; review_count: number };
@@ -38,8 +39,10 @@ export default function PlaceDetail() {
   const [editing, setEditing] = useState(false);
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [anon, setAnon] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [viewerUri, setViewerUri] = useState<string | null>(null);
 
   // admin merge
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -61,6 +64,7 @@ export default function PlaceDetail() {
   const openEditor = () => {
     setRating(myReview?.rating || 0);
     setBody(myReview?.body || "");
+    setPhotos(myReview?.photos || []);
     setAnon(myReview?.display_mode === "anonymous");
     setEditing(true);
   };
@@ -69,7 +73,7 @@ export default function PlaceDetail() {
     if (rating < 1) { Alert.alert("Add a rating", "Please tap 1–5 stars."); return; }
     setSaving(true);
     try {
-      await api.post("/reviews", { place_id: id, rating, body: body.trim(), display_mode: anon ? "anonymous" : "name" });
+      await api.post("/reviews", { place_id: id, rating, body: body.trim(), display_mode: anon ? "anonymous" : "name", photos });
       setEditing(false);
       await load();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save"); }
@@ -124,6 +128,19 @@ export default function PlaceDetail() {
 
   const filteredMerge = mergeList.filter((p) => !mergeQuery.trim() || p.name.toLowerCase().includes(mergeQuery.toLowerCase()));
 
+  const photoStrip = (list?: string[]) => {
+    if (!list || list.length === 0) return null;
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }} contentContainerStyle={{ gap: 8 }}>
+        {list.map((uri, i) => (
+          <TouchableOpacity key={i} onPress={() => setViewerUri(uri)} activeOpacity={0.85} testID={`review-photo-${i}`}>
+            <Image source={{ uri }} style={styles.photoThumb} />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    );
+  };
+
   if (loading || !place) {
     return <SafeAreaView style={styles.safe}><ActivityIndicator style={{ marginTop: 60 }} color={styles._icon.color} /></SafeAreaView>;
   }
@@ -163,6 +180,7 @@ export default function PlaceDetail() {
             <Text style={styles.editorTitle}>{myReview ? "Edit your review" : "Write a review"}</Text>
             <StarPicker value={rating} onChange={setRating} />
             <TextInput style={styles.textarea} placeholder="Share the details…" placeholderTextColor={styles._muted.color} value={body} onChangeText={setBody} multiline testID="detail-review-body" />
+            <PhotoGallery photos={photos} onChange={setPhotos} max={3} label="Photos (optional)" testIDPrefix="detail-review-photos" />
             <TouchableOpacity style={styles.anonRow} onPress={() => setAnon((a) => !a)} testID="detail-anon-toggle">
               <Ionicons name={anon ? "checkbox" : "square-outline"} size={20} color={anon ? styles._accent.color : styles._muted.color} />
               <Text style={styles.anonText}>Post anonymously</Text>
@@ -185,6 +203,7 @@ export default function PlaceDetail() {
             </View>
             <Stars value={myReview.rating} size={16} />
             {!!myReview.body && <Text style={styles.reviewBody}>{myReview.body}</Text>}
+            {photoStrip(myReview.photos)}
             <Text style={styles.reviewByline}>Posted as {myReview.author_name}</Text>
           </View>
         ) : (
@@ -209,6 +228,7 @@ export default function PlaceDetail() {
                 <Text style={styles.reviewDate}>{fmtDate(r.created_at)}</Text>
               </View>
               {!!r.body && <Text style={styles.reviewBody}>{r.body}</Text>}
+              {photoStrip(r.photos)}
               <View style={styles.reviewActions}>
                 <TouchableOpacity onPress={() => flagReview(r)} testID={`flag-${r.id}`}><Text style={styles.flagLink}>Report</Text></TouchableOpacity>
                 {isAdmin && <TouchableOpacity onPress={() => adminDelete(r)} testID={`admin-del-${r.id}`}><Text style={styles.linkDanger}>Delete (admin)</Text></TouchableOpacity>}
@@ -217,6 +237,14 @@ export default function PlaceDetail() {
           ))
         )}
       </ScrollView>
+
+      {/* fullscreen photo viewer */}
+      <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
+        <Pressable style={styles.viewerBackdrop} onPress={() => setViewerUri(null)}>
+          {viewerUri ? <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" /> : null}
+          <View style={styles.viewerClose}><Ionicons name="close" size={28} color="#fff" /></View>
+        </Pressable>
+      </Modal>
 
       {/* admin merge modal */}
       <Modal visible={mergeOpen} transparent animationType="slide" onRequestClose={() => setMergeOpen(false)}>
@@ -286,6 +314,10 @@ const makeStyles = (c: ThemePalette) => ({
   reviewDate: { color: c.textTertiary, fontSize: 12 },
   reviewBody: { color: c.textPrimary, fontSize: 14, lineHeight: 20, marginTop: 8 },
   reviewByline: { color: c.textTertiary, fontSize: 12, marginTop: 8 },
+  photoThumb: { width: 96, height: 96, borderRadius: 10, backgroundColor: c.bg, borderWidth: 1, borderColor: c.border },
+  viewerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.92)", alignItems: "center" as const, justifyContent: "center" as const },
+  viewerImg: { width: "92%", height: "80%" },
+  viewerClose: { position: "absolute" as const, top: 50, right: 24 },
   reviewActions: { flexDirection: "row" as const, gap: 20, marginTop: 12 },
   flagLink: { color: c.textTertiary, fontWeight: "600" as const, fontSize: 13 },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" as const },

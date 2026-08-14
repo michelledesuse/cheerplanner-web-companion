@@ -103,12 +103,14 @@ class ReviewSubmit(BaseModel):
     rating: int = Field(..., ge=1, le=5)
     body: str = ""
     display_mode: Literal["anonymous", "name"] = "name"
+    photos: Optional[List[str]] = None      # up to 3 base64 data-URL images
 
 
 class ReviewEdit(BaseModel):
     rating: Optional[int] = Field(None, ge=1, le=5)
     body: Optional[str] = None
     display_mode: Optional[Literal["anonymous", "name"]] = None
+    photos: Optional[List[str]] = None
 
 
 class CategoryCreate(BaseModel):
@@ -205,6 +207,44 @@ async def list_places(
     return {"places": places}
 
 
+@router.get("/reviews/near")
+async def places_near_competition(competition_id: str, current_user=Depends(get_current_user)):
+    """Suggest reviewed places in the city of a given competition.
+
+    We derive candidate location terms from the competition's `location` and
+    `address` free-text, then match review places whose `city` contains any of
+    them (case-insensitive). Best-effort — this powers a soft "nearby" section.
+    """
+    comp = await db.competitions.find_one({"id": competition_id}, {"_id": 0, "location": 1, "address": 1})
+    if not comp:
+        raise HTTPException(status_code=404, detail="Competition not found")
+    text = " ".join([str(comp.get("location") or ""), str(comp.get("address") or "")]).strip()
+    if not text:
+        return {"location": None, "places": []}
+
+    STOP = {"resort", "hotel", "center", "centre", "arena", "convention", "the", "and",
+            "expo", "complex", "stadium", "usa", "inc", "llc", "suite", "ste", "blvd",
+            "road", "rd", "street", "st", "ave", "avenue", "dr", "drive", "lane", "ln"}
+    US_STATES = set("al ak az ar ca co ct de fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt "
+                    "ne nv nh nj nm ny nc nd oh ok or pa ri sc sd tn tx ut vt va wa wv wi wy".split())
+    terms = set()
+    for part in re.split(r"[,\n]", text):
+        p = part.strip()
+        if len(p) >= 3 and p.lower() not in STOP and p.lower() not in US_STATES and not p.isdigit():
+            terms.add(p)
+    for w in re.findall(r"[A-Za-z]{3,}", text):
+        if w.lower() not in STOP and w.lower() not in US_STATES:
+            terms.add(w)
+    terms = {t for t in terms if len(t) >= 3}
+    if not terms:
+        return {"location": text, "places": []}
+
+    or_clauses = [{"city": {"$regex": re.escape(t), "$options": "i"}} for t in terms]
+    places = await db.review_places.find({"$or": or_clauses}, {"_id": 0}).to_list(300)
+    places.sort(key=lambda p: (-(p.get("avg_rating") or 0), -int(p.get("review_count") or 0)))
+    return {"location": text, "places": places[:12]}
+
+
 @router.get("/reviews/places/{place_id}")
 async def place_detail(place_id: str, current_user=Depends(get_current_user)):
     place = await db.review_places.find_one({"id": place_id}, {"_id": 0})
@@ -257,6 +297,7 @@ async def submit_review(payload: ReviewSubmit, current_user=Depends(get_current_
             await db.review_places.insert_one({**place})
 
     display_name = _display_name(current_user, payload.display_mode)
+    photos = [p for p in (payload.photos or []) if isinstance(p, str) and p][:3]
     now = utcnow_iso()
     existing = await db.place_reviews.find_one({"place_id": place["id"], "user_id": current_user["id"]}, {"_id": 0, "id": 1})
     if existing:
@@ -264,7 +305,8 @@ async def submit_review(payload: ReviewSubmit, current_user=Depends(get_current_
             {"id": existing["id"]},
             {"$set": {
                 "rating": payload.rating, "body": (payload.body or "").strip()[:2000],
-                "display_mode": payload.display_mode, "author_name": display_name, "updated_at": now,
+                "display_mode": payload.display_mode, "author_name": display_name,
+                "photos": photos, "updated_at": now,
             }},
         )
         review_id = existing["id"]
@@ -274,7 +316,7 @@ async def submit_review(payload: ReviewSubmit, current_user=Depends(get_current_
             "id": review_id, "place_id": place["id"], "user_id": current_user["id"],
             "rating": payload.rating, "body": (payload.body or "").strip()[:2000],
             "display_mode": payload.display_mode, "author_name": display_name,
-            "created_at": now, "updated_at": now,
+            "photos": photos, "created_at": now, "updated_at": now,
         })
     await _recompute_place(place["id"])
     return {"place_id": place["id"], "review_id": review_id}
@@ -295,6 +337,8 @@ async def edit_review(review_id: str, payload: ReviewEdit, current_user=Depends(
     if payload.display_mode is not None:
         updates["display_mode"] = payload.display_mode
         updates["author_name"] = _display_name(current_user, payload.display_mode)
+    if payload.photos is not None:
+        updates["photos"] = [p for p in payload.photos if isinstance(p, str) and p][:3]
     await db.place_reviews.update_one({"id": review_id}, {"$set": updates})
     await _recompute_place(r["place_id"])
     return {"updated": True}

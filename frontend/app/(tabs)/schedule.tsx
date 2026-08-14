@@ -15,6 +15,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatDate } from "@/src/utils/format";
 import MapLink from "@/src/components/MapLink";
+import WeatherBadge from "@/src/components/WeatherBadge";
 import TeamAvatar from "@/src/components/TeamAvatar";
 import FilterChipRow, { type FilterOption } from "@/src/components/FilterChipRow";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
@@ -407,6 +408,7 @@ function Row({ e, athletes, teams, customTypes, onPress, onLongPress, onDelete, 
           </View>
         ) : null}
         {names ? <Text style={styles.rowAthletes}>{names}</Text> : null}
+        {e.location ? <WeatherBadge location={e.location} date={e.date} compact style={{ marginTop: 4 }} /> : null}
         {conflict ? (
           <View style={styles.conflictBadge} testID={`schedule-conflict-${e.id}`}>
             <Ionicons name="warning" size={12} color="#B45309" />

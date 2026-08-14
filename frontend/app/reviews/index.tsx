@@ -5,7 +5,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { Stars } from "@/src/components/Stars";
@@ -26,6 +26,7 @@ const SORTS: { key: string; label: string }[] = [
 export default function ReviewsHome() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const params = useLocalSearchParams<{ city?: string }>();
 
   const [places, setPlaces] = useState<Place[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -34,7 +35,7 @@ export default function ReviewsHome() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [category, setCategory] = useState("all");
-  const [city, setCity] = useState("");
+  const [city, setCity] = useState(typeof params.city === "string" ? params.city : "");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("top");
 

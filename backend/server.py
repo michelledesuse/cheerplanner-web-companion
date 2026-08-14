@@ -59,6 +59,7 @@ from routers import (
     roadmap,
     team_forms,
     reviews,
+    weather,
 )
 
 
@@ -125,6 +126,7 @@ for r in (
     roadmap.router,
     team_forms.router,
     reviews.router,
+    weather.router,
 ):
     app.include_router(r)
 
@@ -232,6 +234,13 @@ async def startup_db_client():
         await seed_review_categories()
     except Exception as exc:
         logger.warning(f"Could not create review indexes: {exc}")
+
+    # Weather caches — auto-expire via TTL so they stay fresh + bounded.
+    try:
+        await db.weather_geocache.create_index("expiresAt", expireAfterSeconds=0)
+        await db.weather_forecastcache.create_index("expiresAt", expireAfterSeconds=0)
+    except Exception as exc:
+        logger.warning(f"Could not create weather indexes: {exc}")
 
     # Phase 1 — seed admin accounts from ADMIN_EMAILS (idempotent).
     try:

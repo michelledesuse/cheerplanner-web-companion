@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { StarPicker } from "@/src/components/Stars";
+import PhotoGallery from "@/src/components/PhotoGallery";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 type Category = { id: string; label: string };
@@ -23,6 +24,7 @@ export default function NewReview() {
   const [category, setCategory] = useState("Restaurants/Eateries");
   const [rating, setRating] = useState(0);
   const [body, setBody] = useState("");
+  const [photos, setPhotos] = useState<string[]>([]);
   const [anon, setAnon] = useState(false);
   const [saving, setSaving] = useState(false);
   const [newCat, setNewCat] = useState("");
@@ -51,7 +53,7 @@ export default function NewReview() {
     try {
       const r = await api.post("/reviews", {
         place_name: name.trim(), city: city.trim(), category,
-        rating, body: body.trim(), display_mode: anon ? "anonymous" : "name",
+        rating, body: body.trim(), display_mode: anon ? "anonymous" : "name", photos,
       });
       router.replace(`/reviews/${r.data.place_id}` as any);
     } catch (e: any) {
@@ -108,6 +110,8 @@ export default function NewReview() {
             multiline
             testID="review-body"
           />
+
+          <PhotoGallery photos={photos} onChange={setPhotos} max={3} label="Photos (optional)" testIDPrefix="review-photos" />
 
           <TouchableOpacity style={styles.anonRow} onPress={() => setAnon((a) => !a)} testID="review-anon-toggle">
             <Ionicons name={anon ? "checkbox" : "square-outline"} size={22} color={anon ? styles._accent.color : styles._muted.color} />

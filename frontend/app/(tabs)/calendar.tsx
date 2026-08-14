@@ -14,6 +14,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDateLong, todayISO } from "@/src/utils/format";
 import TeamAvatar from "@/src/components/TeamAvatar";
+import WeatherBadge from "@/src/components/WeatherBadge";
 import DateJumpDropdown from "@/src/components/DateJumpDropdown";
 import HomeButton from "@/src/components/HomeButton";
 import FilterChipRow from "@/src/components/FilterChipRow";
@@ -33,6 +34,8 @@ type CalEvent = {
   link?: string;
   links?: { label: string; url: string }[];
   has_music?: boolean;
+  location?: string;
+  weather_date?: string;
 };
 
 const MUSIC_DOT = "#F59E0B";
@@ -199,6 +202,9 @@ export default function CalendarTab() {
             )}
           </View>
           {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
+          {!!e.location && !!e.weather_date && (
+            <WeatherBadge location={e.location} date={e.weather_date} compact style={{ marginTop: 3 }} />
+          )}
         </View>
         {e.amount != null && (
           <Text style={[styles.eventAmount, { color: e.color }]}>{formatCurrency(e.amount)}</Text>

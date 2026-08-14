@@ -9,6 +9,8 @@ import { useAuth } from "@/src/context/AuthContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
+import { Stars } from "@/src/components/Stars";
+import WeatherBadge from "@/src/components/WeatherBadge";
 import MapLink from "@/src/components/MapLink";
 import PackingListSection from "@/src/components/PackingListSection";
 import TodoList from "@/src/components/TodoList";
@@ -80,6 +82,7 @@ export default function CompetitionDetail() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [togglingAthlete, setTogglingAthlete] = useState(false);
+  const [nearPlaces, setNearPlaces] = useState<any[]>([]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -92,6 +95,10 @@ export default function CompetitionDetail() {
       setComp(c.data); setBookings(b.data); setAthletes(a.data);
     } catch (e) {}
     finally { setLoading(false); setRefreshing(false); }
+    try {
+      const r = await api.get(`/reviews/near?competition_id=${id}`);
+      setNearPlaces(r.data.places || []);
+    } catch (_e) { setNearPlaces([]); }
   }, [id, canTravel]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -194,6 +201,10 @@ export default function CompetitionDetail() {
             </TouchableOpacity>
           )}
         </View>
+
+        {!!comp.event_date && !!(comp.location || comp.address) && (
+          <WeatherBadge location={comp.address || comp.location} date={comp.event_date} style={styles.weatherBadge} testID="comp-weather" />
+        )}
 
         {canTravel && bookings.length > 0 && (
           <View style={styles.balanceCard}>
@@ -301,6 +312,30 @@ export default function CompetitionDetail() {
         <TodoList scope="competition" refId={comp.id} />
         <LinkedTools competitionId={comp.id} />
         <AttachedMusic contextKey="competition_ids" contextId={comp.id} standalone />
+
+        {nearPlaces.length > 0 && (
+          <>
+            <View style={styles.nearHead}>
+              <Text style={styles.sectionHead}>Cheer-friendly places nearby</Text>
+              <TouchableOpacity onPress={() => router.push(`/reviews?city=${encodeURIComponent(comp.location || "")}` as any)} testID="near-see-all">
+                <Text style={styles.nearSeeAll}>See all</Text>
+              </TouchableOpacity>
+            </View>
+            {nearPlaces.slice(0, 5).map((p: any) => (
+              <TouchableOpacity key={p.id} style={styles.nearCard} onPress={() => router.push(`/reviews/${p.id}` as any)} testID={`near-place-${p.id}`}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nearName}>{p.name}</Text>
+                  <Text style={styles.nearMeta}>{p.city ? `${p.city} • ` : ""}{p.category}</Text>
+                  <View style={styles.nearRating}>
+                    <Stars value={p.avg_rating} size={13} />
+                    <Text style={styles.nearRatingText}>{(p.avg_rating || 0).toFixed(1)} ({p.review_count})</Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -452,9 +487,17 @@ const makeStyles = () => ({
   linkBtn: { marginTop: spacing.lg, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.12)", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   linkBtnText: { color: "white", fontWeight: "700" },
   balanceCard: { marginTop: spacing.md, flexDirection: "row", justifyContent: "space-between", padding: spacing.lg, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
+  weatherBadge: { marginTop: spacing.lg },
   smallLabel: { color: colors.textTertiary, fontSize: 10, fontWeight: "700", letterSpacing: 0.6 },
   balanceMain: { ...typography.h2, color: colors.textPrimary, marginTop: 2 },
   sectionHead: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.md },
+  nearHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: spacing.xl, marginBottom: spacing.md },
+  nearSeeAll: { color: colors.accent, fontWeight: "700", fontSize: 14 },
+  nearCard: { flexDirection: "row", alignItems: "center", padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, marginBottom: 8 },
+  nearName: { ...typography.body, color: colors.textPrimary, fontWeight: "700" },
+  nearMeta: { color: colors.textSecondary, fontSize: 13, marginTop: 2 },
+  nearRating: { flexDirection: "row", alignItems: "center", marginTop: 4, gap: 6 },
+  nearRatingText: { color: colors.textTertiary, fontSize: 12 },
   addTypes: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
   typeBtn: { flex: 1, paddingVertical: spacing.lg, alignItems: "center", backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
   typeIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.accentSubtle, alignItems: "center", justifyContent: "center", marginBottom: 6 },
