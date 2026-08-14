@@ -3,7 +3,7 @@ import StaticPage, { LegalSection, P } from "@/src/components/StaticPage";
 
 export default function PrivacyScreen() {
   return (
-    <StaticPage title="Privacy Policy" subtitle="Last updated: August 3, 2026">
+    <StaticPage title="Privacy Policy" subtitle="Last updated: September 1, 2026">
       <LegalSection>
         <P>CheerPlanner ("we," "our," or "us") is a mobile application that helps cheerleading families organize expenses, competition travel, schedules, and packing lists. This Privacy Policy explains how CheerPlanner collects, uses, and protects your information when you use the CheerPlanner mobile application and related services (the "Service"), and the choices you have. By creating an account and using CheerPlanner, you agree to the practices described in this policy.</P>
       </LegalSection>
@@ -52,11 +52,19 @@ export default function PrivacyScreen() {
         <P>CheerPlanner is intended for use by parents and guardians. It is not directed to children under 13, and we do not knowingly collect personal information directly from children.</P>
       </LegalSection>
 
-      <LegalSection heading="10. Changes to This Policy">
+      <LegalSection heading="10. Community Reviews">
+        <P>CheerPlanner includes a Community Reviews directory where users can post ratings and reviews of places (such as restaurants, hotels, and gyms). Reviews you submit — including the star rating, your written comments, any photos you attach, the place and city, and the display name you choose (your first name and last initial, or "Anonymous") — are PUBLIC and visible to all CheerPlanner users across other accounts, independent of your household. Do not include sensitive personal information in a review. You can edit or delete your own reviews at any time, and you can report a review for moderation. We may remove content that violates our terms.</P>
+      </LegalSection>
+
+      <LegalSection heading="11. Location & Weather">
+        <P>When a competition or event has a location and a date, we send that location text to our weather provider (Open-Meteo) to look up coordinates and retrieve a forecast to display in the app. We do not track your device's real-time GPS location for this feature; only the location text you entered for the event is used, and results are cached to reduce lookups.</P>
+      </LegalSection>
+
+      <LegalSection heading="12. Changes to This Policy">
         <P>We may update this Privacy Policy from time to time. Material changes will be reflected by updating the "Last updated" date above.</P>
       </LegalSection>
 
-      <LegalSection heading="11. Contact Us">
+      <LegalSection heading="13. Contact Us">
         <P>CheerPlanner Support — Email: info@cheer-planner.com</P>
       </LegalSection>
     </StaticPage>

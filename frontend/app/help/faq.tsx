@@ -27,7 +27,7 @@ const FAQ: Section[] = [
       {
         q: "How do I share with a co-parent?",
         a:
-          "Open Settings → Household (sharing). Invite your co-parent by email. Once they accept, both phones see the same athletes, competitions, payments, and schedule in real time. Either parent can add or edit anything.",
+          "Open Settings → Family Sharing. Invite your co-parent by email. Once they accept, both phones see the same athletes, competitions, payments, and schedule in real time. As the account owner you can also fine-tune what each household member sees: on the Family Sharing screen, use the per-member toggles (or the one-tap Kids preset) to hide Expenses/Payments and/or Travel from a specific person.",
       },
       {
         q: "Can a coach or athlete be on multiple teams?",
@@ -177,7 +177,7 @@ const FAQ: Section[] = [
       {
         q: "Who can see the Team Hub?",
         a:
-          "The household owner controls access. Open Settings → Team Hub → Team Hub Access to grant or revoke it for each household member, or invite someone by email. Members with access see the Team tab and its tools; everyone else won't see the Hub or its data.",
+          "The household owner controls access. Open Settings → Team Hub Access to grant or revoke it for each household member, or invite someone by email. If a coach or gym gave you a Team Hub code, open Settings → Team Hub Access and enter it in the \"Have a Team Hub code?\" box at the top to unlock the Team tab. Members with access see the Team tab and its tools; everyone else won't see the Hub or its data.",
       },
       {
         q: "How is the Roster different from my athletes?",
@@ -228,6 +228,36 @@ const FAQ: Section[] = [
         q: "Can parents add a photo of their athlete to the roster?",
         a:
           "Yes. When you share your roster link, a parent can upload one photo of their athlete or staff member (no login needed) along with their info — it saves straight to that person on your internal roster. You can also add, change, or remove a member's photo yourself from the roster edit screen.",
+      },
+    ],
+  },
+  {
+    title: "Seasons, weather & community",
+    items: [
+      {
+        q: "How do seasons work now?",
+        a:
+          "Give a season a start and end date and CheerPlanner files your data into it automatically — competitions by their date, schedule events by date, expenses by due date, and payments by the due date of the expense they cover (so an August payment on a July bill counts toward the July season). No manual tagging needed. Switch the active season anytime from the season bar; pick \"All seasons\" to see everything. Records that fall outside every season's dates are never hidden — they stay visible under All seasons.",
+      },
+      {
+        q: "Can I still put a record in a specific season by hand?",
+        a:
+          "Yes. A manual season tag always wins over the automatic date match — handy for things like a deposit paid before a season officially opens.",
+      },
+      {
+        q: "What does \"Roll over to new season\" do?",
+        a:
+          "On the Seasons screen, tap a season → Roll over to new season. It creates next season for you (name and dates pre-filled), carries your teams and a checklist of athletes forward (uncheck graduating seniors), and makes the new season active. It never changes or deletes your old season, warns instead of creating a duplicate, and offers an Undo right after.",
+      },
+      {
+        q: "Where does the weather forecast come from?",
+        a:
+          "Any competition or event that has a location and a date shows a forecast (high/low, conditions, chance of rain) right on its card and on the calendar. Forecasts come from Open-Meteo and cover about 16 days out — further-off events show \"forecast available closer to the date.\" If there's no location saved, no weather is shown.",
+      },
+      {
+        q: "What are Community Reviews?",
+        a:
+          "A shared directory of cheer-friendly places (restaurants, hotels, gyms and more) that every CheerPlanner user can see and add to — open it from Settings → Community Reviews. Rate a spot 1–5 stars, filter by city and category, and post as your first name + last initial or anonymously. A competition's detail screen also suggests reviewed places in that city. You can edit or delete your own review and report others anytime.",
       },
     ],
   },

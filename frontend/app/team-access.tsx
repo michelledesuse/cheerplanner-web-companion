@@ -25,6 +25,8 @@ export default function TeamAccessScreen() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [inviting, setInviting] = useState(false);
+  const [teamCode, setTeamCode] = useState("");
+  const [joiningTeam, setJoiningTeam] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -44,6 +46,21 @@ export default function TeamAccessScreen() {
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not update access.");
     } finally { setBusyId(null); }
+  };
+
+  const submitJoinTeam = async () => {
+    const c = teamCode.trim().toUpperCase();
+    if (!c) { Alert.alert("Enter your code", "Paste the Team Hub code your coach or gym shared with you."); return; }
+    setJoiningTeam(true);
+    try {
+      await api.post("/household/join", { code: c });
+      setTeamCode("");
+      await load();
+      await refreshUser(); // team_access may now be true -> unlock the Team tab
+      Alert.alert("You're in! 🎉", "You now have Team Hub access. Open the Team tab to get started.");
+    } catch (e: any) {
+      Alert.alert("Couldn't join", e?.response?.data?.detail || "Check the code and try again.");
+    } finally { setJoiningTeam(false); }
   };
 
   const sendInvite = async () => {
@@ -67,7 +84,7 @@ export default function TeamAccessScreen() {
   const shareInvite = async (inv: Invite) => {
     try {
       await Share.share({
-        message: `Join my CheerPlanner Team Hub with invite code: ${inv.code}\n\nSign up (or log in), then enter this code under Settings → Invite Family Members → Join. Expires in 7 days.`,
+        message: `Join my CheerPlanner Team Hub with invite code: ${inv.code}\n\nSign up (or log in), then go to Settings → Team Hub Access and enter this code. Expires in 7 days.`,
       });
     } catch (_e) {}
   };
@@ -98,21 +115,70 @@ export default function TeamAccessScreen() {
         {loading ? (
           <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
         ) : !data?.is_owner ? (
-          <ScrollView contentContainerStyle={{ padding: spacing.lg }} testID="team-access-screen">
+          <ScrollView contentContainerStyle={{ padding: spacing.lg }} keyboardShouldPersistTaps="handled" testID="team-access-screen">
+            <Text style={styles.sectionHead}>Have a Team Hub code?</Text>
+            <View style={styles.card}>
+              <Text style={styles.label}>Enter the code from your coach or gym</Text>
+              <TextInput
+                style={styles.input}
+                value={teamCode}
+                onChangeText={(t) => setTeamCode(t.toUpperCase())}
+                placeholder="6-character code (e.g. AB12CD)"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={6}
+                testID="team-access-join-input"
+              />
+              <TouchableOpacity style={[styles.primaryBtn, { marginTop: spacing.sm }, joiningTeam && { opacity: 0.7 }]} onPress={submitJoinTeam} disabled={joiningTeam} testID="team-access-join-submit">
+                {joiningTeam ? <ActivityIndicator color="white" /> : (
+                  <>
+                    <Ionicons name="key-outline" size={16} color="white" />
+                    <Text style={styles.primaryBtnText}>Join Team Hub</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <Text style={styles.hint}>This unlocks the Team Hub (roster, sizes, payments, paperwork). It won&apos;t share your personal calendar or expenses.</Text>
+            </View>
+
             <View style={styles.card}>
               <View style={[styles.statusIcon, { backgroundColor: colors.accentSubtle }]}>
                 <Ionicons name={data?.members.find((m) => m.id === user?.id)?.team_access ? "checkmark-circle-outline" : "lock-closed-outline"} size={26} color={colors.accent} />
               </View>
               <Text style={styles.statusTitle}>
-                {data?.members.find((m) => m.id === user?.id)?.team_access ? "You have Team Hub access" : "You don't have Team Hub access"}
+                {data?.members.find((m) => m.id === user?.id)?.team_access ? "You have Team Hub access" : "You don't have Team Hub access yet"}
               </Text>
               <Text style={styles.statusText}>
-                Team Hub access is managed by the account owner{owner ? `, ${owner.name || owner.email}` : ""}. Ask them to grant you access.
+                Team Hub access is managed by the account owner{owner ? `, ${owner.name || owner.email}` : ""}. Have a code from them? Enter it above.
               </Text>
             </View>
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }} keyboardShouldPersistTaps="handled" testID="team-access-screen">
+            <Text style={styles.sectionHead}>Have a Team Hub code?</Text>
+            <View style={styles.card}>
+              <Text style={styles.label}>Joining another coach&apos;s or gym&apos;s Team Hub? Enter their code</Text>
+              <TextInput
+                style={styles.input}
+                value={teamCode}
+                onChangeText={(t) => setTeamCode(t.toUpperCase())}
+                placeholder="6-character code (e.g. AB12CD)"
+                placeholderTextColor={colors.textTertiary}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={6}
+                testID="team-access-join-input"
+              />
+              <TouchableOpacity style={[styles.primaryBtn, { marginTop: spacing.sm }, joiningTeam && { opacity: 0.7 }]} onPress={submitJoinTeam} disabled={joiningTeam} testID="team-access-join-submit">
+                {joiningTeam ? <ActivityIndicator color="white" /> : (
+                  <>
+                    <Ionicons name="key-outline" size={16} color="white" />
+                    <Text style={styles.primaryBtnText}>Join Team Hub</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.intro}>
               As the account owner, you decide who can open the Team Hub (roster, sizes, payments, paperwork &amp; sign-ups). Grant it to people in your household, or invite someone new by email.
             </Text>

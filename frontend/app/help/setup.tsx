@@ -75,9 +75,9 @@ const STEPS: Step[] = [
   },
   {
     num: 10,
-    title: "Share with a co-parent",
+    title: "Share with a co-parent (and set privacy)",
     body:
-      "Go to Settings → Household (sharing) and invite your co-parent's email. Once they accept, both phones see the same athletes, competitions, expenses, and schedule live. Either parent can add or edit anything.",
+      "Go to Settings → Family Sharing and invite your co-parent's email. Once they accept, both phones see the same athletes, competitions, expenses, and schedule live. As the owner you can control what each member sees — use the per-member toggles or the one-tap Kids preset to hide Expenses/Payments and/or Travel from a specific person.",
   },
   {
     num: 11,
@@ -89,7 +89,7 @@ const STEPS: Step[] = [
     num: 12,
     title: "Open the Team Hub (coaches, reps & staff)",
     body:
-      "Tap the Team tab. The Team Hub unlocks automatically once your household has someone marked Coach, Team Rep/Mgr, or Staff. It's a private workspace for team personnel with a Roster and tracking tools. Start with Roster → add people manually or pull in your athletes with one tap. Athletes store a parent's contact info; personnel store their own. People can be on multiple teams, and every list separates Personnel from Athletes.",
+      "Tap the Team tab. The Team Hub unlocks automatically once your household has someone marked Coach, Team Rep/Mgr, or Staff. If a coach or gym gave you a Team Hub code, open Settings → Team Hub Access and enter it in the \"Have a Team Hub code?\" box at the top to unlock the Team tab. It's a private workspace for team personnel with a Roster and tracking tools. Start with Roster → add people manually or pull in your athletes with one tap. Athletes store a parent's contact info; personnel store their own. People can be on multiple teams, and every list separates Personnel from Athletes.",
   },
   {
     num: 13,
@@ -135,11 +135,18 @@ const STEPS: Step[] = [
     num: 19,
     title: "Organize by season",
     body:
-      "Open Settings → Seasons to create seasons (e.g. \"2025–26\"). Mark one active and the whole app filters to it — new athletes, competitions, schedule events, expenses, payments and fundraisers you add are automatically tagged to the active season. Use the season bar on the dashboard to switch between seasons or view All. When a new season starts, use Roll over to carry teams and athletes forward.",
-    tip: "Items you created before making a season stay visible in every season, so nothing gets hidden.",
+      "Open Settings → Seasons and create a season with a start and end date (e.g. \"2025–26\"). CheerPlanner then files your data into it automatically by date — competitions, schedule events, expenses, and payments (a payment follows the due date of the expense it covers). No manual tagging. Mark one season active, then use the season bar on the dashboard to switch seasons or view All. When next season nears, tap Roll over to new season to carry your teams and athletes forward in one step.",
+    tip: "Dates are required so auto-filing works, and seasons can't overlap. Anything outside every season's dates still shows under \"All seasons,\" so nothing is hidden.",
   },
   {
     num: 20,
+    title: "Check weather & discover places",
+    body:
+      "Every competition and event with a location and date shows a weather forecast (high/low, conditions, chance of rain) on its card and on the calendar — powered by Open-Meteo, out to about 16 days. Open Settings → Community Reviews to rate and find cheer-friendly restaurants, hotels, gyms and more shared by families everywhere; filter by city and category, and post as your first name + last initial or anonymously. A competition also suggests reviewed places in its city.",
+    tip: "Weather only shows when a location is saved; far-off dates say \"forecast available closer to the date.\"",
+  },
+  {
+    num: 21,
     title: "Go Premium (optional)",
     body:
       "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full Team Hub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",

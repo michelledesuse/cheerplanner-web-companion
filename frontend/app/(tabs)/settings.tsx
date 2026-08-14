@@ -192,12 +192,12 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHead}>Sharing</Text>
         <View style={styles.group}>
-          <SettingRow label="Invite Family Members" onPress={() => router.push("/household")} chevron testID="settings-household" />
+          <SettingRow label="Family Sharing" subtitle="Share your calendar, expenses & travel with your household" onPress={() => router.push("/household")} chevron testID="settings-household" />
         </View>
 
         <Text style={styles.sectionHead}>Team Hub</Text>
         <View style={styles.group}>
-          <SettingRow label="Team Hub Access" onPress={() => router.push("/team-access" as any)} chevron testID="settings-team-access" />
+          <SettingRow label="Team Hub Access" subtitle="Grant access, or enter a Team Hub code from a coach/gym" onPress={() => router.push("/team-access" as any)} chevron testID="settings-team-access" />
         </View>
 
         <Text style={styles.sectionHead}>Data</Text>

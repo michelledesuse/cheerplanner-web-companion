@@ -259,6 +259,7 @@ export default function HouseholdScreen() {
             <TouchableOpacity style={[styles.primaryBtn, { marginTop: spacing.sm }, joining && { opacity: 0.7 }]} onPress={submitJoin} disabled={joining} testID="join-submit">
               {joining ? <ActivityIndicator color="white" /> : <Text style={styles.primaryBtnText}>Join household</Text>}
             </TouchableOpacity>
+            <Text style={styles.joinHint}>This is for family sharing (your calendar, expenses & travel). Coaches joining a team should use Settings → Team Hub Access instead.</Text>
           </View>
 
           {/* Leave */}
@@ -294,6 +295,7 @@ const makeStyles = () => ({
   privacyRow: { flexDirection: "row", alignItems: "center", paddingVertical: 6 },
   privacyLabel: { ...typography.bodyMedium, color: colors.textPrimary },
   privacyHint: { ...typography.caption, color: colors.textTertiary, marginTop: 2 },
+  joinHint: { ...typography.caption, color: colors.textTertiary, marginTop: 10, lineHeight: 17 },
   memberDot: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.accent, alignItems: "center", justifyContent: "center" },
   memberDotText: { color: "white", fontWeight: "800", fontSize: 14 },
   memberName: { ...typography.bodyMedium, color: colors.textPrimary },
