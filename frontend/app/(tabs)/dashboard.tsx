@@ -38,6 +38,8 @@ type Dashboard = {
   total_raised: number;
   next_competition: any | null;
   suggest_season?: boolean;
+  can_view_expenses?: boolean;
+  can_view_travel?: boolean;
 };
 
 type ReminderItem = {
@@ -51,9 +53,7 @@ type ReminderItem = {
 };
 
 export default function DashboardScreen() {
-  const { user } = useAuth();
-  const canExpenses = user?.visibility?.expenses !== false;
-  const canTravel = user?.visibility?.travel !== false;
+  const { user, refreshUser } = useAuth();
   const router = useRouter();
   const { refreshPresets } = useTheme(); // subscribe + sync the household theme on first mount
   const styles = useThemedStyles(makeStyles);
@@ -61,6 +61,8 @@ export default function DashboardScreen() {
   // with empty AsyncStorage paints the user's real theme (not the default).
   useEffect(() => { refreshPresets(); }, [refreshPresets]);
   const [data, setData] = useState<Dashboard | null>(null);
+  const canExpenses = (data?.can_view_expenses ?? user?.visibility?.expenses) !== false;
+  const canTravel = (data?.can_view_travel ?? user?.visibility?.travel) !== false;
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -70,13 +72,14 @@ export default function DashboardScreen() {
       const [d, r] = await Promise.all([api.get("/dashboard"), api.get("/reminders")]);
       setData(d.data);
       setReminders((r.data.items as ReminderItem[]).filter((x) => x.days_until <= 14).slice(0, 4));
+      refreshUser(); // keep privacy/visibility fresh so the Expenses tab re-appears when re-enabled
     } catch (e) {
       // ignore
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshUser]);
 
   useFocusEffect(
     useCallback(() => {

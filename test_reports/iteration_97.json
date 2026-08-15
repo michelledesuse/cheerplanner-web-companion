@@ -1,0 +1,41 @@
+{
+  "summary": "Iter97 verified BUG 1 (guidelines-loop) and BUG 2 (finance-repopulation). Backend 3/3 pytest pass. UI-verified BUG 2 end-to-end (tiles disappear on OFF, REPOPULATE on ON after dashboard reload). CRITICAL REGRESSION FOUND & FIXED IN DASHBOARD: /app/frontend/app/(tabs)/dashboard.tsx lines 57-58 referenced `data` BEFORE its useState declaration on line 65 => Temporal Dead Zone ReferenceError 'Cannot access data before initialization' that crashed the dashboard for every user (owner + member). E1's BUG 2 patch was the trigger. Testing agent moved the two `canExpenses/canTravel` lines to immediately AFTER `const [data, setData] = useState<Dashboard|null>(null);` and restarted expo — dashboard now renders, tile-this-month/tile-paid-ytd/tile-raised/dashboard-balance-card all mount correctly. Bug 1 UI could not be exercised on web because react-native-web `Alert.alert` is a no-op (does not render a browser dialog), but code review of submit(skipGuard) + promptGuidelines(()=>submit(true)) confirms the closure-loop is broken correctly (skipGuard=true on the retry bypasses the guard) and the backend contract POST /reviews returns 403 guidelines_not_accepted BEFORE and 200 with {place_id, review_id} AFTER POST /reviews/accept-guidelines — both verified by pytest.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "DashboardScreen (app/(tabs)/dashboard.tsx)",
+        "issue": "Temporal Dead Zone: canExpenses/canTravel referenced `data` before the `const [data, setData] = useState(null)` line, crashing the whole dashboard with ReferenceError. Fixed by moving the two const declarations to right after useState. Reference: /app/frontend/app/(tabs)/dashboard.tsx:56-66."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter97_reviews_and_privacy.py",
+    "/app/test_reports/pytest/pytest_iter97.xml"
+  ],
+  "action_items": [
+    "VERIFY the dashboard.tsx variable-ordering fix applied by the testing agent (move canExpenses/canTravel below the useState line). It was a mechanical fix but E1 owns the file's business logic — please double-check the outcome and keep the ordering.",
+    "BUG 1 UI verification on native: react-native-web's Alert.alert is a no-op on the Metro web preview, so the guidelines popup cannot be exercised in the web preview. Verify on iOS/Android (Expo Go or a native build) that (a) a single 'Community Guidelines' popup appears on first Post review, (b) tapping 'I Agree' immediately submits and navigates to /reviews/{place_id}, and (c) the popup does NOT re-appear. The submit(skipGuard) + promptGuidelines(()=>submit(true)) closure looks correct in review.",
+    "OPTIONAL: consider replacing Alert.alert with a cross-platform confirm modal so this flow can be regression-tested from the web preview."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/reviews.py: _require_guidelines correctly gates POST /reviews with 403 detail 'guidelines_not_accepted' when reviews_guidelines_accepted_at is missing; accept-guidelines writes utcnow_iso() timestamp; /reviews/categories returns guidelines_accepted flag which new.tsx reads to seed local state.",
+    "backend/routers/dashboard.py: correctly reads visibility via _member_visibility and zeroes total_expenses_ytd/total_payments_ytd/booking_balance/unpaid_expense_balance/month_spend when the corresponding flag is false; also returns can_view_expenses/can_view_travel booleans that the UI now gates on.",
+    "frontend/app/reviews/new.tsx: submit(skipGuard=false) + `if (!skipGuard && !guidelinesAccepted) { promptGuidelines(()=>submit(true)); return; }` correctly avoids the previous stale-closure loop; onPress={() => submit()} always starts with skipGuard=false; the 'I Agree' onPress calls accept-guidelines then invokes the `after` callback which now uses submit(true). Look reasonable.",
+    "frontend/app/(tabs)/dashboard.tsx: after ordering fix, canExpenses/canTravel derive from data.can_view_expenses ?? user.visibility.expenses (falls back to auth-cache before first fetch resolves). load() calls refreshUser() so the Expenses tab (which is gated on the cached auth visibility) re-appears on re-enable too. Good.",
+    "The refreshUser() inside load() and useFocusEffect(load) means every dashboard focus performs a full /auth/me + /dashboard + /reminders round-trip. Fine here, but if Team Hub adds more focus-driven refetches, consider debouncing."
+  ],
+  "updated_files": [
+    "/app/frontend/app/(tabs)/dashboard.tsx (moved 2 lines below useState to fix TDZ)",
+    "/app/backend/tests/test_iter97_reviews_and_privacy.py (new)"
+  ],
+  "success_rate": { "backend": "100% (3/3 pytest)", "frontend": "100% after fixing the TDZ ordering bug" },
+  "seed_data_creation": "Ephemeral: signed up multiple TEST_iter97_* users to exercise the guidelines gate; created a temporary household member (iter97memb*@cheerplanner.app) which then leaves the household after BUG 2 verification. All rows are prefixed TEST_ / iter97 for cleanup.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The dashboard.tsx TDZ fix must survive further edits. Regression test: /app/backend/tests/test_iter97_reviews_and_privacy.py covers (1) 403 guidelines gate for fresh users, (2) 200 review submission after accept-guidelines, (3) member dashboard flags flip when owner toggles privacy. To rerun: `pytest backend/tests/test_iter97_reviews_and_privacy.py -v`. For the UI, sign in as applereview / Review2026! — dashboard should render tile-this-month, tile-paid-ytd, tile-raised, dashboard-balance-card without console errors. To reproduce BUG 2 UI: use the API helper flow in the iter97 playwright script (login owner → POST /household/invite → signup fresh member → POST /household/join → PATCH /household/privacy/{member_id} expenses:false/true → reload dashboard).",
+  "rca_of_issue": "BUG 2 fix (E1) introduced a TDZ ReferenceError in dashboard.tsx by placing `const canExpenses = (data?.can_view_expenses ?? user?.visibility?.expenses) !== false;` on line 57 while `const [data, setData] = useState<Dashboard|null>(null);` sits on line 65. JavaScript hoists `const` bindings into the TDZ, so reading `data` before its declaration throws 'Cannot access data before initialization'. This crashed DashboardScreen for every user (visible in the browser via a red overlay 'Uncaught Error: Cannot access data before initialization' with stack app/(tabs)/dashboard.tsx:57:23). Mitigation: move the two derived-flag consts to immediately after the useState line so `data` is already initialised to null when they read it. After fix, dashboard renders, member privacy toggles correctly hide (OFF: month=0/paid=0/raised=0) and repopulate (ON: month=1/paid=1/raised=1) on reload."
+}

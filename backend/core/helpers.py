@@ -388,7 +388,9 @@ async def _waterfall_allocations(
 
 
 async def _build_paid_map(user_id: str) -> dict:
-    """Return {expense_id: paid_amount_sum} from all payments for this user.
+    """Return {expense_id: paid_amount_sum} from all payments in this user's
+    HOUSEHOLD (shared data is owned by whichever member created it, so we scope
+    to the whole household — consistent with the expenses/payments list APIs).
 
     Order of precedence per payment:
       1. `allocations` (explicit per-expense breakdown) — always wins.
@@ -397,11 +399,12 @@ async def _build_paid_map(user_id: str) -> dict:
          expense IN FULL before moving on.
     """
     paid_map: dict = {}
+    member_ids = await _household_user_ids(user_id)
 
     # Pre-fetch expense balances we'll need for the waterfall fallback.
     expense_index: dict = {}
     async for e in db.expenses.find(
-        {"user_id": user_id},
+        {"user_id": {"$in": member_ids}},
         {"_id": 0, "id": 1, "amount": 1, "due_date": 1, "incurred_on": 1},
     ).limit(20000):
         expense_index[e["id"]] = e
@@ -411,7 +414,7 @@ async def _build_paid_map(user_id: str) -> dict:
     #   Pass 2: legacy payments (applied_expense_ids only) → waterfall.
     legacy_payments: list = []
     async for p in db.payments.find(
-        {"user_id": user_id},
+        {"user_id": {"$in": member_ids}},
         {"_id": 0, "amount": 1, "applied_expense_ids": 1, "allocations": 1, "paid_on": 1},
     ).limit(20000):
         allocs = p.get("allocations") or []

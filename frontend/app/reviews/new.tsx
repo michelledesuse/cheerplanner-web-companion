@@ -55,10 +55,10 @@ export default function NewReview() {
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not add category"); }
   };
 
-  const submit = async () => {
+  const submit = async (skipGuard = false) => {
     if (!name.trim()) { Alert.alert("Missing info", "Please enter the place name."); return; }
     if (rating < 1) { Alert.alert("Add a rating", "Please tap 1–5 stars."); return; }
-    if (!guidelinesAccepted) { promptGuidelines(submit); return; }
+    if (!skipGuard && !guidelinesAccepted) { promptGuidelines(() => submit(true)); return; }
     setSaving(true);
     try {
       const r = await api.post("/reviews", {
@@ -128,7 +128,7 @@ export default function NewReview() {
             <Text style={styles.anonText}>Post anonymously (otherwise shown as your first name + last initial)</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.submit, saving && { opacity: 0.6 }]} onPress={submit} disabled={saving} testID="submit-review-btn">
+          <TouchableOpacity style={[styles.submit, saving && { opacity: 0.6 }]} onPress={() => submit()} disabled={saving} testID="submit-review-btn">
             {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Post review</Text>}
           </TouchableOpacity>
           <TouchableOpacity onPress={() => Alert.alert("Community Guidelines", GUIDELINES)} testID="guidelines-link">
