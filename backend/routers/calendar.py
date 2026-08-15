@@ -6,7 +6,7 @@ from core.db import db
 from core.security import get_current_user
 from core.helpers import (
     _household_user_ids, _build_paid_map, _fmt_time_12h, _extract_hhmm,
-    _team_hub_scope_user_ids,
+    _team_hub_scope_user_ids, _member_visibility,
 )
 
 router = APIRouter(prefix="/api")
@@ -23,6 +23,11 @@ async def calendar_feed(
     Each item: { id, kind, date, title, subtitle?, amount?, color, athlete_id?, link }
     """
     user_id = current_user["id"]
+    member_ids = await _household_user_ids(user_id)
+    hh = {"$in": member_ids}
+    vis = await _member_visibility(user_id)
+    can_expenses = vis.get("expenses", True)
+    can_travel = vis.get("travel", True)
 
     # Household custom event-type colors (v2.3) — merged into the schedule
     # color map so custom types render with their chosen color on the calendar.
@@ -114,12 +119,15 @@ async def calendar_feed(
     # Athletes map for names
     athletes = {
         a["id"]: a
-        async for a in db.athletes.find({"user_id": user_id}, {"_id": 0, "id": 1, "name": 1, "avatar_color": 1})
+        async for a in db.athletes.find({"user_id": hh}, {"_id": 0, "id": 1, "name": 1, "avatar_color": 1})
     }
 
-    # Expenses — emit due-date (or fall back to incurred_on if due_date is missing)
+    # Expenses — emit due-date (or fall back to incurred_on if due_date is missing).
+    # Hidden entirely for members whose "expenses" visibility is OFF.
     paid_map = await _build_paid_map(user_id)
-    async for e in db.expenses.find({"user_id": user_id}, {"_id": 0}):
+    async for e in db.expenses.find({"user_id": hh}, {"_id": 0}):
+        if not can_expenses:
+            break
         ath = athletes.get(e.get("athlete_id"), {})
         amt = float(e.get("amount") or 0)
         paid = float(paid_map.get(e.get("id"), 0.0))
@@ -143,7 +151,7 @@ async def calendar_feed(
         })
 
     # Competitions — span every day from event_date to end_date inclusive
-    async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
+    async for c in db.competitions.find({"user_id": hh}, {"_id": 0}):
         ev = c.get("event_date")
         end_d = c.get("end_date") or ev
         if not ev:
@@ -177,8 +185,12 @@ async def calendar_feed(
                 "link": f"/competitions/{c['id']}",
             })
 
-    # Bookings — hotels, flights, ground
-    async for b in db.bookings.find({"user_id": user_id}, {"_id": 0}):
+    # Bookings — hotels, flights, ground. Travel logistics still show on the
+    # calendar (flights/hotels/cars) as long as "travel" visibility is ON; costs
+    # never appear on the calendar anyway. Hidden entirely when travel is OFF.
+    async for b in db.bookings.find({"user_id": hh}, {"_id": 0}):
+        if not can_travel:
+            break
         btype = b.get("type", "booking")
         comp_link = f"/competitions/{b.get('competition_id')}" if b.get("competition_id") else "/"
         vendor = b.get("provider") or btype.capitalize()
@@ -282,8 +294,7 @@ async def calendar_feed(
                 })
 
     # Fundraisers — raised_on
-    member_ids = await _household_user_ids(user_id)
-    async for f in db.fundraisers.find({"user_id": {"$in": member_ids}}, {"_id": 0}):
+    async for f in db.fundraisers.find({"user_id": hh}, {"_id": 0}):
         if in_range(f.get("raised_on")):
             items.append({
                 "id": f"fund-{f['id']}",
@@ -372,7 +383,7 @@ async def calendar_feed(
             {"_id": 0, "id": 1, "name": 1, "color": 1, "logo_image": 1},
         )
     }
-    async for c in db.competitions.find({"user_id": user_id}, {"_id": 0}):
+    async for c in db.competitions.find({"user_id": hh}, {"_id": 0}):
         comp_id = c.get("id")
         comp_link = f"/competitions/{comp_id}"
         comp_event_date = c.get("event_date")

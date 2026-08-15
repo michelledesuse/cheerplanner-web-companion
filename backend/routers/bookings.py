@@ -5,9 +5,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from core.db import db
 from core.models import Booking, BookingCreate, BookingUpdate
 from core.security import get_current_user, require_visibility
-from core.helpers import _household_user_ids
+from core.helpers import _household_user_ids, _member_visibility
 
 router = APIRouter(prefix="/api")
+
+# Monetary fields hidden from members whose "expenses" visibility is OFF.
+# They still see booking logistics (provider, confirmation, dates, flight times)
+# but never the costs — matching the "Kids" preset (travel on, finances off).
+_BOOKING_COST_FIELDS = ("cost", "amount_paid", "outbound_cost", "return_cost", "balance_due_date")
+
+
+def _strip_booking_costs(doc: dict) -> dict:
+    d = dict(doc)
+    for f in _BOOKING_COST_FIELDS:
+        d[f] = None
+    return d
 
 
 @router.get("/bookings", response_model=List[Booking])
@@ -19,6 +31,9 @@ async def list_bookings(
     if competition_id:
         q["competition_id"] = competition_id
     docs = await db.bookings.find(q, {"_id": 0}).sort("created_at", 1).to_list(500)
+    vis = await _member_visibility(current_user["id"])
+    if not vis.get("expenses", True):
+        docs = [_strip_booking_costs(d) for d in docs]
     return [Booking(**d) for d in docs]
 
 

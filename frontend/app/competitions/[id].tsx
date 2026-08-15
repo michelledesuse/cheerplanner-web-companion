@@ -6,6 +6,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
@@ -72,8 +73,9 @@ type Booking = {
 
 export default function CompetitionDetail() {
   const styles = useThemedStyles(makeStyles);
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const canTravel = user?.visibility?.travel !== false;
+  const canExpenses = user?.visibility?.expenses !== false;
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [comp, setComp] = useState<Competition | null>(null);
@@ -87,21 +89,27 @@ export default function CompetitionDetail() {
   const load = useCallback(async () => {
     if (!id) return;
     try {
-      const [c, b, a] = await Promise.all([
+      const [c, a] = await Promise.all([
         api.get<Competition>(`/competitions/${id}`),
-        canTravel ? api.get<Booking[]>(`/bookings?competition_id=${id}`) : Promise.resolve({ data: [] as Booking[] }),
         api.get<Athlete[]>("/athletes"),
       ]);
-      setComp(c.data); setBookings(b.data); setAthletes(a.data);
+      setComp(c.data); setAthletes(a.data);
     } catch (e) {}
+    // Bookings fetched separately so a 403 (travel hidden) doesn't wipe the page.
+    try {
+      const b = await api.get<Booking[]>(`/bookings?competition_id=${id}`);
+      setBookings(b.data);
+    } catch (_e) { setBookings([]); }
     finally { setLoading(false); setRefreshing(false); }
     try {
       const r = await api.get(`/reviews/near?competition_id=${id}`);
       setNearPlaces(r.data.places || []);
     } catch (_e) { setNearPlaces([]); }
-  }, [id, canTravel]);
+  }, [id]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  // Keep visibility fresh so re-enabling Travel/Expenses repopulates instantly.
+  useFocusEffect(useCallback(() => { refreshUser(); load(); }, [load, refreshUser]));
+  useRealtimeRefetch(load);
 
   const remove = () => {
     Alert.alert("Delete competition?", "All bookings will be removed too.", [
@@ -206,7 +214,7 @@ export default function CompetitionDetail() {
           <WeatherBadge location={comp.address || comp.location} date={comp.event_date} style={styles.weatherBadge} testID="comp-weather" />
         )}
 
-        {canTravel && bookings.length > 0 && (
+        {canTravel && canExpenses && bookings.length > 0 && (
           <View style={styles.balanceCard}>
             <View>
               <Text style={styles.smallLabel}>TRAVEL BUDGET</Text>
@@ -271,6 +279,7 @@ export default function CompetitionDetail() {
           <BookingCard
             key={b.id}
             booking={b}
+            showCosts={canExpenses}
             onDelete={() => deleteBooking(b.id)}
             onEdit={() => router.push({ pathname: "/bookings/new", params: { id: b.id } })}
           />
@@ -351,7 +360,7 @@ function AddTypeBtn({ icon, label, onPress, testID }: any) {
   );
 }
 
-function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete: () => void; onEdit: () => void }) {
+function BookingCard({ booking, onDelete, onEdit, showCosts = true }: { booking: Booking; onDelete: () => void; onEdit: () => void; showCosts?: boolean }) {
   const styles = useThemedStyles(makeStyles);
   const balance = Number(booking.cost || 0) - Number(booking.amount_paid || 0);
   const icon = booking.type === "hotel" ? "bed" : booking.type === "car" ? "car" : "airplane";
@@ -434,6 +443,7 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
         </View>
       )}
 
+      {showCosts && (
       <View style={styles.bookingFinances}>
         <View style={{ flex: 1 }}>
           <Text style={styles.smallLabel}>COST</Text>
@@ -448,7 +458,8 @@ function BookingCard({ booking, onDelete, onEdit }: { booking: Booking; onDelete
           <Text style={[styles.bookingAmount, { color: balance > 0 ? colors.accent : colors.successText }]}>{formatCurrency(Math.max(balance, 0))}</Text>
         </View>
       </View>
-      {booking.balance_due_date && balance > 0 && (
+      )}
+      {showCosts && booking.balance_due_date && balance > 0 && (
         <View style={styles.dueRow}>
           <Ionicons name="time-outline" size={12} color={colors.warningText} />
           <Text style={styles.dueText}>Balance due {formatDate(booking.balance_due_date, { withYear: true })}</Text>
