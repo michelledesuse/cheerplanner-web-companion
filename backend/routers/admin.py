@@ -102,6 +102,30 @@ async def admin_revoke(payload: RevokePayload, admin=Depends(require_admin)):
     return {"revoked": True}
 
 
+@router.get("/lifetime")
+async def list_lifetime(admin=Depends(require_admin)):
+    """Every account with ACTIVE Lifetime access — for the admin panel list.
+    Includes who has it (name/email), when granted, source/label, and the
+    entitlement_id needed to revoke."""
+    out = []
+    ents = await db.entitlements.find(
+        {"type": "lifetime", "status": "active"}, {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    for e in ents:
+        u = await db.users.find_one({"id": e.get("user_id")}, {"_id": 0, "email": 1, "name": 1})
+        out.append({
+            "entitlement_id": e.get("id"),
+            "user_id": e.get("user_id"),
+            "email": (u or {}).get("email"),
+            "name": (u or {}).get("name"),
+            "household_id": e.get("household_id"),
+            "source": e.get("source"),
+            "label": e.get("label") or e.get("reason"),
+            "granted_at": e.get("created_at"),
+        })
+    return {"count": len(out), "lifetime": out}
+
+
 @router.post("/codes/generate")
 async def generate_codes(payload: CodeGeneratePayload, admin=Depends(require_admin)):
     """Generate N unique single-use Lifetime codes. Plaintext is returned ONCE

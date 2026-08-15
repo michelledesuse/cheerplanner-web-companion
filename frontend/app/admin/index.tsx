@@ -35,9 +35,13 @@ export default function AdminScreen() {
   const [codes, setCodes] = useState<any[]>([]);
   const [selfPremium, setSelfPremium] = useState<boolean | null>(null);
   const [summary, setSummary] = useState<any>(null);
+  const [lifetime, setLifetime] = useState<any[]>([]);
 
   const loadCodes = useCallback(async () => {
     try { const r = await api.get("/admin/codes"); setCodes(r.data.codes || []); } catch {}
+  }, []);
+  const loadLifetime = useCallback(async () => {
+    try { const r = await api.get("/admin/lifetime"); setLifetime(r.data.lifetime || []); } catch {}
   }, []);
   const loadSelf = useCallback(async () => {
     try { const r = await api.get("/premium/status"); setSelfPremium(!!r.data.is_premium); } catch {}
@@ -46,7 +50,7 @@ export default function AdminScreen() {
     try { const r = await api.get("/analytics/summary"); setSummary(r.data); } catch {}
   }, []);
 
-  useFocusEffect(useCallback(() => { if (user?.is_admin) { loadCodes(); loadSelf(); loadSummary(); } }, [user, loadCodes, loadSelf, loadSummary]));
+  useFocusEffect(useCallback(() => { if (user?.is_admin) { loadCodes(); loadSelf(); loadSummary(); loadLifetime(); } }, [user, loadCodes, loadSelf, loadSummary, loadLifetime]));
 
   if (!user?.is_admin) {
     return (
@@ -68,7 +72,23 @@ export default function AdminScreen() {
       await api.post("/admin/lifetime/grant", { user_id: row.user_id, reason: genLabel, label: genLabel });
       Alert.alert("Granted", `Lifetime Premium granted to ${row.email}`);
       doSearch();
+      loadLifetime();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Grant failed"); }
+  };
+
+  const revokeLifetime = (row: any) => {
+    const doRevoke = async () => {
+      try {
+        await api.post("/admin/lifetime/revoke", { entitlement_id: row.entitlement_id, reason: "Admin revoke" });
+        loadLifetime();
+        doSearch();
+      } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Revoke failed"); }
+    };
+    if (Platform.OS === "web") { doRevoke(); return; }
+    Alert.alert("Remove lifetime access?", `${row.email} will lose Lifetime Premium.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: doRevoke },
+    ]);
   };
 
   const generate = async () => {
@@ -195,6 +215,26 @@ export default function AdminScreen() {
             </View>
           ))}
         </View>
+        {/* Lifetime access holders */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Lifetime access ({lifetime.length})</Text>
+          {lifetime.length === 0 ? (
+            <Text style={styles.muted}>No accounts currently have lifetime access.</Text>
+          ) : lifetime.map((l) => (
+            <View key={l.entitlement_id} style={styles.resultRow} testID={`lifetime-row-${l.user_id}`}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.body}>{l.name || l.email}</Text>
+                <Text style={styles.muted}>
+                  {l.email}{l.label ? ` · ${l.label}` : ""}{l.source ? ` · ${l.source}` : ""}
+                </Text>
+                <Text style={styles.muted}>Granted {l.granted_at ? new Date(l.granted_at).toLocaleDateString() : "—"}</Text>
+              </View>
+              <TouchableOpacity style={styles.revokeBtn} onPress={() => revokeLifetime(l)} testID={`lifetime-revoke-${l.user_id}`}>
+                <Text style={styles.revokeText}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -225,6 +265,8 @@ const makeStyles = (c: ThemePalette) => ({
   genRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
   genCode: { ...typography.bodyMedium, color: c.textPrimary, letterSpacing: 1, fontWeight: "700" },
   disableText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
+  revokeBtn: { borderWidth: 1, borderColor: "#DC2626", borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8 },
+  revokeText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   stat: { width: "47%", backgroundColor: c.bg, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: c.border },
   statValue: { ...typography.h2, color: c.textPrimary },

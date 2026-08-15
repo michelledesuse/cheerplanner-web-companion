@@ -6,6 +6,7 @@ from core.db import db
 from core.models import Competition, CompetitionCreate, CompetitionUpdate
 from core.security import get_current_user
 from core.helpers import _household_user_ids, season_date_query, apply_scoped_update
+from core.activity import log_activity
 
 router = APIRouter(prefix="/api")
 
@@ -24,6 +25,8 @@ async def create_competition(payload: CompetitionCreate, current_user=Depends(ge
     # exclude_none so unset Optional[List[...]] fields fall back to default_factory=list
     comp = Competition(user_id=current_user["id"], **payload.model_dump(exclude_none=True))
     await db.competitions.insert_one(comp.model_dump())
+    await log_activity(actor_user_id=current_user["id"], resource="competition",
+                       resource_id=comp.id, resource_name=comp.name, action="added")
     return comp
 
 
@@ -48,6 +51,8 @@ async def update_competition(competition_id: str, payload: CompetitionUpdate, cu
     doc = await apply_scoped_update(db.competitions, member_ids, competition_id, updates, scope)
     if doc is None:
         raise HTTPException(status_code=404, detail="Competition not found")
+    await log_activity(actor_user_id=current_user["id"], resource="competition",
+                       resource_id=competition_id, resource_name=doc.get("name"), action="updated")
     return Competition(**doc)
 
 

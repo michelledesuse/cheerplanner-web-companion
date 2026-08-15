@@ -19,6 +19,7 @@ import LiveDot from "@/src/components/LiveDot";
 import SeasonBar from "@/src/components/SeasonBar";
 import SeasonReadOnlyBanner from "@/src/components/SeasonReadOnlyBanner";
 import SeasonNudge from "@/src/components/SeasonNudge";
+import ActivityBanner from "@/src/components/ActivityBanner";
 import { useAuth } from "@/src/context/AuthContext";
 import { useTheme } from "@/src/context/ThemeContext";
 import { colors, radius, spacing, typography, shadow } from "@/src/theme";
@@ -141,6 +142,7 @@ export default function DashboardScreen() {
         <View style={{ marginBottom: spacing.md }}><SeasonBar /></View>
         <SeasonReadOnlyBanner />
         <SeasonNudge show={!!data?.suggest_season} />
+        <ActivityBanner />
 
         {/* Stat tiles — tappable, each routes to its primary tab */}
         {canExpenses && (

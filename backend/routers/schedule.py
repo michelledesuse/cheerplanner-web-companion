@@ -9,6 +9,7 @@ from core.models import (
 )
 from core.security import get_current_user
 from core.helpers import _household_user_ids, _expand_recurrence, _date_range, season_date_query
+from core.activity import log_activity
 
 router = APIRouter(prefix="/api")
 
@@ -52,6 +53,8 @@ async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get
             entries.append(ev)
         if entries:
             await db.schedule_events.insert_many([e.model_dump() for e in entries])
+            await log_activity(actor_user_id=current_user["id"], resource="event",
+                               resource_id=entries[0].id, resource_name=entries[0].title, action="added")
         return entries
 
     # Multi-day range (no recurrence): split into one editable event per day,
@@ -71,10 +74,14 @@ async def create_schedule(payload: ScheduleEventCreate, current_user=Depends(get
         ]
         if entries:
             await db.schedule_events.insert_many([e.model_dump() for e in entries])
+            await log_activity(actor_user_id=current_user["id"], resource="event",
+                               resource_id=entries[0].id, resource_name=entries[0].title, action="added")
         return entries
 
     entry = ScheduleEvent(user_id=current_user["id"], **base)
     await db.schedule_events.insert_one(entry.model_dump())
+    await log_activity(actor_user_id=current_user["id"], resource="event",
+                       resource_id=entry.id, resource_name=entry.title, action="added")
     return [entry]
 
 
@@ -98,6 +105,11 @@ async def update_schedule(
     )
     if not existing:
         raise HTTPException(status_code=404, detail="Event not found")
+
+    await log_activity(actor_user_id=current_user["id"], resource="event",
+                       resource_id=event_id,
+                       resource_name=updates.get("title") or existing.get("title"), action="updated")
+
 
     if scope == "series" and existing.get("series_id"):
         # Don't propagate date across the series — date is per-instance.
