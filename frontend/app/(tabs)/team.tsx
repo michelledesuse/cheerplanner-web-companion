@@ -48,12 +48,16 @@ export default function TeamScreen() {
   const { gatingActive } = usePremium();
   const [loading, setLoading] = useState(true);
   const [unread, setUnread] = useState(0);
+  const [chatAthlete, setChatAthlete] = useState(false);
   const unlocked = !!user?.team_access;
 
   const loadUnread = useCallback(async () => {
-    try { const r = await api.get<{ unread: number }>("/team/chat/unread"); setUnread(r.data.unread || 0); }
-    catch (_e) { setUnread(0); }
-  }, []);
+    try {
+      const r = await api.get<{ unread: number }>("/team/chat/unread");
+      setUnread(r.data.unread || 0);
+      if (!user?.team_access) setChatAthlete(true); // approved athlete chat participant
+    } catch (_e) { setUnread(0); setChatAthlete(false); }
+  }, [user]);
   useRealtimeRefetch(loadUnread);
 
   // Access is per-login: only members who marked themselves as team personnel
@@ -95,6 +99,13 @@ export default function TeamScreen() {
               <Ionicons name="settings-outline" size={18} color="white" />
               <Text style={styles.lockedBtnText}>Manage access</Text>
             </TouchableOpacity>
+            {chatAthlete && (
+              <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/chat" as any)} testID="athlete-open-chat">
+                <Ionicons name="chatbubbles-outline" size={18} color={colors.accent} />
+                <Text style={styles.chatAthleteText}>Open Team Chat</Text>
+                {unread > 0 && <View style={styles.unreadBadge}><Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text></View>}
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       ) : (
@@ -194,4 +205,6 @@ const makeStyles = (c: ThemePalette) => ({
   lockedText: { ...typography.caption, color: c.textSecondary, textAlign: "center", lineHeight: 19 },
   lockedBtn: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 18, marginTop: spacing.md },
   lockedBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
+  chatAthleteBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: c.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 18, marginTop: spacing.sm },
+  chatAthleteText: { color: c.accent, fontWeight: "800", fontSize: 14 },
 });

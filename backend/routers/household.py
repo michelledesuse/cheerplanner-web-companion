@@ -274,6 +274,19 @@ async def join_household(payload: HouseholdJoinRequest, current_user=Depends(get
         )
         return {"joined": True, "household_id": invite["household_id"], "team_access": True, "collaborator": True}
 
+    # Chat Phase 2 — athlete supervised chat login: link this account to a roster
+    # entry and add as a chat-only participant (NOT team personnel, NO seat).
+    if invite.get("grant_chat_athlete"):
+        hid = invite["household_id"]
+        await db.households.update_one({"id": hid}, {"$addToSet": {"chat_athlete_user_ids": user_id}})
+        await db.athlete_chat_links.update_one(
+            {"household_id": hid, "roster_id": invite.get("roster_id")},
+            {"$set": {"athlete_user_id": user_id, "linked_at": utcnow_iso()}},
+            upsert=True,
+        )
+        await db.household_invites.update_one({"id": invite["id"]}, {"$set": {"used_at": utcnow_iso()}})
+        return {"joined": True, "household_id": hid, "chat_athlete": True}
+
     # Regular household join (co-parent): becomes a full household member.
     # Remove user from current household (and delete household if empty)
     current_h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})

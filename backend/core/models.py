@@ -81,6 +81,9 @@ class Household(BaseModel):
     # can see. Shape: {user_id: {"expenses": bool, "travel": bool}}. A missing
     # user or area defaults to visible (True). The owner always sees everything.
     member_privacy: Dict[str, Dict[str, bool]] = Field(default_factory=dict)
+    # Chat Phase 2 — athlete logins approved to use Team Chat in this hub. Kept
+    # separate from members/collaborators: they can ONLY use chat, nothing else.
+    chat_athlete_user_ids: List[str] = Field(default_factory=list)
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -95,6 +98,10 @@ class HouseholdInvite(BaseModel):
     # Team Hub access. `email` is the (optional) address the owner invited.
     email: Optional[str] = None
     grant_team_access: bool = False
+    # Chat Phase 2 — links a minor athlete's new login to a roster entry as a
+    # supervised chat participant (NOT team personnel).
+    grant_chat_athlete: bool = False
+    roster_id: Optional[str] = None
     created_at: str = Field(default_factory=utcnow_iso)
 
 

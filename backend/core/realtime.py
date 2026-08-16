@@ -50,6 +50,8 @@ async def rooms_for_user(user_id: str) -> List[str]:
         ids.add(own["id"])
     async for h in db.households.find({"team_hub_member_user_ids": user_id}, {"_id": 0, "id": 1}):
         ids.add(h["id"])
+    async for h in db.households.find({"chat_athlete_user_ids": user_id}, {"_id": 0, "id": 1}):
+        ids.add(h["id"])
     if not ids:
         h = await _get_or_create_household(user_id)
         ids.add(h["id"])

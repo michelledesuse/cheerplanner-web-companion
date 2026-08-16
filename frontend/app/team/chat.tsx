@@ -49,6 +49,7 @@ export default function TeamChatScreen() {
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [supervised, setSupervised] = useState(false);
   const focused = useRef(false);
 
   const markRead = useCallback(async () => {
@@ -57,10 +58,11 @@ export default function TeamChatScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean }>("/team/chat/messages?limit=40");
+      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean }>("/team/chat/messages?limit=40");
       setMessages(r.data.messages || []);
       setMe(r.data.me || "");
       setHasMore(!!r.data.has_more);
+      setSupervised(!!r.data.supervised);
     } catch (_e) {}
     finally { setLoading(false); }
     if (focused.current) markRead();
@@ -134,7 +136,19 @@ export default function TeamChatScreen() {
           <Text style={styles.title}>Team Chat</Text>
           <Text style={styles.sub}>For coaches, reps &amp; staff</Text>
         </View>
+        {!supervised && (
+          <TouchableOpacity onPress={() => router.push("/team/chat-access" as any)} hitSlop={10} style={styles.backBtn} testID="chat-manage-access">
+            <Ionicons name="people-outline" size={22} color={colors.accent} />
+          </TouchableOpacity>
+        )}
       </View>
+
+      {supervised && (
+        <View style={styles.supervisedBar} testID="chat-supervised-banner">
+          <Ionicons name="shield-checkmark" size={14} color={colors.accent} />
+          <Text style={styles.supervisedText}>A parent/guardian can see this chat.</Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
@@ -197,6 +211,12 @@ const makeStyles = (c: ThemePalette) => ({
     borderBottomWidth: 1, borderBottomColor: c.border,
   },
   backBtn: { padding: 4 },
+  supervisedBar: {
+    flexDirection: "row", alignItems: "center", gap: 6, justifyContent: "center",
+    backgroundColor: c.accentSubtle, paddingVertical: 6, paddingHorizontal: 12,
+    borderBottomWidth: 1, borderBottomColor: c.border,
+  },
+  supervisedText: { ...typography.caption, color: c.accent, fontWeight: "700" },
   title: { ...typography.h3, color: c.textPrimary },
   sub: { ...typography.caption, color: c.textSecondary, marginTop: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
