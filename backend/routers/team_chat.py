@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, Response, Request
 from starlette.concurrency import run_in_threadpool
 from datetime import datetime as _dt, timedelta as _td
 
@@ -357,9 +357,9 @@ async def upload_media(file: UploadFile = File(...), current_user=Depends(requir
 
 
 @router.get("/team/chat/media/{media_id}")
-async def serve_media(media_id: str, token: str = Query(...)):
-    """Serve chat media to authorized participants only. Auth via ?token= (a
-    JWT) so both native <Image>/<Video> and web <img> can fetch it."""
+async def serve_media(media_id: str, request: Request, token: str = Query(...)):
+    """Serve chat media to authorized participants only. Supports HTTP Range so
+    iOS/Android video & audio players can stream (they require 206 responses)."""
     user = await _user_from_token(token)
     if not user:
         raise HTTPException(status_code=401, detail="Not authorized.")
@@ -373,8 +373,28 @@ async def serve_media(media_id: str, token: str = Query(...)):
     if user["id"] not in participants:
         raise HTTPException(status_code=403, detail="Not authorized.")
     content, ctype = await run_in_threadpool(get_object, rec["storage_path"])
-    return Response(content=content, media_type=ctype or rec["content_type"],
-                    headers={"Cache-Control": "private, max-age=86400"})
+    ctype = ctype or rec["content_type"]
+    total = len(content)
+    rng = request.headers.get("range") or request.headers.get("Range")
+    if rng and rng.startswith("bytes="):
+        try:
+            start_s, end_s = rng.split("=", 1)[1].split("-", 1)
+            start = int(start_s) if start_s else 0
+            end = int(end_s) if end_s else total - 1
+            start = max(0, start); end = min(end, total - 1)
+            if start <= end:
+                chunk = content[start:end + 1]
+                return Response(content=chunk, status_code=206, media_type=ctype, headers={
+                    "Content-Range": f"bytes {start}-{end}/{total}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(len(chunk)),
+                    "Cache-Control": "private, max-age=86400",
+                })
+        except Exception:
+            pass
+    return Response(content=content, media_type=ctype, headers={
+        "Accept-Ranges": "bytes", "Content-Length": str(total), "Cache-Control": "private, max-age=86400",
+    })
 
 
 # ---------------------------------------------------- reactions (Phase 3) ---

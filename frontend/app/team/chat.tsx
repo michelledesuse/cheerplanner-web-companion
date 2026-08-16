@@ -188,6 +188,7 @@ export default function TeamChatScreen() {
 
   const pickPhotoOrVideo = useCallback(async () => {
     setShowAttach(false);
+    await new Promise((r) => setTimeout(r, 400));
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!perm.granted) { Alert.alert("Permission needed", "Allow photo access to share media."); return; }
     const res = await ImagePicker.launchImageLibraryAsync({
@@ -200,10 +201,20 @@ export default function TeamChatScreen() {
 
   const pickMusic = useCallback(async () => {
     setShowAttach(false);
-    const res = await DocumentPicker.getDocumentAsync({ type: "audio/*", copyToCacheDirectory: true });
-    if (res.canceled || !res.assets?.length) return;
-    const a = res.assets[0];
-    await sendMedia({ uri: a.uri, mimeType: a.mimeType, fileName: a.name });
+    // iOS can't present the document picker while the attach modal is still
+    // dismissing — wait a beat so it reliably opens.
+    await new Promise((r) => setTimeout(r, 400));
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ["audio/*", "public.audio", "public.mp3", "com.apple.m4a-audio"],
+        copyToCacheDirectory: true, multiple: false,
+      });
+      if (res.canceled || !res.assets?.length) return;
+      const a = res.assets[0];
+      await sendMedia({ uri: a.uri, mimeType: a.mimeType, fileName: a.name });
+    } catch (e: any) {
+      Alert.alert("Couldn't attach music", e?.message || "Please try again.");
+    }
   }, [sendMedia]);
 
   const react = useCallback(async (m: Message, emoji: string) => {

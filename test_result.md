@@ -504,3 +504,11 @@ Creds: applereview@cheerplanner.app / Review2026!.
 VERIFIED: pytest tests/test_team_chat_link_member.py 1/1 (family list, direct link+enable, kid can chat, non-family 400). Guidelines page renders. Lint clean (only _e warnings). 
 Phase 6 in-app docs done. Remaining plan: Phase 5 push (needs Firebase). Deploy: backend redeploy + NEW build.
 Creds: applereview@cheerplanner.app / Review2026!.
+
+## Iteration 109 — Fix chat video/audio playback + music picker (TestFlight bug)
+- ROOT CAUSE (video won't play, TestFlight): serve_media returned full file with 200 and no HTTP Range support; iOS AVPlayer requires 206/Range to stream video (& audio). Images load fully so worked.
+- FIX backend team_chat.py serve_media: now parses Range header -> returns 206 + Content-Range + Accept-Ranges + Content-Length (also sets Accept-Ranges on full 200). Verified via curl: full=200 accept-ranges bytes; Range bytes=0-9 -> 206 Content-Range bytes 0-9/75.
+- FIX frontend chat.tsx music picker ("nothing happens"): iOS couldn't present DocumentPicker while the attach Modal was dismissing. pickMusic now closes modal, waits 400ms, then opens picker; broadened type to ["audio/*","public.audio","public.mp3","com.apple.m4a-audio"]; added error Alert. Same 400ms dismiss delay added to pickPhotoOrVideo.
+- NOTE: video/audio PLAYBACK can only be verified on a native build (not web/Expo Go). Backend range fix verified via curl + pytest test_team_chat_media 1/1.
+- Multiple chats: NOT a feature — one supervised group thread per team by design (minors group-only). Additional/separate channels would be a new feature.
+Deploy: backend redeploy + NEW build required.
