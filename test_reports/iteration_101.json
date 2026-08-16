@@ -1,0 +1,37 @@
+{
+  "summary": "Team Chat Phase 3a (media + reactions) tested end-to-end. Backend: 1/1 pytest scenario passes against the public URL — POST /team/chat/media rejects text/plain (400), accepts image/png (200 -> {media_id, kind:'image'}), POST /messages with media_id echoes media[0].id, GET /media/{id}?token=<hub-teammate JWT> returns image bytes (200), outsider JWT -> 403, garbage token -> 401, and POST /messages/{id}/react toggles the reaction on/off. FOUND & FIXED a real bug in the react endpoint (see rca_of_issue): react_message's find_one used projection {'_id':0,'reactions':1} which returned an empty dict {} for messages lacking a 'reactions' field (older / broadcast-inserted rows), and 'if not m' treated {} as not-found — every react call for those messages returned 404 in production even though the message existed and belonged to the caller's hub. Verified against applereview's real messages. Frontend: verified in web preview (390x844) — (1) chat-attach opens chat-attach-modal with chat-attach-media (Photo or video) + chat-attach-music. (2) Uploaded an image via API into applereview's hub and confirmed it renders as an INLINE image bubble (data-testid chat-media-image) with the text 'inline pic' underneath, and tapping it opens the full-screen lightbox modal (verified via screenshot — dark backdrop + close pill). (3) Long-press on a message bubble opens chat-actions-modal with the quick-emoji row; tapping chat-emoji-👍 adds a chat-reaction-<id>-👍 chip under the message ('👍 1'); tapping the chip toggles it off. Web file-input driven upload was not exercised (Expo ImagePicker on web can't be driven headlessly); media UPLOAD was validated via API and the inline render + lightbox + reactions were exercised in-browser.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_chat_media.py",
+    "/app/test_reports/pytest/pytest_iter101.xml"
+  ],
+  "action_items": [
+    "Consider auditing every db.find_one call in /app/backend/routers/ for the same pattern: `find_one(query, {'_id':0, 'onlyfield': 1})` combined with `if not m:` — projections that omit a mandatory field return {} for legacy docs and get treated as not-found. Safer pattern is `if m is None:` and/or always include `'id': 1` in the projection."
+  ],
+  "critical_code_review_comments": [
+    "team_chat.py:react_message — fixed: projection now includes 'id':1 and uses `if m is None:` so pre-Phase-3 rows without a reactions field are still matched.",
+    "team_chat.py:_ALLOWED_MEDIA — good coverage (jpeg/png/heic/heif/webp, mp4/mov, mp3/m4a/wav/aac); size caps enforced (image 15MB, video 90MB, audio 30MB).",
+    "team_chat.py:upload_media — 402 from storage is surfaced as 402 with a friendly detail; other errors bucketed to 502. Nice.",
+    "team_chat.py:serve_media — participant check uses union of member_user_ids ∪ team_hub_member_user_ids ∪ chat_athlete_user_ids ∪ owner_user_id; owners covered explicitly. 401 for bad token via _user_from_token returning None. 403 for out-of-hub. Correct.",
+    "chatMedia.ts:uploadChatMedia — branches Web (blob) vs Native (uri/name/type) per the storage playbook; never sets Content-Type manually. Good.",
+    "ChatMediaView.tsx — early-returns null if token missing (prevents a broken img request); image tap opens lightbox with contentFit=contain. Good."
+  ],
+  "updated_files": [
+    "/app/backend/routers/team_chat.py (react_message: projection + None-check fix)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Uploaded one image via API into applereview's hub (household c077b874-…) and posted it as a chat message so the inline image bubble could be exercised in the browser. Backend test creates throwaway owner/mate/outsider signup accounts per run (pacing kept under 10/min).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Team Chat Phase 3a endpoints under /api/team/chat/*: POST /media (multipart), GET /media/{id}?token=<JWT>, POST /messages/{id}/react. Frontend testIDs on /team/chat: team-chat-screen, chat-attach, chat-attach-modal, chat-attach-media, chat-attach-music, chat-msg-<id>, chat-media-image, chat-actions-modal, chat-emoji-<emoji>, chat-reaction-<id>-<emoji>, chat-input, chat-send. Login placeholder 'parent@example.com' and Sign in button uses text 'Sign in' (lowercase i). Signup is 10/min per IP — pace signups. Existing pytest at /app/backend/tests/test_team_chat_media.py covers the full media + reactions flow.",
+  "rca_of_issue": "Root cause of the 404 on POST /api/team/chat/messages/{id}/react: react_message called `db.team_messages.find_one({...}, {'_id':0, 'reactions':1})`. For messages inserted without a `reactions` field (e.g., older Phase 1/2 rows, broadcast-authored rows, or any legacy insert), Motor returns `{}` (an empty dict — the document exists but the projected field is absent). The code then evaluated `if not m:` which is True for `{}`, raising 404. Reproduction: message `E-EOV8ql2ykr` for applereview was found via `find_one({'id':mid})` but returned {} with the projection above, so the endpoint 404'd even though the message existed in the caller's hub. Fix (applied): include `'id':1` in the projection and use `if m is None:`. Regression pytest (/app/backend/tests/test_team_chat_media.py) still passes. UI-driven react (👍 add + toggle off) verified against applereview's own message post-fix."
+}

@@ -7,11 +7,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
 
 import { api } from "@/src/api/client";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
+import ChatMediaView from "@/src/components/ChatMediaView";
+import { uploadChatMedia, getAuthToken } from "@/src/utils/chatMedia";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+
+type Media = { id: string; kind: "image" | "video" | "audio"; content_type: string; name?: string };
 
 type Message = {
   id: string;
@@ -19,7 +25,11 @@ type Message = {
   sender_name: string;
   text: string;
   created_at: string;
+  media?: Media[];
+  reactions?: Record<string, string[]>;
 };
+
+const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏"];
 
 function fmtTime(iso: string): string {
   try {
@@ -53,7 +63,12 @@ export default function TeamChatScreen() {
   const [guidelinesOk, setGuidelinesOk] = useState(true);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [actionMsg, setActionMsg] = useState<Message | null>(null);
+  const [token, setToken] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [showAttach, setShowAttach] = useState(false);
   const focused = useRef(false);
+
+  React.useEffect(() => { getAuthToken().then(setToken); }, []);
 
   const markRead = useCallback(async () => {
     try { await api.post("/team/chat/read", {}); } catch (_e) {}
@@ -134,6 +149,46 @@ export default function TeamChatScreen() {
     try { await api.delete(`/team/chat/messages/${m.id}`); } catch (_e) { load(); }
   }, [load]);
 
+  const sendMedia = useCallback(async (asset: { uri: string; mimeType?: string; fileName?: string }) => {
+    if (!guidelinesOk) { setShowGuidelines(true); return; }
+    setUploading(true);
+    try {
+      const up = await uploadChatMedia(asset);
+      const r = await api.post<Message>("/team/chat/messages", { media_id: up.media_id });
+      setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+    } catch (e: any) {
+      Alert.alert("Couldn't send", e?.message || "Upload failed. Please try again.");
+    } finally { setUploading(false); }
+  }, [guidelinesOk]);
+
+  const pickPhotoOrVideo = useCallback(async () => {
+    setShowAttach(false);
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) { Alert.alert("Permission needed", "Allow photo access to share media."); return; }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images", "videos"], quality: 0.7, videoMaxDuration: 90,
+    });
+    if (res.canceled || !res.assets?.length) return;
+    const a = res.assets[0];
+    await sendMedia({ uri: a.uri, mimeType: a.mimeType, fileName: a.fileName || undefined });
+  }, [sendMedia]);
+
+  const pickMusic = useCallback(async () => {
+    setShowAttach(false);
+    const res = await DocumentPicker.getDocumentAsync({ type: "audio/*", copyToCacheDirectory: true });
+    if (res.canceled || !res.assets?.length) return;
+    const a = res.assets[0];
+    await sendMedia({ uri: a.uri, mimeType: a.mimeType, fileName: a.name });
+  }, [sendMedia]);
+
+  const react = useCallback(async (m: Message, emoji: string) => {
+    setActionMsg(null);
+    try {
+      const r = await api.post<{ reactions: Record<string, string[]> }>(`/team/chat/messages/${m.id}/react`, { emoji });
+      setMessages((prev) => prev.map((x) => x.id === m.id ? { ...x, reactions: r.data.reactions } : x));
+    } catch (_e) {}
+  }, []);
+
   // Inverted list wants newest first.
   const data = useMemo(() => [...messages].reverse(), [messages]);
 
@@ -155,10 +210,27 @@ export default function TeamChatScreen() {
         >
           <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
             {!mine && <Text style={styles.senderName}>{item.sender_name}</Text>}
-            <Text style={[styles.bubbleText, mine && { color: "#fff" }]}>{item.text}</Text>
+            {(item.media || []).map((md) => (
+              <ChatMediaView key={md.id} media={md} token={token} mine={mine} />
+            ))}
+            {!!item.text && <Text style={[styles.bubbleText, mine && { color: "#fff" }]}>{item.text}</Text>}
             <Text style={[styles.timeText, mine && { color: "#DBEAFE" }]}>{fmtTime(item.created_at)}</Text>
           </View>
         </Pressable>
+        {item.reactions && Object.keys(item.reactions).length > 0 && (
+          <View style={[styles.reactionRow, mine ? styles.rowRight : styles.rowLeft]}>
+            {Object.entries(item.reactions).map(([emoji, users]) => (
+              <TouchableOpacity
+                key={emoji}
+                style={[styles.reactionChip, users.includes(me) && styles.reactionChipMine]}
+                onPress={() => react(item, emoji)}
+                testID={`chat-reaction-${item.id}-${emoji}`}
+              >
+                <Text style={styles.reactionText}>{emoji} {users.length}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
     );
   };
@@ -216,6 +288,14 @@ export default function TeamChatScreen() {
         )}
 
         <View style={styles.composer}>
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={() => (guidelinesOk ? setShowAttach(true) : setShowGuidelines(true))}
+            disabled={uploading}
+            testID="chat-attach"
+          >
+            {uploading ? <ActivityIndicator size="small" color={colors.accent} /> : <Ionicons name="add-circle-outline" size={26} color={colors.accent} />}
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             placeholder="Message the team…"
@@ -236,6 +316,26 @@ export default function TeamChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Attach chooser */}
+      <Modal visible={showAttach} transparent animationType="fade" onRequestClose={() => setShowAttach(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setShowAttach(false)}>
+          <View style={styles.sheet} testID="chat-attach-modal">
+            <TouchableOpacity style={styles.actionRow} onPress={pickPhotoOrVideo} testID="chat-attach-media">
+              <Ionicons name="image-outline" size={18} color={colors.textPrimary} />
+              <Text style={styles.actionText}>Photo or video</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionRow} onPress={pickMusic} testID="chat-attach-music">
+              <Ionicons name="musical-notes-outline" size={18} color={colors.textPrimary} />
+              <Text style={styles.actionText}>Music</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowAttach(false)} style={styles.actionRow}>
+              <Ionicons name="close-outline" size={18} color={colors.textSecondary} />
+              <Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
 
       {/* Community guidelines agreement (Apple 1.2) */}
       <Modal visible={showGuidelines} transparent animationType="fade" onRequestClose={() => setShowGuidelines(false)}>
@@ -265,6 +365,15 @@ export default function TeamChatScreen() {
       <Modal visible={!!actionMsg} transparent animationType="fade" onRequestClose={() => setActionMsg(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setActionMsg(null)}>
           <View style={styles.sheet} testID="chat-actions-modal">
+            {actionMsg && (
+              <View style={styles.emojiRow}>
+                {QUICK_EMOJIS.map((e) => (
+                  <TouchableOpacity key={e} onPress={() => react(actionMsg, e)} style={styles.emojiBtn} testID={`chat-emoji-${e}`}>
+                    <Text style={{ fontSize: 24 }}>{e}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             {actionMsg && actionMsg.sender_id === me ? (
               <TouchableOpacity style={styles.actionRow} onPress={() => deleteMsg(actionMsg)} testID="chat-action-delete">
                 <Ionicons name="trash-outline" size={18} color="#DC2626" />
@@ -351,4 +460,11 @@ const makeStyles = (c: ThemePalette) => ({
   cancelText: { ...typography.caption, color: c.textSecondary, textAlign: "center", fontWeight: "700" },
   actionRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderTopWidth: 1, borderTopColor: c.borderSoft },
   actionText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "600" },
+  attachBtn: { width: 40, height: 44, alignItems: "center", justifyContent: "center" },
+  reactionRow: { flexDirection: "row", flexWrap: "wrap", gap: 4, paddingHorizontal: spacing.md, marginTop: -2, marginBottom: 4 },
+  reactionChip: { flexDirection: "row", backgroundColor: c.cardSubtle, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, borderWidth: 1, borderColor: c.border },
+  reactionChipMine: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  reactionText: { fontSize: 12, color: c.textPrimary },
+  emojiRow: { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8 },
+  emojiBtn: { padding: 6 },
 });

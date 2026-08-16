@@ -168,6 +168,13 @@ app.add_middleware(
 # ---------- Startup / Shutdown hooks ----------
 @app.on_event("startup")
 async def startup_db_client():
+    # Warm up Object Storage (chat media). Non-fatal if it can't reach the proxy.
+    try:
+        from core.storage import init_storage
+        from starlette.concurrency import run_in_threadpool
+        await run_in_threadpool(init_storage)
+    except Exception as _e:  # noqa: BLE001
+        logging.getLogger("startup").warning("storage init deferred: %s", _e)
     # One-time backfill: ensure expenses with missing/null due_date inherit incurred_on
     try:
         cursor = db.expenses.find(
@@ -227,6 +234,7 @@ async def startup_db_client():
         await db.team_messages.create_index([("household_id", 1), ("created_at", -1)])
         await db.chat_reads.create_index([("household_id", 1), ("user_id", 1)], unique=True)
         await db.athlete_chat_links.create_index([("household_id", 1), ("roster_id", 1)], unique=True)
+        await db.chat_media.create_index("id", unique=True)
     except Exception as exc:
         logger.warning(f"Could not create roadmap indexes: {exc}")
 

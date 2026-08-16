@@ -8,21 +8,36 @@ group-only (there are no private DMs), and every message is visible to the
 guardians (who are personnel in the same single group thread).
 """
 import secrets
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, Response
+from starlette.concurrency import run_in_threadpool
 from datetime import datetime as _dt, timedelta as _td
 
 from core.db import db
 from core.security import get_current_user, require_team_access, require_admin
 from core.helpers import _resolve_active_household
+from core.realtime import _user_from_token
 from core.models import utcnow_iso, HouseholdInvite
 from core.moderation import assert_clean, FLAG_HIDE_THRESHOLD
+from core.storage import put_object, get_object, APP_NAME
 
 router = APIRouter(prefix="/api")
 
 MAX_LEN = 2000
+
+# Allowed chat media (per user choice: photos, video, music).
+_ALLOWED_MEDIA = {
+    "image/jpeg": ("image", "jpg"), "image/png": ("image", "png"),
+    "image/heic": ("image", "heic"), "image/heif": ("image", "heif"), "image/webp": ("image", "webp"),
+    "video/mp4": ("video", "mp4"), "video/quicktime": ("video", "mov"),
+    "audio/mpeg": ("audio", "mp3"), "audio/mp4": ("audio", "m4a"), "audio/x-m4a": ("audio", "m4a"),
+    "audio/wav": ("audio", "wav"), "audio/x-wav": ("audio", "wav"),
+    "audio/aac": ("audio", "aac"), "audio/aacp": ("audio", "aac"), "audio/x-aac": ("audio", "aac"),
+}
+_MAX_BYTES = {"image": 15 * 1024 * 1024, "video": 90 * 1024 * 1024, "audio": 30 * 1024 * 1024}
 
 
 async def _blocked_ids(user_id: str) -> set:
@@ -118,20 +133,29 @@ async def list_messages(before: Optional[str] = None, limit: int = 40, current_u
 
 @router.post("/team/chat/messages")
 async def post_message(payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
-    text = (payload.get("text") or "").strip()
-    if not text:
+    text = (payload.get("text") or "").strip()[:MAX_LEN]
+    media_id = (payload.get("media_id") or "").strip()
+    if not text and not media_id:
         raise HTTPException(status_code=400, detail="Message can't be empty.")
-    text = text[:MAX_LEN]
     await _require_chat_guidelines(current_user["id"])  # Apple 1.2 content agreement
-    assert_clean(text)  # objectionable-language filter
+    if text:
+        assert_clean(text)  # objectionable-language filter
     h = await _chat_hub(current_user["id"], current_user)
     if not h:
         raise HTTPException(status_code=403, detail="No chat available.")
+    media = []
+    if media_id:
+        mrec = await db.chat_media.find_one(
+            {"id": media_id, "household_id": h["id"], "owner_id": current_user["id"]}, {"_id": 0}
+        )
+        if not mrec:
+            raise HTTPException(status_code=400, detail="Attachment not found.")
+        media = [{"id": mrec["id"], "kind": mrec["kind"], "content_type": mrec["content_type"], "name": mrec.get("name")}]
     now = utcnow_iso()
     doc = {
         "id": secrets.token_urlsafe(9), "household_id": h["id"],
         "sender_id": current_user["id"], "sender_name": _display_name(current_user),
-        "text": text, "created_at": now,
+        "text": text, "media": media, "reactions": {}, "created_at": now,
     }
     await db.team_messages.insert_one(dict(doc))
     await db.chat_reads.update_one(
@@ -256,6 +280,82 @@ async def list_chat_flags():
             continue
         out.append({"flag": f, "message": msg})
     return {"flags": out}
+
+
+# ------------------------------------------------------- media (Phase 3) ---
+@router.post("/team/chat/media")
+async def upload_media(file: UploadFile = File(...), current_user=Depends(require_chat_access)):
+    ctype = (file.content_type or "").lower().split(";")[0].strip()
+    if ctype not in _ALLOWED_MEDIA:
+        raise HTTPException(status_code=400, detail="That file type isn't supported.")
+    kind, ext = _ALLOWED_MEDIA[ctype]
+    data = await file.read()
+    if len(data) > _MAX_BYTES[kind]:
+        raise HTTPException(status_code=413, detail=f"That {kind} is too large.")
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        raise HTTPException(status_code=403, detail="No chat available.")
+    media_id = secrets.token_urlsafe(10)
+    path = f"{APP_NAME}/chat/{h['id']}/{current_user['id']}/{uuid.uuid4()}.{ext}"
+    try:
+        await run_in_threadpool(put_object, path, data, ctype)
+    except Exception as e:  # noqa: BLE001
+        status = getattr(getattr(e, "response", None), "status_code", None)
+        if status == 402:
+            raise HTTPException(status_code=402, detail="Storage limit reached. Please try again later.")
+        raise HTTPException(status_code=502, detail="Upload failed. Please try again.")
+    await db.chat_media.insert_one({
+        "id": media_id, "household_id": h["id"], "owner_id": current_user["id"],
+        "storage_path": path, "content_type": ctype, "kind": kind,
+        "name": (file.filename or f"{kind}.{ext}")[:120], "size": len(data), "created_at": utcnow_iso(),
+    })
+    return {"media_id": media_id, "kind": kind, "content_type": ctype, "name": file.filename}
+
+
+@router.get("/team/chat/media/{media_id}")
+async def serve_media(media_id: str, token: str = Query(...)):
+    """Serve chat media to authorized participants only. Auth via ?token= (a
+    JWT) so both native <Image>/<Video> and web <img> can fetch it."""
+    user = await _user_from_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authorized.")
+    rec = await db.chat_media.find_one({"id": media_id}, {"_id": 0})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Not found.")
+    h = await db.households.find_one({"id": rec["household_id"]}, {"_id": 0})
+    participants = set((h or {}).get("member_user_ids") or []) | set((h or {}).get("team_hub_member_user_ids") or []) | set((h or {}).get("chat_athlete_user_ids") or [])
+    if (h or {}).get("owner_user_id"):
+        participants.add(h["owner_user_id"])
+    if user["id"] not in participants:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+    content, ctype = await run_in_threadpool(get_object, rec["storage_path"])
+    return Response(content=content, media_type=ctype or rec["content_type"],
+                    headers={"Cache-Control": "private, max-age=86400"})
+
+
+# ---------------------------------------------------- reactions (Phase 3) ---
+@router.post("/team/chat/messages/{message_id}/react")
+async def react_message(message_id: str, payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    emoji = (payload.get("emoji") or "").strip()[:8]
+    if not emoji:
+        raise HTTPException(status_code=400, detail="Missing emoji.")
+    h = await _chat_hub(current_user["id"], current_user)
+    m = await db.team_messages.find_one({"id": message_id, "household_id": (h or {}).get("id")}, {"_id": 0, "id": 1, "reactions": 1})
+    if m is None:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    reactions = m.get("reactions") or {}
+    users = set(reactions.get(emoji) or [])
+    uid = current_user["id"]
+    if uid in users:
+        users.discard(uid)
+    else:
+        users.add(uid)
+    if users:
+        reactions[emoji] = sorted(users)
+    else:
+        reactions.pop(emoji, None)
+    await db.team_messages.update_one({"id": message_id}, {"$set": {"reactions": reactions}})
+    return {"reactions": reactions}
 
 
 # ------------------------------------------------- athlete access (Phase 2) ---
