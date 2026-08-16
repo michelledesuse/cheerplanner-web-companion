@@ -29,6 +29,8 @@ type Message = {
   reactions?: Record<string, string[]>;
 };
 
+type Channel = { id: string; name: string; kind: string; member_count: number; member_names: string[] };
+
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏"];
 
 function MessageText({ text, mine, styles }: { text: string; mine?: boolean; styles: any }) {
@@ -85,11 +87,27 @@ export default function TeamChatScreen() {
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const mentionIds = useRef<Set<string>>(new Set());
   const focused = useRef(false);
+  // Named channels (multiple chats per team). null = the main team thread.
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [activeChannel, setActiveChannel] = useState<{ id: string; name: string } | null>(null);
+  const [showChannels, setShowChannels] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newMembers, setNewMembers] = useState<Set<string>>(new Set());
+  const [creating, setCreating] = useState(false);
+
+  const msgBase = activeChannel ? `/team/chat/channels/${activeChannel.id}/messages` : "/team/chat/messages";
 
   React.useEffect(() => { getAuthToken().then(setToken); }, []);
   React.useEffect(() => {
     api.get("/team/chat/participants").then((r) => setParticipants(r.data.participants || [])).catch(() => {});
   }, []);
+
+  const loadChannels = useCallback(async () => {
+    try { const r = await api.get<{ channels: Channel[] }>("/team/chat/channels"); setChannels(r.data.channels || []); }
+    catch (_e) {}
+  }, []);
+  React.useEffect(() => { loadChannels(); }, [loadChannels]);
 
   const markRead = useCallback(async () => {
     try { await api.post("/team/chat/read", {}); } catch (_e) {}
@@ -97,24 +115,30 @@ export default function TeamChatScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean; guidelines_accepted: boolean }>("/team/chat/messages?limit=40");
+      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean; guidelines_accepted?: boolean }>(`${msgBase}?limit=40`);
       setMessages(r.data.messages || []);
-      setGuidelinesOk(!!r.data.guidelines_accepted);
+      if (typeof r.data.guidelines_accepted !== "undefined") setGuidelinesOk(!!r.data.guidelines_accepted);
       setMe(r.data.me || "");
       setHasMore(!!r.data.has_more);
       setSupervised(!!r.data.supervised);
     } catch (_e) {}
     finally { setLoading(false); }
-    try { const rc = await api.get("/team/chat/receipts"); setReceipts(rc.data.receipts || []); } catch (_e) {}
-    if (focused.current) markRead();
-  }, [markRead]);
+    if (!activeChannel) {
+      try { const rc = await api.get("/team/chat/receipts"); setReceipts(rc.data.receipts || []); } catch (_e) {}
+      if (focused.current) markRead();
+    }
+  }, [markRead, msgBase, activeChannel]);
 
   useFocusEffect(useCallback(() => {
     focused.current = true;
     load();
+    loadChannels();
     return () => { focused.current = false; };
-  }, [load]));
+  }, [load, loadChannels]));
   useRealtimeRefetch(load);
+
+  // Reload the thread whenever the active channel changes.
+  React.useEffect(() => { setLoading(true); setMessages([]); load(); }, [activeChannel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadOlder = useCallback(async () => {
     if (!hasMore || loadingOlder || messages.length === 0) return;
@@ -122,13 +146,13 @@ export default function TeamChatScreen() {
     try {
       const before = messages[0].created_at;
       const r = await api.get<{ messages: Message[]; has_more: boolean }>(
-        `/team/chat/messages?limit=40&before=${encodeURIComponent(before)}`,
+        `${msgBase}?limit=40&before=${encodeURIComponent(before)}`,
       );
       setMessages((prev) => [...(r.data.messages || []), ...prev]);
       setHasMore(!!r.data.has_more);
     } catch (_e) {}
     finally { setLoadingOlder(false); }
-  }, [hasMore, loadingOlder, messages]);
+  }, [hasMore, loadingOlder, messages, msgBase]);
 
   const acceptGuidelines = useCallback(async () => {
     try { await api.post("/team/chat/accept-guidelines", {}); setGuidelinesOk(true); setShowGuidelines(false); }
@@ -143,7 +167,7 @@ export default function TeamChatScreen() {
     setText("");
     const mentions = Array.from(mentionIds.current);
     try {
-      const r = await api.post<Message>("/team/chat/messages", { text: body, mentions });
+      const r = await api.post<Message>(msgBase, { text: body, mentions });
       mentionIds.current = new Set();
       setMentionQuery(null);
       setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
@@ -154,7 +178,7 @@ export default function TeamChatScreen() {
       if (status === 403 && detail === "guidelines_not_accepted") setShowGuidelines(true);
       else if (status === 400) Alert.alert("Message blocked", detail || "That message isn't allowed.");
     } finally { setSending(false); }
-  }, [text, sending, guidelinesOk]);
+  }, [text, sending, guidelinesOk, msgBase]);
 
   const reportMsg = useCallback(async (m: Message) => {
     setActionMsg(null);
@@ -179,12 +203,12 @@ export default function TeamChatScreen() {
     setUploading(true);
     try {
       const up = await uploadChatMedia(asset);
-      const r = await api.post<Message>("/team/chat/messages", { media_id: up.media_id });
+      const r = await api.post<Message>(msgBase, { media_id: up.media_id });
       setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
     } catch (e: any) {
       Alert.alert("Couldn't send", e?.message || "Upload failed. Please try again.");
     } finally { setUploading(false); }
-  }, [guidelinesOk]);
+  }, [guidelinesOk, msgBase]);
 
   const pickPhotoOrVideo = useCallback(async () => {
     setShowAttach(false);
@@ -242,6 +266,35 @@ export default function TeamChatScreen() {
     return participants.filter((p) => p.name.toLowerCase().includes(mentionQuery)).slice(0, 6);
   }, [mentionQuery, participants]);
 
+  const selectChannel = useCallback((ch: { id: string; name: string } | null) => {
+    setShowChannels(false);
+    setActiveChannel(ch);
+  }, []);
+
+  const toggleNewMember = useCallback((uid: string) => {
+    setNewMembers((prev) => {
+      const next = new Set(prev);
+      if (next.has(uid)) next.delete(uid); else next.add(uid);
+      return next;
+    });
+  }, []);
+
+  const createChannel = useCallback(async () => {
+    const name = newName.trim();
+    if (!name || creating) return;
+    setCreating(true);
+    try {
+      const r = await api.post<Channel>("/team/chat/channels", { name, member_ids: Array.from(newMembers) });
+      setShowNewChat(false);
+      setNewName("");
+      setNewMembers(new Set());
+      await loadChannels();
+      selectChannel({ id: r.data.id, name: r.data.name });
+    } catch (e: any) {
+      Alert.alert("Couldn't create chat", e?.response?.data?.detail || "Please try again.");
+    } finally { setCreating(false); }
+  }, [newName, newMembers, creating, loadChannels, selectChannel]);
+
   const lastMineId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].sender_id === me) return messages[i].id;
     return null;
@@ -279,7 +332,7 @@ export default function TeamChatScreen() {
             <Text style={[styles.timeText, mine && { color: "#DBEAFE" }]}>{fmtTime(item.created_at)}</Text>
           </View>
         </Pressable>
-        {mine && item.id === lastMineId && seenCount(item.created_at) > 0 && (
+        {mine && item.id === lastMineId && !activeChannel && seenCount(item.created_at) > 0 && (
           <View style={[styles.reactionRow, styles.rowRight]}>
             <Text style={styles.seenText} testID={`chat-seen-${item.id}`}>Seen by {seenCount(item.created_at)}</Text>
           </View>
@@ -308,10 +361,13 @@ export default function TeamChatScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.title}>Team Chat</Text>
-          <Text style={styles.sub}>For coaches, reps &amp; staff</Text>
-        </View>
+        <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowChannels(true)} testID="chat-channel-switcher" activeOpacity={0.7}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            <Text style={styles.title} numberOfLines={1}>{activeChannel ? activeChannel.name : "Team Chat"}</Text>
+            <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
+          </View>
+          <Text style={styles.sub}>{activeChannel ? "Tap to switch chats" : "Main team thread · tap to switch"}</Text>
+        </TouchableOpacity>
         {!supervised && (
           <TouchableOpacity onPress={() => router.push("/team/chat-access" as any)} hitSlop={10} style={styles.backBtn} testID="chat-manage-access">
             <Ionicons name="people-outline" size={22} color={colors.accent} />
@@ -478,6 +534,83 @@ export default function TeamChatScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      {/* Channel switcher */}
+      <Modal visible={showChannels} transparent animationType="fade" onRequestClose={() => setShowChannels(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setShowChannels(false)}>
+          <View style={styles.sheet} testID="chat-channels-modal">
+            <Text style={styles.sheetTitle}>Chats</Text>
+            <ScrollView style={{ maxHeight: 340 }}>
+              <TouchableOpacity style={styles.channelRow} onPress={() => selectChannel(null)} testID="chat-channel-main">
+                <Ionicons name="people-circle-outline" size={22} color={colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.channelName}>Team Chat</Text>
+                  <Text style={styles.channelSub}>Everyone on the team</Text>
+                </View>
+                {!activeChannel && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+              </TouchableOpacity>
+              {channels.map((ch) => (
+                <TouchableOpacity key={ch.id} style={styles.channelRow} onPress={() => selectChannel({ id: ch.id, name: ch.name })} testID={`chat-channel-${ch.id}`}>
+                  <Ionicons name={ch.kind === "athlete" ? "shield-checkmark-outline" : "chatbubbles-outline"} size={22} color={colors.accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.channelName} numberOfLines={1}>{ch.name}</Text>
+                    <Text style={styles.channelSub} numberOfLines={1}>
+                      {ch.member_count} member{ch.member_count === 1 ? "" : "s"}{ch.member_names?.length ? ` · ${ch.member_names.join(", ")}` : ""}
+                    </Text>
+                  </View>
+                  {activeChannel?.id === ch.id && <Ionicons name="checkmark" size={18} color={colors.accent} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity style={styles.acceptBtn} onPress={() => { setShowChannels(false); setShowNewChat(true); }} testID="chat-new-channel">
+              <Text style={styles.acceptText}>＋ New chat</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {/* New chat (create a named channel) */}
+      <Modal visible={showNewChat} transparent animationType="fade" onRequestClose={() => setShowNewChat(false)}>
+        <View style={styles.modalWrap}>
+          <View style={styles.sheet} testID="chat-new-chat-modal">
+            <Text style={styles.sheetTitle}>Create a chat</Text>
+            <TextInput
+              style={styles.nameInput}
+              placeholder="Chat name (e.g. Fundraising)"
+              placeholderTextColor={colors.textTertiary}
+              value={newName}
+              onChangeText={setNewName}
+              maxLength={60}
+              testID="chat-new-name"
+            />
+            <Text style={styles.pickLabel}>Add people</Text>
+            <ScrollView style={{ maxHeight: 240 }}>
+              {participants.length === 0 ? (
+                <Text style={styles.channelSub}>No one else is in this team yet.</Text>
+              ) : participants.map((p) => {
+                const on = newMembers.has(p.user_id);
+                return (
+                  <TouchableOpacity key={p.user_id} style={styles.channelRow} onPress={() => toggleNewMember(p.user_id)} testID={`chat-new-member-${p.user_id}`}>
+                    <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? colors.accent : colors.textTertiary} />
+                    <Text style={[styles.channelName, { flex: 1 }]}>{p.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.acceptBtn, (!newName.trim() || creating) && styles.sendBtnOff]}
+              onPress={createChannel}
+              disabled={!newName.trim() || creating}
+              testID="chat-create-channel"
+            >
+              {creating ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.acceptText}>Create chat</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowNewChat(false)} style={{ paddingVertical: 8 }}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -552,4 +685,12 @@ const makeStyles = (c: ThemePalette) => ({
   mentionBar: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.md, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.borderSoft, backgroundColor: c.card },
   mentionItem: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.accentSubtle, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   mentionName: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  channelRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.borderSoft },
+  channelName: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700" },
+  channelSub: { ...typography.caption, color: c.textSecondary, marginTop: 1 },
+  nameInput: {
+    backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg,
+    paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary, marginTop: 6,
+  },
+  pickLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: 12, marginBottom: 2 },
 });

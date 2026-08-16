@@ -1,0 +1,39 @@
+{
+  "summary": "CheerPlanner 2.0 — Team Chat 'Named Channels' feature verified end-to-end against the public preview URL. Backend: 7/7 pytest cases PASS. Existing suites (test_team_chat_channels.py::test_named_channels, test_team_chat.py::test_team_chat_flow, test_team_chat_mentions.py::test_mentions_and_receipts) all green. New extended suite (test_team_chat_named_channels_ext.py) adds 4 targeted cases and all PASS: (1) parent (household member, NOT team personnel) joined a hub via /api/household/invite + /api/household/join can GET/POST /api/team/chat/messages (200, previously 403) with supervised=false, and can POST /api/team/chat/channels (kind='team'); (2) an outsider from a different hub gets 403/404 on both GET & POST /api/team/chat/channels/{cid}/messages of another hub's channel; (3) messages posted in a named channel do NOT appear in GET /api/team/chat/messages and vice versa (channel_id filter is symmetric); (4) regression: reactions (POST /messages/{id}/react), flag (POST /messages/{id}/flag), and delete (DELETE /messages/{id}) still work. Frontend (Expo web, 390x844): logged in as applereview@cheerplanner.app / Review2026! and opened /team/chat — data-testid=team-chat-screen renders; header is chat-channel-switcher showing 'Team Chat'; tapping it opens chat-channels-modal with chat-channel-main and chat-new-channel present; tapping chat-new-channel opens chat-new-chat-modal; filled chat-new-name='UI-Chan-8388' and pressed chat-create-channel → new channel created via POST /api/team/chat/channels and the app auto-switched into it (header shows 'UI-Chan-8388'); posted a message via chat-input + chat-send → rendered in the channel; switched back via chat-channel-main → header shows 'Team Chat' and the channel-only message is NOT present in the main thread (leak-proof isolation confirmed). No React Native red screens, no deprecated-package usage detected in chat.tsx (uses expo-image-picker, expo-document-picker, react-native-safe-area-context, react-native-keyboard-controller).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_chat_channels.py",
+    "/app/backend/tests/test_team_chat_named_channels_ext.py",
+    "/app/backend/tests/test_team_chat.py",
+    "/app/backend/tests/test_team_chat_mentions.py",
+    "/app/test_reports/pytest/pytest_iter103.xml",
+    "/app/test_reports/pytest/pytest_iter103_ext.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_chat.py:require_chat_access — now returns current_user for any household member (line 141-142) after the athlete-approval gate, which correctly lets parents into the team thread. Athlete branch (chat_athlete_user_ids) still gates on athlete_chat_links.chat_enabled, preserving the minor-athlete safety rule.",
+    "team_chat.py:_chat_hub — falls back to _resolve_active_household(user_id) for personnel & parents; athlete participants are resolved via chat_athlete_user_ids first. Correct precedence.",
+    "team_chat.py:list_messages (line 202) — supervised = current_user['id'] in chat_athlete_user_ids. Parents are NOT in that set, so supervised=false for parents, per spec.",
+    "team_chat.py:_visible_channels — team admins (team_access) see ALL channels in their hub; members see channels they're in; family members see athlete channels where family_view=true. Matches the product decision.",
+    "team_chat.py:create_channel — kind is auto-set to 'athlete' if ANY member is in chat_athlete_user_ids, and such channels get family_view=true automatically. This satisfies the 'admin-created athlete channels are auto-viewable by the athlete's family' rule.",
+    "team_chat.py:list_messages/unread_count — both filter channel_id: None on team_messages, so channel messages never leak into the main thread. channel_messages filters channel_id: cid, so main-thread messages never leak into channels. Symmetric isolation confirmed.",
+    "team_chat.py:_channel_or_403 — 404 when channel not in this hub; 403 for post when non-member/non-admin; family_view path allows read-only for family members. Matches _visible_channels logic.",
+    "chat.tsx:msgBase — dynamically switches endpoint based on activeChannel; useEffect on activeChannel triggers reload. Clean state reset (setLoading(true); setMessages([])) prevents stale-thread flashes.",
+    "chat.tsx:createChannel — after POST, calls loadChannels() then selectChannel({id, name}) so the switcher list is fresh AND the user is auto-dropped into the new chat, matching the spec.",
+    "chat.tsx:seenCount rendering (line 335) — 'Seen by N' only renders when !activeChannel (main thread only). Reasonable since receipts are hub-wide, not per-channel; consider a per-channel receipts endpoint in a future pass if channel read status becomes a requirement.",
+    "chat.tsx:new-chat member list only includes participants (which excludes self); channel creation always includes the creator server-side, so a parent creating a channel with no boxes ticked still gets a valid single-member channel."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100%"},
+  "seed_data_creation": "Signup-based throwaway accounts per test (parent_<tag>@t.com, x_<tag>@t.com, etc.), all Pass2026!. Paced signups to avoid the 10/min rate limiter. No changes to seeded data. UI test used the pre-seeded applereview@cheerplanner.app account and left a small artifact channel 'UI-Chan-8388' + one message in that channel on the hub — cosmetically fine, can be pruned manually if desired.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Named channels live in /app/backend/routers/team_chat.py (list/create channel + channel messages at the bottom of the file) and /app/frontend/app/team/chat.tsx. Key testIDs: team-chat-screen, chat-channel-switcher, chat-channels-modal, chat-channel-main, chat-channel-<id>, chat-new-channel, chat-new-chat-modal, chat-new-name, chat-new-member-<user_id>, chat-create-channel, chat-input, chat-send, chat-msg-<id>. Login: tap 'Sign in' first on landing, then fill placeholder 'parent@example.com' + '••••••••' and click [data-testid=login-submit-button]. EXPO_PUBLIC_BACKEND_URL=https://event-planner-394.preview.emergentagent.com. Pytest against public URL: TEST_BASE=https://event-planner-394.preview.emergentagent.com pytest backend/tests/test_team_chat_named_channels_ext.py. Signup endpoint is rate-limited to ~10/min per IP; the ext suite has a 429 retry backoff. Note that the main-thread 'Seen by N' label is intentionally main-thread only; there's no per-channel receipts UI yet.",
+  "rca_of_issue": ""
+}

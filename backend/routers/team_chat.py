@@ -28,6 +28,36 @@ router = APIRouter(prefix="/api")
 
 MAX_LEN = 2000
 
+
+async def _visible_channels(h: dict, user: dict) -> list:
+    """Channels in this hub the user may see. Team admins (personnel) see all;
+    members see theirs; family members can view athlete channels."""
+    admin = bool(user.get("team_access"))
+    uid = user["id"]
+    fam = set(h.get("member_user_ids") or [])
+    out = []
+    async for c in db.chat_channels.find({"household_id": h["id"]}, {"_id": 0}).sort("created_at", 1):
+        members = c.get("member_user_ids") or []
+        if admin or uid in members or (c.get("family_view") and uid in fam):
+            out.append(c)
+    return out
+
+
+async def _channel_or_403(cid: str, h: dict, user: dict, need_post: bool = False) -> dict:
+    c = await db.chat_channels.find_one({"id": cid, "household_id": h["id"]}, {"_id": 0})
+    if not c:
+        raise HTTPException(status_code=404, detail="Chat not found.")
+    admin = bool(user.get("team_access"))
+    uid = user["id"]
+    members = c.get("member_user_ids") or []
+    if need_post:
+        if not (admin or uid in members):
+            raise HTTPException(status_code=403, detail="You can view this chat but can't post here.")
+    else:
+        if not (admin or uid in members or (c.get("family_view") and uid in (h.get("member_user_ids") or []))):
+            raise HTTPException(status_code=403, detail="You don't have access to this chat.")
+    return c
+
 # Allowed chat media (per user choice: photos, video, music).
 _ALLOWED_MEDIA = {
     "image/jpeg": ("image", "jpg"), "image/png": ("image", "png"),
@@ -83,15 +113,21 @@ def _guardian_emails(roster: dict) -> set:
 
 
 async def _chat_hub(user_id: str, user: dict) -> Optional[dict]:
-    """The hub whose chat this user participates in. Personnel -> their active
-    hub. Athlete participants -> the hub they're linked to. None if neither."""
+    """The hub whose chat this user participates in. Personnel and parents ->
+    their active (shared) household. Athlete participants -> the hub they're
+    linked to."""
     if user.get("team_access"):
         return await _resolve_active_household(user_id)
-    return await db.households.find_one({"chat_athlete_user_ids": user_id}, {"_id": 0})
+    h = await db.households.find_one({"chat_athlete_user_ids": user_id}, {"_id": 0})
+    if h:
+        return h
+    return await _resolve_active_household(user_id)
 
 
 async def require_chat_access(current_user=Depends(get_current_user)) -> dict:
-    """Allow team personnel, OR an athlete whose guardian has APPROVED chat."""
+    """Allow team personnel and parents (household members), plus an athlete
+    whose guardian has APPROVED chat. Minor athletes are gated on approval;
+    everyone else (coaches/staff + parents) participates in the team thread."""
     if current_user.get("team_access"):
         return current_user
     h = await db.households.find_one({"chat_athlete_user_ids": current_user["id"]}, {"_id": 0, "id": 1})
@@ -102,7 +138,8 @@ async def require_chat_access(current_user=Depends(get_current_user)) -> dict:
         if link and link.get("chat_enabled"):
             return current_user
         raise HTTPException(status_code=403, detail="Your parent/guardian hasn't approved Team Chat yet.")
-    raise HTTPException(status_code=403, detail="Team Chat is limited to team personnel.")
+    # Parent / household member — allowed into the team thread + named channels.
+    return current_user
 
 
 async def _participant_users(h: dict) -> list:
@@ -152,7 +189,7 @@ async def list_messages(before: Optional[str] = None, limit: int = 40, current_u
     if not h:
         return {"messages": [], "me": current_user["id"], "has_more": False, "supervised": False}
     limit = max(1, min(int(limit or 40), 100))
-    q: dict = {"household_id": h["id"], "hidden": {"$ne": True}}
+    q: dict = {"household_id": h["id"], "hidden": {"$ne": True}, "channel_id": None}
     blocked = await _blocked_ids(current_user["id"])
     if blocked:
         q["sender_id"] = {"$nin": list(blocked)}
@@ -162,7 +199,7 @@ async def list_messages(before: Optional[str] = None, limit: int = 40, current_u
     has_more = len(docs) > limit
     docs = docs[:limit]
     docs.reverse()
-    supervised = not current_user.get("team_access")
+    supervised = current_user["id"] in (h.get("chat_athlete_user_ids") or [])
     gu = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "chat_guidelines_accepted_at": 1})
     return {
         "messages": docs, "me": current_user["id"], "has_more": has_more,
@@ -231,7 +268,7 @@ async def unread_count(current_user=Depends(require_chat_access)):
         {"household_id": h["id"], "user_id": current_user["id"]}, {"_id": 0, "last_read_at": 1}
     )
     last = (r or {}).get("last_read_at") or ""
-    q: dict = {"household_id": h["id"], "sender_id": {"$ne": current_user["id"]}}
+    q: dict = {"household_id": h["id"], "channel_id": None, "sender_id": {"$ne": current_user["id"]}}
     if last:
         q["created_at"] = {"$gt": last}
     return {"unread": await db.team_messages.count_documents(q)}
@@ -551,4 +588,89 @@ async def link_existing_member(roster_id: str, payload: dict = Body(default={}),
         upsert=True,
     )
     return {"linked": True, "chat_enabled": True, "athlete_user_id": target}
+
+
+
+# --------------------------------------------------- named chats (channels) ---
+@router.get("/team/chat/channels")
+async def list_channels(current_user=Depends(require_chat_access)):
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        return {"channels": []}
+    chans = await _visible_channels(h, current_user)
+    parts = {p["user_id"]: p["name"] for p in await _participant_users(h)}
+    out = []
+    for c in chans:
+        names = [parts.get(uid, "Member") for uid in (c.get("member_user_ids") or [])]
+        out.append({"id": c["id"], "name": c["name"], "kind": c.get("kind", "team"),
+                    "member_count": len(c.get("member_user_ids") or []), "member_names": names[:6]})
+    return {"channels": out}
+
+
+@router.post("/team/chat/channels")
+async def create_channel(payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    name = (payload.get("name") or "").strip()[:60]
+    if not name:
+        raise HTTPException(status_code=400, detail="Give the chat a name.")
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        raise HTTPException(status_code=403, detail="No chat available.")
+    valid = {p["user_id"] for p in await _participant_users(h)}
+    members = [u for u in (payload.get("member_ids") or []) if u in valid]
+    members = list(set(members + [current_user["id"]]))
+    athletes = set(h.get("chat_athlete_user_ids") or [])
+    kind = "athlete" if any(m in athletes for m in members) else "team"
+    doc = {
+        "id": secrets.token_urlsafe(8), "household_id": h["id"], "name": name,
+        "kind": kind, "member_user_ids": members, "created_by": current_user["id"],
+        # Athlete chats are viewable by the family (parents/guardians) per policy.
+        "family_view": kind == "athlete", "created_at": utcnow_iso(),
+    }
+    await db.chat_channels.insert_one(dict(doc))
+    return {"id": doc["id"], "name": name, "kind": kind, "member_count": len(members)}
+
+
+@router.get("/team/chat/channels/{cid}/messages")
+async def channel_messages(cid: str, before: Optional[str] = None, limit: int = 40, current_user=Depends(require_chat_access)):
+    h = await _chat_hub(current_user["id"], current_user)
+    await _channel_or_403(cid, h, current_user)
+    limit = max(1, min(int(limit or 40), 100))
+    q: dict = {"household_id": h["id"], "channel_id": cid, "hidden": {"$ne": True}}
+    blocked = await _blocked_ids(current_user["id"])
+    if blocked:
+        q["sender_id"] = {"$nin": list(blocked)}
+    if before:
+        q["created_at"] = {"$lt": before}
+    docs = await db.team_messages.find(q, {"_id": 0}).sort("created_at", -1).limit(limit + 1).to_list(limit + 1)
+    has_more = len(docs) > limit
+    docs = docs[:limit]
+    docs.reverse()
+    return {"messages": docs, "me": current_user["id"], "has_more": has_more, "supervised": current_user["id"] in (h.get("chat_athlete_user_ids") or [])}
+
+
+@router.post("/team/chat/channels/{cid}/messages")
+async def channel_post(cid: str, payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    text = (payload.get("text") or "").strip()[:MAX_LEN]
+    media_id = (payload.get("media_id") or "").strip()
+    if not text and not media_id:
+        raise HTTPException(status_code=400, detail="Message can't be empty.")
+    await _require_chat_guidelines(current_user["id"])
+    if text:
+        assert_clean(text)
+    h = await _chat_hub(current_user["id"], current_user)
+    await _channel_or_403(cid, h, current_user, need_post=True)
+    media = []
+    if media_id:
+        mrec = await db.chat_media.find_one({"id": media_id, "household_id": h["id"], "owner_id": current_user["id"]}, {"_id": 0})
+        if not mrec:
+            raise HTTPException(status_code=400, detail="Attachment not found.")
+        media = [{"id": mrec["id"], "kind": mrec["kind"], "content_type": mrec["content_type"], "name": mrec.get("name")}]
+    valid = {p["user_id"] for p in await _participant_users(h)}
+    mentions = [u for u in (payload.get("mentions") or []) if u in valid][:20]
+    now = utcnow_iso()
+    doc = {"id": secrets.token_urlsafe(9), "household_id": h["id"], "channel_id": cid,
+           "sender_id": current_user["id"], "sender_name": _display_name(current_user),
+           "text": text, "media": media, "reactions": {}, "mentions": mentions, "created_at": now}
+    await db.team_messages.insert_one(dict(doc))
+    return doc
 

@@ -37,9 +37,11 @@ def test_team_chat_flow():
     for t in (o_tok, m_tok, x_tok):
         requests.post(f"{BASE}/team/chat/accept-guidelines", json={}, headers=_h(t))
 
-    # Gate: a login without team_access is blocked.
+    # Policy (updated): a parent/household member is allowed into chat, but only
+    # sees THEIR OWN hub — never another team's messages.
     _no_tok, _ = _signup(f"noaccess_{tag}@t.com")
-    assert requests.get(f"{BASE}/team/chat/messages", headers=_h(_no_tok)).status_code == 403
+    _own = requests.get(f"{BASE}/team/chat/messages", headers=_h(_no_tok))
+    assert _own.status_code == 200 and _own.json()["messages"] == []
 
     # Owner posts -> coach sees it and has 1 unread.
     r = requests.post(f"{BASE}/team/chat/messages", json={"text": "Hello team!"}, headers=_h(o_tok))
