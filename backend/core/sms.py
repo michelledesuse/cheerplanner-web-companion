@@ -69,8 +69,13 @@ def send_sms(to: str, body: str) -> bool:
     return send_sms_ex(to, body) is not None
 
 
-def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None) -> Optional[str]:
-    """Send an SMS and return the Twilio message SID (or None on failure). Never raises."""
+def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None, media_urls: Optional[list] = None) -> Optional[str]:
+    """Send an SMS/MMS and return the Twilio message SID (or None on failure). Never raises.
+
+    If `media_urls` (list of public HTTPS URLs) is provided, the message is sent as
+    an MMS with those attachments inline (Twilio accepts up to 10). Twilio auto-resizes
+    images; the content type is inferred from each URL's Content-Type header.
+    """
     client = _get_client()
     from_number = os.getenv("TWILIO_PHONE_NUMBER")
     if not client or not from_number:
@@ -83,9 +88,11 @@ def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None) -> Op
         kwargs = {"to": dest, "from_": from_number, "body": body}
         if status_callback:
             kwargs["status_callback"] = status_callback
+        if media_urls:
+            kwargs["media_url"] = list(media_urls)[:10]
         msg = client.messages.create(**kwargs)
         sid = getattr(msg, "sid", None)
-        logger.info("SMS sent sid=%s to=%s", sid, dest)
+        logger.info("SMS sent sid=%s to=%s media=%d", sid, dest, len(media_urls or []))
         return sid
     except Exception as exc:  # noqa: BLE001
         logger.warning("send_sms failed: %s", exc)

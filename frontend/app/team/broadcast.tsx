@@ -285,6 +285,7 @@ export default function BroadcastScreen() {
           </TouchableOpacity>
 
           <Text style={[styles.label, { marginTop: spacing.lg }]}>Photo attachments</Text>
+          <Text style={styles.helperHint}>Photos are sent inline — they show right inside the text message (US/Canada).</Text>
           {attachments.length > 0 && (
             <View style={styles.pillWrap}>
               {attachments.map((a) => (
@@ -524,6 +525,7 @@ const makeStyles = (c: ThemePalette) => ({
   attachRemove: { position: "absolute", top: 2, right: 2, backgroundColor: "rgba(0,0,0,0.5)", borderRadius: 999 },
   addChip: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", borderWidth: 1, borderColor: c.accentBorder, backgroundColor: c.accentSubtle, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
   addChipText: { ...typography.caption, color: c.accent, fontWeight: "800" },
+  helperHint: { ...typography.caption, color: c.textSecondary, marginTop: 4, marginBottom: 6 },
   footer: { padding: spacing.lg, borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.bg },
   sendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: c.accent, paddingVertical: 15, borderRadius: radius.md },
   sendBtnText: { color: "white", fontWeight: "800", fontSize: 16 },

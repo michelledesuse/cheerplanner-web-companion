@@ -32,6 +32,9 @@ _files_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="broadcast_media")
 _music_bucket = AsyncIOMotorGridFSBucket(db, bucket_name="team_music")
 
 MAX_ATTACH_BYTES = 6 * 1024 * 1024  # 6 MB per attachment
+# Videos this size or smaller are attempted inline as MMS; larger ones fall back
+# to a tap-to-play link (carriers reject large MMS video and Twilio won't transcode).
+VIDEO_MMS_MAX_BYTES = 1024 * 1024  # 1 MB
 
 
 # ---------- payload models ----------
@@ -115,7 +118,7 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
     base = _base(payload.base_url)
     scope = await _team_hub_scope_user_ids(current_user["id"])
     hub_owner = await _hub_owner_id(current_user["id"])
-    to_send, no_phone, trailer = await _resolve_context(payload, base, scope, current_user["id"])
+    to_send, no_phone, trailer, media_urls = await _resolve_context(payload, base, scope, current_user["id"])
 
     def compose(name: str) -> str:
         greeting = f"Hi {name}, " if name else ""
@@ -126,6 +129,7 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
         return {
             "recipient_count": len(to_send), "no_phone_count": len(no_phone),
             "no_phone": no_phone[:50], "sms_configured": is_configured(), "preview": preview,
+            "inline_media_count": len(media_urls),
         }
 
     # ---- schedule for later ----
@@ -152,7 +156,7 @@ async def send_broadcast(payload: BroadcastSend, current_user=Depends(get_curren
         raise HTTPException(status_code=400, detail="No recipients have a phone number on file.")
 
     creator = current_user.get("name") or current_user.get("email") or ""
-    return await _perform_send(hub_owner, base, to_send, no_phone, msg, trailer, creator, payload)
+    return await _perform_send(hub_owner, base, to_send, no_phone, msg, trailer, creator, payload, media_urls=media_urls)
 
 
 async def _resolve_context(payload: BroadcastSend, base: str, scope: List[str], user_id: str):
@@ -175,10 +179,26 @@ async def _resolve_context(payload: BroadcastSend, base: str, scope: List[str], 
             url = await _music_public_url(track, base, user_id)
             if url:
                 trailer_parts.append(f"🎵 {track.get('title') or 'Track'}: {url}")
+    media_urls: List[str] = []
     for tok in payload.attachment_tokens:
-        media = await db.public_media.find_one({"token": tok, "kind": "file"}, {"_id": 0, "token": 1, "title": 1})
-        if media:
-            trailer_parts.append(f"📎 {media.get('title') or 'Attachment'}: {base}/api/public/media/{media['token']}")
+        media = await db.public_media.find_one(
+            {"token": tok, "kind": "file"},
+            {"_id": 0, "token": 1, "title": 1, "content_type": 1, "size": 1},
+        )
+        if not media:
+            continue
+        ctype = (media.get("content_type") or "").lower()
+        title = media.get("title") or "Attachment"
+        raw_url = f"{base}/api/public/media/{media['token']}/raw"
+        if ctype.startswith("image/"):
+            # Photos ride along inline as MMS (Twilio resizes as needed).
+            media_urls.append(raw_url)
+        elif ctype.startswith("video/") and (media.get("size") or 0) <= VIDEO_MMS_MAX_BYTES:
+            # Small clips: best-effort inline video.
+            media_urls.append(raw_url)
+        else:
+            # Large video / other files: tap-to-play link fallback.
+            trailer_parts.append(f"📎 {title}: {base}/api/public/media/{media['token']}")
     trailer = ("\n\n" + "\n".join(trailer_parts)) if trailer_parts else ""
 
     seen, to_send, no_phone = set(), [], []
@@ -211,10 +231,10 @@ async def _resolve_context(payload: BroadcastSend, base: str, scope: List[str], 
                 continue
             seen.add(phone)
             to_send.append((phone, name))
-    return to_send, no_phone, trailer
+    return to_send, no_phone, trailer, media_urls
 
 
-async def _perform_send(user_id, base, to_send, no_phone, msg, trailer, creator, payload, broadcast_id=None):
+async def _perform_send(user_id, base, to_send, no_phone, msg, trailer, creator, payload, broadcast_id=None, media_urls=None):
     bid = broadcast_id or secrets.token_urlsafe(9)
     cb = f"{base}/api/twilio/status?b={bid}"
 
@@ -224,7 +244,7 @@ async def _perform_send(user_id, base, to_send, no_phone, msg, trailer, creator,
 
     sent, failed_targets, msg_docs = 0, [], []
     for phone, name in to_send:
-        sid = send_sms_ex(phone, compose(name), status_callback=cb)
+        sid = send_sms_ex(phone, compose(name), status_callback=cb, media_urls=media_urls)
         if sid:
             sent += 1
             msg_docs.append({
@@ -245,6 +265,7 @@ async def _perform_send(user_id, base, to_send, no_phone, msg, trailer, creator,
         "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"])} for t in failed_targets],
         "failed_targets": failed_targets, "no_phone": no_phone,
         "track_count": len(payload.track_ids), "attachment_count": len(payload.attachment_tokens),
+        "media_urls": list(media_urls or []), "media_count": len(media_urls or []),
         "created_at": utcnow_iso(),
     })
     return {
@@ -268,11 +289,12 @@ async def resend_failed(broadcast_id: str, base_url: str = "", current_user=Depe
     base = _base(base_url) if base_url else None
     cb = f"{base}/api/twilio/status?b={broadcast_id}" if base else None
     msg, trailer = b.get("message") or "", b.get("body_trailer") or ""
+    media_urls = b.get("media_urls") or []
 
     still_failed, sent, new_docs = [], 0, []
     for t in targets:
         body = (f"Hi {t['name']}, " if t.get("name") and t["name"] != "(no name)" else "") + f"{msg}{trailer}"
-        sid = send_sms_ex(t["phone"], body.strip(), status_callback=cb)
+        sid = send_sms_ex(t["phone"], body.strip(), status_callback=cb, media_urls=media_urls)
         if sid:
             sent += 1
             new_docs.append({

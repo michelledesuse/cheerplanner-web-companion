@@ -165,11 +165,11 @@ async def send_scheduled_broadcasts_tick() -> None:
             payload = BroadcastSend(**(d.get("payload") or {}))
             base = _base(payload.base_url)
             scope = await _team_hub_scope_user_ids(d["user_id"])
-            to_send, no_phone, trailer = await _resolve_context(payload, base, scope, d["user_id"])
+            to_send, no_phone, trailer, media_urls = await _resolve_context(payload, base, scope, d["user_id"])
             if to_send:
                 await _perform_send(
                     d["user_id"], base, to_send, no_phone, (payload.message or "").strip(),
-                    trailer, d.get("created_by_name") or "", payload,
+                    trailer, d.get("created_by_name") or "", payload, media_urls=media_urls,
                 )
             await db.scheduled_broadcasts.update_one(
                 {"id": d["id"]}, {"$set": {"status": "sent", "sent_at": now.isoformat()}}
