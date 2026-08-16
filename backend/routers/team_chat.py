@@ -204,6 +204,7 @@ async def list_messages(before: Optional[str] = None, limit: int = 40, current_u
     return {
         "messages": docs, "me": current_user["id"], "has_more": has_more,
         "supervised": supervised,
+        "can_moderate": bool(current_user.get("team_access") or current_user.get("is_admin")),
         "guidelines_accepted": bool((gu or {}).get("chat_guidelines_accepted_at")),
     }
 
@@ -339,12 +340,19 @@ async def list_blocks(current_user=Depends(require_chat_access)):
 
 @router.delete("/team/chat/messages/{message_id}")
 async def delete_message(message_id: str, current_user=Depends(require_chat_access)):
-    """Sender can delete their own message; an admin can remove any message
-    (satisfies Apple 1.2's 'act on reports within 24h')."""
-    m = await db.team_messages.find_one({"id": message_id}, {"_id": 0, "sender_id": 1})
+    """Message removal:
+    - the sender can always delete their own message;
+    - a TEAM ADMIN (team_access) can remove ANY message in their own hub;
+    - a platform admin can remove any message.
+    (Satisfies Apple 1.2's 'act on reports within 24h'.)"""
+    m = await db.team_messages.find_one({"id": message_id}, {"_id": 0, "sender_id": 1, "household_id": 1})
     if not m:
         raise HTTPException(status_code=404, detail="Message not found.")
-    if m["sender_id"] != current_user["id"] and not current_user.get("is_admin"):
+    allowed = m["sender_id"] == current_user["id"] or current_user.get("is_admin")
+    if not allowed and current_user.get("team_access"):
+        h = await _chat_hub(current_user["id"], current_user)
+        allowed = bool(h) and m.get("household_id") == h["id"]
+    if not allowed:
         raise HTTPException(status_code=403, detail="You can only delete your own message.")
     await db.team_messages.delete_one({"id": message_id})
     await db.chat_message_flags.delete_many({"message_id": message_id})
@@ -645,7 +653,7 @@ async def channel_messages(cid: str, before: Optional[str] = None, limit: int = 
     has_more = len(docs) > limit
     docs = docs[:limit]
     docs.reverse()
-    return {"messages": docs, "me": current_user["id"], "has_more": has_more, "supervised": current_user["id"] in (h.get("chat_athlete_user_ids") or [])}
+    return {"messages": docs, "me": current_user["id"], "has_more": has_more, "supervised": current_user["id"] in (h.get("chat_athlete_user_ids") or []), "can_moderate": bool(current_user.get("team_access") or current_user.get("is_admin"))}
 
 
 @router.post("/team/chat/channels/{cid}/messages")

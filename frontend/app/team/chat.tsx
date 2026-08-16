@@ -76,6 +76,7 @@ export default function TeamChatScreen() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [supervised, setSupervised] = useState(false);
+  const [canModerate, setCanModerate] = useState(false);
   const [guidelinesOk, setGuidelinesOk] = useState(true);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [actionMsg, setActionMsg] = useState<Message | null>(null);
@@ -115,12 +116,13 @@ export default function TeamChatScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean; guidelines_accepted?: boolean }>(`${msgBase}?limit=40`);
+      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean; can_moderate?: boolean; guidelines_accepted?: boolean }>(`${msgBase}?limit=40`);
       setMessages(r.data.messages || []);
       if (typeof r.data.guidelines_accepted !== "undefined") setGuidelinesOk(!!r.data.guidelines_accepted);
       setMe(r.data.me || "");
       setHasMore(!!r.data.has_more);
       setSupervised(!!r.data.supervised);
+      setCanModerate(!!r.data.can_moderate);
     } catch (_e) {}
     finally { setLoading(false); }
     if (!activeChannel) {
@@ -525,6 +527,12 @@ export default function TeamChatScreen() {
                   <Ionicons name="ban-outline" size={18} color="#DC2626" />
                   <Text style={[styles.actionText, { color: "#DC2626" }]}>Block {actionMsg.sender_name}</Text>
                 </TouchableOpacity>
+                {canModerate && (
+                  <TouchableOpacity style={styles.actionRow} onPress={() => deleteMsg(actionMsg)} testID="chat-action-remove">
+                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    <Text style={[styles.actionText, { color: "#DC2626" }]}>Remove this message</Text>
+                  </TouchableOpacity>
+                )}
               </>
             ) : null}
             <TouchableOpacity onPress={() => setActionMsg(null)} style={styles.actionRow}>
