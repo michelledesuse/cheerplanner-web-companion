@@ -105,6 +105,46 @@ async def require_chat_access(current_user=Depends(get_current_user)) -> dict:
     raise HTTPException(status_code=403, detail="Team Chat is limited to team personnel.")
 
 
+async def _participant_users(h: dict) -> list:
+    """All chat participants of a hub: personnel + owner + APPROVED athletes."""
+    ids = set(h.get("member_user_ids") or []) | set(h.get("team_hub_member_user_ids") or [])
+    if h.get("owner_user_id"):
+        ids.add(h["owner_user_id"])
+    async for l in db.athlete_chat_links.find({"household_id": h["id"], "chat_enabled": True}, {"_id": 0, "athlete_user_id": 1}):
+        if l.get("athlete_user_id"):
+            ids.add(l["athlete_user_id"])
+    out = []
+    for uid in ids:
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "name": 1, "email": 1})
+        if u:
+            out.append({"user_id": uid, "name": u.get("name") or (u.get("email") or "").split("@")[0] or "Member"})
+    out.sort(key=lambda x: x["name"].lower())
+    return out
+
+
+@router.get("/team/chat/participants")
+async def list_participants(current_user=Depends(require_chat_access)):
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        return {"participants": []}
+    return {"participants": [p for p in await _participant_users(h) if p["user_id"] != current_user["id"]]}
+
+
+@router.get("/team/chat/receipts")
+async def read_receipts(current_user=Depends(require_chat_access)):
+    """Per-participant last_read_at so the sender can see who's caught up."""
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        return {"receipts": []}
+    parts = await _participant_users(h)
+    reads = {}
+    async for r in db.chat_reads.find({"household_id": h["id"]}, {"_id": 0, "user_id": 1, "last_read_at": 1}):
+        reads[r["user_id"]] = r.get("last_read_at")
+    for p in parts:
+        p["last_read_at"] = reads.get(p["user_id"])
+    return {"receipts": parts}
+
+
 # ---------------------------------------------------------------- messages ---
 @router.get("/team/chat/messages")
 async def list_messages(before: Optional[str] = None, limit: int = 40, current_user=Depends(require_chat_access)):
@@ -151,11 +191,15 @@ async def post_message(payload: dict = Body(default={}), current_user=Depends(re
         if not mrec:
             raise HTTPException(status_code=400, detail="Attachment not found.")
         media = [{"id": mrec["id"], "kind": mrec["kind"], "content_type": mrec["content_type"], "name": mrec.get("name")}]
+    # @mentions — keep only ids that are real participants.
+    mentions_in = payload.get("mentions") or []
+    valid_ids = {p["user_id"] for p in await _participant_users(h)}
+    mentions = [uid for uid in mentions_in if uid in valid_ids][:20]
     now = utcnow_iso()
     doc = {
         "id": secrets.token_urlsafe(9), "household_id": h["id"],
         "sender_id": current_user["id"], "sender_name": _display_name(current_user),
-        "text": text, "media": media, "reactions": {}, "created_at": now,
+        "text": text, "media": media, "reactions": {}, "mentions": mentions, "created_at": now,
     }
     await db.team_messages.insert_one(dict(doc))
     await db.chat_reads.update_one(

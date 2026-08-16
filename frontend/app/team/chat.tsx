@@ -31,6 +31,20 @@ type Message = {
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏"];
 
+function MessageText({ text, mine, styles }: { text: string; mine?: boolean; styles: any }) {
+  // Highlight @mention tokens in an accent colour.
+  const parts = text.split(/(@[\p{L}\p{N}_]+)/u);
+  return (
+    <Text style={[styles.bubbleText, mine && { color: "#fff" }]}>
+      {parts.map((p, i) =>
+        p.startsWith("@")
+          ? <Text key={i} style={[styles.mentionTextInline, mine && { color: "#DBEAFE", fontWeight: "800" }]}>{p}</Text>
+          : <Text key={i}>{p}</Text>
+      )}
+    </Text>
+  );
+}
+
 function fmtTime(iso: string): string {
   try {
     const d = new Date(iso);
@@ -66,9 +80,16 @@ export default function TeamChatScreen() {
   const [token, setToken] = useState("");
   const [uploading, setUploading] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [participants, setParticipants] = useState<{ user_id: string; name: string }[]>([]);
+  const [receipts, setReceipts] = useState<{ user_id: string; name: string; last_read_at?: string }[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const mentionIds = useRef<Set<string>>(new Set());
   const focused = useRef(false);
 
   React.useEffect(() => { getAuthToken().then(setToken); }, []);
+  React.useEffect(() => {
+    api.get("/team/chat/participants").then((r) => setParticipants(r.data.participants || [])).catch(() => {});
+  }, []);
 
   const markRead = useCallback(async () => {
     try { await api.post("/team/chat/read", {}); } catch (_e) {}
@@ -84,6 +105,7 @@ export default function TeamChatScreen() {
       setSupervised(!!r.data.supervised);
     } catch (_e) {}
     finally { setLoading(false); }
+    try { const rc = await api.get("/team/chat/receipts"); setReceipts(rc.data.receipts || []); } catch (_e) {}
     if (focused.current) markRead();
   }, [markRead]);
 
@@ -119,8 +141,11 @@ export default function TeamChatScreen() {
     if (!guidelinesOk) { setShowGuidelines(true); return; }
     setSending(true);
     setText("");
+    const mentions = Array.from(mentionIds.current);
     try {
-      const r = await api.post<Message>("/team/chat/messages", { text: body });
+      const r = await api.post<Message>("/team/chat/messages", { text: body, mentions });
+      mentionIds.current = new Set();
+      setMentionQuery(null);
       setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
     } catch (e: any) {
       setText(body); // restore on failure
@@ -189,6 +214,32 @@ export default function TeamChatScreen() {
     } catch (_e) {}
   }, []);
 
+  const onChangeText = useCallback((t: string) => {
+    setText(t);
+    const m = t.match(/@([\p{L}\p{N}_]*)$/u);
+    setMentionQuery(m ? m[1].toLowerCase() : null);
+  }, []);
+
+  const pickMention = useCallback((p: { user_id: string; name: string }) => {
+    mentionIds.current.add(p.user_id);
+    setText((prev) => prev.replace(/@([\p{L}\p{N}_]*)$/u, `@${p.name} `));
+    setMentionQuery(null);
+  }, []);
+
+  const mentionMatches = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return participants.filter((p) => p.name.toLowerCase().includes(mentionQuery)).slice(0, 6);
+  }, [mentionQuery, participants]);
+
+  const lastMineId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) if (messages[i].sender_id === me) return messages[i].id;
+    return null;
+  }, [messages, me]);
+
+  const seenCount = useCallback((createdAt: string) =>
+    receipts.filter((r) => r.user_id !== me && r.last_read_at && r.last_read_at >= createdAt).length,
+  [receipts, me]);
+
   // Inverted list wants newest first.
   const data = useMemo(() => [...messages].reverse(), [messages]);
 
@@ -213,10 +264,15 @@ export default function TeamChatScreen() {
             {(item.media || []).map((md) => (
               <ChatMediaView key={md.id} media={md} token={token} mine={mine} />
             ))}
-            {!!item.text && <Text style={[styles.bubbleText, mine && { color: "#fff" }]}>{item.text}</Text>}
+            {!!item.text && <MessageText text={item.text} mine={mine} styles={styles} />}
             <Text style={[styles.timeText, mine && { color: "#DBEAFE" }]}>{fmtTime(item.created_at)}</Text>
           </View>
         </Pressable>
+        {mine && item.id === lastMineId && seenCount(item.created_at) > 0 && (
+          <View style={[styles.reactionRow, styles.rowRight]}>
+            <Text style={styles.seenText} testID={`chat-seen-${item.id}`}>Seen by {seenCount(item.created_at)}</Text>
+          </View>
+        )}
         {item.reactions && Object.keys(item.reactions).length > 0 && (
           <View style={[styles.reactionRow, mine ? styles.rowRight : styles.rowLeft]}>
             {Object.entries(item.reactions).map(([emoji, users]) => (
@@ -287,6 +343,16 @@ export default function TeamChatScreen() {
           />
         )}
 
+        {mentionMatches.length > 0 && (
+          <View style={styles.mentionBar} testID="chat-mention-bar">
+            {mentionMatches.map((p) => (
+              <TouchableOpacity key={p.user_id} style={styles.mentionItem} onPress={() => pickMention(p)} testID={`chat-mention-${p.user_id}`}>
+                <Ionicons name="at" size={16} color={colors.accent} />
+                <Text style={styles.mentionName}>{p.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
         <View style={styles.composer}>
           <TouchableOpacity
             style={styles.attachBtn}
@@ -301,7 +367,7 @@ export default function TeamChatScreen() {
             placeholder="Message the team…"
             placeholderTextColor={colors.textTertiary}
             value={text}
-            onChangeText={setText}
+            onChangeText={onChangeText}
             multiline
             maxLength={2000}
             testID="chat-input"
@@ -467,4 +533,9 @@ const makeStyles = (c: ThemePalette) => ({
   reactionText: { fontSize: 12, color: c.textPrimary },
   emojiRow: { flexDirection: "row", justifyContent: "space-around", paddingBottom: 8 },
   emojiBtn: { padding: 6 },
+  seenText: { ...typography.caption, color: c.textTertiary, fontSize: 11 },
+  mentionTextInline: { color: c.accent, fontWeight: "700" },
+  mentionBar: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: spacing.md, paddingVertical: 8, borderTopWidth: 1, borderTopColor: c.borderSoft, backgroundColor: c.card },
+  mentionItem: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.accentSubtle, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  mentionName: { ...typography.caption, color: c.accent, fontWeight: "700" },
 });

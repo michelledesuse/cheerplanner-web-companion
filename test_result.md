@@ -489,3 +489,10 @@ DECISIONS: photos+video+music now; video cap 90s; images JPG/PNG/HEIC/WEBP, vide
 VERIFIED: pytest tests/test_team_chat_media.py 1/1 (reject txt 400; PNG upload->200 to real Object Storage; message w/ media; media-only msg; teammate fetch bytes match via token; outsider 403; bad token 401; reactions add/list/toggle). Lint clean. Smoke: attach chooser opens, + button in composer.
 Deploy: backend redeploy + NEW build (expo-video native module + Object Storage). NOTE large-video uploads still traverse ingress; 90s cap + 0.7 img quality mitigate; chunking is a possible follow-up if big MOVs fail.
 Creds: applereview@cheerplanner.app / Review2026!.
+
+## Iteration 107 — Team Chat Phase 3b (@mentions + read receipts)
+- Backend team_chat.py: _participant_users(h) (personnel+owner+approved athletes, names). NEW GET /team/chat/participants (excludes self), GET /team/chat/receipts (each participant + last_read_at). POST message accepts mentions[] (validated against participants, capped 20); message doc carries mentions[]. list_messages already returns full docs (mentions included).
+- Frontend chat.tsx: fetch participants once + receipts on load/realtime. Typing "@" opens a mention suggestion bar (testID chat-mention-bar, items chat-mention-<uid>) filtered by name; selecting inserts "@Name " + tracks id; send passes mentions. @tokens highlighted in-bubble (MessageText). "Seen by N" under sender's most-recent message (testID chat-seen-<id>) computed from receipts (others with last_read_at>=msg time).
+VERIFIED: pytest tests/test_team_chat_mentions.py 1/1 (participants excludes self; @mention stored + invalid dropped; teammate sees mention; receipts reflect read). Lint: only _e unused warnings (non-blocking). Smoke: mention bar correctly hidden in solo hub; earlier inline image bubble visible (Phase 3a). Full mention/receipt UI needs 2 accounts -> testing_agent.
+Phase 3 COMPLETE (3a media+reactions, 3b mentions+receipts). Remaining plan: Phase 5 push, Phase 6 policy/docs. Deploy: backend redeploy + NEW build.
+Creds: applereview@cheerplanner.app / Review2026!.

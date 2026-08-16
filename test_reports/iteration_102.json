@@ -1,0 +1,34 @@
+{
+  "summary": "Team Chat Phase 3b (@mentions + read receipts) verified end-to-end against the public preview URL. Backend: 1/1 pytest (test_team_chat_mentions.py::test_mentions_and_receipts) PASSES — (a) GET /api/team/chat/participants as owner lists the teammate and excludes the owner themselves. (b) POST /api/team/chat/messages with mentions=[teammate_id,'bogus'] returns 200 and response.mentions==[teammate_id] (bogus dropped). (c) GET /api/team/chat/messages as teammate returns the message with mentions containing teammate_id. (d) After teammate POST /api/team/chat/read, GET /api/team/chat/receipts as owner shows teammate's last_read_at >= message.created_at. Frontend (Expo web, 390x844): logged in as fresh owner (o_314d44@t.com), navigated to /team/chat (data-testid=team-chat-screen). Typed '@' into chat-input -> chat-mention-bar appeared listing chat-mention-<teammate_id> (name 'm_314d44'). Tapping the mention inserted '@m_314d44 ' verbatim into the input. Sent the message -> the bubble renders '@m_314d44' in the accent-highlighted (light-blue #DBEAFE, weight 800) mention style inside the mine bubble. Then triggered teammate POST /team/chat/read via API and reopened /team/chat as owner — 'Seen by 1' label (data-testid=chat-seen-<message_id>) appears under the owner's most recent message. Screenshots captured (/tmp/mention_sent.png, /tmp/seen_label.png). No React Native red screens; only a benign 'props.pointerEvents is deprecated' console warning from a third-party.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_chat_mentions.py",
+    "/app/test_reports/pytest/pytest_iter102.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_chat.py:post_message — mention filtering intersects with the LIVE participant set (_participant_users(h)); invalid/foreign ids are cleanly dropped and capped at 20. Correct.",
+    "team_chat.py:list_participants — excludes current_user from the response (`p['user_id'] != current_user['id']`), matching the frontend expectation that '@' suggestions never include yourself.",
+    "team_chat.py:read_receipts — returns ALL participants (including the caller) with their last_read_at; the frontend's seenCount filters out `me` before counting, so 'Seen by N' correctly counts only other readers.",
+    "chat.tsx:pickMention — replaces the trailing @token via regex `/@([\\p{L}\\p{N}_]*)$/u` with `@<Name> `. Works for unicode names; the corresponding server-side `mentions` array stores the picked user_id (mentionIds ref).",
+    "chat.tsx:MessageText — splits on `/(@[\\p{L}\\p{N}_]+)/u` so the highlight is client-derived from the text tokens rather than the server `mentions` array. Note: if a display name contains a space (e.g., 'Jane Doe'), inserting '@Jane Doe ' will only highlight '@Jane' — cosmetic, acceptable. Consider matching against the stored mentions[] user_ids to fully colour multi-word names in a future pass.",
+    "chat.tsx:seenCount / lastMineId — 'Seen by N' only renders under the sender's newest own message and only counts participants whose last_read_at >= that message's created_at, per spec.",
+    "chat.tsx:onChangeText — sets mentionQuery only when the caret is at a `@token` at the end of the string; opening the bar mid-sentence works because it's suffix-based. Reasonable UX simplification."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Signed up two throwaway accounts (o_314d44@t.com / m_314d44@t.com, both Pass2026!), joined mate into owner's hub via /api/household/invite+join, enabled team_access on both via PATCH /api/team-access/members/{id}, and accepted chat guidelines for both. Pacing kept under 10 signups/min.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Team Chat Phase 3b lives in /app/backend/routers/team_chat.py (participants, receipts, mentions in post_message) and /app/frontend/app/team/chat.tsx. Frontend testIDs to reuse: team-chat-screen, chat-input, chat-mention-bar, chat-mention-<user_id>, chat-msg-<id>, chat-send, chat-seen-<message_id>. Login placeholders 'parent@example.com' + '••••••••'; submit button testID login-submit-button. EXPO_PUBLIC_BACKEND_URL=https://event-planner-394.preview.emergentagent.com. Pytest at /app/backend/tests/test_team_chat_mentions.py — set TEST_BASE env to the preview URL to run against the public API. Signup endpoint is rate-limited to 10/min per IP.",
+  "rca_of_issue": ""
+}
