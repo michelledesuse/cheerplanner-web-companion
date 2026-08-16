@@ -63,9 +63,20 @@ _ALLOWED_MEDIA = {
     "image/jpeg": ("image", "jpg"), "image/png": ("image", "png"),
     "image/heic": ("image", "heic"), "image/heif": ("image", "heif"), "image/webp": ("image", "webp"),
     "video/mp4": ("video", "mp4"), "video/quicktime": ("video", "mov"),
-    "audio/mpeg": ("audio", "mp3"), "audio/mp4": ("audio", "m4a"), "audio/x-m4a": ("audio", "m4a"),
-    "audio/wav": ("audio", "wav"), "audio/x-wav": ("audio", "wav"),
+    # mp3 is reported with many aliases across iOS/Android (audio/mp3, audio/mpeg3, ...).
+    "audio/mpeg": ("audio", "mp3"), "audio/mp3": ("audio", "mp3"),
+    "audio/mpeg3": ("audio", "mp3"), "audio/x-mpeg-3": ("audio", "mp3"), "audio/x-mp3": ("audio", "mp3"),
+    "audio/mp4": ("audio", "m4a"), "audio/x-m4a": ("audio", "m4a"), "audio/m4a": ("audio", "m4a"),
+    "audio/wav": ("audio", "wav"), "audio/x-wav": ("audio", "wav"), "audio/wave": ("audio", "wav"),
     "audio/aac": ("audio", "aac"), "audio/aacp": ("audio", "aac"), "audio/x-aac": ("audio", "aac"),
+}
+# Fallback by file extension when the reported MIME type is missing/generic
+# (e.g. Android sends application/octet-stream). Maps ext -> canonical MIME.
+_EXT_TO_MIME = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png",
+    "heic": "image/heic", "heif": "image/heif", "webp": "image/webp",
+    "mp4": "video/mp4", "mov": "video/quicktime",
+    "mp3": "audio/mpeg", "m4a": "audio/mp4", "wav": "audio/wav", "aac": "audio/aac",
 }
 _MAX_BYTES = {"image": 15 * 1024 * 1024, "video": 90 * 1024 * 1024, "audio": 30 * 1024 * 1024}
 
@@ -375,9 +386,17 @@ async def list_chat_flags():
 @router.post("/team/chat/media")
 async def upload_media(file: UploadFile = File(...), current_user=Depends(require_chat_access)):
     ctype = (file.content_type or "").lower().split(";")[0].strip()
+    # Fall back to the filename extension when the client reports an unknown or
+    # generic type (common for .mp3/.m4a on Android → application/octet-stream).
+    if ctype not in _ALLOWED_MEDIA:
+        fext = (file.filename or "").lower().rsplit(".", 1)
+        alias = _EXT_TO_MIME.get(fext[1]) if len(fext) == 2 else None
+        if alias:
+            ctype = alias
     if ctype not in _ALLOWED_MEDIA:
         raise HTTPException(status_code=400, detail="That file type isn't supported.")
     kind, ext = _ALLOWED_MEDIA[ctype]
+    ctype = _EXT_TO_MIME.get(ext, ctype)  # store/serve a canonical, playable MIME
     data = await file.read()
     if len(data) > _MAX_BYTES[kind]:
         raise HTTPException(status_code=413, detail=f"That {kind} is too large.")
