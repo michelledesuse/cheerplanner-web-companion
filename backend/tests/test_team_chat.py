@@ -33,6 +33,9 @@ def test_team_chat_flow():
     _grant_access(o_tok, o_id)
     _grant_access(o_tok, m_id)
     _grant_access(x_tok, x_id)  # outsider owns their own hub
+    # Accept chat guidelines (Apple 1.2 gate) before posting.
+    for t in (o_tok, m_tok, x_tok):
+        requests.post(f"{BASE}/team/chat/accept-guidelines", json={}, headers=_h(t))
 
     # Gate: a login without team_access is blocked.
     _no_tok, _ = _signup(f"noaccess_{tag}@t.com")

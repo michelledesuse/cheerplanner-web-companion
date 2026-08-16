@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
-  ActivityIndicator, Platform,
+  ActivityIndicator, Platform, Modal, Pressable, ScrollView, Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
@@ -50,6 +50,9 @@ export default function TeamChatScreen() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [supervised, setSupervised] = useState(false);
+  const [guidelinesOk, setGuidelinesOk] = useState(true);
+  const [showGuidelines, setShowGuidelines] = useState(false);
+  const [actionMsg, setActionMsg] = useState<Message | null>(null);
   const focused = useRef(false);
 
   const markRead = useCallback(async () => {
@@ -58,8 +61,9 @@ export default function TeamChatScreen() {
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean }>("/team/chat/messages?limit=40");
+      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean; supervised: boolean; guidelines_accepted: boolean }>("/team/chat/messages?limit=40");
       setMessages(r.data.messages || []);
+      setGuidelinesOk(!!r.data.guidelines_accepted);
       setMe(r.data.me || "");
       setHasMore(!!r.data.has_more);
       setSupervised(!!r.data.supervised);
@@ -89,18 +93,46 @@ export default function TeamChatScreen() {
     finally { setLoadingOlder(false); }
   }, [hasMore, loadingOlder, messages]);
 
+  const acceptGuidelines = useCallback(async () => {
+    try { await api.post("/team/chat/accept-guidelines", {}); setGuidelinesOk(true); setShowGuidelines(false); }
+    catch (_e) {}
+  }, []);
+
   const send = useCallback(async () => {
     const body = text.trim();
     if (!body || sending) return;
+    if (!guidelinesOk) { setShowGuidelines(true); return; }
     setSending(true);
     setText("");
     try {
       const r = await api.post<Message>("/team/chat/messages", { text: body });
       setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
-    } catch (_e) {
+    } catch (e: any) {
       setText(body); // restore on failure
+      const status = e?.response?.status;
+      const detail = e?.response?.data?.detail;
+      if (status === 403 && detail === "guidelines_not_accepted") setShowGuidelines(true);
+      else if (status === 400) Alert.alert("Message blocked", detail || "That message isn't allowed.");
     } finally { setSending(false); }
-  }, [text, sending]);
+  }, [text, sending, guidelinesOk]);
+
+  const reportMsg = useCallback(async (m: Message) => {
+    setActionMsg(null);
+    try { await api.post(`/team/chat/messages/${m.id}/flag`, { reason: "reported from chat" }); Alert.alert("Reported", "Thanks — our team will review this message."); load(); }
+    catch (_e) { Alert.alert("Error", "Could not report this message."); }
+  }, [load]);
+
+  const blockUser = useCallback(async (m: Message) => {
+    setActionMsg(null);
+    try { await api.post("/team/chat/block", { user_id: m.sender_id }); load(); }
+    catch (_e) { Alert.alert("Error", "Could not block this member."); }
+  }, [load]);
+
+  const deleteMsg = useCallback(async (m: Message) => {
+    setActionMsg(null);
+    setMessages((prev) => prev.filter((x) => x.id !== m.id));
+    try { await api.delete(`/team/chat/messages/${m.id}`); } catch (_e) { load(); }
+  }, [load]);
 
   // Inverted list wants newest first.
   const data = useMemo(() => [...messages].reverse(), [messages]);
@@ -115,13 +147,18 @@ export default function TeamChatScreen() {
         {showDay && (
           <View style={styles.dayRow}><Text style={styles.dayText}>{dayLabel(item.created_at)}</Text></View>
         )}
-        <View style={[styles.bubbleRow, mine ? styles.rowRight : styles.rowLeft]}>
+        <Pressable
+          onLongPress={() => setActionMsg(item)}
+          delayLongPress={300}
+          style={[styles.bubbleRow, mine ? styles.rowRight : styles.rowLeft]}
+          testID={`chat-msg-${item.id}`}
+        >
           <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
             {!mine && <Text style={styles.senderName}>{item.sender_name}</Text>}
             <Text style={[styles.bubbleText, mine && { color: "#fff" }]}>{item.text}</Text>
             <Text style={[styles.timeText, mine && { color: "#DBEAFE" }]}>{fmtTime(item.created_at)}</Text>
           </View>
-        </View>
+        </Pressable>
       </View>
     );
   };
@@ -199,6 +236,59 @@ export default function TeamChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Community guidelines agreement (Apple 1.2) */}
+      <Modal visible={showGuidelines} transparent animationType="fade" onRequestClose={() => setShowGuidelines(false)}>
+        <View style={styles.modalWrap}>
+          <View style={styles.sheet} testID="chat-guidelines-modal">
+            <Text style={styles.sheetTitle}>Community guidelines</Text>
+            <ScrollView style={{ maxHeight: 260 }}>
+              <Text style={styles.guideText}>
+                To keep Team Chat safe for everyone — including minors — you agree to:{"\n\n"}
+                • Be respectful. No harassment, hate speech, threats, or bullying.{"\n"}
+                • No sexual, violent, or otherwise objectionable content.{"\n"}
+                • No spam or sharing others&apos; private info.{"\n\n"}
+                Messages that break these rules can be reported and removed, and abusive members can be blocked or removed. Objectionable content and abusive users will not be tolerated.
+              </Text>
+            </ScrollView>
+            <TouchableOpacity style={styles.acceptBtn} onPress={acceptGuidelines} testID="chat-accept-guidelines">
+              <Text style={styles.acceptText}>I agree</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowGuidelines(false)} style={{ paddingVertical: 8 }}>
+              <Text style={styles.cancelText}>Not now</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Message actions: report / block / delete */}
+      <Modal visible={!!actionMsg} transparent animationType="fade" onRequestClose={() => setActionMsg(null)}>
+        <Pressable style={styles.modalWrap} onPress={() => setActionMsg(null)}>
+          <View style={styles.sheet} testID="chat-actions-modal">
+            {actionMsg && actionMsg.sender_id === me ? (
+              <TouchableOpacity style={styles.actionRow} onPress={() => deleteMsg(actionMsg)} testID="chat-action-delete">
+                <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                <Text style={[styles.actionText, { color: "#DC2626" }]}>Delete my message</Text>
+              </TouchableOpacity>
+            ) : actionMsg ? (
+              <>
+                <TouchableOpacity style={styles.actionRow} onPress={() => reportMsg(actionMsg)} testID="chat-action-report">
+                  <Ionicons name="flag-outline" size={18} color={colors.textPrimary} />
+                  <Text style={styles.actionText}>Report message</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionRow} onPress={() => blockUser(actionMsg)} testID="chat-action-block">
+                  <Ionicons name="ban-outline" size={18} color="#DC2626" />
+                  <Text style={[styles.actionText, { color: "#DC2626" }]}>Block {actionMsg.sender_name}</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
+            <TouchableOpacity onPress={() => setActionMsg(null)} style={styles.actionRow}>
+              <Ionicons name="close-outline" size={18} color={colors.textSecondary} />
+              <Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -252,4 +342,13 @@ const makeStyles = (c: ThemePalette) => ({
     alignItems: "center", justifyContent: "center",
   },
   sendBtnOff: { opacity: 0.45 },
+  modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
+  sheet: { width: "100%", maxWidth: 420, backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg, gap: 6 },
+  sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: 4 },
+  guideText: { ...typography.body, color: c.textPrimary, lineHeight: 20 },
+  acceptBtn: { backgroundColor: c.accent, borderRadius: radius.lg, paddingVertical: 13, alignItems: "center", marginTop: 10 },
+  acceptText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  cancelText: { ...typography.caption, color: c.textSecondary, textAlign: "center", fontWeight: "700" },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14, borderTopWidth: 1, borderTopColor: c.borderSoft },
+  actionText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "600" },
 });

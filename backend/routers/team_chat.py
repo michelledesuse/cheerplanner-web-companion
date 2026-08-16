@@ -15,13 +15,25 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from datetime import datetime as _dt, timedelta as _td
 
 from core.db import db
-from core.security import get_current_user, require_team_access
+from core.security import get_current_user, require_team_access, require_admin
 from core.helpers import _resolve_active_household
 from core.models import utcnow_iso, HouseholdInvite
+from core.moderation import assert_clean, FLAG_HIDE_THRESHOLD
 
 router = APIRouter(prefix="/api")
 
 MAX_LEN = 2000
+
+
+async def _blocked_ids(user_id: str) -> set:
+    rows = await db.chat_blocks.find({"user_id": user_id}, {"_id": 0, "blocked_user_id": 1}).to_list(5000)
+    return {r["blocked_user_id"] for r in rows}
+
+
+async def _require_chat_guidelines(user_id: str):
+    u = await db.users.find_one({"id": user_id}, {"_id": 0, "chat_guidelines_accepted_at": 1})
+    if not (u or {}).get("chat_guidelines_accepted_at"):
+        raise HTTPException(status_code=403, detail="guidelines_not_accepted")
 
 
 def _display_name(user: dict) -> str:
@@ -85,7 +97,10 @@ async def list_messages(before: Optional[str] = None, limit: int = 40, current_u
     if not h:
         return {"messages": [], "me": current_user["id"], "has_more": False, "supervised": False}
     limit = max(1, min(int(limit or 40), 100))
-    q: dict = {"household_id": h["id"]}
+    q: dict = {"household_id": h["id"], "hidden": {"$ne": True}}
+    blocked = await _blocked_ids(current_user["id"])
+    if blocked:
+        q["sender_id"] = {"$nin": list(blocked)}
     if before:
         q["created_at"] = {"$lt": before}
     docs = await db.team_messages.find(q, {"_id": 0}).sort("created_at", -1).limit(limit + 1).to_list(limit + 1)
@@ -93,7 +108,12 @@ async def list_messages(before: Optional[str] = None, limit: int = 40, current_u
     docs = docs[:limit]
     docs.reverse()
     supervised = not current_user.get("team_access")
-    return {"messages": docs, "me": current_user["id"], "has_more": has_more, "supervised": supervised}
+    gu = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "chat_guidelines_accepted_at": 1})
+    return {
+        "messages": docs, "me": current_user["id"], "has_more": has_more,
+        "supervised": supervised,
+        "guidelines_accepted": bool((gu or {}).get("chat_guidelines_accepted_at")),
+    }
 
 
 @router.post("/team/chat/messages")
@@ -102,6 +122,8 @@ async def post_message(payload: dict = Body(default={}), current_user=Depends(re
     if not text:
         raise HTTPException(status_code=400, detail="Message can't be empty.")
     text = text[:MAX_LEN]
+    await _require_chat_guidelines(current_user["id"])  # Apple 1.2 content agreement
+    assert_clean(text)  # objectionable-language filter
     h = await _chat_hub(current_user["id"], current_user)
     if not h:
         raise HTTPException(status_code=403, detail="No chat available.")
@@ -145,6 +167,95 @@ async def unread_count(current_user=Depends(require_chat_access)):
     if last:
         q["created_at"] = {"$gt": last}
     return {"unread": await db.team_messages.count_documents(q)}
+
+
+# --------------------------------------------------- moderation (Phase 4) ---
+@router.post("/team/chat/accept-guidelines")
+async def accept_chat_guidelines(current_user=Depends(get_current_user)):
+    await db.users.update_one({"id": current_user["id"]}, {"$set": {"chat_guidelines_accepted_at": utcnow_iso()}})
+    return {"accepted": True}
+
+
+@router.post("/team/chat/messages/{message_id}/flag")
+async def flag_message(message_id: str, payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    """Report a message. Auto-hidden from everyone once distinct reports hit the
+    threshold; admins can review the queue and remove permanently."""
+    h = await _chat_hub(current_user["id"], current_user)
+    m = await db.team_messages.find_one({"id": message_id, "household_id": (h or {}).get("id")}, {"_id": 0, "id": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    await db.chat_message_flags.update_one(
+        {"message_id": message_id, "user_id": current_user["id"]},
+        {"$set": {"reason": (payload.get("reason") or "").strip()[:300], "created_at": utcnow_iso()},
+         "$setOnInsert": {"id": secrets.token_urlsafe(9), "household_id": h["id"]}},
+        upsert=True,
+    )
+    n = await db.chat_message_flags.count_documents({"message_id": message_id})
+    if n >= FLAG_HIDE_THRESHOLD:
+        await db.team_messages.update_one({"id": message_id}, {"$set": {"hidden": True}})
+    return {"flagged": True}
+
+
+@router.post("/team/chat/block")
+async def block_member(payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    """Hide all messages from another member for the requesting user."""
+    target = (payload.get("user_id") or "").strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="Missing user_id.")
+    if target == current_user["id"]:
+        raise HTTPException(status_code=400, detail="You can't block yourself.")
+    await db.chat_blocks.update_one(
+        {"user_id": current_user["id"], "blocked_user_id": target},
+        {"$set": {"created_at": utcnow_iso()}}, upsert=True,
+    )
+    return {"blocked": True}
+
+
+@router.post("/team/chat/unblock")
+async def unblock_member(payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    target = (payload.get("user_id") or "").strip()
+    await db.chat_blocks.delete_one({"user_id": current_user["id"], "blocked_user_id": target})
+    return {"unblocked": True}
+
+
+@router.get("/team/chat/blocks")
+async def list_blocks(current_user=Depends(require_chat_access)):
+    rows = await db.chat_blocks.find({"user_id": current_user["id"]}, {"_id": 0}).to_list(1000)
+    out = []
+    for r in rows:
+        u = await db.users.find_one({"id": r["blocked_user_id"]}, {"_id": 0, "name": 1, "email": 1})
+        out.append({
+            "user_id": r["blocked_user_id"],
+            "name": (u or {}).get("name") or ((u or {}).get("email") or "").split("@")[0] or "Member",
+            "blocked_at": r.get("created_at"),
+        })
+    return {"blocks": out}
+
+
+@router.delete("/team/chat/messages/{message_id}")
+async def delete_message(message_id: str, current_user=Depends(require_chat_access)):
+    """Sender can delete their own message; an admin can remove any message
+    (satisfies Apple 1.2's 'act on reports within 24h')."""
+    m = await db.team_messages.find_one({"id": message_id}, {"_id": 0, "sender_id": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    if m["sender_id"] != current_user["id"] and not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="You can only delete your own message.")
+    await db.team_messages.delete_one({"id": message_id})
+    await db.chat_message_flags.delete_many({"message_id": message_id})
+    return {"deleted": True}
+
+
+@router.get("/team/chat/flags", dependencies=[Depends(require_admin)])
+async def list_chat_flags():
+    flags = await db.chat_message_flags.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    out = []
+    for f in flags:
+        msg = await db.team_messages.find_one({"id": f["message_id"]}, {"_id": 0})
+        if not msg:
+            continue
+        out.append({"flag": f, "message": msg})
+    return {"flags": out}
 
 
 # ------------------------------------------------- athlete access (Phase 2) ---

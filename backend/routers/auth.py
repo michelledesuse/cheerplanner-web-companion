@@ -123,6 +123,16 @@ async def delete_account(payload: DeleteAccountPayload, current_user=Depends(get
         {"team_hub_member_user_ids": user_id},
         {"$pull": {"team_hub_member_user_ids": user_id}},
     )
+    # Remove any athlete chat participation and cascade their chat footprint.
+    await db.households.update_many(
+        {"chat_athlete_user_ids": user_id},
+        {"$pull": {"chat_athlete_user_ids": user_id}},
+    )
+    await db.athlete_chat_links.delete_many({"athlete_user_id": user_id})
+    await db.team_messages.delete_many({"sender_id": user_id})
+    await db.chat_message_flags.delete_many({"user_id": user_id})
+    await db.chat_reads.delete_many({"user_id": user_id})
+    await db.chat_blocks.delete_many({"$or": [{"user_id": user_id}, {"blocked_user_id": user_id}]})
     # Clean up any entitlements the user owned (Premium reverts for their household).
     await db.entitlements.delete_many({"user_id": user_id})
 

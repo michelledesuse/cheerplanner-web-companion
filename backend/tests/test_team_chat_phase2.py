@@ -65,7 +65,8 @@ def test_supervised_minor_chat():
     ok = requests.post(f"{BASE}/team/chat/athletes/{roster_id}/approve", json={"enabled": True}, headers=_h(g_tok))
     assert ok.status_code == 200 and ok.json()["chat_enabled"] is True, ok.text
 
-    # Now the minor CAN chat, and sees the supervised flag.
+    # Now the minor CAN chat, and sees the supervised flag. (Accept guidelines first.)
+    requests.post(f"{BASE}/team/chat/accept-guidelines", json={}, headers=_h(minor_tok))
     r = requests.get(f"{BASE}/team/chat/messages", headers=_h(minor_tok))
     assert r.status_code == 200 and r.json()["supervised"] is True, r.text
     assert requests.post(f"{BASE}/team/chat/messages", json={"text": "Hi team!"}, headers=_h(minor_tok)).status_code == 200
