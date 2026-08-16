@@ -1,0 +1,235 @@
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import {
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  ActivityIndicator, Platform,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAvoidingView } from "react-native-keyboard-controller";
+import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect, useRouter } from "expo-router";
+
+import { api } from "@/src/api/client";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
+import { colors, radius, spacing, typography } from "@/src/theme";
+import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+
+type Message = {
+  id: string;
+  sender_id: string;
+  sender_name: string;
+  text: string;
+  created_at: string;
+};
+
+function fmtTime(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } catch { return ""; }
+}
+
+function dayLabel(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const today = new Date();
+    const y = new Date(); y.setDate(today.getDate() - 1);
+    if (d.toDateString() === today.toDateString()) return "Today";
+    if (d.toDateString() === y.toDateString()) return "Yesterday";
+    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+  } catch { return ""; }
+}
+
+export default function TeamChatScreen() {
+  const styles = useThemedStyles(makeStyles);
+  const router = useRouter();
+  const [messages, setMessages] = useState<Message[]>([]); // ascending (oldest first)
+  const [me, setMe] = useState<string>("");
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [text, setText] = useState("");
+  const [sending, setSending] = useState(false);
+  const focused = useRef(false);
+
+  const markRead = useCallback(async () => {
+    try { await api.post("/team/chat/read", {}); } catch (_e) {}
+  }, []);
+
+  const load = useCallback(async () => {
+    try {
+      const r = await api.get<{ messages: Message[]; me: string; has_more: boolean }>("/team/chat/messages?limit=40");
+      setMessages(r.data.messages || []);
+      setMe(r.data.me || "");
+      setHasMore(!!r.data.has_more);
+    } catch (_e) {}
+    finally { setLoading(false); }
+    if (focused.current) markRead();
+  }, [markRead]);
+
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    load();
+    return () => { focused.current = false; };
+  }, [load]));
+  useRealtimeRefetch(load);
+
+  const loadOlder = useCallback(async () => {
+    if (!hasMore || loadingOlder || messages.length === 0) return;
+    setLoadingOlder(true);
+    try {
+      const before = messages[0].created_at;
+      const r = await api.get<{ messages: Message[]; has_more: boolean }>(
+        `/team/chat/messages?limit=40&before=${encodeURIComponent(before)}`,
+      );
+      setMessages((prev) => [...(r.data.messages || []), ...prev]);
+      setHasMore(!!r.data.has_more);
+    } catch (_e) {}
+    finally { setLoadingOlder(false); }
+  }, [hasMore, loadingOlder, messages]);
+
+  const send = useCallback(async () => {
+    const body = text.trim();
+    if (!body || sending) return;
+    setSending(true);
+    setText("");
+    try {
+      const r = await api.post<Message>("/team/chat/messages", { text: body });
+      setMessages((prev) => (prev.some((m) => m.id === r.data.id) ? prev : [...prev, r.data]));
+    } catch (_e) {
+      setText(body); // restore on failure
+    } finally { setSending(false); }
+  }, [text, sending]);
+
+  // Inverted list wants newest first.
+  const data = useMemo(() => [...messages].reverse(), [messages]);
+
+  const renderItem = ({ item, index }: { item: Message; index: number }) => {
+    const mine = item.sender_id === me;
+    // In the inverted (newest-first) array, the "older" neighbour is index+1.
+    const older = data[index + 1];
+    const showDay = !older || dayLabel(older.created_at) !== dayLabel(item.created_at);
+    return (
+      <View>
+        {showDay && (
+          <View style={styles.dayRow}><Text style={styles.dayText}>{dayLabel(item.created_at)}</Text></View>
+        )}
+        <View style={[styles.bubbleRow, mine ? styles.rowRight : styles.rowLeft]}>
+          <View style={[styles.bubble, mine ? styles.bubbleMine : styles.bubbleOther]}>
+            {!mine && <Text style={styles.senderName}>{item.sender_name}</Text>}
+            <Text style={[styles.bubbleText, mine && { color: "#fff" }]}>{item.text}</Text>
+            <Text style={[styles.timeText, mine && { color: "#DBEAFE" }]}>{fmtTime(item.created_at)}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.safe} edges={["top"]} testID="team-chat-screen">
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.title}>Team Chat</Text>
+          <Text style={styles.sub}>For coaches, reps &amp; staff</Text>
+        </View>
+      </View>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "translate-with-padding"}
+        keyboardVerticalOffset={0}
+      >
+        {loading ? (
+          <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
+        ) : data.length === 0 ? (
+          <View style={styles.center}>
+            <Ionicons name="chatbubbles-outline" size={40} color={colors.textTertiary} />
+            <Text style={styles.emptyTitle}>No messages yet</Text>
+            <Text style={styles.emptyText}>Say hello to your team personnel 👋</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={data}
+            inverted
+            keyExtractor={(m) => m.id}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
+            onEndReached={loadOlder}
+            onEndReachedThreshold={0.2}
+            ListFooterComponent={loadingOlder ? <ActivityIndicator style={{ marginVertical: 12 }} color={colors.accent} /> : null}
+          />
+        )}
+
+        <View style={styles.composer}>
+          <TextInput
+            style={styles.input}
+            placeholder="Message the team…"
+            placeholderTextColor={colors.textTertiary}
+            value={text}
+            onChangeText={setText}
+            multiline
+            maxLength={2000}
+            testID="chat-input"
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, (!text.trim() || sending) && styles.sendBtnOff]}
+            onPress={send}
+            disabled={!text.trim() || sending}
+            testID="chat-send"
+          >
+            {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const makeStyles = (c: ThemePalette) => ({
+  safe: { flex: 1, backgroundColor: c.bg },
+  header: {
+    flexDirection: "row", alignItems: "center", gap: spacing.xs,
+    paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: c.border,
+  },
+  backBtn: { padding: 4 },
+  title: { ...typography.h3, color: c.textPrimary },
+  sub: { ...typography.caption, color: c.textSecondary, marginTop: 1 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },
+  emptyTitle: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700", marginTop: 8 },
+  emptyText: { ...typography.caption, color: c.textSecondary },
+  listContent: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  dayRow: { alignItems: "center", marginVertical: 10 },
+  dayText: {
+    ...typography.caption, color: c.textSecondary, backgroundColor: c.cardSubtle,
+    paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, overflow: "hidden", fontWeight: "700",
+  },
+  bubbleRow: { flexDirection: "row", marginVertical: 3 },
+  rowLeft: { justifyContent: "flex-start" },
+  rowRight: { justifyContent: "flex-end" },
+  bubble: { maxWidth: "80%", borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8 },
+  bubbleMine: { backgroundColor: c.accent, borderBottomRightRadius: 4 },
+  bubbleOther: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderBottomLeftRadius: 4 },
+  senderName: { ...typography.caption, color: c.accent, fontWeight: "800", marginBottom: 2 },
+  bubbleText: { ...typography.body, color: c.textPrimary },
+  timeText: { fontSize: 10, color: c.textTertiary, marginTop: 3, alignSelf: "flex-end" },
+  composer: {
+    flexDirection: "row", alignItems: "flex-end", gap: 8,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderTopWidth: 1, borderTopColor: c.border, backgroundColor: c.bg,
+  },
+  input: {
+    flex: 1, maxHeight: 120, minHeight: 44, backgroundColor: c.card,
+    borderWidth: 1, borderColor: c.border, borderRadius: radius.lg,
+    paddingHorizontal: 14, paddingTop: 12, paddingBottom: 12, ...typography.body, color: c.textPrimary,
+  },
+  sendBtn: {
+    width: 44, height: 44, borderRadius: 22, backgroundColor: c.accent,
+    alignItems: "center", justifyContent: "center",
+  },
+  sendBtnOff: { opacity: 0.45 },
+});

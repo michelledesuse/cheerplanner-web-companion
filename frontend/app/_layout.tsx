@@ -3,6 +3,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { AuthProvider } from "@/src/context/AuthContext";
@@ -39,17 +40,19 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <ThemeProvider>
-          <PremiumProvider>
-            <RealtimeProvider>
-              <SeasonProvider>
-                <ThemedStack />
-              </SeasonProvider>
-            </RealtimeProvider>
-          </PremiumProvider>
-        </ThemeProvider>
-      </AuthProvider>
+      <KeyboardProvider>
+        <AuthProvider>
+          <ThemeProvider>
+            <PremiumProvider>
+              <RealtimeProvider>
+                <SeasonProvider>
+                  <ThemedStack />
+                </SeasonProvider>
+              </RealtimeProvider>
+            </PremiumProvider>
+          </ThemeProvider>
+        </AuthProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

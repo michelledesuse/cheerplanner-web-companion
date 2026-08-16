@@ -10,6 +10,8 @@ import TeamHubSwitcher from "@/src/components/TeamHubSwitcher";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { usePremium } from "@/src/context/PremiumContext";
+import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
+import { api } from "@/src/api/client";
 
 type Tool = {
   key: string;
@@ -20,6 +22,7 @@ type Tool = {
 };
 
 const TOOLS: Tool[] = [
+  { key: "chat", title: "Team Chat", desc: "Message your coaches, reps & staff in one group thread.", icon: "chatbubbles-outline", route: "/team/chat" },
   { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
   { key: "payments", title: "Payment Tracking", desc: "Team bonding, gifts, meals & dues — track who's paid.", icon: "cash-outline", route: "/team/payments" },
   { key: "sizes", title: "Sizes", desc: "Uniform, apparel & shoe sizes for each member.", icon: "shirt-outline", route: "/team/sizes" },
@@ -44,7 +47,14 @@ export default function TeamScreen() {
   const { user, refreshUser } = useAuth();
   const { gatingActive } = usePremium();
   const [loading, setLoading] = useState(true);
+  const [unread, setUnread] = useState(0);
   const unlocked = !!user?.team_access;
+
+  const loadUnread = useCallback(async () => {
+    try { const r = await api.get<{ unread: number }>("/team/chat/unread"); setUnread(r.data.unread || 0); }
+    catch (_e) { setUnread(0); }
+  }, []);
+  useRealtimeRefetch(loadUnread);
 
   // Access is per-login: only members who marked themselves as team personnel
   // (Settings → team access) can open the Hub, even in a shared household.
@@ -53,9 +63,10 @@ export default function TeamScreen() {
       let active = true;
       (async () => {
         try { await refreshUser(); } finally { if (active) setLoading(false); }
+        if (active) loadUnread();
       })();
       return () => { active = false; };
-    }, [refreshUser])
+    }, [refreshUser, loadUnread])
   );
 
   return (
@@ -117,6 +128,11 @@ export default function TeamScreen() {
               <View style={{ flex: 1 }}>
                 <View style={styles.toolTitleRow}>
                   <Text style={styles.toolTitle}>{t.title}</Text>
+                  {t.key === "chat" && unread > 0 && (
+                    <View style={styles.unreadBadge} testID="team-chat-unread">
+                      <Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text>
+                    </View>
+                  )}
                   {!t.route && (
                     <View style={styles.soonBadge}>
                       <Text style={styles.soonText}>COMING SOON</Text>
@@ -168,6 +184,8 @@ const makeStyles = (c: ThemePalette) => ({
   soonText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, color: c.textSecondary },
   premiumBadge: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   premiumText: { fontSize: 9, fontWeight: "800", letterSpacing: 0.5, color: "#92400E" },
+  unreadBadge: { minWidth: 20, height: 20, borderRadius: 10, backgroundColor: c.accent, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
+  unreadText: { color: "white", fontSize: 11, fontWeight: "800" },
   toolDesc: { ...typography.caption, color: c.textSecondary, marginTop: 3 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   lockedCard: { alignItems: "center", backgroundColor: c.card, borderRadius: radius.xl, borderWidth: 1, borderColor: c.border, padding: spacing.xl, gap: spacing.sm, marginTop: spacing.md },

@@ -61,6 +61,7 @@ from routers import (
     reviews,
     weather,
     activity,
+    team_chat,
 )
 
 
@@ -128,7 +129,8 @@ for r in (
     team_forms.router,
     reviews.router,
     weather.router,
-    activity.router,):
+    activity.router,
+    team_chat.router,):
     app.include_router(r)
 
 
@@ -222,6 +224,8 @@ async def startup_db_client():
         await db.team_form_responses.create_index([("form_id", 1), ("member_id", 1)])
         await db.household_activity.create_index([("household_id", 1), ("created_at", -1)])
         await db.household_activity.create_index("seen_by")
+        await db.team_messages.create_index([("household_id", 1), ("created_at", -1)])
+        await db.chat_reads.create_index([("household_id", 1), ("user_id", 1)], unique=True)
     except Exception as exc:
         logger.warning(f"Could not create roadmap indexes: {exc}")
 
