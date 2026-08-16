@@ -3,7 +3,7 @@ import StaticPage, { LegalSection, P } from "@/src/components/StaticPage";
 
 export default function PrivacyScreen() {
   return (
-    <StaticPage title="Privacy Policy" subtitle="Last updated: September 1, 2026">
+    <StaticPage title="Privacy Policy" subtitle="Last updated: June 1, 2026">
       <LegalSection>
         <P>CheerPlanner ("we," "our," or "us") is a mobile application that helps cheerleading families organize expenses, competition travel, schedules, and packing lists. This Privacy Policy explains how CheerPlanner collects, uses, and protects your information when you use the CheerPlanner mobile application and related services (the "Service"), and the choices you have. By creating an account and using CheerPlanner, you agree to the practices described in this policy.</P>
       </LegalSection>
@@ -49,23 +49,29 @@ export default function PrivacyScreen() {
       </LegalSection>
 
       <LegalSection heading="9. Children's Privacy">
-        <P>CheerPlanner is intended for use by parents and guardians. It is not directed to children under 13, and we do not knowingly collect personal information directly from children.</P>
+        <P>CheerPlanner is intended for use by parents, guardians, coaches, and team staff. It is not directed to children under 13, and we do not knowingly collect personal information directly from children under 13.</P>
+        <P>Team Chat may include minor athletes only when a minor uses their own login and a parent/guardian (the account owner or a caretaker listed on that athlete's roster entry) explicitly approves chat access. A minor's chat access is OFF by default until approved, all chat takes place in a single supervised group thread (there are no private one-to-one messages for minors), and every message a minor sends or receives is visible to their parent/guardian. A guardian can revoke a minor's chat access at any time, which also removes their ability to post. If you believe a child has provided us information without appropriate consent, contact us and we will delete it.</P>
       </LegalSection>
 
-      <LegalSection heading="10. Community Reviews">
+      <LegalSection heading="10. Team Chat & Messaging">
+        <P>Team Hub includes an optional group chat for team personnel and, where a guardian approves, supervised minor athletes. Messages, along with any photos, videos, or audio you share in chat, are visible to the other participants in that team's chat and are stored so the conversation syncs across devices. Media you share in chat is stored with our object-storage provider and served only to authorized participants of that team.</P>
+        <P>Chat is user-generated content and we do not tolerate objectionable content or abusive behavior. Before posting you must agree to our Community Guidelines; messages are screened for objectionable language, you can report a message or block another member, and any message that is repeatedly reported is automatically hidden pending review. You can delete your own messages, and administrators can remove content and eject users who violate our terms, typically within 24 hours of a report. When you delete your account, your chat messages, reports, and blocks are removed.</P>
+      </LegalSection>
+
+      <LegalSection heading="11. Community Reviews">
         <P>CheerPlanner includes a Community Reviews directory where users can post ratings and reviews of places (such as restaurants, hotels, and gyms). Reviews you submit — including the star rating, your written comments, any photos you attach, the place and city, and the display name you choose (your first name and last initial, or "Anonymous") — are PUBLIC and visible to all CheerPlanner users across other accounts, independent of your household. Do not include sensitive personal information in a review.</P>
         <P>We do not tolerate objectionable content or abusive behavior. Before posting you must agree to our Community Guidelines; submissions are screened for objectionable language, you can report a review or block a reviewer, and content that is repeatedly reported is automatically hidden pending review. You can edit or delete your own reviews at any time, and we remove content and may eject users who violate our terms, typically within 24 hours of a report.</P>
       </LegalSection>
 
-      <LegalSection heading="11. Location & Weather">
+      <LegalSection heading="12. Location & Weather">
         <P>When a competition or event has a location and a date, we send that location text to our weather provider (Open-Meteo) to look up coordinates and retrieve a forecast to display in the app. We do not track your device's real-time GPS location for this feature; only the location text you entered for the event is used, and results are cached to reduce lookups.</P>
       </LegalSection>
 
-      <LegalSection heading="12. Changes to This Policy">
+      <LegalSection heading="13. Changes to This Policy">
         <P>We may update this Privacy Policy from time to time. Material changes will be reflected by updating the "Last updated" date above.</P>
       </LegalSection>
 
-      <LegalSection heading="13. Contact Us">
+      <LegalSection heading="14. Contact Us">
         <P>CheerPlanner Support — Email: info@cheer-planner.com</P>
       </LegalSection>
     </StaticPage>

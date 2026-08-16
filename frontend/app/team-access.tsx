@@ -116,9 +116,9 @@ export default function TeamAccessScreen() {
           <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
         ) : !data?.is_owner ? (
           <ScrollView contentContainerStyle={{ padding: spacing.lg }} keyboardShouldPersistTaps="handled" testID="team-access-screen">
-            <Text style={styles.sectionHead}>Have a Team Hub code?</Text>
+            <Text style={styles.sectionHead}>Have a Team Hub or chat invite code?</Text>
             <View style={styles.card}>
-              <Text style={styles.label}>Enter the code from your coach or gym</Text>
+              <Text style={styles.label}>Enter the code from your coach, gym, or team (this also unlocks Team Chat if you were invited)</Text>
               <TextInput
                 style={styles.input}
                 value={teamCode}
@@ -155,7 +155,7 @@ export default function TeamAccessScreen() {
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }} keyboardShouldPersistTaps="handled" testID="team-access-screen">
-            <Text style={styles.sectionHead}>Have a Team Hub code?</Text>
+            <Text style={styles.sectionHead}>Have a Team Hub or chat invite code?</Text>
             <View style={styles.card}>
               <Text style={styles.label}>Joining another coach&apos;s or gym&apos;s Team Hub? Enter their code</Text>
               <TextInput

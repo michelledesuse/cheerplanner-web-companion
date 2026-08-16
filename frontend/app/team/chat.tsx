@@ -420,6 +420,9 @@ export default function TeamChatScreen() {
             <TouchableOpacity style={styles.acceptBtn} onPress={acceptGuidelines} testID="chat-accept-guidelines">
               <Text style={styles.acceptText}>I agree</Text>
             </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setShowGuidelines(false); router.push("/help/guidelines" as any); }} style={{ paddingVertical: 6 }}>
+              <Text style={styles.cancelText}>Read full guidelines</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => setShowGuidelines(false)} style={{ paddingVertical: 8 }}>
               <Text style={styles.cancelText}>Not now</Text>
             </TouchableOpacity>

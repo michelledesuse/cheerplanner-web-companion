@@ -232,6 +232,36 @@ const FAQ: Section[] = [
     ],
   },
   {
+    title: "Team Chat",
+    items: [
+      {
+        q: "What is Team Chat?",
+        a:
+          "A group message thread inside Team Hub for your coaches, reps and staff — open it from Team → Team Chat. Send text plus photos, videos (up to 90 seconds) and music, and react to any message with an emoji. New messages arrive in real time and a badge shows when there's something unread.",
+      },
+      {
+        q: "Can athletes be in the chat?",
+        a:
+          "Yes, safely. An athlete uses their own login (invite them from Team Chat → the people icon → Invite). For a minor, chat stays OFF until a parent/guardian approves it, everyone shares one supervised group thread (no private one-to-one messages), and a parent can always see the conversation. Only the account owner or a caretaker listed on that athlete can approve, and they can switch it back off anytime.",
+      },
+      {
+        q: "How do mentions and read receipts work?",
+        a:
+          "Type \"@\" to tag a teammate — their name is highlighted in the message. Under your most recent message you'll see \"Seen by\" so you know how many teammates have caught up.",
+      },
+      {
+        q: "How is Team Chat kept safe?",
+        a:
+          "Everyone agrees to Community Guidelines before their first message, objectionable language is blocked automatically, and you can long-press a message to report it or block a member. Any message reported by 3+ people is hidden automatically, you can delete your own messages, and admins can remove anything — usually within 24 hours of a report.",
+      },
+      {
+        q: "Who can see photos or videos I share in chat?",
+        a:
+          "Only the people in that team's chat. Media is stored securely and is served only to authorized chat participants — it isn't public.",
+      },
+    ],
+  },
+  {
     title: "Seasons, weather & community",
     items: [
       {

@@ -496,3 +496,11 @@ Creds: applereview@cheerplanner.app / Review2026!.
 VERIFIED: pytest tests/test_team_chat_mentions.py 1/1 (participants excludes self; @mention stored + invalid dropped; teammate sees mention; receipts reflect read). Lint: only _e unused warnings (non-blocking). Smoke: mention bar correctly hidden in solo hub; earlier inline image bubble visible (Phase 3a). Full mention/receipt UI needs 2 accounts -> testing_agent.
 Phase 3 COMPLETE (3a media+reactions, 3b mentions+receipts). Remaining plan: Phase 5 push, Phase 6 policy/docs. Deploy: backend redeploy + NEW build.
 Creds: applereview@cheerplanner.app / Review2026!.
+
+## Iteration 108 — Phase 6 docs + chat invite directions + add existing family member
+- Docs (in-app): privacy.tsx now has "Team Chat & Messaging" section + expanded Children's Privacy (supervised minors, group-only, guardian oversight/revoke) + renumbered sections + date June 1 2026. NEW app/help/guidelines.tsx (linkable Community Guidelines page, route /help/guidelines) linked from the chat guidelines modal ("Read full guidelines"). faq.tsx: new "Team Chat" FAQ section (what it is, athletes/minors, mentions+receipts, safety, media privacy). NOTE: App Store privacy nutrition labels + Google Data Safety + age rating are store-console forms (not code) — guidance given to user.
+- User req 1: chat invite share text now includes step-by-step directions (create account -> Team tab -> Manage access -> enter code). team-access.tsx code box relabeled "Have a Team Hub or chat invite code?".
+- User req 2 (add existing family member): backend GET /team/chat/family-members + POST /team/chat/athletes/{roster_id}/link-member (guardian/owner only; links an existing household member login to a roster athlete + enables chat in one step; rejects non-family user 400). chat-access.tsx: unlinked athlete row now has "Add family member" -> family picker modal (testID chat-family-modal, rows chat-family-<uid>).
+VERIFIED: pytest tests/test_team_chat_link_member.py 1/1 (family list, direct link+enable, kid can chat, non-family 400). Guidelines page renders. Lint clean (only _e warnings). 
+Phase 6 in-app docs done. Remaining plan: Phase 5 push (needs Firebase). Deploy: backend redeploy + NEW build.
+Creds: applereview@cheerplanner.app / Review2026!.

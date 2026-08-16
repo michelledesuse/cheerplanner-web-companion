@@ -478,3 +478,57 @@ async def approve_athlete(roster_id: str, payload: dict = Body(default={}), curr
         {"$set": {"chat_enabled": enabled, "approved_by": current_user["id"], "approved_at": utcnow_iso()}},
     )
     return {"roster_id": roster_id, "chat_enabled": enabled}
+
+
+@router.get("/team/chat/family-members")
+async def family_members(current_user=Depends(require_team_access)):
+    """Existing logins in this family/household — so an athlete who already has a
+    family account can be added to chat directly (no invite code needed)."""
+    h = await _resolve_active_household(current_user["id"])
+    owner_id = h.get("owner_user_id") or (h.get("member_user_ids") or [None])[0]
+    linked = set()
+    async for l in db.athlete_chat_links.find({"household_id": h["id"]}, {"_id": 0, "athlete_user_id": 1}):
+        if l.get("athlete_user_id"):
+            linked.add(l["athlete_user_id"])
+    out = []
+    for uid in (h.get("member_user_ids") or []):
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "name": 1, "email": 1})
+        if not u:
+            continue
+        out.append({
+            "user_id": uid,
+            "name": u.get("name") or (u.get("email") or "").split("@")[0] or "Member",
+            "email": u.get("email"),
+            "is_owner": uid == owner_id,
+            "already_in_chat": uid in linked,
+        })
+    return {"members": out}
+
+
+@router.post("/team/chat/athletes/{roster_id}/link-member")
+async def link_existing_member(roster_id: str, payload: dict = Body(default={}), current_user=Depends(require_team_access)):
+    """Guardian-only: link an EXISTING family-account login to a roster athlete
+    and turn on their supervised chat in one step (skips the invite code)."""
+    h = await _resolve_active_household(current_user["id"])
+    owner_id = h.get("owner_user_id") or (h.get("member_user_ids") or [None])[0]
+    scope_ids = list(set((h.get("member_user_ids") or []) + [owner_id] + (h.get("team_hub_member_user_ids") or [])))
+    m = await db.roster.find_one({"id": roster_id, "user_id": {"$in": scope_ids}, "role": "athlete"}, {"_id": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Athlete not found on this roster.")
+    my_email = (current_user.get("email") or "").lower().strip()
+    if not (current_user["id"] == owner_id or (my_email and my_email in _guardian_emails(m))):
+        raise HTTPException(status_code=403, detail="Only the athlete's parent/guardian (or account owner) can add them to chat.")
+    target = (payload.get("user_id") or "").strip()
+    if target not in (h.get("member_user_ids") or []):
+        raise HTTPException(status_code=400, detail="That person isn't a member of this family account.")
+    now = utcnow_iso()
+    await db.households.update_one({"id": h["id"]}, {"$addToSet": {"chat_athlete_user_ids": target}})
+    await db.athlete_chat_links.update_one(
+        {"household_id": h["id"], "roster_id": roster_id},
+        {"$set": {"athlete_user_id": target, "chat_enabled": True, "linked_at": now,
+                  "approved_by": current_user["id"], "approved_at": now},
+         "$setOnInsert": {"created_at": now}},
+        upsert=True,
+    )
+    return {"linked": True, "chat_enabled": True, "athlete_user_id": target}
+

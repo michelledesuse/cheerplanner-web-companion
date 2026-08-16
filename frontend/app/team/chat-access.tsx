@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Alert, Platform, Share } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Alert, Platform, Share, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -24,6 +24,8 @@ export default function ChatAccessScreen() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [familyFor, setFamilyFor] = useState<Athlete | null>(null);
+  const [family, setFamily] = useState<{ user_id: string; name: string; email?: string; already_in_chat?: boolean }[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -35,12 +37,25 @@ export default function ChatAccessScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
+  const openFamily = useCallback(async (a: Athlete) => {
+    setFamilyFor(a);
+    try { const r = await api.get("/team/chat/family-members"); setFamily(r.data.members || []); }
+    catch (_e) { setFamily([]); }
+  }, []);
+
+  const linkMember = useCallback(async (a: Athlete, userId: string) => {
+    setBusy(a.roster_id); setFamilyFor(null);
+    try { await api.post(`/team/chat/athletes/${a.roster_id}/link-member`, { user_id: userId }); }
+    catch (e: any) { Alert.alert("Couldn't add", e?.response?.data?.detail || "Please try again."); }
+    finally { setBusy(null); load(); }
+  }, [load]);
+
   const invite = useCallback(async (a: Athlete) => {
     setBusy(a.roster_id);
     try {
       const r = await api.post<{ code: string }>(`/team/chat/athletes/${a.roster_id}/invite`, {});
       const code = r.data.code;
-      const msg = `Invite code for ${a.name} to join Team Chat: ${code}\n\nHave them create a CheerPlanner account, then enter this code on the Team tab.`;
+      const msg = `Invite code for ${a.name} to join Team Chat: ${code}\n\nSteps: 1) Create a CheerPlanner account (or log in). 2) Open the Team tab and tap "Manage access". 3) Enter this code. A parent/guardian then approves chat.`;
       if (Platform.OS === "web") { Alert.alert("Invite code", `${code}`); }
       else { try { await Share.share({ message: msg }); } catch { Alert.alert("Invite code", code); } }
       load();
@@ -93,11 +108,18 @@ export default function ChatAccessScreen() {
             </View>
 
             {!a.linked ? (
-              <TouchableOpacity style={styles.inviteBtn} onPress={() => invite(a)} disabled={busy === a.roster_id} testID={`chat-invite-${a.roster_id}`}>
-                {busy === a.roster_id ? <ActivityIndicator size="small" color="#fff" /> : (
-                  <><Ionicons name="person-add-outline" size={15} color="#fff" /><Text style={styles.inviteText}>Invite</Text></>
+              <View style={{ gap: 6, alignItems: "flex-end" }}>
+                <TouchableOpacity style={styles.inviteBtn} onPress={() => invite(a)} disabled={busy === a.roster_id} testID={`chat-invite-${a.roster_id}`}>
+                  {busy === a.roster_id ? <ActivityIndicator size="small" color="#fff" /> : (
+                    <><Ionicons name="person-add-outline" size={15} color="#fff" /><Text style={styles.inviteText}>Invite</Text></>
+                  )}
+                </TouchableOpacity>
+                {a.can_approve && (
+                  <TouchableOpacity onPress={() => openFamily(a)} testID={`chat-addfamily-${a.roster_id}`}>
+                    <Text style={styles.linkExisting}>Add family member</Text>
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
+              </View>
             ) : (
               <Switch
                 value={a.chat_enabled}
@@ -110,6 +132,31 @@ export default function ChatAccessScreen() {
           </View>
         ))}
       </ScrollView>
+
+      {/* Pick an existing family-account login to add as a chat athlete */}
+      <Modal visible={!!familyFor} transparent animationType="fade" onRequestClose={() => setFamilyFor(null)}>
+        <Pressable style={styles.modalWrap} onPress={() => setFamilyFor(null)}>
+          <View style={styles.sheet} testID="chat-family-modal">
+            <Text style={styles.sheetTitle}>Add {familyFor?.name} to chat</Text>
+            <Text style={styles.sheetSub}>Choose their existing family-account login:</Text>
+            {family.filter((f) => !f.already_in_chat).length === 0 ? (
+              <Text style={styles.status}>No available family logins. Use Invite instead.</Text>
+            ) : family.filter((f) => !f.already_in_chat).map((f) => (
+              <TouchableOpacity key={f.user_id} style={styles.familyRow} onPress={() => familyFor && linkMember(familyFor, f.user_id)} testID={`chat-family-${f.user_id}`}>
+                <Ionicons name="person-circle-outline" size={22} color={colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.name}>{f.name}{f.is_owner ? " (owner)" : ""}</Text>
+                  {!!f.email && <Text style={styles.status}>{f.email}</Text>}
+                </View>
+                <Ionicons name="add-circle" size={22} color={colors.accent} />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={() => setFamilyFor(null)} style={styles.familyRow}>
+              <Text style={[styles.status, { fontWeight: "700" }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -142,4 +189,10 @@ const makeStyles = (c: ThemePalette) => ({
   status: { ...typography.caption, color: c.textSecondary, marginTop: 3 },
   inviteBtn: { flexDirection: "row", alignItems: "center", gap: 5, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 9, paddingHorizontal: 14 },
   inviteText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  linkExisting: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
+  sheet: { width: "100%", maxWidth: 420, backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg, gap: 4 },
+  sheetTitle: { ...typography.h3, color: c.textPrimary },
+  sheetSub: { ...typography.caption, color: c.textSecondary, marginBottom: 6 },
+  familyRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.borderSoft },
 });
