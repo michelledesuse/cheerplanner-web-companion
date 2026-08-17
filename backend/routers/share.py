@@ -23,6 +23,7 @@ from core.models import (
 from core.security import get_current_user, require_team_access
 from core.helpers import _household_user_ids
 from core.gating import assert_premium
+from core.config import public_share_url
 from core.sms import send_sms, is_configured, normalize_us_phone
 
 router = APIRouter(prefix="/api")
@@ -57,10 +58,10 @@ async def create_share(payload: ShareLinkCreate, current_user=Depends(get_curren
         {"_id": 0},
     )
     if existing:
-        return {"token": existing["token"], "kind": existing["kind"], "id": existing["id"]}
+        return {"token": existing["token"], "kind": existing["kind"], "id": existing["id"], "url": public_share_url(existing["token"])}
     link = ShareLink(token=secrets.token_urlsafe(9), kind=payload.kind, ref_id=payload.ref_id, user_id=current_user["id"])
     await db.share_links.insert_one(link.model_dump())
-    return {"token": link.token, "kind": link.kind, "id": link.id}
+    return {"token": link.token, "kind": link.kind, "id": link.id, "url": public_share_url(link.token)}
 
 
 @router.post("/team/roster/{member_id}/request-info", dependencies=[Depends(require_team_access)])
@@ -68,10 +69,10 @@ async def request_member_info(member_id: str, payload: dict = Body(default={}), 
     """Create (or reuse) a member-specific completion link so an existing roster
     member can finish their missing info. Optionally text it to them.
 
-    Body: { base_url: str, send: bool }
-      • base_url — the app's public backend origin (e.g. EXPO_PUBLIC_BACKEND_URL),
-        used to build the shareable /api/public/s/<token> URL.
+    Body: { send: bool }
       • send — if true and a phone number is on file, text the link via Twilio.
+      (The shareable /api/public/s/<token> URL is always built on the branded
+      public host — WEB_FALLBACK_URL — regardless of who calls this.)
     """
     await assert_premium(current_user["id"], "parent_share_links")
     member_ids = await _household_user_ids(current_user["id"])
@@ -90,10 +91,7 @@ async def request_member_info(member_id: str, payload: dict = Body(default={}), 
         await db.share_links.insert_one(link.model_dump())
         token = link.token
 
-    base = str(payload.get("base_url") or "").rstrip("/")
-    if not base.startswith("https://"):
-        raise HTTPException(status_code=400, detail="A valid https base_url is required")
-    url = f"{base}/api/public/s/{token}"
+    url = public_share_url(token)
 
     # Prefer the athlete's own phone; fall back to the parent/guardian phone.
     raw_phone = m.get("phone") or m.get("parent_phone")

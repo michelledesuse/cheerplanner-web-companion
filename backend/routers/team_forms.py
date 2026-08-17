@@ -327,9 +327,7 @@ async def remind_form(form_id: str, payload: dict, current_user=Depends(get_curr
     """Text the public form link to roster parents who haven't responded yet."""
     if not is_configured():
         raise HTTPException(status_code=400, detail="SMS isn't configured. Add your Twilio number in settings.")
-    base = str((payload or {}).get("base_url") or "").rstrip("/")
-    if not base.startswith("https://"):
-        raise HTTPException(status_code=400, detail="A valid https base_url is required")
+    from core.config import public_share_url
     member_ids = await _household_user_ids(current_user["id"])
     doc = await _get_form(form_id, current_user)
 
@@ -343,7 +341,7 @@ async def remind_form(form_id: str, payload: dict, current_user=Depends(get_curr
         link = ShareLink(token=secrets.token_urlsafe(9), kind="form", ref_id=form_id, user_id=current_user["id"])
         await db.share_links.insert_one(link.model_dump())
         token = link.token
-    url = f"{base}/api/public/s/{token}"
+    url = public_share_url(token)
 
     answered = {r["member_id"] async for r in db.team_form_responses.find({"form_id": form_id}, {"_id": 0, "member_id": 1})}
     roster = await db.roster.find(

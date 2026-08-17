@@ -160,8 +160,8 @@ export default function FormDetailScreen() {
   // ---- share / remind / delete ----
   const shareLink = async () => {
     try {
-      const r = await api.post<{ token: string }>("/team/share", { kind: "form", ref_id: id });
-      const url = `${BASE}/api/public/s/${r.data.token}`;
+      const r = await api.post<{ token: string; url?: string }>("/team/share", { kind: "form", ref_id: id });
+      const url = r.data.url || `${BASE}/api/public/s/${r.data.token}`;
       await Share.share({ message: `Please fill out "${data?.name}" for our team (no app needed):\n${url}` });
     } catch (e: any) { Alert.alert("Couldn't create link", e?.response?.data?.detail || ""); }
   };

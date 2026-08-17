@@ -29,6 +29,14 @@ WEB_FALLBACK_URL = os.environ.get("WEB_FALLBACK_URL", "https://cheer-planner.com
 # When unset we fall back to WEB_FALLBACK_URL so dev/local still works.
 BACKEND_PUBLIC_URL = (os.environ.get("BACKEND_PUBLIC_URL") or WEB_FALLBACK_URL).rstrip("/")
 
+
+def public_share_url(token: str) -> str:
+    """The human-shareable link coaches send to parents (no app/login needed).
+
+    Always built on WEB_FALLBACK_URL (e.g. https://cheer-planner.com) so links
+    are branded and stable, never the backend's internal cluster host."""
+    return f"{WEB_FALLBACK_URL}/api/public/s/{token}"
+
 # ---------- Admin / entitlements ----------
 # Comma-separated list of emails granted admin (seeded idempotently at startup).
 ADMIN_EMAILS = [
