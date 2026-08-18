@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -49,16 +49,42 @@ export default function TeamScreen() {
   const [loading, setLoading] = useState(true);
   const [unread, setUnread] = useState(0);
   const [chatAthlete, setChatAthlete] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [showJoin, setShowJoin] = useState(false);
+  const [joinCode, setJoinCode] = useState("");
+  const [joining, setJoining] = useState(false);
   const unlocked = !!user?.team_access;
 
   const loadUnread = useCallback(async () => {
     try {
       const r = await api.get<{ unread: number }>("/team/chat/unread");
       setUnread(r.data.unread || 0);
-      if (!user?.team_access) setChatAthlete(true); // approved athlete chat participant
+      if (!user?.team_access) setChatAthlete(true); // approved chat participant
     } catch (_e) { setUnread(0); setChatAthlete(false); }
+    try {
+      const p = await api.get<{ count: number; is_owner: boolean }>("/team/members/pending-count");
+      setIsOwner(!!p.data.is_owner); setPendingCount(p.data.count || 0);
+    } catch (_e) { /* keep last-known owner state on a transient error */ }
   }, [user]);
   useRealtimeRefetch(loadUnread);
+
+  const joinTeam = useCallback(async () => {
+    const c = joinCode.trim().toUpperCase();
+    if (!c || joining) return;
+    setJoining(true);
+    try {
+      await api.post("/team/join", { code: c });
+      setShowJoin(false); setJoinCode("");
+      await refreshUser();
+      Alert.alert("You're in!", "You've joined the team's group chat. A coach will finish setting up your role.", [
+        { text: "Open chat", onPress: () => router.push("/team/chat" as any) },
+      ]);
+      loadUnread();
+    } catch (e: any) {
+      Alert.alert("Couldn't join", e?.response?.data?.detail || "Check the code and try again.");
+    } finally { setJoining(false); }
+  }, [joinCode, joining, refreshUser, router, loadUnread]);
 
   // Access is per-login: only members who marked themselves as team personnel
   // (Settings → team access) can open the Hub, even in a shared household.
@@ -99,6 +125,10 @@ export default function TeamScreen() {
               <Ionicons name="settings-outline" size={18} color="white" />
               <Text style={styles.lockedBtnText}>Manage access</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => setShowJoin(true)} testID="team-join-code">
+              <Ionicons name="key-outline" size={18} color={colors.accent} />
+              <Text style={styles.chatAthleteText}>Have a team code?</Text>
+            </TouchableOpacity>
             {chatAthlete && (
               <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/chat" as any)} testID="athlete-open-chat">
                 <Ionicons name="chatbubbles-outline" size={18} color={colors.accent} />
@@ -111,6 +141,28 @@ export default function TeamScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="team-screen">
           <TeamHubSwitcher />
+
+          {isOwner && (
+            <TouchableOpacity style={styles.toolCard} testID="team-tool-members" activeOpacity={0.7} onPress={() => router.push("/team/members" as any)}>
+              <View style={styles.toolIcon}>
+                <Ionicons name="person-add-outline" size={22} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={styles.toolTitleRow}>
+                  <Text style={styles.toolTitle}>Members</Text>
+                  {pendingCount > 0 && (
+                    <View style={styles.unreadBadge} testID="team-members-badge">
+                      <Text style={styles.unreadText}>{pendingCount > 99 ? "99+" : pendingCount}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.toolDesc}>
+                  {pendingCount > 0 ? `${pendingCount} new member${pendingCount === 1 ? "" : "s"} to set up` : "Share your team code & assign roles."}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
 
           <View style={styles.introCard}>
             <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
@@ -164,6 +216,33 @@ export default function TeamScreen() {
           })}
         </ScrollView>
       )}
+
+      {/* Join a team with a code */}
+      <Modal visible={showJoin} transparent animationType="fade" onRequestClose={() => setShowJoin(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setShowJoin(false)}>
+          <Pressable style={styles.joinSheet} testID="join-modal">
+            <Text style={styles.joinTitle}>Join a team</Text>
+            <Text style={styles.joinSub}>Enter the code your coach shared. You&apos;ll start in the group chat.</Text>
+            <TextInput
+              style={styles.joinInput}
+              placeholder="TEAM CODE"
+              placeholderTextColor={colors.textTertiary}
+              value={joinCode}
+              onChangeText={setJoinCode}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={6}
+              testID="join-code-input"
+            />
+            <TouchableOpacity style={[styles.lockedBtn, (!joinCode.trim() || joining) && { opacity: 0.5 }, { marginTop: 6, justifyContent: "center" }]} onPress={joinTeam} disabled={!joinCode.trim() || joining} testID="join-submit">
+              {joining ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.lockedBtnText}>Join team</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowJoin(false)} style={{ paddingVertical: 10, alignItems: "center" }}>
+              <Text style={styles.chatAthleteText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -207,4 +286,9 @@ const makeStyles = (c: ThemePalette) => ({
   lockedBtnText: { color: "white", fontWeight: "800", fontSize: 14 },
   chatAthleteBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: c.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 18, marginTop: spacing.sm },
   chatAthleteText: { color: c.accent, fontWeight: "800", fontSize: 14 },
+  modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
+  joinSheet: { width: "100%", maxWidth: 420, backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg },
+  joinTitle: { ...typography.h3, color: c.textPrimary },
+  joinSub: { ...typography.caption, color: c.textSecondary, marginTop: 6, marginBottom: 12, lineHeight: 18 },
+  joinInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 13, ...typography.h3, color: c.textPrimary, letterSpacing: 3, textAlign: "center", marginBottom: 12 },
 });

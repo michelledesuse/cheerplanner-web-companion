@@ -62,6 +62,7 @@ from routers import (
     weather,
     activity,
     team_chat,
+    team_members,
 )
 
 
@@ -130,7 +131,8 @@ for r in (
     reviews.router,
     weather.router,
     activity.router,
-    team_chat.router,):
+    team_chat.router,
+    team_members.router,):
     app.include_router(r)
 
 

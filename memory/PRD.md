@@ -478,3 +478,18 @@ Get exact current paths from user before building W2.
   - **Policy change (user-confirmed):** regular PARENTS (plain household members, not personnel) now ALSO join the main team thread AND can create/join channels. `require_chat_access` allows household members after the athlete-approval gate; `_chat_hub` resolves parents to their active/shared household. `supervised` flag now derived from `chat_athlete_user_ids` membership (parents are NOT flagged supervised). Minor-athlete chat still gated on guardian approval, group-only, no DMs.
   - Frontend `app/team/chat.tsx`: header is a channel switcher (chat-channel-switcher) → channels modal (chat-channels-modal) listing main thread (chat-channel-main) + all channels + "＋ New chat" (chat-new-channel); new-chat modal (chat-new-name + member checkboxes + chat-create-channel) creates & auto-switches into the channel. Thread is channel-aware (msgBase), reloads on channel change; "Seen by N" shown on main thread only (receipts are hub-wide).
   - Test updated: `test_team_chat.py` — a fresh non-personnel login now sees its OWN empty hub (200, []) instead of 403 (old "personnel-only" gate), per the new parents-in-chat policy. New `tests/test_team_chat_named_channels_ext.py` (4 cases).
+
+## Session update 20 (Team Hub — Join Code + Pending Members + Role Assignment)
+- NEW feature (backend verified, tests/test_team_members_flow.py PASS):
+  - **One reusable team join code** per hub (`households.team_join_code`). Owner-only: `GET /api/team/join-code`, `POST /api/team/join-code/rotate`. Existing household/athlete invite flows UNCHANGED.
+  - **Join**: `POST /api/team/join {code}` (any user) → creates `team_members` doc (status="pending", role=null) + a `team_join_notifications` doc for the owner. Rejects owner/existing personnel/dupes.
+  - **Pending members get GROUP-CHAT-ONLY**: chat access wired via `team_members` in `team_chat.py` `_chat_hub` (resolves joiner to the team hub), `_participant_users`, and media auth. All other Team Hub tools stay `require_team_access` → 403 for pending members.
+  - **Owner queue + badge**: `GET /api/team/members` (pending+active w/ names, roles, linked athlete), `GET /api/team/members/pending-count` → {count, is_owner} for the Team-tab badge. `GET /api/team/members/athletes` for parent-linking.
+  - **Role assignment** `POST /api/team/members/{uid}/assign-role {role, athlete_roster_id?, athlete_name?}`:
+    - coach/staff → `team_access=True` + `team_hub_member_user_ids` + roster entry (role) + active_hub_id set.
+    - athlete → roster athlete (existing or new) + `athlete_chat_links` (chat_enabled) + `chat_athlete_user_ids`.
+    - parent → linked as guardian (parent_email or caretaker) on an athlete's roster entry (existing or newly created).
+    - Sets team_members.status="active"; marks join notification read.
+  - **Remove** `POST /api/team/members/{uid}/remove` → deletes team_members doc, revokes team_hub/chat_athlete membership, drops team_access if no other hub.
+  - Frontend: `app/team/members.tsx` (owner: code share/rotate, New Members queue, assign-role modal with role chips + athlete pick/new, active list, remove). `(tabs)/team.tsx`: owner "Members" tool card with pending badge; locked screen "Have a team code?" → join modal → POST /team/join.
+  - Note: minors joining via the general team code get chat during the pending window (per explicit user decision that new joiners land in group chat). Existing athlete-invite approval gate is unchanged.

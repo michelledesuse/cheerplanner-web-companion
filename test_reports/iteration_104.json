@@ -1,0 +1,41 @@
+{
+  "summary": "Team Hub 'join code + pending members + role assignment' feature validated end-to-end. Backend: 4/4 pytest tests pass (full flow + rotate-invalidates-old + idempotent-double-join + coach access grant + bad/empty code + non-owner isolation + chat-only-for-pending + remove revokes access) on BOTH http://localhost:8001 and the public EXPO_BACKEND_URL. Frontend UI (mobile viewport 390x844) validated on the public preview: owner Team tab renders 'Members' tool card (testID team-tool-members); /team/members shows the team code (B4Q4UD), Share/New-code buttons, New Members section, and pending cards with correct testIDs (pending-<uid>, assign-<uid>). Assign-role modal opens (testID assign-modal) with all four role chips (role-parent, role-coach, role-staff, role-athlete) and Confirm (assign-submit). Selecting Coach + Confirm moved the member from pending -> active in the UI and set 'Coach' as the role label. Locked non-personnel Team screen shows 'Have a team code?' button (team-join-code) that opens a join modal (join-modal) with join-code-input + join-submit. Deprecated packages: NONE detected in this scope. Note: rapid signups during the joiner UI flow triggered auth rate-limit 429s (as flagged by main agent) preventing a second live signup->join->badge cycle from the UI; validated the badge & pending render path with a seeded pending member instead.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Owner Team tab -> Members card visibility",
+        "issue": "The Members tool card is rendered ONLY when isOwner is truthy, which is derived from a successful GET /team/members/pending-count. If that call transiently fails (429/network), isOwner stays false and the owner loses the Members entry point from the Team tab (though /team/members still works via direct route). Consider caching the previous isOwner value or falling back to a lightweight owner check so a single failed request doesn't hide the entry. NOT a blocker.",
+        "affected_testIDs": ["team-tool-members", "team-members-badge"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_members_flow.py",
+    "/app/backend/tests/test_team_members_flow_ext.py",
+    "/app/test_reports/pytest/pytest_iter104_team_members.xml",
+    "/app/test_reports/pytest/pytest_iter104_team_members_public.xml",
+    "/app/test_reports/pytest/pytest_iter104_team_members_ext.xml"
+  ],
+  "action_items": [
+    "(Optional) Preserve last-known isOwner in Team tab so a transient 429 on /team/members/pending-count doesn't hide the Members card & badge for the owner. Direct navigation to /team/members already works.",
+    "(Optional) Alert.alert on web isn't easily testable/visible; consider a lightweight in-app toast so post-join confirmation is verifiable from the joiner UI too."
+  ],
+  "critical_code_review_comments": [
+    "team_members.py is 254 lines, well-scoped, all endpoints correctly use _require_owner_hub for owner-only actions; pending-count returns is_owner=false silently for non-owners (correct).",
+    "assign-role handles all four roles + parent-with-existing-athlete and parent-with-new-athlete-name; removes update team_hub_member_user_ids and chat_athlete_user_ids cleanly.",
+    "join endpoint correctly rejects 400 for owner/existing member, 404 for bad code, and is idempotent for a repeat join (no duplicate team_members doc)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_team_members_flow_ext.py (new; 3 extra pytest cases covering rotate invalidation, idempotent double-join, remove revokes access, bad/empty code)"
+  ],
+  "success_rate": {"backend": "100% (4/4 pytest cases)", "frontend": "100% for the required testIDs and end-to-end assign flow"},
+  "seed_data_creation": "Temporarily seeded one synthetic pending team_member (user 'testagent-9e9c2860') on applereview's hub to render the pending list + badge + assign modal in the UI, then cleaned it up (deleted the user, team_members doc, notifications, and any resulting roster entry).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "For future retests of this flow via the public URL, be mindful of the auth /signup rate limiter (~1/min per IP). Prefer seeding a synthetic pending member directly in MongoDB (team_members {household_id,user_id,status:pending,role:None,joined_at}) rather than doing multiple UI signups. All testIDs are stable: team-tool-members, team-members-badge, team-members-screen, team-code, share-code, rotate-code, pending-<uid>, active-<uid>, assign-<uid>, assign-modal, role-parent|coach|staff|athlete, new-athlete-name, assign-submit, team-join-code, join-modal, join-code-input, join-submit.",
+  "rca_of_issue": "No blocking bugs. Only one minor UX observation: the Members card entry point on the Team tab depends on a single API call succeeding; if it 429s the card is hidden. Not a regression, and workaround (direct route) works."
+}

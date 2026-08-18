@@ -126,12 +126,17 @@ def _guardian_emails(roster: dict) -> set:
 async def _chat_hub(user_id: str, user: dict) -> Optional[dict]:
     """The hub whose chat this user participates in. Personnel and parents ->
     their active (shared) household. Athlete participants -> the hub they're
-    linked to."""
+    linked to. Team-code members (pending or assigned) -> the team they joined."""
     if user.get("team_access"):
         return await _resolve_active_household(user_id)
     h = await db.households.find_one({"chat_athlete_user_ids": user_id}, {"_id": 0})
     if h:
         return h
+    tm = await db.team_members.find_one({"user_id": user_id}, {"_id": 0, "household_id": 1})
+    if tm:
+        th = await db.households.find_one({"id": tm["household_id"]}, {"_id": 0})
+        if th:
+            return th
     return await _resolve_active_household(user_id)
 
 
@@ -161,6 +166,10 @@ async def _participant_users(h: dict) -> list:
     async for l in db.athlete_chat_links.find({"household_id": h["id"], "chat_enabled": True}, {"_id": 0, "athlete_user_id": 1}):
         if l.get("athlete_user_id"):
             ids.add(l["athlete_user_id"])
+    # Team-code members (pending or assigned) chat in this hub too.
+    async for tm in db.team_members.find({"household_id": h["id"]}, {"_id": 0, "user_id": 1}):
+        if tm.get("user_id"):
+            ids.add(tm["user_id"])
     out = []
     for uid in ids:
         u = await db.users.find_one({"id": uid}, {"_id": 0, "name": 1, "email": 1})
@@ -434,6 +443,8 @@ async def serve_media(media_id: str, request: Request, token: str = Query(...)):
     participants = set((h or {}).get("member_user_ids") or []) | set((h or {}).get("team_hub_member_user_ids") or []) | set((h or {}).get("chat_athlete_user_ids") or [])
     if (h or {}).get("owner_user_id"):
         participants.add(h["owner_user_id"])
+    async for tm in db.team_members.find({"household_id": (h or {}).get("id")}, {"_id": 0, "user_id": 1}):
+        participants.add(tm["user_id"])
     if user["id"] not in participants:
         raise HTTPException(status_code=403, detail="Not authorized.")
     content, ctype = await run_in_threadpool(get_object, rec["storage_path"])
