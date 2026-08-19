@@ -120,33 +120,59 @@ const STEPS: Step[] = [
   },
   {
     num: 17,
+    title: "Grow your team with one join code",
+    body:
+      "Open Team → Members to share ONE reusable team code with your whole team. Anyone who enters it (from the Team tab → \"Have a team code?\") lands in your New Members list with group-chat-only access. Tap Assign role to set each person as Parent of an Athlete (linked to an existing or new athlete), Coach, Staff, or Athlete — they're then attached to the right profile. You'll see a badge on the Members card whenever someone is waiting.",
+    tip: "Coaches and staff you assign get full Team Hub access. Parents stay chat-only and are linked to their athlete. Tap New code anytime to rotate the code.",
+  },
+  {
+    num: 18,
+    title: "Use Team Chat & named channels",
+    body:
+      "Tap the Team Chat message icon to talk with your team in real time — send text, photos, videos, and music, react with emoji, and @mention people. Tap the chat title to switch between the main team thread and named channels, or tap + New chat to create a channel for a sub-group (e.g. Fundraising or Coaches). Tap the download icon on any photo, video, or audio to save it to your device.",
+  },
+  {
+    num: 19,
+    title: "ParentGuard — safe chat for minors",
+    body:
+      "ParentGuard 🛡️ keeps youth chat safe. A minor athlete joins with their own login, and their chat stays OFF until a parent/guardian approves it from Team Chat → the people icon. Minors only ever chat in a supervised group (no private one-to-one messages), a parent can always see the conversation, and access can be switched back off anytime. Parent-approved. Parent-connected.",
+  },
+  {
+    num: 20,
+    title: "Schedule chat posts (coaches only)",
+    body:
+      "Coaches, staff, reps, and hub admins see a clock icon in the message bar. Tap it to write a message, pick a date and time (in your local timezone), and it auto-posts to the current thread or channel at that moment. A \"scheduled posts\" pill lets you review or cancel anything queued.",
+    tip: "Reported chat messages and reviews auto-hide after enough reports, and admins are emailed immediately so anything inappropriate can be removed fast.",
+  },
+  {
+    num: 21,
     title: "Import from a spreadsheet (optional)",
     body:
       "Already track expenses in Excel or Google Sheets? Open Settings → Import. Download the CSV template, paste your data, and import in one tap. The same flow works for athletes, competitions, payments, and schedule events.",
   },
   {
-    num: 18,
+    num: 22,
     title: "Personalize your theme",
     body:
       "Open Settings → Appearance to recolor the whole app for your household. Pick one of the ready-made presets (Red & White, Royal Blue, Green & Black and more — including dark themes), or scroll to Build your own to create a custom theme. The custom builder gives you a full color picker and up to 4 colors — Accent, Background, Surface, and Text — so you can match your gym's colors exactly. Changes apply instantly across every screen.",
     tip: "Themes are shared household-wide and sync to every member's phone, so pick something everyone likes.",
   },
   {
-    num: 19,
+    num: 23,
     title: "Organize by season",
     body:
       "Open Settings → Seasons and create a season with a start and end date (e.g. \"2025–26\"). CheerPlanner then files your data into it automatically by date — competitions, schedule events, expenses, and payments (a payment follows the due date of the expense it covers). No manual tagging. Mark one season active, then use the season bar on the dashboard to switch seasons or view All. When next season nears, tap Roll over to new season to carry your teams and athletes forward in one step.",
     tip: "Dates are required so auto-filing works, and seasons can't overlap. Anything outside every season's dates still shows under \"All seasons,\" so nothing is hidden.",
   },
   {
-    num: 20,
+    num: 24,
     title: "Check weather & discover places",
     body:
       "Every competition and event with a location and date shows a weather forecast (high/low, conditions, chance of rain) on its card and on the calendar — powered by Open-Meteo, out to about 16 days. Open Settings → Community Reviews to rate and find cheer-friendly restaurants, hotels, gyms and more shared by families everywhere; filter by city and category, and post as your first name + last initial or anonymously. A competition also suggests reviewed places in its city.",
     tip: "Weather only shows when a location is saved; far-off dates say \"forecast available closer to the date.\"",
   },
   {
-    num: 21,
+    num: 25,
     title: "Go Premium (optional)",
     body:
       "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full Team Hub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",

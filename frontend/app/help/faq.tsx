@@ -252,12 +252,32 @@ const FAQ: Section[] = [
       {
         q: "How is Team Chat kept safe?",
         a:
-          "Everyone agrees to Community Guidelines before their first message, objectionable language is blocked automatically, and you can long-press a message to report it or block a member. Any message reported by 3+ people is hidden automatically, you can delete your own messages, and admins can remove anything — usually within 24 hours of a report.",
+          "Everyone agrees to Community Guidelines before their first message, objectionable language is blocked automatically, and you can long-press a message to report it or block a member. Any message reported by 3+ people is hidden automatically, and admins are emailed the moment something is reported so it can be removed fast if inappropriate. You can delete your own messages, team admins can remove any message, and admins can eject users — usually within 24 hours of a report.",
+      },
+      {
+        q: "Can I have more than one chat per team?",
+        a:
+          "Yes. Tap the chat title to switch between the main team thread and named channels, or tap + New chat to create a channel for a sub-group (e.g. Fundraising or Coaches) and pick who's in it. Oversight rules apply automatically — team admins can see channels for safety, and a minor's guardians can always see any chat their athlete is in.",
+      },
+      {
+        q: "Can I save a photo, video, or song from chat?",
+        a:
+          "Yes — tap the download icon on any photo, video, or audio clip in chat to save it to your device (via your phone's Save/Share sheet).",
+      },
+      {
+        q: "Can I schedule a message to post later?",
+        a:
+          "Coaches, staff, reps, and hub admins can. Tap the clock icon in the message bar, write your message, pick a date and time (in your local timezone), and it auto-posts to the current thread or channel at that moment. A 'scheduled posts' pill lets you review or cancel anything queued. Regular members don't see this option.",
+      },
+      {
+        q: "How do people join my team, and what can they do before I set them up?",
+        a:
+          "Open Team → Members and share your one reusable team code. Anyone who enters it lands in your New Members list with group-chat-only access. Assign them a role — Parent of an Athlete, Coach, Staff, or Athlete — and they're attached to the right profile. Coaches/staff get full Team Hub access; parents stay chat-only and are linked to their athlete.",
       },
       {
         q: "Who can see photos or videos I share in chat?",
         a:
-          "Only the people in that team's chat. Media is stored securely and is served only to authorized chat participants — it isn't public.",
+          "Only the people in that channel. Media is stored securely and is served only to authorized chat participants — it isn't public.",
       },
     ],
   },
