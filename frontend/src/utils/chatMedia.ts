@@ -16,6 +16,35 @@ export function chatMediaUrl(mediaId: string, token: string): string {
   return `${BASE}/api/team/chat/media/${mediaId}?token=${encodeURIComponent(token)}`;
 }
 
+const _KIND_EXT: Record<string, string> = { image: "jpg", video: "mp4", audio: "mp3" };
+
+/**
+ * Download/save a chat attachment. On native we fetch it to the cache and open
+ * the OS share sheet (Save Image / Save to Files) — no extra permission needed.
+ * On web we trigger a normal browser download.
+ */
+export async function downloadChatMedia(media: { id: string; kind: string; name?: string; content_type?: string }): Promise<void> {
+  const token = await getAuthToken();
+  const url = chatMediaUrl(media.id, token);
+  const raw = (media.name || `cheerplanner-${media.kind}-${media.id}`).replace(/[^a-zA-Z0-9._-]/g, "_");
+  const filename = /\.[a-z0-9]{2,4}$/i.test(raw) ? raw : `${raw}.${_KIND_EXT[media.kind] || "bin"}`;
+
+  if (Platform.OS === "web") {
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    return;
+  }
+
+  const FS: any = await import("expo-file-system/legacy");
+  const Sharing: any = await import("expo-sharing");
+  const dest = `${FS.cacheDirectory}${filename}`;
+  const dl = await FS.downloadAsync(url, dest);
+  if (dl.status && dl.status >= 400) throw new Error("Couldn't fetch the file.");
+  if (!(await Sharing.isAvailableAsync())) throw new Error("Saving isn't available on this device.");
+  await Sharing.shareAsync(dl.uri, { mimeType: media.content_type || undefined, dialogTitle: "Save media" });
+}
+
 /**
  * Upload a picked asset to the backend (which stores it in Object Storage).
  * Branches web vs native FormData shapes per the storage playbook.

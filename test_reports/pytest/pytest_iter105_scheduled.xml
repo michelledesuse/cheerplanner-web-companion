@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="0" skipped="0" tests="1" time="3.044" timestamp="2026-08-19T00:03:34.440654+00:00" hostname="agent-env-b7aaa67e-127b-469d-83ba-e1e9897c3d64"><testcase classname="tests.test_team_chat_scheduled" name="test_scheduled_posts" time="2.919" /></testsuite></testsuites>

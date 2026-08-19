@@ -9,6 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import * as DocumentPicker from "expo-document-picker";
+import DateTimePicker from "@react-native-community/datetimepicker";
 
 import { api } from "@/src/api/client";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
@@ -32,6 +33,14 @@ type Message = {
 type Channel = { id: string; name: string; kind: string; member_count: number; member_names: string[] };
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏"];
+
+/** Friendly "Mon, Jun 3 · 4:30 PM" from an ISO string. */
+function fmtWhen(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  } catch { return iso; }
+}
 
 function MessageText({ text, mine, styles }: { text: string; mine?: boolean; styles: any }) {
   // Highlight @mention tokens in an accent colour.
@@ -297,6 +306,59 @@ export default function TeamChatScreen() {
     } finally { setCreating(false); }
   }, [newName, newMembers, creating, loadChannels, selectChannel]);
 
+  // ---- Scheduled posts (coaches/staff/reps/hub admins only) ----
+  const [schedOpen, setSchedOpen] = useState(false);
+  const [schedText, setSchedText] = useState("");
+  const [schedWhen, setSchedWhen] = useState<Date>(new Date(Date.now() + 60 * 60 * 1000));
+  const [pickMode, setPickMode] = useState<null | "date" | "time">(null);
+  const [scheduling, setScheduling] = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [scheduled, setScheduled] = useState<{ id: string; text: string; scheduled_at: string; channel_name?: string | null; has_media?: boolean; sender_id: string }[]>([]);
+
+  const loadScheduled = useCallback(async () => {
+    try { const r = await api.get<{ scheduled: any[] }>("/team/chat/scheduled"); setScheduled(r.data.scheduled || []); }
+    catch (_e) { setScheduled([]); }
+  }, []);
+  React.useEffect(() => { if (canModerate) loadScheduled(); }, [canModerate, loadScheduled]);
+
+  const openSchedule = useCallback(() => {
+    setSchedText(text);
+    setSchedWhen(new Date(Date.now() + 60 * 60 * 1000));
+    setSchedOpen(true);
+  }, [text]);
+
+  const submitSchedule = useCallback(async () => {
+    const body = schedText.trim();
+    if (!body || scheduling) return;
+    if (schedWhen.getTime() <= Date.now() + 30000) { Alert.alert("Pick a later time", "Choose a time in the future."); return; }
+    setScheduling(true);
+    try {
+      await api.post("/team/chat/scheduled", {
+        text: body,
+        channel_id: activeChannel ? activeChannel.id : null,
+        scheduled_at: schedWhen.toISOString(),
+      });
+      setSchedOpen(false); setSchedText(""); setText("");
+      await loadScheduled();
+      Alert.alert("Scheduled", `Your message will post ${fmtWhen(schedWhen.toISOString())}.`);
+    } catch (e: any) {
+      const d = e?.response?.data?.detail;
+      if (e?.response?.status === 403 && d === "guidelines_not_accepted") setShowGuidelines(true);
+      else Alert.alert("Couldn't schedule", d || "Please try again.");
+    } finally { setScheduling(false); }
+  }, [schedText, schedWhen, scheduling, activeChannel, loadScheduled]);
+
+  const cancelScheduled = useCallback((id: string) => {
+    Alert.alert("Cancel scheduled post?", "It won't be sent.", [
+      { text: "Keep", style: "cancel" },
+      { text: "Cancel post", style: "destructive", onPress: async () => {
+        try { await api.delete(`/team/chat/scheduled/${id}`); setScheduled((p) => p.filter((s) => s.id !== id)); }
+        catch { Alert.alert("Error", "Couldn't cancel."); }
+      } },
+    ]);
+  }, []);
+
+
   const lastMineId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) if (messages[i].sender_id === me) return messages[i].id;
     return null;
@@ -422,6 +484,12 @@ export default function TeamChatScreen() {
             ))}
           </View>
         )}
+        {canModerate && scheduled.length > 0 && (
+          <TouchableOpacity style={styles.schedPill} onPress={() => { loadScheduled(); setListOpen(true); }} testID="chat-scheduled-pill">
+            <Ionicons name="time-outline" size={15} color={colors.accent} />
+            <Text style={styles.schedPillText}>{scheduled.length} scheduled post{scheduled.length === 1 ? "" : "s"}</Text>
+          </TouchableOpacity>
+        )}
         <View style={styles.composer}>
           <TouchableOpacity
             style={styles.attachBtn}
@@ -431,6 +499,15 @@ export default function TeamChatScreen() {
           >
             {uploading ? <ActivityIndicator size="small" color={colors.accent} /> : <Ionicons name="add-circle-outline" size={26} color={colors.accent} />}
           </TouchableOpacity>
+          {canModerate && (
+            <TouchableOpacity
+              style={styles.attachBtn}
+              onPress={() => (guidelinesOk ? openSchedule() : setShowGuidelines(true))}
+              testID="chat-schedule"
+            >
+              <Ionicons name="time-outline" size={24} color={colors.accent} />
+            </TouchableOpacity>
+          )}
           <TextInput
             style={styles.input}
             placeholder="Message the team…"
@@ -619,6 +696,98 @@ export default function TeamChatScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Schedule a post */}
+      <Modal visible={schedOpen} transparent animationType="fade" onRequestClose={() => setSchedOpen(false)}>
+        <View style={styles.modalWrap}>
+          <View style={styles.sheet} testID="chat-schedule-modal">
+            <Text style={styles.sheetTitle}>Schedule a post</Text>
+            <Text style={styles.channelSub}>Posts to {activeChannel ? `“${activeChannel.name}”` : "the main team chat"} at the time you pick.</Text>
+            <TextInput
+              style={[styles.nameInput, { minHeight: 80, textAlignVertical: "top" }]}
+              placeholder="What should the team see?"
+              placeholderTextColor={colors.textTertiary}
+              value={schedText}
+              onChangeText={setSchedText}
+              multiline
+              maxLength={2000}
+              testID="chat-schedule-text"
+            />
+            <Text style={styles.pickLabel}>WHEN</Text>
+            {Platform.OS === "ios" ? (
+              <DateTimePicker
+                value={schedWhen}
+                mode="datetime"
+                display="compact"
+                minimumDate={new Date()}
+                onChange={(_e, d) => d && setSchedWhen(d)}
+                testID="chat-schedule-picker"
+              />
+            ) : (
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <TouchableOpacity style={styles.whenBtn} onPress={() => setPickMode("date")} testID="chat-schedule-date">
+                  <Ionicons name="calendar-outline" size={16} color={colors.accent} />
+                  <Text style={styles.whenText}>{schedWhen.toLocaleDateString()}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.whenBtn} onPress={() => setPickMode("time")} testID="chat-schedule-time">
+                  <Ionicons name="time-outline" size={16} color={colors.accent} />
+                  <Text style={styles.whenText}>{schedWhen.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {pickMode && Platform.OS !== "ios" && (
+              <DateTimePicker
+                value={schedWhen}
+                mode={pickMode}
+                display="default"
+                minimumDate={new Date()}
+                onChange={(_e, d) => { setPickMode(null); if (d) setSchedWhen(d); }}
+              />
+            )}
+            <Text style={styles.schedPreview}>Sends {fmtWhen(schedWhen.toISOString())}</Text>
+            <TouchableOpacity
+              style={[styles.acceptBtn, (!schedText.trim() || scheduling) && styles.sendBtnOff]}
+              onPress={submitSchedule}
+              disabled={!schedText.trim() || scheduling}
+              testID="chat-schedule-submit"
+            >
+              {scheduling ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.acceptText}>Schedule</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setSchedOpen(false)} style={{ paddingVertical: 8 }}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Scheduled posts list */}
+      <Modal visible={listOpen} transparent animationType="fade" onRequestClose={() => setListOpen(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setListOpen(false)}>
+          <Pressable style={styles.sheet} testID="chat-scheduled-list">
+            <Text style={styles.sheetTitle}>Scheduled posts</Text>
+            {scheduled.length === 0 ? (
+              <Text style={styles.channelSub}>Nothing scheduled.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 360 }}>
+                {scheduled.map((s) => (
+                  <View key={s.id} style={styles.schedRow} testID={`scheduled-${s.id}`}>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.schedWhenText}>{fmtWhen(s.scheduled_at)}{s.channel_name ? ` · ${s.channel_name}` : ""}</Text>
+                      <Text style={styles.channelName} numberOfLines={2}>{s.text || (s.has_media ? "📎 Attachment" : "")}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => cancelScheduled(s.id)} testID={`cancel-scheduled-${s.id}`}>
+                      <Text style={styles.cancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+            <TouchableOpacity onPress={() => setListOpen(false)} style={{ paddingVertical: 10, alignItems: "center" }}>
+              <Text style={styles.cancelText}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -701,4 +870,11 @@ const makeStyles = (c: ThemePalette) => ({
     paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary, marginTop: 6,
   },
   pickLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700", marginTop: 12, marginBottom: 2 },
+  schedPill: { flexDirection: "row", alignItems: "center", alignSelf: "center", gap: 5, backgroundColor: c.accentSubtle, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 6 },
+  schedPillText: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  whenBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingVertical: 11 },
+  whenText: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "600" },
+  schedPreview: { ...typography.caption, color: c.textSecondary, marginTop: 10, marginBottom: 4, textAlign: "center" },
+  schedRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 12, borderTopWidth: 1, borderTopColor: c.borderSoft },
+  schedWhenText: { ...typography.caption, color: c.accent, fontWeight: "800", marginBottom: 2 },
 });

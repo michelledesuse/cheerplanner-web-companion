@@ -15,7 +15,7 @@ The scheduler is started from the FastAPI startup hook in server.py.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from typing import Any, Dict, List
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -65,6 +65,13 @@ def start_scheduler() -> AsyncIOScheduler:
         send_scheduled_broadcasts_tick,
         CronTrigger(second=0),
         id="scheduled_broadcasts_tick",
+        replace_existing=True,
+        misfire_grace_time=120,
+    )
+    _scheduler.add_job(
+        send_scheduled_chat_tick,
+        CronTrigger(second=0),
+        id="scheduled_chat_tick",
         replace_existing=True,
         misfire_grace_time=120,
     )
@@ -179,6 +186,60 @@ async def send_scheduled_broadcasts_tick() -> None:
             await db.scheduled_broadcasts.update_one(
                 {"id": d["id"]}, {"$set": {"status": "error", "error": str(exc)}}
             )
+
+
+async def send_scheduled_chat_tick() -> None:
+    """Every minute: post any group-chat messages coaches scheduled whose time
+    has arrived, then nudge connected clients to refetch live."""
+    import secrets as _secrets
+    from core.db import db
+    from core.models import utcnow_iso
+    from core.realtime import manager
+
+    now = datetime.now(timezone.utc)
+    now_iso = utcnow_iso()
+    due = await db.scheduled_messages.find({"status": "scheduled"}).to_list(200)
+    for d in due:
+        try:
+            when = datetime.fromisoformat(str(d.get("scheduled_at", "")).replace("Z", "+00:00"))
+        except Exception:
+            continue
+        if when > now:
+            continue
+        claimed = await db.scheduled_messages.update_one(
+            {"id": d["id"], "status": "scheduled"}, {"$set": {"status": "sending"}}
+        )
+        if not claimed.modified_count:
+            continue
+        try:
+            media = []
+            if d.get("media_id"):
+                mrec = await db.chat_media.find_one({"id": d["media_id"]}, {"_id": 0})
+                if mrec:
+                    media = [{"id": mrec["id"], "kind": mrec["kind"],
+                              "content_type": mrec["content_type"], "name": mrec.get("name")}]
+            msg = {
+                "id": _secrets.token_urlsafe(9), "household_id": d["household_id"],
+                "sender_id": d["sender_id"], "sender_name": d.get("sender_name") or "Coach",
+                "text": d.get("text") or "", "media": media, "reactions": {},
+                "mentions": d.get("mentions") or [], "created_at": now_iso,
+            }
+            if d.get("channel_id"):
+                msg["channel_id"] = d["channel_id"]
+            await db.team_messages.insert_one(dict(msg))
+            await db.scheduled_messages.update_one(
+                {"id": d["id"]}, {"$set": {"status": "sent", "sent_at": now_iso, "posted_message_id": msg["id"]}}
+            )
+            try:
+                await manager.broadcast([d["household_id"]], {"type": "invalidate", "path": "/team/chat/messages"})
+            except Exception:
+                pass
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("scheduled chat msg %s failed: %s", d.get("id"), exc)
+            await db.scheduled_messages.update_one(
+                {"id": d["id"]}, {"$set": {"status": "error", "error": str(exc)}}
+            )
+
 
 
 

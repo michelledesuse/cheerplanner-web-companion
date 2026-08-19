@@ -14,11 +14,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, Response, Request
 from starlette.concurrency import run_in_threadpool
-from datetime import datetime as _dt, timedelta as _td
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz
 
 from core.db import db
 from core.security import get_current_user, require_team_access, require_admin
-from core.helpers import _resolve_active_household
+from core.helpers import _resolve_active_household, _household_owner_id
 from core.realtime import _user_from_token
 from core.models import utcnow_iso, HouseholdInvite
 from core.moderation import assert_clean, FLAG_HIDE_THRESHOLD
@@ -711,4 +711,91 @@ async def channel_post(cid: str, payload: dict = Body(default={}), current_user=
            "text": text, "media": media, "reactions": {}, "mentions": mentions, "created_at": now}
     await db.team_messages.insert_one(dict(doc))
     return doc
+
+
+# ------------------------------------------------ scheduled posts (coaches) ---
+def _poster_or_403(user: dict) -> None:
+    """Only coaches / staff / reps / hub admins (team_access) may schedule posts."""
+    if not (user.get("team_access") or user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="Only coaches, staff and hub admins can schedule posts.")
+
+
+def _to_utc_iso(when_raw: str) -> str:
+    try:
+        when = _dt.fromisoformat((when_raw or "").replace("Z", "+00:00"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Pick a valid date & time.")
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=_tz.utc)
+    if when <= _dt.now(_tz.utc) + _td(seconds=30):
+        raise HTTPException(status_code=400, detail="Choose a time in the future.")
+    return when.astimezone(_tz.utc).isoformat().replace("+00:00", "Z")
+
+
+@router.post("/team/chat/scheduled")
+async def schedule_post(payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    _poster_or_403(current_user)
+    text = (payload.get("text") or "").strip()[:MAX_LEN]
+    media_id = (payload.get("media_id") or "").strip()
+    channel_id = payload.get("channel_id") or None
+    if not text and not media_id:
+        raise HTTPException(status_code=400, detail="Message can't be empty.")
+    await _require_chat_guidelines(current_user["id"])
+    if text:
+        assert_clean(text)
+    scheduled_at = _to_utc_iso(payload.get("scheduled_at") or "")
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        raise HTTPException(status_code=403, detail="No chat available.")
+    if media_id:
+        mrec = await db.chat_media.find_one(
+            {"id": media_id, "household_id": h["id"], "owner_id": current_user["id"]}, {"_id": 0, "id": 1})
+        if not mrec:
+            raise HTTPException(status_code=400, detail="Attachment not found.")
+    if channel_id:
+        await _channel_or_403(channel_id, h, current_user, need_post=True)
+    valid = {p["user_id"] for p in await _participant_users(h)}
+    mentions = [u for u in (payload.get("mentions") or []) if u in valid][:20]
+    doc = {
+        "id": secrets.token_urlsafe(9), "household_id": h["id"], "channel_id": channel_id,
+        "sender_id": current_user["id"], "sender_name": _display_name(current_user),
+        "text": text, "media_id": media_id or None, "mentions": mentions,
+        "scheduled_at": scheduled_at, "status": "scheduled", "created_at": utcnow_iso(),
+    }
+    await db.scheduled_messages.insert_one(dict(doc))
+    return {"id": doc["id"], "scheduled_at": scheduled_at, "channel_id": channel_id,
+            "text": text, "has_media": bool(media_id)}
+
+
+@router.get("/team/chat/scheduled")
+async def list_scheduled(current_user=Depends(require_chat_access)):
+    _poster_or_403(current_user)
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        return {"scheduled": [], "me": current_user["id"]}
+    docs = await db.scheduled_messages.find(
+        {"household_id": h["id"], "status": "scheduled"}, {"_id": 0}).sort("scheduled_at", 1).to_list(200)
+    chans = {c["id"]: c["name"] async for c in db.chat_channels.find({"household_id": h["id"]}, {"_id": 0, "id": 1, "name": 1})}
+    for d in docs:
+        d["channel_name"] = chans.get(d.get("channel_id")) if d.get("channel_id") else None
+        d["has_media"] = bool(d.get("media_id"))
+        d.pop("media_id", None)
+    return {"scheduled": docs, "me": current_user["id"]}
+
+
+@router.delete("/team/chat/scheduled/{sid}")
+async def cancel_scheduled(sid: str, current_user=Depends(require_chat_access)):
+    _poster_or_403(current_user)
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        raise HTTPException(status_code=404, detail="Not found.")
+    doc = await db.scheduled_messages.find_one(
+        {"id": sid, "household_id": h["id"], "status": "scheduled"}, {"_id": 0, "sender_id": 1})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found.")
+    is_owner = _household_owner_id(h) == current_user["id"]
+    if doc["sender_id"] != current_user["id"] and not is_owner and not current_user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="You can only cancel your own scheduled posts.")
+    await db.scheduled_messages.update_one({"id": sid}, {"$set": {"status": "canceled"}})
+    return {"canceled": True}
 

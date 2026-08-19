@@ -1,0 +1,30 @@
+{
+  "summary": "Tested CheerPlanner Team Chat scheduled posts + media download (backend + mobile web). Backend pytest confirms schedule 200, past-time 400, non-coach 403 on POST/GET, cancel 200, and the scheduler tick actually posts a due message. New media-download pytest confirms 200 (no range), 206 (with Range header), 401 (bad token), 403 (non-participant token), and 404 (bad id). Frontend: logged in as coach applereview@cheerplanner.app — chat-schedule clock button visible, chat-schedule-modal opens, chat-schedule-text + date/time picker rendered (Android web preview shows chat-schedule-date & chat-schedule-time buttons), chat-schedule-submit created a post, '1 scheduled post' chat-scheduled-pill appeared, chat-scheduled-list opened with a cancel-scheduled-<id> button, and chat-media-download button renders on an existing media message (image). Signed up a fresh non-coach — chat-schedule button correctly HIDDEN in the composer. No React Native red screens, no crashes. No deprecated packages of concern were introduced (DateTimePicker from @react-native-community, expo-image-picker, expo-document-picker; expo-file-system/legacy is a valid current API path).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_team_chat_scheduled.py",
+    "/app/backend/tests/test_team_chat_media_download.py",
+    "/app/test_reports/pytest/pytest_iter105_scheduled.xml",
+    "/app/test_reports/pytest/pytest_iter105_media_dl.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_chat.py is ~800 lines — consider splitting scheduled/media/moderation subrouters if it grows further, but acceptable now.",
+    "serve_media returns full content and reads full object from storage even for partial Range requests (loads entire blob then slices). Acceptable for chat-sized media (image ≤15MB, video ≤90MB, audio ≤30MB) but a true streaming/HEAD-supported implementation would be more efficient for large videos."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_team_chat_media_download.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "One test scheduled post created for applereview@cheerplanner.app via UI ('T1 UI test schedule') — user can cancel it in the app if desired. Two ephemeral signup accounts created via backend (media test) and one via frontend (t1nc<ts>@t1.com) for gating.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login button on /login is a RN Pressable — page.get_by_role('button', name='Sign in') fails; use inputs[0/1].fill + page.get_by_text('Sign in', exact=True).first.click(force=True). Signup 'Create account' behaves the same. Auth tokens are stored in SecureStore/AsyncStorage abstraction, not window.localStorage — presence in localStorage is not a reliable auth indicator on this web preview.",
+  "rca_of_issue": "N/A — no bugs found. Feature (schedule + download) is working end-to-end."
+}

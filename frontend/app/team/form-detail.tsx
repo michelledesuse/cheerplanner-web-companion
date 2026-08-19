@@ -47,8 +47,15 @@ export default function FormDetailScreen() {
   const [closeTime, setCloseTime] = useState("");
   useEffect(() => {
     const ca = data?.close_at;
-    if (ca) { const [d, t] = String(ca).split("T"); setCloseDate(d || ""); setCloseTime((t || "").slice(0, 5)); }
-    else { setCloseDate(""); setCloseTime(""); }
+    if (ca) {
+      // Stored as a UTC instant — show it back in the user's LOCAL date/time.
+      const dt = new Date(ca);
+      if (!isNaN(dt.getTime())) {
+        const p = (n: number) => String(n).padStart(2, "0");
+        setCloseDate(`${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`);
+        setCloseTime(`${p(dt.getHours())}:${p(dt.getMinutes())}`);
+      }
+    } else { setCloseDate(""); setCloseTime(""); }
   }, [data?.close_at]);
 
   // photos & links
@@ -176,8 +183,11 @@ export default function FormDetailScreen() {
 
   const saveDeadline = () => {
     if (!closeDate) { patch({ close_at: "" }); return; }
-    const close_at = `${closeDate}T${closeTime || "23:59"}:00`;
-    patch({ close_at });
+    // Interpret the picked date/time in the USER'S LOCAL timezone, then store
+    // as a UTC instant so auto-lock fires at the exact local moment chosen.
+    const local = new Date(`${closeDate}T${closeTime || "23:59"}:00`);
+    if (isNaN(local.getTime())) { Alert.alert("Invalid time", "Please pick a valid date and time."); return; }
+    patch({ close_at: local.toISOString() });
   };
   const clearDeadline = () => { setCloseDate(""); setCloseTime(""); patch({ close_at: "" }); };
 
