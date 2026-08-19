@@ -28,6 +28,7 @@ from core.config import (
     JWT_SECRET, JWT_ALGORITHM,
     PASSWORD_RESET_EXPIRE_MINUTES, UNSUBSCRIBE_EXPIRE_DAYS,
     APP_URL_SCHEME, WEB_FALLBACK_URL, BACKEND_PUBLIC_URL,
+    ADMIN_EMAILS,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,36 @@ def send_email(
     except Exception as exc:  # noqa: BLE001 - we intentionally swallow
         logger.exception("Email send failed to %s: %s", to, exc)
         return False
+
+def send_flag_alert(kind: str, snippet: str, reason: str, count: int, hidden: bool) -> None:
+    """Email every admin the moment a review/chat message is reported, urging
+    immediate action. Never raises."""
+    if not ADMIN_EMAILS:
+        logger.warning("Content flagged but no ADMIN_EMAILS configured; no alert sent.")
+        return
+    snip = (snippet or "").strip()
+    if len(snip) > 300:
+        snip = snip[:300] + "…"
+    status = ("It has been <strong>auto-hidden</strong> from users pending your review."
+              if hidden else "It is <strong>still visible</strong> to users.")
+    subject = f"⚠️ CheerPlanner: a {kind} was reported — action needed"
+    html = (
+        "<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a'>"
+        f"<h2 style='color:#B45309'>⚠️ Reported {kind}</h2>"
+        "<p style='font-size:16px'><strong>If this content is deemed inappropriate, it must be "
+        "removed immediately.</strong></p>"
+        f"<p>{status} Total distinct reports: <strong>{count}</strong>.</p>"
+        f"<p style='color:#475569'><strong>Reason given:</strong> {reason or '—'}</p>"
+        "<div style='border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin:10px 0;background:#F8FAFC'>"
+        f"<strong>Reported content:</strong><br/>{snip or '(no text — media/attachment)'}</div>"
+        "<p>Open the app → <strong>Admin → Reports</strong> (or the Team Chat thread) to review and "
+        "remove it. Per our Community Guidelines, please act within 24 hours of a report.</p>"
+        "</div>"
+    )
+    for to in ADMIN_EMAILS:
+        send_email(to, subject, html)
+
+
 
 
 def _html_to_plaintext(html: str) -> str:

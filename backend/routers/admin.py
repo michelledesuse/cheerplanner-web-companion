@@ -29,6 +29,15 @@ async def admin_status(admin=Depends(require_admin)):
     return {"is_admin": True, "email": admin.get("email")}
 
 
+@router.get("/flags/count")
+async def flags_count(admin=Depends(require_admin)):
+    """Outstanding moderation reports for the Admin badge (reviews + chat)."""
+    rev = await db.review_flags.distinct("review_id")
+    chat = await db.chat_message_flags.distinct("message_id")
+    return {"reviews": len(rev), "chat": len(chat), "total": len(rev) + len(chat)}
+
+
+
 async def _household_for_user(user_id: str) -> dict:
     return await _get_or_create_household(user_id)
 

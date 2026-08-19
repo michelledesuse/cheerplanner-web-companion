@@ -36,6 +36,11 @@ export default function AdminScreen() {
   const [selfPremium, setSelfPremium] = useState<boolean | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [lifetime, setLifetime] = useState<any[]>([]);
+  const [flags, setFlags] = useState<{ reviews: number; chat: number; total: number } | null>(null);
+
+  const loadFlags = useCallback(async () => {
+    try { const r = await api.get("/admin/flags/count"); setFlags(r.data); } catch {}
+  }, []);
 
   const loadCodes = useCallback(async () => {
     try { const r = await api.get("/admin/codes"); setCodes(r.data.codes || []); } catch {}
@@ -50,7 +55,7 @@ export default function AdminScreen() {
     try { const r = await api.get("/analytics/summary"); setSummary(r.data); } catch {}
   }, []);
 
-  useFocusEffect(useCallback(() => { if (user?.is_admin) { loadCodes(); loadSelf(); loadSummary(); loadLifetime(); } }, [user, loadCodes, loadSelf, loadSummary, loadLifetime]));
+  useFocusEffect(useCallback(() => { if (user?.is_admin) { loadCodes(); loadSelf(); loadSummary(); loadLifetime(); loadFlags(); } }, [user, loadCodes, loadSelf, loadSummary, loadLifetime, loadFlags]));
 
   if (!user?.is_admin) {
     return (
@@ -125,6 +130,27 @@ export default function AdminScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }} testID="admin-screen">
+        {/* Reports & moderation */}
+        <TouchableOpacity style={styles.card} onPress={() => router.push("/reviews/flags" as any)} activeOpacity={0.8} testID="admin-reports">
+          <View style={styles.rowBetween}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Ionicons name="flag" size={18} color={(flags?.total || 0) > 0 ? "#DC2626" : styles._muted.color} />
+              <Text style={styles.cardTitle}>Reports</Text>
+              {(flags?.total || 0) > 0 && (
+                <View style={styles.reportBadge} testID="admin-reports-badge">
+                  <Text style={styles.reportBadgeText}>{flags!.total > 99 ? "99+" : flags!.total}</Text>
+                </View>
+              )}
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={styles._muted.color} />
+          </View>
+          <Text style={styles.muted}>
+            {(flags?.total || 0) === 0
+              ? "No open reports. Tap to review flagged reviews; chat reports are emailed to admins."
+              : `${flags!.reviews} review${flags!.reviews === 1 ? "" : "s"} · ${flags!.chat} chat message${flags!.chat === 1 ? "" : "s"} reported. Review and remove anything inappropriate immediately.`}
+          </Text>
+        </TouchableOpacity>
+
         {/* Analytics snapshot */}
         {summary ? (
           <View style={styles.card}>
@@ -169,7 +195,7 @@ export default function AdminScreen() {
           <TouchableOpacity style={styles.cta} onPress={generate} testID="admin-generate"><Text style={styles.ctaText}>Generate</Text></TouchableOpacity>
           {generated.length > 0 ? (
             <View style={styles.genBox}>
-              <Text style={styles.genHint}>Copy these now — codes are stored hashed and can't be shown again:</Text>
+              <Text style={styles.genHint}>Copy these now — codes are stored hashed and can&apos;t be shown again:</Text>
               {generated.map((g) => (
                 <TouchableOpacity key={g.id} style={styles.genRow} onPress={() => copyCode(g.code)}>
                   <Text style={styles.genCode}>{g.code}</Text>
@@ -271,4 +297,6 @@ const makeStyles = (c: ThemePalette) => ({
   stat: { width: "47%", backgroundColor: c.bg, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: c.border },
   statValue: { ...typography.h2, color: c.textPrimary },
   statLabel: { ...typography.caption, color: c.textSecondary },
+  reportBadge: { backgroundColor: "#DC2626", borderRadius: 999, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
+  reportBadgeText: { color: "#fff", fontWeight: "800", fontSize: 12 },
 });

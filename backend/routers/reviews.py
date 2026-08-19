@@ -22,7 +22,7 @@ import re
 import secrets
 from typing import List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from core.db import db
@@ -431,8 +431,9 @@ async def delete_review(review_id: str, current_user=Depends(get_current_user)):
 
 # ---------- flag / report ----------
 @router.post("/reviews/{review_id}/flag")
-async def flag_review(review_id: str, payload: FlagPayload, current_user=Depends(get_current_user)):
-    r = await db.place_reviews.find_one({"id": review_id}, {"_id": 0, "id": 1})
+async def flag_review(review_id: str, payload: FlagPayload, background: BackgroundTasks, current_user=Depends(get_current_user)):
+    from core.email import send_flag_alert
+    r = await db.place_reviews.find_one({"id": review_id}, {"_id": 0, "id": 1, "body": 1})
     if not r:
         raise HTTPException(status_code=404, detail="Review not found")
     await db.review_flags.update_one(
@@ -443,8 +444,10 @@ async def flag_review(review_id: str, payload: FlagPayload, current_user=Depends
     )
     # Auto-hide from public view once enough distinct users report it.
     n = await db.review_flags.count_documents({"review_id": review_id})
-    if n >= FLAG_HIDE_THRESHOLD:
+    hidden = n >= FLAG_HIDE_THRESHOLD
+    if hidden:
         await db.place_reviews.update_one({"id": review_id}, {"$set": {"hidden": True}})
+    background.add_task(send_flag_alert, "review", r.get("body") or "", (payload.reason or ""), n, hidden)
     return {"flagged": True}
 
 

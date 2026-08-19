@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, Response, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile, File, Query, Response, Request, BackgroundTasks
 from starlette.concurrency import run_in_threadpool
 from datetime import datetime as _dt, timedelta as _td, timezone as _tz
 
@@ -303,11 +303,13 @@ async def accept_chat_guidelines(current_user=Depends(get_current_user)):
 
 
 @router.post("/team/chat/messages/{message_id}/flag")
-async def flag_message(message_id: str, payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+async def flag_message(message_id: str, background: BackgroundTasks, payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
     """Report a message. Auto-hidden from everyone once distinct reports hit the
-    threshold; admins can review the queue and remove permanently."""
+    threshold; admins can review the queue and remove permanently. Admins are
+    emailed immediately on every report."""
+    from core.email import send_flag_alert
     h = await _chat_hub(current_user["id"], current_user)
-    m = await db.team_messages.find_one({"id": message_id, "household_id": (h or {}).get("id")}, {"_id": 0, "id": 1})
+    m = await db.team_messages.find_one({"id": message_id, "household_id": (h or {}).get("id")}, {"_id": 0, "id": 1, "text": 1})
     if not m:
         raise HTTPException(status_code=404, detail="Message not found.")
     await db.chat_message_flags.update_one(
@@ -317,8 +319,10 @@ async def flag_message(message_id: str, payload: dict = Body(default={}), curren
         upsert=True,
     )
     n = await db.chat_message_flags.count_documents({"message_id": message_id})
-    if n >= FLAG_HIDE_THRESHOLD:
+    hidden = n >= FLAG_HIDE_THRESHOLD
+    if hidden:
         await db.team_messages.update_one({"id": message_id}, {"$set": {"hidden": True}})
+    background.add_task(send_flag_alert, "chat message", m.get("text") or "", (payload.get("reason") or ""), n, hidden)
     return {"flagged": True}
 
 
