@@ -55,7 +55,7 @@ export default function ChatAccessScreen() {
     try {
       const r = await api.post<{ code: string }>(`/team/chat/athletes/${a.roster_id}/invite`, {});
       const code = r.data.code;
-      const msg = `Invite code for ${a.name} to join Team Chat: ${code}\n\nSteps: 1) Create a CheerPlanner account (or log in). 2) Open the Team tab and tap "Manage access". 3) Enter this code. A parent/guardian then approves chat.`;
+      const msg = `Invite code for ${a.name} to join Team Chat: ${code}\n\nSteps: 1) Create a CheerPlanner account (or log in). 2) Open the Team tab and tap "Manage access". 3) Enter this code. A parent/guardian then approves chat with ParentGuard.`;
       if (Platform.OS === "web") { Alert.alert("Invite code", `${code}`); }
       else { try { await Share.share({ message: msg }); } catch { Alert.alert("Invite code", code); } }
       load();
@@ -80,14 +80,14 @@ export default function ChatAccessScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ padding: 4 }}>
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Chat access for athletes</Text>
+        <Text style={styles.title}>🛡️ ParentGuard</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.infoCard}>
           <Ionicons name="shield-checkmark-outline" size={18} color={colors.accent} />
           <Text style={styles.infoText}>
-            Athletes chat in the same group as personnel (no private messages). A minor&apos;s chat stays OFF until their parent/guardian approves it, and a parent can always see the chat.
+            <Text style={{ fontWeight: "800" }}>ParentGuard</Text> keeps youth chat safe: athletes chat in the same group as personnel (no private messages), and a minor&apos;s chat stays OFF until their parent/guardian approves it — and a parent can always see the chat. Parent-approved. Parent-connected.
           </Text>
         </View>
 

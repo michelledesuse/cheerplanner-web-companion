@@ -240,9 +240,9 @@ const FAQ: Section[] = [
           "A group message thread inside Team Hub for your coaches, reps and staff — open it from Team → Team Chat. Send text plus photos, videos (up to 90 seconds) and music, and react to any message with an emoji. New messages arrive in real time and a badge shows when there's something unread.",
       },
       {
-        q: "Can athletes be in the chat?",
+        q: "Can athletes be in the chat? (ParentGuard)",
         a:
-          "Yes, safely. An athlete uses their own login (invite them from Team Chat → the people icon → Invite). For a minor, chat stays OFF until a parent/guardian approves it, everyone shares one supervised group thread (no private one-to-one messages), and a parent can always see the conversation. Only the account owner or a caretaker listed on that athlete can approve, and they can switch it back off anytime.",
+          "Yes, safely — this is ParentGuard. An athlete uses their own login (invite them from Team Chat → the people icon → Invite). For a minor, chat stays OFF until a parent/guardian approves it, everyone shares one supervised group thread (no private one-to-one messages), and a parent can always see the conversation. Parent-approved. Parent-connected. Only the account owner or a caretaker listed on that athlete can approve, and they can switch it back off anytime.",
       },
       {
         q: "How do mentions and read receipts work?",

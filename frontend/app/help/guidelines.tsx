@@ -24,8 +24,8 @@ export default function GuidelinesScreen() {
         <P>Messages and reviews are automatically screened for objectionable language. Any member can report content or block another user. Content that is reported by multiple people is automatically hidden pending review. You can delete your own content, and our team can remove content and eject users who violate these guidelines — typically within 24 hours of a report.</P>
       </LegalSection>
 
-      <LegalSection heading="Protecting minors in Team Chat">
-        <P>A minor athlete can only join Team Chat with their own login after a parent/guardian approves it. Minors chat only in a supervised group thread (no private one-to-one messages), and a parent/guardian can see the conversation and revoke access at any time.</P>
+      <LegalSection heading="ParentGuard — protecting minors in Team Chat">
+        <P>ParentGuard keeps youth chat safe. A minor athlete can only join Team Chat with their own login after a parent/guardian approves it. Minors chat only in a supervised group thread (no private one-to-one messages), and a parent/guardian can see the conversation and revoke access at any time. Parent-approved. Parent-connected.</P>
       </LegalSection>
 
       <LegalSection heading="Reporting a problem">

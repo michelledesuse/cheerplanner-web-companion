@@ -433,7 +433,7 @@ export default function TeamChatScreen() {
           <Text style={styles.sub}>{activeChannel ? "Tap to switch chats" : "Main team thread · tap to switch"}</Text>
         </TouchableOpacity>
         {!supervised && (
-          <TouchableOpacity onPress={() => router.push("/team/chat-access" as any)} hitSlop={10} style={styles.backBtn} testID="chat-manage-access">
+          <TouchableOpacity onPress={() => router.push("/team/chat-access" as any)} hitSlop={10} style={styles.backBtn} testID="chat-manage-access" accessibilityLabel="ParentGuard — manage youth chat access">
             <Ionicons name="people-outline" size={22} color={colors.accent} />
           </TouchableOpacity>
         )}
@@ -442,7 +442,7 @@ export default function TeamChatScreen() {
       {supervised && (
         <View style={styles.supervisedBar} testID="chat-supervised-banner">
           <Ionicons name="shield-checkmark" size={14} color={colors.accent} />
-          <Text style={styles.supervisedText}>A parent/guardian can see this chat.</Text>
+          <Text style={styles.supervisedText}>🛡️ ParentGuard — a parent/guardian can see this chat.</Text>
         </View>
       )}
 
