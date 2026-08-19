@@ -100,6 +100,7 @@ export default function ChatAccessScreen() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <View style={styles.nameRow}>
                 <Text style={styles.name}>{a.name}</Text>
+                {a.is_minor && <Ionicons name="shield-checkmark" size={15} color={colors.accent} testID={`parentguard-shield-${a.roster_id}`} />}
                 {a.is_minor && <View style={styles.minorTag}><Text style={styles.minorText}>MINOR</Text></View>}
               </View>
               <Text style={styles.status}>
