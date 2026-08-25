@@ -127,10 +127,27 @@ async def revoke_share(link_id: str, current_user=Depends(get_current_user)):
 # ============================================================
 # Public helpers (no auth)
 # ============================================================
+SHARE_LINK_TTL_DAYS = 30
+
+
 async def _get_link(token: str) -> dict:
     link = await db.share_links.find_one({"token": token, "active": True}, {"_id": 0})
     if not link:
         raise HTTPException(status_code=404, detail="This link is invalid or has been turned off.")
+    # Links expire 30 days after creation (manual revoke sets active=False separately).
+    created = link.get("created_at")
+    if created:
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _tdelta
+        try:
+            c = _dt.fromisoformat(str(created).replace("Z", "+00:00"))
+            if c.tzinfo is None:
+                c = c.replace(tzinfo=_tz.utc)
+            if _dt.now(_tz.utc) - c > _tdelta(days=SHARE_LINK_TTL_DAYS):
+                raise HTTPException(status_code=404, detail="This link has expired. Please ask for a new one.")
+        except HTTPException:
+            raise
+        except Exception:
+            pass
     return link
 
 
@@ -195,18 +212,21 @@ async def public_data(token: str):
                 "team_ids": m.get("team_ids") or [],
                 "phone": m.get("phone") or "",
                 "email": m.get("email") or "",
-                "parent_first_name": m.get("parent_first_name") or "",
-                "parent_last_name": m.get("parent_last_name") or "",
-                "parent_phone": m.get("parent_phone") or "",
-                "parent_email": m.get("parent_email") or "",
-                "parent_relationship": m.get("parent_relationship") or "",
+                # Sensitive child data (DOB, allergies, medical, parent contact) is
+                # intentionally NOT returned on public links (SEC-003). The form
+                # starts blank for these; parents can (re)enter them on submit.
+                "parent_first_name": "",
+                "parent_last_name": "",
+                "parent_phone": "",
+                "parent_email": "",
+                "parent_relationship": "",
                 "parent_include_in_texts": m.get("parent_include_in_texts", True),
-                "caretakers": m.get("caretakers") or [],
-                "dob": m.get("dob") or "",
+                "caretakers": [],
+                "dob": "",
                 "adult_athlete": bool(m.get("adult_athlete")),
-                "food_allergies": m.get("food_allergies") or "",
-                "other_allergies": m.get("other_allergies") or "",
-                "medical_concerns": m.get("medical_concerns") or "",
+                "food_allergies": "",
+                "other_allergies": "",
+                "medical_concerns": "",
                 "host_bonding_opt_in": m.get("host_bonding_opt_in"),
                 "photo": m.get("photo") or "",
                 "sizes": sizes_vals,

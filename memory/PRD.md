@@ -510,3 +510,7 @@ Get exact current paths from user before building W2.
 - Form "Remind": now editable before sending. `POST /api/team/forms/{id}/remind` accepts optional `message`; body = "Hi {first}, {message} {link}" when provided (else default). Frontend `app/team/form-detail.tsx`: Remind opens a compose modal (form-remind-modal / form-remind-text / form-remind-send) prefilled with a default, so coaches can add context/due date. Verified via API (200).
 - Broadcast scroll fix: `KeyboardAvoidingView` now has `keyboardVerticalOffset={88}` on iOS + `showsVerticalScrollIndicator`/`persistentScrollbar` and larger paddingBottom, so the Send button is reachable with the keyboard open and long messages.
 - TODO/backlog: global "visible scrollbar on all pages" is a larger multi-screen sweep — only broadcast addressed so far.
+
+## Session update 24 (SEC-003: public share link hardening)
+- share.py `_get_link` now enforces a 30-day expiry (SHARE_LINK_TTL_DAYS) from created_at for BOTH /public/share/{token}/data and /submit (expired -> 404). Manual revoke already exists: DELETE /api/team/share/{link_id} (sets active=False).
+- Public roster_member payload no longer exposes sensitive child data: dob, food_allergies, other_allergies, medical_concerns, and parent contact (parent_first/last/phone/email/relationship, caretakers) are returned blank. Non-sensitive fields (name, role, team, sizes) still returned; the public form starts blank for the removed fields and parents can still submit them. No other share behavior changed. Verified via API.
