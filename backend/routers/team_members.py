@@ -14,7 +14,7 @@ Flow (does NOT touch the existing household/athlete invite flows):
        • athlete  -> roster entry + supervised chat athlete link
 """
 import secrets
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import BaseModel
@@ -121,11 +121,14 @@ async def list_members(current_user=Depends(get_current_user)):
     pending, active = [], []
     async for tm in db.team_members.find({"household_id": h["id"]}, {"_id": 0}).sort("joined_at", -1):
         who = await _user_label(tm["user_id"])
+        rids = tm.get("athlete_roster_ids") or ([tm["athlete_roster_id"]] if tm.get("athlete_roster_id") else [])
+        names = [n for n in ((roster.get(r) or {}).get("name") for r in rids) if n]
         row = {
             "user_id": tm["user_id"], "name": who["name"], "email": who["email"],
             "status": tm.get("status"), "role": tm.get("role"),
             "athlete_roster_id": tm.get("athlete_roster_id"),
-            "athlete_name": (roster.get(tm.get("athlete_roster_id")) or {}).get("name"),
+            "athlete_roster_ids": rids,
+            "athlete_name": ", ".join(names) if names else None,
             "joined_at": tm.get("joined_at"),
         }
         (pending if tm.get("status") == "pending" else active).append(row)
@@ -148,6 +151,9 @@ class AssignPayload(BaseModel):
     role: str
     athlete_roster_id: Optional[str] = None
     athlete_name: Optional[str] = None
+    # A Parent can be linked to SEVERAL children at once.
+    athlete_roster_ids: Optional[List[str]] = None
+    athlete_names: Optional[List[str]] = None
 
 
 async def _create_roster_entry(owner_id: str, name: str, role: str, member_uid: str) -> dict:
@@ -201,36 +207,54 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
             upsert=True,
         )
 
-    else:  # parent — link as a guardian on an athlete's roster entry
+    else:  # parent — link as a guardian on ONE OR MORE athletes' roster entries
+        want_ids = list(payload.athlete_roster_ids or [])
         if payload.athlete_roster_id:
-            athlete = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0})
+            want_ids.append(payload.athlete_roster_id)
+        want_names = list(payload.athlete_names or [])
+        if payload.athlete_name and payload.athlete_name.strip():
+            want_names.append(payload.athlete_name.strip())
+        linked_ids: list = []
+        # existing athletes
+        for rid in dict.fromkeys(want_ids):  # de-dupe, keep order
+            athlete = await db.roster.find_one({"id": rid, "user_id": owner_id}, {"_id": 0})
             if not athlete:
                 raise HTTPException(status_code=404, detail="Athlete not found.")
-        elif payload.athlete_name and payload.athlete_name.strip():
-            athlete = await _create_roster_entry(owner_id, payload.athlete_name.strip(), "athlete", "")
-        else:
-            raise HTTPException(status_code=400, detail="Choose or name an athlete to link this parent to.")
-        athlete_roster_id = athlete["id"]
-        # Attach the parent as a recognized guardian (reuses existing guardian logic).
+            linked_ids.append(athlete["id"])
+        # newly-named athletes
+        for nm in want_names:
+            if nm.strip():
+                doc = await _create_roster_entry(owner_id, nm.strip(), "athlete", "")
+                linked_ids.append(doc["id"])
+        if not linked_ids:
+            raise HTTPException(status_code=400, detail="Choose or name at least one athlete to link this parent to.")
         pfirst, _, plast = (who["name"] or "").partition(" ")
-        if not athlete.get("parent_email"):
-            await db.roster.update_one({"id": athlete_roster_id}, {"$set": {
-                "parent_email": who["email"], "parent_first_name": pfirst or None,
-                "parent_last_name": plast or None,
-            }})
-        else:
-            await db.roster.update_one({"id": athlete_roster_id}, {"$push": {"caretakers": {
-                "name": who["name"], "email": who["email"], "relationship": "Parent",
-            }}})
+        for rid in linked_ids:
+            athlete = await db.roster.find_one({"id": rid}, {"_id": 0, "id": 1, "parent_email": 1})
+            # Attach the parent as a recognized guardian (reuses existing guardian logic).
+            if not (athlete or {}).get("parent_email"):
+                await db.roster.update_one({"id": rid}, {"$set": {
+                    "parent_email": who["email"], "parent_first_name": pfirst or None,
+                    "parent_last_name": plast or None,
+                }})
+            else:
+                await db.roster.update_one({"id": rid}, {"$addToSet": {"caretakers": {
+                    "name": who["name"], "email": who["email"], "relationship": "Parent",
+                }}})
+        athlete_roster_id = linked_ids[0]
 
     await db.team_members.update_one(
         {"household_id": h["id"], "user_id": user_id},
-        {"$set": {"status": "active", "role": role, "athlete_roster_id": athlete_roster_id,
+        {"$set": {"status": "active", "role": role,
+                  "athlete_roster_id": athlete_roster_id,
+                  "athlete_roster_ids": (linked_ids if role == "parent" else ([athlete_roster_id] if athlete_roster_id else [])),
                   "assigned_by": current_user["id"], "assigned_at": now}},
     )
     await db.team_join_notifications.update_many(
         {"household_id": h["id"], "user_id": user_id}, {"$set": {"read": True}})
-    return {"user_id": user_id, "role": role, "status": "active", "athlete_roster_id": athlete_roster_id}
+    ids_out = (linked_ids if role == "parent" else ([athlete_roster_id] if athlete_roster_id else []))
+    return {"user_id": user_id, "role": role, "status": "active",
+            "athlete_roster_id": athlete_roster_id, "athlete_roster_ids": ids_out}
 
 
 @router.post("/members/{user_id}/remove")

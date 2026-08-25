@@ -33,7 +33,7 @@ export default function TeamMembersScreen() {
   const [assignFor, setAssignFor] = useState<Member | null>(null);
   const [role, setRole] = useState<string>("");
   const [athletes, setAthletes] = useState<AthleteOpt[]>([]);
-  const [pickedAthlete, setPickedAthlete] = useState<string | null>(null);
+  const [pickedAthletes, setPickedAthletes] = useState<Set<string>>(new Set());
   const [newAthlete, setNewAthlete] = useState("");
 
   const load = useCallback(async () => {
@@ -68,7 +68,7 @@ export default function TeamMembersScreen() {
   }, []);
 
   const openAssign = useCallback(async (m: Member) => {
-    setAssignFor(m); setRole(""); setPickedAthlete(null); setNewAthlete("");
+    setAssignFor(m); setRole(""); setPickedAthletes(new Set()); setNewAthlete("");
     try { const r = await api.get<{ athletes: AthleteOpt[] }>("/team/members/athletes"); setAthletes(r.data.athletes || []); }
     catch { setAthletes([]); }
   }, []);
@@ -76,10 +76,15 @@ export default function TeamMembersScreen() {
   const submitAssign = useCallback(async () => {
     if (!assignFor || !role) return;
     const body: any = { role };
-    if (role === "parent" || role === "athlete") {
-      if (pickedAthlete) body.athlete_roster_id = pickedAthlete;
+    if (role === "parent") {
+      const ids = Array.from(pickedAthletes);
+      if (ids.length) body.athlete_roster_ids = ids;
+      if (newAthlete.trim()) body.athlete_name = newAthlete.trim();
+      if (!ids.length && !newAthlete.trim()) { Alert.alert("Pick an athlete", "Choose one or more children, or type a new name."); return; }
+    } else if (role === "athlete") {
+      const first = Array.from(pickedAthletes)[0];
+      if (first) body.athlete_roster_id = first;
       else if (newAthlete.trim()) body.athlete_name = newAthlete.trim();
-      else if (role === "parent") { Alert.alert("Pick an athlete", "Choose an existing athlete or type a new name."); return; }
     }
     setBusy(assignFor.user_id);
     try {
@@ -88,7 +93,17 @@ export default function TeamMembersScreen() {
       await load();
     } catch (e: any) { Alert.alert("Couldn't assign", e?.response?.data?.detail || "Please try again."); }
     finally { setBusy(null); }
-  }, [assignFor, role, pickedAthlete, newAthlete, load]);
+  }, [assignFor, role, pickedAthletes, newAthlete, load]);
+
+  const toggleAthlete = useCallback((rid: string, single: boolean) => {
+    setPickedAthletes((prev) => {
+      if (single) return new Set(prev.has(rid) ? [] : [rid]);
+      const next = new Set(prev);
+      if (next.has(rid)) next.delete(rid); else next.add(rid);
+      return next;
+    });
+    setNewAthlete("");
+  }, []);
 
   const remove = useCallback((m: Member) => {
     Alert.alert(`Remove ${m.name}?`, m.status === "pending" ? "They won't join the team." : "They lose team & chat access.", [
@@ -186,21 +201,25 @@ export default function TeamMembersScreen() {
 
             {needsAthlete && (
               <View style={{ marginTop: 4 }}>
-                <Text style={styles.sheetSub}>{role === "parent" ? "Link to which athlete?" : "Athlete's roster entry (optional)"}</Text>
+                <Text style={styles.sheetSub}>{role === "parent" ? "Link to their children (pick one or more)" : "Athlete's roster entry (optional)"}</Text>
                 <ScrollView style={{ maxHeight: 150 }}>
-                  {athletes.map((a) => (
-                    <TouchableOpacity key={a.roster_id} style={styles.athRow} onPress={() => { setPickedAthlete(a.roster_id); setNewAthlete(""); }} testID={`ath-${a.roster_id}`}>
-                      <Ionicons name={pickedAthlete === a.roster_id ? "radio-button-on" : "radio-button-off"} size={20} color={colors.accent} />
-                      <Text style={styles.name}>{a.name}</Text>
-                    </TouchableOpacity>
-                  ))}
+                  {athletes.map((a) => {
+                    const on = pickedAthletes.has(a.roster_id);
+                    const single = role !== "parent";
+                    return (
+                      <TouchableOpacity key={a.roster_id} style={styles.athRow} onPress={() => toggleAthlete(a.roster_id, single)} testID={`ath-${a.roster_id}`}>
+                        <Ionicons name={on ? (single ? "radio-button-on" : "checkbox") : (single ? "radio-button-off" : "square-outline")} size={20} color={colors.accent} />
+                        <Text style={styles.name}>{a.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
                 </ScrollView>
                 <TextInput
                   style={styles.input}
-                  placeholder={role === "parent" ? "…or type a new athlete's name" : "…or type a new athlete's name"}
+                  placeholder="…or type a new athlete's name"
                   placeholderTextColor={colors.textTertiary}
                   value={newAthlete}
-                  onChangeText={(t) => { setNewAthlete(t); if (t) setPickedAthlete(null); }}
+                  onChangeText={(t) => { setNewAthlete(t); if (t) setPickedAthletes(new Set()); }}
                   testID="new-athlete-name"
                 />
               </View>
