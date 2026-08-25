@@ -357,7 +357,10 @@ async def remind_form(form_id: str, payload: dict, current_user=Depends(get_curr
             no_phone.append(m.get("name"))
             continue
         first = (m.get("parent_first_name") or m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
-        body = f"Hi {first}, please fill out '{doc.get('name')}' for the team here: {url} Thank you!"
+        _custom = ((payload or {}).get("message") or "").strip()
+        body = (f"Hi {first}, {_custom} {url}".strip()
+                if _custom else
+                f"Hi {first}, please fill out '{doc.get('name')}' for the team here: {url} Thank you!")
         if send_sms(phone, body):
             sent += 1
         else:

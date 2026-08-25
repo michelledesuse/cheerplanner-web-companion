@@ -504,3 +504,9 @@ Get exact current paths from user before building W2.
 
 ## Session update 22 (Parent → multiple children)
 - Fix: a Parent can now be linked to MULTIPLE athletes in one role assignment. `POST /api/team/members/{uid}/assign-role` accepts `athlete_roster_ids: [..]` (+ optional `athlete_name` for a new child); the parent is set as a recognized guardian (parent_email or caretaker) on EACH child, so ParentGuard approval works for every child. team_members stores `athlete_roster_ids`; `/team/members` shows all linked child names. Frontend `app/team/members.tsx`: parent role now uses a MULTI-select (checkboxes) athlete picker (+ new-name field). Backward compatible with singular `athlete_roster_id`. Tests: tests/test_parent_multi_child.py PASS; test_team_members_flow.py still PASS.
+
+## Session update 23 (Custom reminder text + broadcast scroll fix)
+- Broadcast (Message parents) already supported custom text + saved templates + history/resend — confirmed, no change needed there.
+- Form "Remind": now editable before sending. `POST /api/team/forms/{id}/remind` accepts optional `message`; body = "Hi {first}, {message} {link}" when provided (else default). Frontend `app/team/form-detail.tsx`: Remind opens a compose modal (form-remind-modal / form-remind-text / form-remind-send) prefilled with a default, so coaches can add context/due date. Verified via API (200).
+- Broadcast scroll fix: `KeyboardAvoidingView` now has `keyboardVerticalOffset={88}` on iOS + `showsVerticalScrollIndicator`/`persistentScrollbar` and larger paddingBottom, so the Send button is reachable with the keyboard open and long messages.
+- TODO/backlog: global "visible scrollbar on all pages" is a larger multi-screen sweep — only broadcast addressed so far.

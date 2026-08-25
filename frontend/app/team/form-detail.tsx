@@ -172,13 +172,25 @@ export default function FormDetailScreen() {
       await Share.share({ message: `Please fill out "${data?.name}" for our team (no app needed):\n${url}` });
     } catch (e: any) { Alert.alert("Couldn't create link", e?.response?.data?.detail || ""); }
   };
-  const remind = async () => {
+  const [remindOpen, setRemindOpen] = useState(false);
+  const [remindText, setRemindText] = useState("");
+  const [remindBusy, setRemindBusy] = useState(false);
+
+  const remind = () => {
     const pending = data?.members.filter((m) => !m.answered).length ?? 0;
     if (pending === 0) { Alert.alert("All caught up", "Everyone has already responded."); return; }
+    setRemindText(`please fill out '${data?.name}' for the team.`);
+    setRemindOpen(true);
+  };
+
+  const sendRemind = async () => {
+    setRemindBusy(true);
     try {
-      const r = await api.post<{ sent: number; no_phone: string[] }>(`/team/forms/${id}/remind`, { base_url: BASE });
+      const r = await api.post<{ sent: number; no_phone: string[] }>(`/team/forms/${id}/remind`, { base_url: BASE, message: remindText.trim() });
+      setRemindOpen(false);
       Alert.alert("Reminders sent", `Texted ${r.data.sent} parent${r.data.sent === 1 ? "" : "s"} who haven't responded yet.${(r.data.no_phone || []).length ? `\n\nNo phone on file: ${r.data.no_phone.join(", ")}` : ""}`);
     } catch (e: any) { Alert.alert("Couldn't send", e?.response?.data?.detail || ""); }
+    finally { setRemindBusy(false); }
   };
 
   const saveDeadline = () => {
@@ -486,6 +498,33 @@ export default function FormDetailScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Edit reminder text before sending */}
+      <Modal visible={remindOpen} transparent animationType="fade" onRequestClose={() => setRemindOpen(false)}>
+        <View style={styles.remindWrap}>
+          <View style={styles.remindSheet} testID="form-remind-modal">
+            <Text style={styles.remindTitle}>Reminder text</Text>
+            <Text style={styles.remindHint}>Each parent gets a text starting with their first name. Add any context or due date — the form link is added automatically.</Text>
+            <TextInput
+              style={styles.remindInput}
+              value={remindText}
+              onChangeText={setRemindText}
+              placeholder="e.g. please turn in your paperwork by Friday 5pm."
+              placeholderTextColor={colors.textTertiary}
+              multiline
+              maxLength={400}
+              testID="form-remind-text"
+            />
+            <TouchableOpacity style={[styles.remindSend, (!remindText.trim() || remindBusy) && { opacity: 0.5 }]} onPress={sendRemind} disabled={!remindText.trim() || remindBusy} testID="form-remind-send">
+              {remindBusy ? <ActivityIndicator color="#fff" /> : <Text style={styles.remindSendText}>Send reminder</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setRemindOpen(false)} style={{ paddingVertical: 10, alignItems: "center" }}>
+              <Text style={styles.remindCancel}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }
@@ -581,4 +620,12 @@ const makeStyles = (c: ThemePalette) => ({
   optChipOn: { backgroundColor: c.accent, borderColor: c.accent },
   optChipText: { ...typography.bodyMedium, color: c.textPrimary },
   optChipTextOn: { color: "white" },
+  remindWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: spacing.lg },
+  remindSheet: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg },
+  remindTitle: { ...typography.h3, color: c.textPrimary },
+  remindHint: { ...typography.caption, color: c.textSecondary, marginTop: 6, marginBottom: 10, lineHeight: 18 },
+  remindInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 12, minHeight: 90, textAlignVertical: "top", ...typography.body, color: c.textPrimary },
+  remindSend: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 13, alignItems: "center", marginTop: 12 },
+  remindSendText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  remindCancel: { ...typography.bodyMedium, color: c.textSecondary },
 });
