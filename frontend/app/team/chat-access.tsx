@@ -122,13 +122,23 @@ export default function ChatAccessScreen() {
                 )}
               </View>
             ) : (
-              <Switch
-                value={a.chat_enabled}
-                onValueChange={(v) => toggle(a, v)}
-                disabled={!a.can_approve || busy === a.roster_id}
-                trackColor={{ true: colors.accent }}
-                testID={`chat-approve-${a.roster_id}`}
-              />
+              <View style={{ alignItems: "flex-end", gap: 8 }}>
+                <Switch
+                  value={a.chat_enabled}
+                  onValueChange={(v) => toggle(a, v)}
+                  disabled={!a.can_approve || busy === a.roster_id}
+                  trackColor={{ true: colors.accent }}
+                  testID={`chat-approve-${a.roster_id}`}
+                />
+                {a.chat_enabled && a.can_approve && (
+                  <TouchableOpacity
+                    onPress={() => router.push({ pathname: "/team/child-chat", params: { roster_id: a.roster_id, name: a.name } })}
+                    testID={`chat-view-${a.roster_id}`}
+                  >
+                    <Text style={styles.linkExisting}>View chat</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
           </View>
         ))}

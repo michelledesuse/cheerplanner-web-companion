@@ -13,19 +13,22 @@ BASE = "https://spirit-finance-2.emergent.host/api"
 EMAIL = "demo@cheerplanner.app"
 PASSWORD = "CheerDemo2026!"
 
-# ParentGuard demo — the minor athlete's OWN login (separate account)
-MIA_EMAIL = "mia.athlete@cheerplanner.app"
-MIA_PASSWORD = "CheerDemo2026!"
+# ParentGuard demo — minor athletes' OWN logins (separate accounts)
+MINORS = [
+    # (roster display name, email, password, age, approved?)
+    ("Mia Johnson", "mia.athlete@cheerplanner.app", "CheerDemo2026!", 11, False),
+    ("Sophia Lee", "sophia.athlete@cheerplanner.app", "CheerDemo2026!", 12, True),
+]
 
 s = requests.Session()
 
 
-def mia_session():
-    """Log in (or create) Mia's athlete account and return an authed session."""
+def athlete_session(email, password, name):
+    """Log in (or create) a minor athlete account and return an authed session."""
     ms = requests.Session()
-    r = ms.post(f"{BASE}/auth/login", json={"email": MIA_EMAIL, "password": MIA_PASSWORD}, timeout=30)
+    r = ms.post(f"{BASE}/auth/login", json={"email": email, "password": password}, timeout=30)
     if r.status_code >= 300:
-        r = ms.post(f"{BASE}/auth/signup", json={"email": MIA_EMAIL, "password": MIA_PASSWORD, "name": "Mia Johnson"}, timeout=30)
+        r = ms.post(f"{BASE}/auth/signup", json={"email": email, "password": password, "name": name}, timeout=30)
         r.raise_for_status()
     ms.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
     return ms
@@ -195,7 +198,7 @@ def run():
 
     # Team Hub roster
     sr = teams.get("Senior Elite Coed 5")
-    mia_roster_id = None
+    roster_ids = {}
     for name, role in [
         ("Coach Maria", "coach"), ("Team Rep Dana", "team_rep"),
         ("Ava Johnson", "athlete"), ("Mia Johnson", "athlete"), ("Sophia Lee", "athlete"),
@@ -204,8 +207,8 @@ def run():
         first, _, last = name.partition(" ")
         rm = post("/roster", {"first_name": first, "last_name": last, "role": role,
                               "team_ids": [sr] if sr else []})
-        if rm and name == "Mia Johnson":
-            mia_roster_id = rm["id"]
+        if rm:
+            roster_ids[name] = rm["id"]
 
     # Team Form (Banquet Meal Order)
     post("/forms", {
@@ -217,18 +220,25 @@ def run():
         ],
     })
 
-    # ---- ParentGuard: make Mia a MINOR (age 11) with a PENDING chat-approval
-    # request. Guardian = the demo owner, so the reviewer can approve/deny live.
-    if mia_roster_id:
-        eleven = today.replace(year=today.year - 11)
-        patch(f"/roster/{mia_roster_id}", {"dob": eleven.isoformat(), "parent_email": EMAIL, "adult_athlete": False})
-        inv = post(f"/team/chat/athletes/{mia_roster_id}/invite", {})
+    # ---- ParentGuard: two MINORS showing both states side by side.
+    #   • Mia Johnson (age 11)  — PENDING parent approval (chat OFF)
+    #   • Sophia Lee (age 12)   — ALREADY approved by parent (chat ON)
+    for disp, email, pw, age, approved in MINORS:
+        rid = roster_ids.get(disp)
+        if not rid:
+            continue
+        dob = today.replace(year=today.year - age)
+        patch(f"/roster/{rid}", {"dob": iso(dob), "parent_email": EMAIL, "adult_athlete": False})
+        inv = post(f"/team/chat/athletes/{rid}/invite", {})
         code = inv.get("code") if inv else None
         if code:
-            ms = mia_session()
-            jr = ms.post(f"{BASE}/household/join", json={"code": code}, timeout=30)
-            print(f"  Mia join ({code}) ->", jr.status_code, jr.text[:120])
-        print("ParentGuard seeded → Mia Johnson (age 11) PENDING parent approval.")
+            ath = athlete_session(email, pw, disp)
+            jr = ath.post(f"{BASE}/household/join", json={"code": code}, timeout=30)
+            print(f"  {disp} join ({code}) ->", jr.status_code, jr.text[:100])
+        if approved:
+            ar = post(f"/team/chat/athletes/{rid}/approve", {"enabled": True})
+            print(f"  {disp} approved ->", ar)
+        print(f"ParentGuard seeded → {disp} (age {age}) {'APPROVED' if approved else 'PENDING'}; login {email}")
 
     # ---- Owner accepts Community Guidelines + seeds a few team-chat messages.
     post("/team/chat/accept-guidelines", {})

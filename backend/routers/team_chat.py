@@ -579,6 +579,32 @@ async def approve_athlete(roster_id: str, payload: dict = Body(default={}), curr
     return {"roster_id": roster_id, "chat_enabled": enabled}
 
 
+@router.get("/team/chat/athletes/{roster_id}/messages")
+async def guardian_view_messages(roster_id: str, limit: int = 100, current_user=Depends(require_team_access)):
+    """Guardian-only, READ-ONLY view of a supervised minor's team chat, so a
+    parent can always see the conversation their athlete participates in."""
+    h = await _resolve_active_household(current_user["id"])
+    owner_id = h.get("owner_user_id") or (h.get("member_user_ids") or [None])[0]
+    scope_ids = list(set((h.get("member_user_ids") or []) + [owner_id] + (h.get("team_hub_member_user_ids") or [])))
+    m = await db.roster.find_one({"id": roster_id, "user_id": {"$in": scope_ids}, "role": "athlete"}, {"_id": 0})
+    if not m:
+        raise HTTPException(status_code=404, detail="Athlete not found on this roster.")
+    my_email = (current_user.get("email") or "").lower().strip()
+    is_guardian = current_user["id"] == owner_id or (my_email and my_email in _guardian_emails(m))
+    if not is_guardian:
+        raise HTTPException(status_code=403, detail="Only the athlete's parent/guardian (or account owner) can view this chat.")
+    name = m.get("name") or ((m.get("first_name") or "") + " " + (m.get("last_name") or "")).strip()
+    link = await db.athlete_chat_links.find_one({"household_id": h["id"], "roster_id": roster_id}, {"_id": 0})
+    if not (link and link.get("chat_enabled")):
+        return {"athlete_name": name, "chat_enabled": False, "messages": []}
+    limit = max(1, min(int(limit or 100), 200))
+    docs = await db.team_messages.find(
+        {"household_id": h["id"], "channel_id": None, "hidden": {"$ne": True}}, {"_id": 0}
+    ).sort("created_at", -1).limit(limit).to_list(limit)
+    docs.reverse()
+    return {"athlete_name": name, "chat_enabled": True, "messages": docs}
+
+
 @router.get("/team/chat/family-members")
 async def family_members(current_user=Depends(require_team_access)):
     """Existing logins in this family/household — so an athlete who already has a

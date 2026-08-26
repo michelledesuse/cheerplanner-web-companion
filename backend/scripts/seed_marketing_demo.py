@@ -26,14 +26,17 @@ load_dotenv()
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 import core.models as server  # noqa: E402  (models live here; aliased as `server` for brevity)
 from core.security import hash_password  # noqa: E402
+from core.entitlements import grant_lifetime  # noqa: E402
 
 DEMO_EMAIL = "demo@cheerplanner.app"
 DEMO_PASSWORD = "CheerDemo2026!"
 DEMO_NAME = "Jordan"
 
-# ParentGuard demo — a minor athlete's own login (separate account, NOT personnel)
-MIA_ATHLETE_EMAIL = "mia.athlete@cheerplanner.app"
+# ParentGuard demo — minor athletes' OWN logins (separate accounts, NOT personnel)
+MIA_ATHLETE_EMAIL = "mia.athlete@cheerplanner.app"      # PENDING approval
 MIA_ATHLETE_PASSWORD = "CheerDemo2026!"
+SOPHIA_ATHLETE_EMAIL = "sophia.athlete@cheerplanner.app"  # ALREADY approved
+SOPHIA_ATHLETE_PASSWORD = "CheerDemo2026!"
 
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ.get("DB_NAME", "test_database")
@@ -252,38 +255,51 @@ async def run() -> None:
             "created_at": now_iso(), "updated_at": now_iso(),
         })
 
-    # ---- ParentGuard: a MINOR (under 13) with a PENDING chat-approval request.
-    # Mia is 11. Her guardian is the demo account owner, so the reviewer can
-    # approve/deny her Team Chat access live on the 🛡️ ParentGuard screen.
-    mia_roster_id = next((rid for rid, name, role in roster_ids if name == "Mia Johnson"), None)
-    if mia_roster_id and household_id:
-        eleven_years_ago = today.replace(year=today.year - 11)
+    # ---- ParentGuard: two MINORS showing both states side by side.
+    #   • Mia Johnson (age 11) — PENDING parent approval (chat OFF).
+    #   • Sophia Lee (age 12)  — ALREADY approved by parent (chat ON).
+    # Guardian for both = the demo account owner, so the reviewer can toggle live.
+    async def _seed_minor(display_name: str, email: str, password: str, age: int, approved: bool):
+        rid = next((r for r, n, role in roster_ids if n == display_name), None)
+        if not rid or not household_id:
+            return
+        dob = today.replace(year=today.year - age)
         await db.roster.update_one(
-            {"id": mia_roster_id},
-            {"$set": {"dob": eleven_years_ago.isoformat(), "parent_email": DEMO_EMAIL, "adult_athlete": False}},
+            {"id": rid},
+            {"$set": {"dob": dob.isoformat(), "parent_email": DEMO_EMAIL, "adult_athlete": False}},
         )
-        # Athlete login for Mia (her own account — NOT team personnel, no seat).
-        if mia_login_id:
+        login = await db.users.find_one({"email": email})
+        if login:
+            login_id = login["id"]
             await db.users.update_one(
-                {"id": mia_login_id},
-                {"$set": {"password_hash": hash_password(MIA_ATHLETE_PASSWORD), "name": "Mia Johnson", "team_access": False}},
+                {"id": login_id},
+                {"$set": {"password_hash": hash_password(password), "name": display_name, "team_access": False}},
             )
         else:
-            mia_login_id = str(uuid.uuid4())
+            login_id = str(uuid.uuid4())
             await db.users.insert_one({
-                "id": mia_login_id, "email": MIA_ATHLETE_EMAIL, "name": "Mia Johnson",
-                "password_hash": hash_password(MIA_ATHLETE_PASSWORD), "team_access": False,
-                "created_at": now_iso(),
+                "id": login_id, "email": email, "name": display_name,
+                "password_hash": hash_password(password), "team_access": False, "created_at": now_iso(),
             })
-        # Link her login to the roster entry but leave chat OFF (pending approval).
-        await db.households.update_one({"id": household_id}, {"$addToSet": {"chat_athlete_user_ids": mia_login_id}})
+        await db.households.update_one({"id": household_id}, {"$addToSet": {"chat_athlete_user_ids": login_id}})
         await db.athlete_chat_links.update_one(
-            {"household_id": household_id, "roster_id": mia_roster_id},
-            {"$set": {"athlete_user_id": mia_login_id, "chat_enabled": False, "invite_code": None, "linked_at": now_iso()},
+            {"household_id": household_id, "roster_id": rid},
+            {"$set": {"athlete_user_id": login_id, "chat_enabled": approved, "invite_code": None, "linked_at": now_iso(),
+                      **({"approved_by": user_id, "approved_at": now_iso()} if approved else {})},
              "$setOnInsert": {"created_at": now_iso()}},
             upsert=True,
         )
-        print(f"ParentGuard seeded → Mia Johnson (age 11) PENDING approval; login {MIA_ATHLETE_EMAIL}")
+        state = "APPROVED (chat ON)" if approved else "PENDING approval (chat OFF)"
+        print(f"ParentGuard → {display_name} (age {age}) {state}; login {email}")
+
+    await _seed_minor("Mia Johnson", MIA_ATHLETE_EMAIL, MIA_ATHLETE_PASSWORD, 11, approved=False)
+    await _seed_minor("Sophia Lee", SOPHIA_ATHLETE_EMAIL, SOPHIA_ATHLETE_PASSWORD, 12, approved=True)
+
+    # ---- Unlock Premium for the reviewer so paywalled features are testable.
+    if household_id:
+        await grant_lifetime(user_id=user_id, household_id=household_id, source="admin_grant",
+                             reason="Apple Review", label="Apple Review")
+        print("Granted Lifetime Premium to the demo/reviewer account.")
 
     # ---- Owner accepts Community Guidelines so the reviewer can open Team Chat.
     await db.users.update_one({"id": user_id}, {"$set": {"chat_guidelines_accepted_at": now_iso()}})
