@@ -149,7 +149,7 @@ const makeStyles = (c: ThemePalette) => ({
   headerTitle: { fontSize: 18, fontWeight: "700" as const, color: c.textPrimary },
   label: { color: c.textSecondary, fontSize: 13, fontWeight: "700" as const, marginTop: 18, marginBottom: 6 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 10, paddingHorizontal: 12, minHeight: 46, color: c.textPrimary, fontSize: 15, paddingVertical: 10 },
-  textarea: { minHeight: 110, textAlignVertical: "top" as const },
+  textarea: { minHeight: 110, maxHeight: 220, textAlignVertical: "top" as const },
   catWrap: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 },
   catChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginRight: 8, marginBottom: 8 },
   catChipActive: { backgroundColor: c.accent, borderColor: c.accent },

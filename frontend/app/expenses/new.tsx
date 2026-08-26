@@ -293,7 +293,7 @@ export default function ExpenseForm() {
           <DateField value={dueDate} onChange={handleDueDateChange} testID="expense-due-input" />
 
           <Text style={styles.label}>Note (optional)</Text>
-          <TextInput style={[styles.input, { minHeight: 60 }]} value={note} onChangeText={setNote} placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} multiline />
+          <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={note} onChangeText={setNote} placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} multiline />
 
           <View style={styles.switchRow}>
             <Text style={styles.bodyText}>Already paid</Text>

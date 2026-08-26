@@ -704,7 +704,7 @@ export default function TeamChatScreen() {
             <Text style={styles.sheetTitle}>Schedule a post</Text>
             <Text style={styles.channelSub}>Posts to {activeChannel ? `“${activeChannel.name}”` : "the main team chat"} at the time you pick.</Text>
             <TextInput
-              style={[styles.nameInput, { minHeight: 80, textAlignVertical: "top" }]}
+              style={[styles.nameInput, { minHeight: 80, maxHeight: 140, textAlignVertical: "top" }]}
               placeholder="What should the team see?"
               placeholderTextColor={colors.textTertiary}
               value={schedText}

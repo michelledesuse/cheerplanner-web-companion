@@ -320,7 +320,7 @@ const makeStyles = (c: ThemePalette) => ({
   writeText: { color: "#fff", fontWeight: "700" as const, fontSize: 15 },
   editorCard: { backgroundColor: c.card, margin: 16, padding: 16, borderRadius: 14, borderWidth: 1, borderColor: c.border },
   editorTitle: { fontWeight: "800" as const, color: c.textPrimary, fontSize: 15, marginBottom: 12 },
-  textarea: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, minHeight: 90, color: c.textPrimary, fontSize: 15, textAlignVertical: "top" as const, marginTop: 12 },
+  textarea: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, minHeight: 90, maxHeight: 180, color: c.textPrimary, fontSize: 15, textAlignVertical: "top" as const, marginTop: 12 },
   anonRow: { flexDirection: "row" as const, alignItems: "center" as const, marginTop: 12, gap: 8 },
   anonText: { color: c.textSecondary, fontSize: 13 },
   editorActions: { flexDirection: "row" as const, justifyContent: "flex-end" as const, alignItems: "center" as const, marginTop: 16, gap: 18 },

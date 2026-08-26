@@ -192,7 +192,7 @@ export default function CompetitionForm() {
           )}
 
           <Text style={styles.label}>Notes</Text>
-          <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />
+          <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />
 
           <SeasonPicker
             selectedIds={seasonIds}

@@ -323,7 +323,7 @@ export default function BookingForm() {
           <DateField value={balanceDueDate} onChange={setBalanceDueDate} testID="booking-due-input" />
 
           <Text style={styles.label}>Notes</Text>
-          <TextInput style={[styles.input, { minHeight: 60 }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />
+          <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} multiline placeholderTextColor={colors.textTertiary} />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="booking-save-btn">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : `Save ${TITLE[type].toLowerCase()}`}</Text>}

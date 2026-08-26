@@ -505,7 +505,7 @@ const makeStyles = (c: ThemePalette) => ({
   composer: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, padding: spacing.md, gap: spacing.sm, marginBottom: spacing.lg },
   composerLabel: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.textPrimary },
-  inputMulti: { minHeight: 64, textAlignVertical: "top" },
+  inputMulti: { minHeight: 64, maxHeight: 140, textAlignVertical: "top" },
   submitBtn: { flex: 1, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 18, alignItems: "center", justifyContent: "center" },
   submitText: { color: "white", fontWeight: "800", fontSize: 15 },
 

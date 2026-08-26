@@ -151,7 +151,7 @@ const makeStyles = (c: ThemePalette) => ({
   modalSheet: { width: "100%", maxWidth: 440, backgroundColor: c.bg, borderRadius: 16, padding: spacing.lg, gap: spacing.sm },
   modalTitle: { ...typography.h3, color: c.textPrimary, marginBottom: 4 },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: c.textPrimary },
-  inputMulti: { minHeight: 64, textAlignVertical: "top" },
+  inputMulti: { minHeight: 64, maxHeight: 140, textAlignVertical: "top" },
   submitBtn: { flex: 1, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 12, alignItems: "center", justifyContent: "center" },
   submitText: { color: "white", fontWeight: "800", fontSize: 15 },
   modalActions: { flexDirection: "row", gap: spacing.md, marginTop: 4 },

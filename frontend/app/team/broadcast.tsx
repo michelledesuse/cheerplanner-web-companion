@@ -516,7 +516,7 @@ const makeStyles = (c: ThemePalette) => ({
   chipTextOn: { color: "white" },
   selectBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: c.accentBorder, backgroundColor: c.accentSubtle, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12 },
   selectBtnText: { ...typography.bodyMedium, color: c.accent, fontWeight: "700" },
-  textArea: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 14, minHeight: 110, fontSize: 15, color: c.textPrimary, textAlignVertical: "top" },
+  textArea: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 14, minHeight: 110, maxHeight: 200, fontSize: 15, color: c.textPrimary, textAlignVertical: "top" },
   pillWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
   pill: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, maxWidth: 220 },
   pillText: { ...typography.caption, color: c.textPrimary, fontWeight: "700", flexShrink: 1 },

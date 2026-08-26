@@ -263,7 +263,7 @@ export default function PaymentForm() {
           )}
 
           <Text style={styles.label}>Note (optional)</Text>
-          <TextInput style={[styles.input, { minHeight: 60 }]} value={note} onChangeText={setNote} multiline placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} />
+          <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={note} onChangeText={setNote} multiline placeholder="e.g. October tuition" placeholderTextColor={colors.textTertiary} />
 
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="payment-save-btn">
             {saving ? <ActivityIndicator color="white" /> : (
