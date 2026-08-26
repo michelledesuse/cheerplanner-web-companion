@@ -38,6 +38,12 @@ MIA_ATHLETE_PASSWORD = "CheerDemo2026!"
 SOPHIA_ATHLETE_EMAIL = "sophia.athlete@cheerplanner.app"  # ALREADY approved
 SOPHIA_ATHLETE_PASSWORD = "CheerDemo2026!"
 
+# Personnel + co-parent logins so parent↔coach and parent↔parent chats are demoable
+COACH_EMAIL = "coach.casey@cheerplanner.app"
+COACH_PASSWORD = "CheerDemo2026!"
+COPARENT_EMAIL = "parent.taylor@cheerplanner.app"
+COPARENT_PASSWORD = "CheerDemo2026!"
+
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ.get("DB_NAME", "test_database")
 
@@ -98,7 +104,10 @@ async def run() -> None:
         await db.team_messages.delete_many({"household_id": household_id})
         await db.chat_channels.delete_many({"household_id": household_id})
         await db.chat_reads.delete_many({"household_id": household_id})
-        await db.households.update_one({"id": household_id}, {"$set": {"chat_athlete_user_ids": []}})
+        await db.households.update_one(
+            {"id": household_id},
+            {"$set": {"member_user_ids": [user_id], "team_hub_member_user_ids": [], "chat_athlete_user_ids": []}},
+        )
     print("Cleared previous ParentGuard / chat demo state.")
 
     today = datetime.now(timezone.utc).date()
@@ -300,6 +309,49 @@ async def run() -> None:
         await grant_lifetime(user_id=user_id, household_id=household_id, source="admin_grant",
                              reason="Apple Review", label="Apple Review")
         print("Granted Lifetime Premium to the demo/reviewer account.")
+
+    # ---- Coach + co-parent logins so parent↔coach and parent↔parent chats are
+    # demoable, plus a ready-made "Parents & Coach" channel with real messages.
+    async def _upsert_user(email, name, password, team_access):
+        u = await db.users.find_one({"email": email})
+        fields = {"name": name, "password_hash": hash_password(password),
+                  "team_access": team_access, "chat_guidelines_accepted_at": now_iso()}
+        if u:
+            await db.users.update_one({"id": u["id"]}, {"$set": fields})
+            return u["id"]
+        uid = str(uuid.uuid4())
+        await db.users.insert_one({"id": uid, "email": email, "created_at": now_iso(), **fields})
+        return uid
+
+    if household_id:
+        coach_id = await _upsert_user(COACH_EMAIL, "Coach Casey", COACH_PASSWORD, True)
+        coparent_id = await _upsert_user(COPARENT_EMAIL, "Taylor (Parent)", COPARENT_PASSWORD, False)
+        await db.households.update_one(
+            {"id": household_id},
+            {"$addToSet": {"team_hub_member_user_ids": coach_id, "member_user_ids": coparent_id}},
+        )
+        # Land the coach on the demo team hub (they may collaborate on several).
+        await db.users.update_one({"id": coach_id}, {"$set": {"active_hub_id": household_id}})
+        ch_id = secrets.token_urlsafe(8)
+        await db.chat_channels.insert_one({
+            "id": ch_id, "household_id": household_id, "name": "Parents & Coach", "kind": "team",
+            "member_user_ids": [coparent_id, coach_id, user_id], "created_by": coparent_id,
+            "family_view": False, "created_at": now_iso(),
+        })
+        base2 = datetime.now(timezone.utc) - timedelta(hours=3)
+        cmsgs = [
+            (coparent_id, "Taylor (Parent)", "Hi Coach! Quick question about Saturday's call time."),
+            (coach_id, "Coach Casey", "Hi Taylor — call time is 7:00am, doors open 6:45. 🙌"),
+            (user_id, DEMO_NAME, "Thanks both! I'll add it to the group calendar."),
+        ]
+        for i, (sid, sname, text) in enumerate(cmsgs):
+            await db.team_messages.insert_one({
+                "id": secrets.token_urlsafe(9), "household_id": household_id, "channel_id": ch_id,
+                "sender_id": sid, "sender_name": sname, "text": text,
+                "media": [], "reactions": {}, "mentions": [],
+                "created_at": iso(base2 + timedelta(minutes=i * 10)),
+            })
+        print(f"Seeded coach ({COACH_EMAIL}) + co-parent ({COPARENT_EMAIL}) + 'Parents & Coach' channel.")
 
     # ---- Owner accepts Community Guidelines so the reviewer can open Team Chat.
     await db.users.update_one({"id": user_id}, {"$set": {"chat_guidelines_accepted_at": now_iso()}})

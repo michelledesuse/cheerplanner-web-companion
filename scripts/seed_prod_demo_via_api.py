@@ -20,6 +20,12 @@ MINORS = [
     ("Sophia Lee", "sophia.athlete@cheerplanner.app", "CheerDemo2026!", 12, True),
 ]
 
+# Personnel + co-parent logins so parent↔coach and parent↔parent chats are demoable
+COACH_EMAIL = "coach.casey@cheerplanner.app"
+COACH_PW = "CheerDemo2026!"
+COPARENT_EMAIL = "parent.taylor@cheerplanner.app"
+COPARENT_PW = "CheerDemo2026!"
+
 s = requests.Session()
 
 
@@ -249,6 +255,49 @@ def run():
     ]:
         post("/team/chat/messages", {"text": text})
     print("Owner accepted guidelines + seeded 3 chat messages.")
+
+    # ---- Coach + co-parent logins (parent↔coach and parent↔parent chats).
+    hubs_resp = get("/team/hubs")
+    demo_hid = hubs_resp.get("active_hub_id") if isinstance(hubs_resp, dict) else None
+    me = get("/auth/me")
+    owner_uid = me.get("id") if isinstance(me, dict) else None
+
+    def ensure_collaborator(email, pw, name, kind):
+        """kind='coach' (team hub collaborator) or 'coparent' (household member)."""
+        sess = requests.Session()
+        r = sess.post(f"{BASE}/auth/login", json={"email": email, "password": pw}, timeout=30)
+        if r.status_code != 200:
+            if kind == "coach":
+                inv = post("/team-access/invite", {"email": email})
+            else:
+                inv = post("/household/invite", {})
+            code = inv.get("code") if inv else None
+            r = sess.post(f"{BASE}/auth/signup", json={"email": email, "password": pw, "name": name}, timeout=30)
+            r.raise_for_status()
+            sess.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
+            if code:
+                jr = sess.post(f"{BASE}/household/join", json={"code": code}, timeout=30)
+                print(f"  {name} join ({code}) ->", jr.status_code, jr.text[:100])
+        else:
+            sess.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
+        sess.post(f"{BASE}/team/chat/accept-guidelines", json={}, timeout=30)
+        who = sess.get(f"{BASE}/auth/me", timeout=30).json()
+        return sess, who.get("id")
+
+    coach_sess, coach_uid = ensure_collaborator(COACH_EMAIL, COACH_PW, "Coach Casey", "coach")
+    coparent_sess, coparent_uid = ensure_collaborator(COPARENT_EMAIL, COPARENT_PW, "Taylor (Parent)", "coparent")
+    if demo_hid:
+        coach_sess.post(f"{BASE}/team/hubs/active", json={"hub_id": demo_hid}, timeout=30)
+        print(f"  pinned coach to demo hub {demo_hid}")
+
+    members = [x for x in [coach_uid, owner_uid] if x]
+    chan = coparent_sess.post(f"{BASE}/team/chat/channels", json={"name": "Parents & Coach", "member_ids": members}, timeout=30)
+    print("  Parents & Coach channel ->", chan.status_code, chan.text[:120])
+    if chan.status_code == 200:
+        cid = chan.json().get("id")
+        coparent_sess.post(f"{BASE}/team/chat/channels/{cid}/messages", json={"text": "Hi Coach! Quick question about Saturday's call time."}, timeout=30)
+        coach_sess.post(f"{BASE}/team/chat/channels/{cid}/messages", json={"text": "Hi Taylor — call time is 7:00am, doors open 6:45. 🙌"}, timeout=30)
+    print(f"Seeded coach ({COACH_EMAIL}) + co-parent ({COPARENT_EMAIL}) + channel.")
 
     print("\n=== PROD DEMO SEED COMPLETE ===")
     print("athletes:", len(get("/athletes")), "| competitions:", len(get("/competitions")),
