@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import secrets
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -29,6 +30,10 @@ from core.security import hash_password  # noqa: E402
 DEMO_EMAIL = "demo@cheerplanner.app"
 DEMO_PASSWORD = "CheerDemo2026!"
 DEMO_NAME = "Jordan"
+
+# ParentGuard demo — a minor athlete's own login (separate account, NOT personnel)
+MIA_ATHLETE_EMAIL = "mia.athlete@cheerplanner.app"
+MIA_ATHLETE_PASSWORD = "CheerDemo2026!"
 
 MONGO_URL = os.environ["MONGO_URL"]
 DB_NAME = os.environ.get("DB_NAME", "test_database")
@@ -78,6 +83,20 @@ async def run() -> None:
     for c in purge:
         await db[c].delete_many({"user_id": user_id})
     print("Cleared previous demo data.")
+
+    # Resolve the demo user's household + wipe ParentGuard / chat demo state so
+    # re-runs always land on the same pending-approval scenario.
+    h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
+    household_id = h["id"] if h else None
+    mia_login = await db.users.find_one({"email": MIA_ATHLETE_EMAIL})
+    mia_login_id = mia_login["id"] if mia_login else None
+    if household_id:
+        await db.athlete_chat_links.delete_many({"household_id": household_id})
+        await db.team_messages.delete_many({"household_id": household_id})
+        await db.chat_channels.delete_many({"household_id": household_id})
+        await db.chat_reads.delete_many({"household_id": household_id})
+        await db.households.update_one({"id": household_id}, {"$set": {"chat_athlete_user_ids": []}})
+    print("Cleared previous ParentGuard / chat demo state.")
 
     today = datetime.now(timezone.utc).date()
 
@@ -232,6 +251,59 @@ async def run() -> None:
             "respondent_name": name, "answers": {qid_meal: meal}, "source": "coach",
             "created_at": now_iso(), "updated_at": now_iso(),
         })
+
+    # ---- ParentGuard: a MINOR (under 13) with a PENDING chat-approval request.
+    # Mia is 11. Her guardian is the demo account owner, so the reviewer can
+    # approve/deny her Team Chat access live on the 🛡️ ParentGuard screen.
+    mia_roster_id = next((rid for rid, name, role in roster_ids if name == "Mia Johnson"), None)
+    if mia_roster_id and household_id:
+        eleven_years_ago = today.replace(year=today.year - 11)
+        await db.roster.update_one(
+            {"id": mia_roster_id},
+            {"$set": {"dob": eleven_years_ago.isoformat(), "parent_email": DEMO_EMAIL, "adult_athlete": False}},
+        )
+        # Athlete login for Mia (her own account — NOT team personnel, no seat).
+        if mia_login_id:
+            await db.users.update_one(
+                {"id": mia_login_id},
+                {"$set": {"password_hash": hash_password(MIA_ATHLETE_PASSWORD), "name": "Mia Johnson", "team_access": False}},
+            )
+        else:
+            mia_login_id = str(uuid.uuid4())
+            await db.users.insert_one({
+                "id": mia_login_id, "email": MIA_ATHLETE_EMAIL, "name": "Mia Johnson",
+                "password_hash": hash_password(MIA_ATHLETE_PASSWORD), "team_access": False,
+                "created_at": now_iso(),
+            })
+        # Link her login to the roster entry but leave chat OFF (pending approval).
+        await db.households.update_one({"id": household_id}, {"$addToSet": {"chat_athlete_user_ids": mia_login_id}})
+        await db.athlete_chat_links.update_one(
+            {"household_id": household_id, "roster_id": mia_roster_id},
+            {"$set": {"athlete_user_id": mia_login_id, "chat_enabled": False, "invite_code": None, "linked_at": now_iso()},
+             "$setOnInsert": {"created_at": now_iso()}},
+            upsert=True,
+        )
+        print(f"ParentGuard seeded → Mia Johnson (age 11) PENDING approval; login {MIA_ATHLETE_EMAIL}")
+
+    # ---- Owner accepts Community Guidelines so the reviewer can open Team Chat.
+    await db.users.update_one({"id": user_id}, {"$set": {"chat_guidelines_accepted_at": now_iso()}})
+
+    # ---- A few personnel messages in the main team thread (so chat isn't empty).
+    if household_id:
+        base = datetime.now(timezone.utc) - timedelta(hours=6)
+        seed_msgs = [
+            "Welcome to the team chat! 🎉 Please keep it kind and on-topic.",
+            "Reminder: full-out run-throughs at Saturday practice — bring water! 💦",
+            "Banquet meal orders are due Friday. Fill out the form when you get a sec.",
+        ]
+        for i, text in enumerate(seed_msgs):
+            await db.team_messages.insert_one({
+                "id": secrets.token_urlsafe(9), "household_id": household_id, "channel_id": None,
+                "sender_id": user_id, "sender_name": DEMO_NAME, "text": text,
+                "media": [], "reactions": {}, "mentions": [],
+                "created_at": iso(base + timedelta(minutes=i * 20)),
+            })
+        print("Seeded 3 team-chat messages in the main thread.")
 
     # ---- Set the household theme to Blue & White (brand palette)
     await db.households.update_one(

@@ -13,7 +13,22 @@ BASE = "https://spirit-finance-2.emergent.host/api"
 EMAIL = "demo@cheerplanner.app"
 PASSWORD = "CheerDemo2026!"
 
+# ParentGuard demo — the minor athlete's OWN login (separate account)
+MIA_EMAIL = "mia.athlete@cheerplanner.app"
+MIA_PASSWORD = "CheerDemo2026!"
+
 s = requests.Session()
+
+
+def mia_session():
+    """Log in (or create) Mia's athlete account and return an authed session."""
+    ms = requests.Session()
+    r = ms.post(f"{BASE}/auth/login", json={"email": MIA_EMAIL, "password": MIA_PASSWORD}, timeout=30)
+    if r.status_code >= 300:
+        r = ms.post(f"{BASE}/auth/signup", json={"email": MIA_EMAIL, "password": MIA_PASSWORD, "name": "Mia Johnson"}, timeout=30)
+        r.raise_for_status()
+    ms.headers.update({"Authorization": f"Bearer {r.json()['access_token']}"})
+    return ms
 
 
 def login():
@@ -180,14 +195,17 @@ def run():
 
     # Team Hub roster
     sr = teams.get("Senior Elite Coed 5")
+    mia_roster_id = None
     for name, role in [
         ("Coach Maria", "coach"), ("Team Rep Dana", "team_rep"),
         ("Ava Johnson", "athlete"), ("Mia Johnson", "athlete"), ("Sophia Lee", "athlete"),
         ("Harper Davis", "athlete"), ("Chloe Kim", "athlete"), ("Layla Ruiz", "athlete"),
     ]:
         first, _, last = name.partition(" ")
-        post("/roster", {"first_name": first, "last_name": last, "role": role,
-                         "team_ids": [sr] if sr else []})
+        rm = post("/roster", {"first_name": first, "last_name": last, "role": role,
+                              "team_ids": [sr] if sr else []})
+        if rm and name == "Mia Johnson":
+            mia_roster_id = rm["id"]
 
     # Team Form (Banquet Meal Order)
     post("/forms", {
@@ -198,6 +216,29 @@ def run():
             {"label": "Any dietary notes?", "type": "paragraph", "required": False},
         ],
     })
+
+    # ---- ParentGuard: make Mia a MINOR (age 11) with a PENDING chat-approval
+    # request. Guardian = the demo owner, so the reviewer can approve/deny live.
+    if mia_roster_id:
+        eleven = today.replace(year=today.year - 11)
+        patch(f"/roster/{mia_roster_id}", {"dob": eleven.isoformat(), "parent_email": EMAIL, "adult_athlete": False})
+        inv = post(f"/team/chat/athletes/{mia_roster_id}/invite", {})
+        code = inv.get("code") if inv else None
+        if code:
+            ms = mia_session()
+            jr = ms.post(f"{BASE}/household/join", json={"code": code}, timeout=30)
+            print(f"  Mia join ({code}) ->", jr.status_code, jr.text[:120])
+        print("ParentGuard seeded → Mia Johnson (age 11) PENDING parent approval.")
+
+    # ---- Owner accepts Community Guidelines + seeds a few team-chat messages.
+    post("/team/chat/accept-guidelines", {})
+    for text in [
+        "Welcome to the team chat! 🎉 Please keep it kind and on-topic.",
+        "Reminder: full-out run-throughs at Saturday practice — bring water! 💦",
+        "Banquet meal orders are due Friday. Fill out the form when you get a sec.",
+    ]:
+        post("/team/chat/messages", {"text": text})
+    print("Owner accepted guidelines + seeded 3 chat messages.")
 
     print("\n=== PROD DEMO SEED COMPLETE ===")
     print("athletes:", len(get("/athletes")), "| competitions:", len(get("/competitions")),
