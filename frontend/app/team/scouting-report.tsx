@@ -99,7 +99,11 @@ export default function ScoutingReport() {
                   <Text style={styles.catTitle}>{cat.label}</Text>
                 </View>
                 {list.length === 0 ? (
-                  <Text style={styles.catEmpty}>No {cat.label.toLowerCase()} skills yet.</Text>
+                  <TouchableOpacity onPress={() => report.can_edit && router.push("/team/scouting-skills" as any)} disabled={!report.can_edit} testID={`scouting-empty-${cat.key}`}>
+                    <Text style={[styles.catEmpty, report.can_edit && { color: colors.accent, fontWeight: "700" }]}>
+                      {report.can_edit ? `No ${cat.label.toLowerCase()} skills yet — tap to add them in the Skill Library →` : `No ${cat.label.toLowerCase()} skills yet.`}
+                    </Text>
+                  </TouchableOpacity>
                 ) : (
                   [1, 2, 3, 4, 5, 6, 7].map((lvl) => {
                     const inLvl = list.filter((s) => (s as any).level_group === lvl || (lvl === 1 && !(s as any).level_group));
