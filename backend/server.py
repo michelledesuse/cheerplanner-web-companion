@@ -66,6 +66,7 @@ from routers import (
     activity,
     team_chat,
     team_members,
+    coach_ai,
 )
 
 
@@ -138,7 +139,8 @@ for r in (
     weather.router,
     activity.router,
     team_chat.router,
-    team_members.router,):
+    team_members.router,
+    coach_ai.router,):
     app.include_router(r)
 
 

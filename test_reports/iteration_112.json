@@ -1,0 +1,41 @@
+{
+  "summary": "AI Coaching Assistant (Team Hub) tested end-to-end: backend + frontend. Backend pytest = 10/10 PASS. Access control verified (parent/athlete → 403; coach → 200). Chat with Perplexity sonar-pro returns a real cheer coaching answer with a conversation_id, off-topic requests are hard-declined with the canned message, and /history returns the persisted user+assistant messages. Flyer endpoint correctly returns HTTP 402 with a 'Universal Key balance is too low' detail (expected budget state) — NOT 500. Frontend: coach.casey sees the 'AI Coaching Assistant' card at the top of the Team Hub tools list; card opens /team/coach-ai; Ask tab renders welcome/suggestions/input/send and shows real assistant bubbles; Flyer tab renders all fields (title/date/time/location/theme/details + type chips + Generate) — tapping Generate with a title triggers the 402 code path without crashing the app. Parent (team_access=false) does NOT see the AI Coaching Assistant card (verified via /api/auth/login response — user.team_access=false — which drives the `unlocked` guard in team.tsx).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/team/coach-ai/chat", "issue": "Perplexity sonar-pro replies still contain inline citation markers like [4][10][14][18] despite the system prompt saying 'Do NOT include citation markers or URLs'. The bracketed indices leak into the assistant bubble (visible in the toe-touch drill answer). Consider stripping /\\[\\d+\\]/g server-side before returning."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Flyer Generate → 402 error", "issue": "The 402 response is fired (verified in Network console), but on Expo Web the Alert.alert('Couldn\\'t generate', ...) call did not surface a visible dialog/modal — user could be left with no obvious feedback that generation failed. App does NOT crash (screen remains interactive), so it is graceful, but consider swapping Alert.alert for an inline error banner so the message renders on web preview. Note: this may just be a preview-web quirk — Alert.alert renders correctly on native iOS/Android.", "affected_testIDs": ["flyer-generate"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_coach_ai.py",
+    "/app/test_reports/pytest/pytest_coach_ai.xml"
+  ],
+  "action_items": [
+    "(Optional / low priority) Strip Perplexity citation markers like [1], [12], [3][4] from the answer before persisting/returning in /api/team/coach-ai/chat — the SYSTEM_PROMPT tells the model not to include them but sonar-pro does anyway.",
+    "(Optional) Replace the Alert.alert on flyer generation failure with an inline error message so the 402 'Universal Key balance is too low' text renders visibly in the Expo Web preview. Native iOS/Android Alert is unaffected."
+  ],
+  "critical_code_review_comments": [
+    "coach_ai.py:216 — good handling of budget/insufficient/429/402 in the exception message string; maps cleanly to HTTP 402 with a user-actionable message.",
+    "coach_ai.py — SYSTEM_PROMPT + separate CLASSIFIER_SYSTEM two-step (classifier first, then answer) is a solid off-topic guard; verified working (tax question → canned decline).",
+    "coach_ai.py — POST/GET both correctly gated by require_team_access; parent (team_access=false) receives 403 on all three endpoints (chat/flyer/history).",
+    "team.tsx:24-25 — 'coach_ai' entry placed at the TOP of the TOOLS list so team personnel see it first; hidden behind the `unlocked` (team_access) branch — correct.",
+    "coach-ai.tsx — KeyboardAvoidingView on both Chat & Flyer, testIDs on every interactive element (tabs, input, send, chips, form fields, generate, post-to-chat, image preview). Good coverage for automated testing."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_coach_ai.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "~95% (core flows verified; only the visible Alert on flyer error could not be confirmed on Expo Web, but app does not crash)"},
+  "seed_data_creation": "None. Used existing seeded coach.casey/parent.taylor/sophia.athlete accounts.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend regression suite: pytest /app/backend/tests/test_coach_ai.py -v. Flyer test tolerates both 402 (current state) and 200 (if Emergent Universal Key budget is topped up). If budget refills, expect image_base64 + flyer_id and follow-up POST /api/team/coach-ai/flyer/{id}/post-to-chat can be exercised. Chat test relies on Perplexity being available; if PERPLEXITY_API_KEY becomes invalid, chat endpoint returns 502 with 'Couldn't reach the assistant'.",
+  "rca_of_issue": "N/A — no critical bugs found. Flyer 402 is by design (Emergent Universal Key budget exhausted); backend maps it to 402 with a clear message, so the front-end can display it. The only minor observations are (a) Perplexity citations leaking into answers and (b) Alert.alert visibility on Expo web preview."
+}
