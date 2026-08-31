@@ -33,7 +33,7 @@ const TOOLS: Tool[] = [
   { key: "todos", title: "To-Do List", desc: "A shared checklist for your team's tasks.", icon: "checkbox-outline", route: "/team/todos" },
   { key: "music", title: "Team Music", desc: "Upload competition mixes & music to share with the team.", icon: "musical-notes-outline", route: "/team/music" },
   { key: "scouting", title: "Scouting Reports", desc: "Track each athlete's skills across Tumbling, Stunting & Jumps.", icon: "ribbon-outline", route: "/team/scouting" },
-  { key: "calendar", title: "Practice Calendar", desc: "Schedule practices & events, collect RSVPs from families.", icon: "calendar-outline", route: "/team/calendar" },
+  { key: "calendar", title: "Calendar", desc: "Schedule practices & events, collect RSVPs from families.", icon: "calendar-outline", route: "/team/calendar" },
   { key: "results", title: "Competition Results", desc: "Log placements & scores and share a season summary.", icon: "trophy-outline", route: "/team/results" },
   { key: "export", title: "Custom Roster Export", desc: "Pick columns (sizes, paperwork, payments) into one downloadable view for a competition.", icon: "download-outline", route: "/team/export" },
 ];
@@ -145,7 +145,7 @@ export default function TeamScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/calendar" as any)} testID="athlete-open-calendar">
               <Ionicons name="calendar-outline" size={18} color={colors.accent} />
-              <Text style={styles.chatAthleteText}>Practice Calendar</Text>
+              <Text style={styles.chatAthleteText}>Calendar</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/results" as any)} testID="athlete-open-results">
               <Ionicons name="trophy-outline" size={18} color={colors.accent} />

@@ -1,0 +1,38 @@
+{
+  "summary": "Full backend + frontend validation for iter107 Athlete Scouting changes: (1) Bulk Skill Upload (CSV/XLSX template + import with alias/clamp/dedupe/invalid handling) and (2) Scouting-report SELECTION model (coach sees all, athlete/parent see only skills with a level set). All 7 backend pytest tests pass. Frontend: /team/scouting-skills renders skill library with skills-template-btn + skills-import-btn testIDs; /team/scouting-report as coach shows every library skill with a muted 'Add' dashed chip, tapping opens the edit modal, unselected shows 'Add to report' with no Remove button, choosing a progression level (spotted) + Save flips the button to 'Save assessment' and reveals 'Remove from report' (testID scouting-remove-btn). Level clearing (level:'') hides the skill from parent/athlete views as verified via the backend PUT + GET flow. No React Native red screens or deprecated packages found.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/team/scouting-skills (WEB PREVIEW ONLY)", "issues": ["Tapping the download-template icon triggers an Alert.alert with 3 buttons (CSV/Excel/Cancel). React Native Web renders multi-button Alerts as an on-screen picker on RN-Web >=0.19 but here no chooser appeared on web preview (window.alert fallback is silent). On iOS/Android this works natively. Not blocking mobile shipping."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_scouting_bulk_and_selection.py",
+    "/app/test_reports/pytest/pytest_iter107.xml"
+  ],
+  "action_items": [
+    "Optional: on web, replace Alert.alert(3 buttons) chooser in scouting-skills.tsx onTemplatePress with an inline modal (or a Platform.OS==='web' branch) so the CSV/XLSX picker is usable in the web preview. Native mobile is fine.",
+    "Cosmetic: cleared skills retain their coach `notes` (backend only unsets level when level:'' is sent). The UI shows an old note on unselected skills (e.g. 'iter107 test note' stayed after clear). Consider clearing notes when the level is removed, or hide notes when !s.level.",
+    "Optional: consider adding testIDs for the CSV/Excel chooser options and for the empty-state to enable stronger UI regression coverage."
+  ],
+  "critical_code_review_comments": [
+    "scouting.py: _report_payload include_all correctly filters out skills without an athlete-side level for parent/athlete/public shares (line 111-112). Selection model implemented via the same PUT endpoint — set level to add, empty string clears. Verified end-to-end.",
+    "scouting.py import: category aliases (Tumble/Stunt/Jump), level clamp 1-7, dedupe on (category, level, normalized name), and per-key auto-order increment all work correctly. Existing library seeded (216 skills) is respected — no accidental duplication observed.",
+    "Template endpoint properly sets Content-Disposition attachment for both CSV and XLSX. CSV first line is exactly 'Category,Level,Skill Name' as required.",
+    "scouting-skills.tsx: uses process.env.EXPO_PUBLIC_BACKEND_URL for both template download and import upload, correctly attaches Bearer token, handles web-vs-native FormData for the multipart upload.",
+    "scouting-report.tsx: coach unselected skills correctly styled with skillCardMuted (opacity 0.6, bg swap), and addChip renders dashed border with 'Add' label as spec'd. save button label switches on !!edit?.level; remove-btn only rendered for selected skills."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_scouting_bulk_and_selection.py (new)",
+    "/app/backend/tests/_cleanup_iter107.py (new, helper for scrubbing test skills)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all listed testIDs + flows verified)"},
+  "seed_data_creation": "During tests, 3 skills (TEST_iter107_ScoutSkill_A, _B, _XlsxJump_C) were briefly added to the demo coach household and then removed via _cleanup_iter107.py. Also toggled a 'spotted' level with note 'iter107 test note' on Ava Johnson's Forward roll skill; the level was cleared at the end of the frontend test (note text may persist by design — see action item).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URL: https://event-planner-394.preview.emergentagent.com. Login testIDs are login-email-input, login-password-input, login-submit-button. /api/auth/login returns access_token (NOT 'token'). Coach account coach.casey@cheerplanner.app has team_access + owns the demo hub with 216 seeded skills across tumbling/stunting/jumps × levels 1-7. sophia.athlete has an approved athlete_chat_link for her roster (used for filtered athlete view). parent.taylor is a household member (parent role) for demo hub. Backend tests run with: `python -m pytest backend/tests/test_scouting_bulk_and_selection.py -v` — the file auto-loads EXPO_PUBLIC_BACKEND_URL from /app/frontend/.env if not set in shell env.",
+  "rca_of_issue": "n/a — no bugs found. All acceptance criteria verified. Only minor polish items noted (web-only Alert.alert picker limitation + notes retention after clearing a level)."
+}

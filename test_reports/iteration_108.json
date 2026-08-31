@@ -1,0 +1,34 @@
+{
+  "summary": "Backend + Frontend validation for iter108 Team Calendar upgrade (Practice Calendar renamed to 'Calendar' with parent-portal-parity event form). Backend: 7/7 pytest tests pass covering POST/GET/PATCH/DELETE /api/team/calendar/events with new fields (event_type, address, start_time, end_time, recurrence {freq, interval, byweekday, until}), DAILY expansion to consecutive days, BI-WEEKLY (weekly interval=2) expansion in 14-day gaps, PATCH updates (including recurrence), DELETE removes event, and RSVP viewer→staff flow (400 when not_attending without reason, 200 with reason). Frontend: header reads 'Calendar' for coach.casey; + opens event-add-modal with all required testIDs (cal-type-* incl. cal-type-add, event-title-input, event-address-input, event-date-field, event-start-time, event-end-time, event-repeat-toggle, freq-daily/weekly/biweekly/monthly, wd-0..6, event-until-field, event-save-btn); created a weekly recurring practice — occurrences appear with colored type dot, 'Practice' label and formatted 12h time '5:30 PM'; detail modal exposes event-edit + event-delete; Edit prefills title and saving persists new title; parent.taylor sees the seeded event (no +), can RSVP Attending (✅ appears) and Not attending with required reason. No React Native red screen; no deprecated packages detected in touched files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "team/calendar.tsx DetailModal → Delete button", "issue": "Alert.alert('Delete event?', [Cancel, Delete-destructive]) never fires the destructive onPress on Expo web preview — RN Web renders multi-button Alert.alert as window.alert (no button choice), so the API DELETE call never runs from the UI. Native iOS/Android is fine. Reference: /app/frontend/app/team/calendar.tsx:118", "testID": "event-delete", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter108_team_calendar_event_form.py",
+    "/app/test_reports/pytest/pytest_iter108.xml"
+  ],
+  "action_items": [
+    "Optional (web-only polish): replace Alert.alert delete-confirm in /app/frontend/app/team/calendar.tsx DetailModal.del with a Platform.OS === 'web' ? window.confirm(...) : Alert.alert(...) branch (or an inline confirmation modal) so the Delete button also works on the Expo web preview. Native mobile shipping unaffected."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/team_calendar.py: _occurrences correctly handles freq=weekly with interval=2 (biweekly) using ((cur-start).days // 7) % interval == 0 and byweekday filter. Daily uses timedelta(days=interval). Monthly walks month-by-month with ValueError guard for end-of-month days. Guards (1200/800/240) prevent runaway loops. All verified end-to-end.",
+    "backend/routers/team_calendar.py: create_event stores event_type default 'practice', trims address/location/notes, requires title + valid date. PATCH selectively updates known fields plus date/recurrence — good. DELETE cascades to calendar_rsvps and calendar_hides.",
+    "frontend/app/team/calendar.tsx: buildRecurrence() correctly maps mode='biweekly' → {freq:'weekly', interval:2}; validates wd.length>0 for weekly/biweekly. Uses DateField/TimeField (24h TimeField output). Uses api.patch/post correctly. All required testIDs are in place. rec0 derivation on edit correctly picks 'biweekly' vs 'weekly' via Number(rec0.interval)===2.",
+    "frontend uses process.env.EXPO_PUBLIC_BACKEND_URL via the shared api client; no hardcoded URLs. All interactive elements use testID."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter108_team_calendar_event_form.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all listed testIDs + coach create/edit + parent RSVP verified; delete-via-UI works natively, web limitation noted)"},
+  "seed_data_creation": "Temporarily created 'TEST_iter108_*' events under the demo hub (coach.casey) during backend + frontend tests; all deleted at end. Recorded one RSVP each of Attending and Not-attending (reason: 'away for weekend') for Ava Johnson via parent.taylor — these were removed together with the parent event on cleanup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview: https://event-planner-394.preview.emergentagent.com. Login testIDs login-email-input/login-password-input/login-submit-button; /api/auth/login returns access_token. Coach = coach.casey@cheerplanner.app (team_access, demo hub). Parent = parent.taylor@cheerplanner.app (viewer, sees all demo athletes). Athlete = sophia.athlete@cheerplanner.app (viewer, linked via athlete_chat_link). The Team Calendar page is /team/calendar with root testID calendar-screen. DateField/TimeField open native pickers; on Expo Web they render inline pickers — for UI-only tests, use the API to seed events with start_time/end_time (24h HH:MM) rather than driving TimeField from Playwright. Backend module: routers/team_calendar.py. Tests: `python -m pytest backend/tests/test_iter108_team_calendar_event_form.py -v`.",
+  "rca_of_issue": "n/a — feature works. One minor web-only limitation: Alert.alert delete confirmation is not fired on RN-Web (multi-button alerts fall back to window.alert without OnPress), so Delete button is inert in the Expo web preview only. Native mobile paths (iOS/Android) invoke the destructive onPress normally. Recommended fix: Platform.OS === 'web' ? window.confirm(...) branch, or inline destructive modal."
+}

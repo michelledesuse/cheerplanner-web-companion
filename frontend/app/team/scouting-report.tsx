@@ -10,7 +10,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import { SCOUT_CATEGORIES, SCOUT_LEVELS, levelMeta } from "@/src/utils/scouting";
 
 type Skill = { skill_id: string; name: string; category: string; level?: string | null; notes?: string; pending_review?: boolean };
-type Report = { roster_id: string; name: string; role: string; can_edit: boolean; can_request: boolean; categories: Record<string, Skill[]> };
+type Report = { roster_id: string; name: string; first_name?: string; role: string; can_edit: boolean; can_request: boolean; categories: Record<string, Skill[]> };
 
 export default function ScoutingReport() {
   const styles = useThemedStyles(makeStyles);
@@ -49,6 +49,16 @@ export default function ScoutingReport() {
     finally { setSaving(false); }
   };
 
+  const removeFromReport = async () => {
+    if (!edit || saving) return;
+    setSaving(true);
+    try {
+      await api.put(`/team/scouting/report/${rosterId}/skill/${edit.skill_id}`, { level: "", notes: editNotes });
+      setEdit(null); load();
+    } catch (_e) { Alert.alert("Error", "Could not update the report."); }
+    finally { setSaving(false); }
+  };
+
   const requestReview = async (s: Skill) => {
     try {
       await api.post(`/team/scouting/report/${rosterId}/skill/${s.skill_id}/request-review`, {});
@@ -84,11 +94,11 @@ export default function ScoutingReport() {
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
       ) : !report ? (
-        <View style={styles.empty}><Text style={styles.emptyText}>This report isn't available.</Text></View>
+        <View style={styles.empty}><Text style={styles.emptyText}>{"This report isn't available."}</Text></View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator>
           {report.can_edit && (
-            <View style={styles.tip}><Ionicons name="information-circle-outline" size={15} color={colors.accent} /><Text style={styles.tipText}>Tap any skill to set the athlete's level and add coach notes.</Text></View>
+            <View style={styles.tip}><Ionicons name="information-circle-outline" size={15} color={colors.accent} /><Text style={styles.tipText}>{`Tap a skill and set a level to add it to ${report.first_name || "this athlete"}'s report. Skills you leave unset stay visible to coaches only.`}</Text></View>
           )}
           {SCOUT_CATEGORIES.map((cat) => {
             const list = report.categories[cat.key] || [];
@@ -113,8 +123,9 @@ export default function ScoutingReport() {
                         <Text style={styles.lvlDivider}>Level {lvl}</Text>
                         {inLvl.map((s) => {
                     const lm = levelMeta(s.level);
+                    const selected = !!s.level;
                     return (
-                      <TouchableOpacity key={s.skill_id} style={styles.skillCard} activeOpacity={report.can_edit ? 0.7 : 1} onPress={() => openEdit(s)} testID={`scouting-skill-${s.skill_id}`}>
+                      <TouchableOpacity key={s.skill_id} style={[styles.skillCard, report.can_edit && !selected && styles.skillCardMuted]} activeOpacity={report.can_edit ? 0.7 : 1} onPress={() => openEdit(s)} testID={`scouting-skill-${s.skill_id}`}>
                         <View style={{ flex: 1, minWidth: 0 }}>
                           <View style={styles.skillTitleRow}>
                             <Text style={styles.skillName}>{s.name}</Text>
@@ -129,9 +140,16 @@ export default function ScoutingReport() {
                             </TouchableOpacity>
                           )}
                         </View>
-                        <View style={[styles.levelChip, { backgroundColor: (lm?.color || colors.textTertiary) + "22" }]}>
-                          <Text style={[styles.levelChipText, { color: lm?.color || colors.textTertiary }]}>{lm?.label || "Not set"}</Text>
-                        </View>
+                        {selected ? (
+                          <View style={[styles.levelChip, { backgroundColor: (lm?.color || colors.textTertiary) + "22" }]}>
+                            <Text style={[styles.levelChipText, { color: lm?.color || colors.textTertiary }]}>{lm?.label || "Set"}</Text>
+                          </View>
+                        ) : (
+                          <View style={styles.addChip}>
+                            <Ionicons name="add" size={14} color={colors.accent} />
+                            <Text style={styles.addChipText}>Add</Text>
+                          </View>
+                        )}
                       </TouchableOpacity>
                     );
                         })}
@@ -172,8 +190,13 @@ export default function ScoutingReport() {
               testID="scouting-notes-input"
             />
             <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={saveEdit} disabled={saving} testID="scouting-save-btn">
-              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>Save assessment</Text>}
+              {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{edit?.level ? "Save assessment" : "Add to report"}</Text>}
             </TouchableOpacity>
+            {!!edit?.level && (
+              <TouchableOpacity onPress={removeFromReport} disabled={saving} style={{ paddingVertical: 8, alignItems: "center" }} testID="scouting-remove-btn">
+                <Text style={styles.removeText}>Remove from report</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={() => setEdit(null)} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -195,6 +218,10 @@ const makeStyles = (c: ThemePalette) => ({
   catEmpty: { ...typography.caption, color: c.textTertiary, marginLeft: 4 },
   lvlDivider: { ...typography.caption, fontWeight: "800", color: c.textTertiary, letterSpacing: 0.5, marginTop: 4 },
   skillCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: c.border },
+  skillCardMuted: { opacity: 0.6, backgroundColor: c.bg },
+  addChip: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: c.accent, borderStyle: "dashed" as const },
+  addChipText: { fontSize: 11, fontWeight: "800", color: c.accent },
+  removeText: { ...typography.caption, color: "#DC2626", fontWeight: "800" },
   skillTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   skillName: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
   notes: { ...typography.caption, color: c.textSecondary, marginTop: 3, lineHeight: 17 },

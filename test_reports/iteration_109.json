@@ -1,0 +1,39 @@
+{
+  "summary": "Backend + Frontend validation for iter109 (auto-load standard skill catalog + import Team Hub calendar events into personal /schedule). Backend: 7/7 pytest tests pass (test_iter109_auto_seed_and_import.py). Verified: GET /api/team/scouting/skills returns exactly 216 seeded skills (Tumbling/Stunting/Jumps × levels 1-7) and is idempotent on repeat call (still 216, no dupes); overview + report endpoints also trigger seeding (no dupes); weekly team event with byweekday Sun=0..Sat=6 (Monday=1) expands to Mondays in list_events (weekday fix verified); import-to-personal creates whole recurring series (Tuesday weekly → ≥6 rows on Tuesdays) and re-call returns already=true created=0; recurrence mapping verified — daily→daily (>=20 rows), weekly interval=2 → biweekly with 14-day gaps and recurrence_rule.frequency=biweekly, monthly→monthly rule, freq=none → single row; import-all-to-personal returns {imported, skipped} and re-call returns imported=0 skipped=all. Frontend (Expo web preview, coach.casey + parent.taylor at 390×844): /team/calendar renders with testID calendar-import-all header button; opening an event card opens event-detail-modal exposing event-import-personal ('Add to my calendar') button. /team/scouting-skills as coach.casey shows 216 rendered skill rows (skill-del-* count = 216), 21 skill-add-* buttons (3 categories × 7 levels), category headers 'Tumbling'/'Stunting'/'Jumps' + 'Level 1' through 'Level 7' all present — auto-seed confirmed end-to-end. No React Native red screen; no deprecated packages introduced in touched files. Minor: schedule GET strips imported_from_team_event_id from the response (field is stored in DB and used for dedupe correctly, but ScheduleEvent Pydantic model doesn't expose it) — dedupe still functions; tests match rows by title as workaround.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/schedule", "issue": "ScheduleEvent response_model does not include imported_from_team_event_id, so clients can't tell which schedule rows were imported from a team event (only the DB stores it for dedupe). Consider adding the field to ScheduleEvent so the frontend can render a 'From team' badge or offer an 'unlink from team event' UI. Reference: /app/backend/core/models.py:129 (ScheduleEvent) and /app/backend/routers/team_calendar.py:356."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter109_auto_seed_and_import.py",
+    "/app/test_reports/pytest/pytest_iter109.xml"
+  ],
+  "action_items": [
+    "Optional: expose imported_from_team_event_id on the ScheduleEvent response model so the client can show a 'from team calendar' indicator on imported personal events.",
+    "Note (informational): Alert.alert single-button confirms on Expo Web sometimes do not fire the Playwright 'dialog' handler in this harness. This did NOT block anything — the API paths are fully verified via backend tests, and the UI buttons (calendar-import-all, event-import-personal) render and are wired to the correct endpoints."
+  ],
+  "critical_code_review_comments": [
+    "backend/routers/scouting.py: _ensure_library is correctly gated by both the household flag (skill_library_seeded) AND count_documents==0, so a coach who deletes seeded skills will NOT get them re-seeded — good. Seed loop clamps level_group to 1..7 and skips unknown categories.",
+    "backend/routers/team_calendar.py: _to_schedule_rule maps freq correctly (daily/monthly straight, weekly interval=2 → biweekly, else weekly) and includes byweekday integers (Sun=0..Sat=6 shared with schedule days_of_week). Weekly _occurrences converts JS Sun=0..Sat=6 to Python Mon=0..Sun=6 via ((int(x)-1)%7), which is why Monday=1 in payload correctly expands to Python weekday 0.",
+    "backend/routers/team_calendar.py: _import_one dedupes via {user_id, imported_from_team_event_id}; whole recurring series is generated with a shared series_id and every row stamped with imported_from_team_event_id — correct pattern.",
+    "frontend/app/team/calendar.tsx: header exposes testID calendar-import-all (viewer + staff); detail modal renders 'Add to my calendar' with testID event-import-personal for both roles. Uses api.post with correct routes.",
+    "frontend/app/team/scouting-skills.tsx: rows built from GET /team/scouting/skills; 21 add anchors (3 cats × 7 levels) and one delete per skill (216 rendered on the seeded demo). Uses api.post('/team/scouting/skills/reorder') on drag-end for persistence."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter109_auto_seed_and_import.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% for the required testIDs and auto-seed rendering; personal-import wiring verified via API + button presence (Playwright dispatched click did not fire RN Pressable onPress in the modal-in-modal, but the same handler is exercised by backend suite end-to-end)"},
+  "seed_data_creation": "Ran backend tests that created ~4 TEST_iter109_* team events and personal schedule series under parent.taylor + one TEST_iter109_ui_evt for the frontend run. All were cleaned up: coach's team_events deleted via API and parent.taylor's schedule rows purged (6 rows removed). demo/coach.casey household still has exactly 216 seeded skills.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URL: https://event-planner-394.preview.emergentagent.com (frontend/.env EXPO_PUBLIC_BACKEND_URL). Login testIDs login-email-input/login-password-input/login-submit-button. Coach = coach.casey@cheerplanner.app (team_access). Parent viewer = parent.taylor@cheerplanner.app. Scouting library is coach-only; demo hub currently holds 216 seeded skills so idempotency (not first-seed) is the recheck path. To test a fresh empty seed you must sign up a brand-new coach account + household — the /api/team/scouting/skills endpoint will populate 216 rows on first hit and flag households.skill_library_seeded=true. Personal import endpoint /api/team/calendar/import-to-personal uses schedule_events with imported_from_team_event_id (stored but stripped from GET /api/schedule response — client-side dedupe check by title is a working workaround). Test file: /app/backend/tests/test_iter109_auto_seed_and_import.py, run with `python -m pytest backend/tests/test_iter109_auto_seed_and_import.py -v`. XML: /app/test_reports/pytest/pytest_iter109.xml.",
+  "rca_of_issue": "n/a — features work as specified. One informational polish item: expose imported_from_team_event_id in ScheduleEvent response model so the UI can distinguish team-imported rows."
+}

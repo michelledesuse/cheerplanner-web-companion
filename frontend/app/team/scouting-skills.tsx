@@ -1,12 +1,14 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as DocumentPicker from "expo-document-picker";
 
-import { api } from "@/src/api/client";
+import { api, TOKEN_KEY } from "@/src/api/client";
+import { storage } from "@/src/utils/storage";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { SCOUT_CATEGORIES } from "@/src/utils/scouting";
@@ -44,6 +46,7 @@ export default function ScoutingSkills() {
   const [addLevel, setAddLevel] = useState(1);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [busy, setBusy] = useState<null | "template" | "import">(null);
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +56,93 @@ export default function ScoutingSkills() {
     finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const downloadTemplate = async (fmt: "csv" | "xlsx") => {
+    if (busy) return;
+    setBusy("template");
+    try {
+      const ext = fmt === "xlsx" ? "xlsx" : "csv";
+      const mime = fmt === "xlsx"
+        ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        : "text/csv";
+      const filename = `cheerplanner-skills-template.${ext}`;
+      const token = await storage.secureGet<string>(TOKEN_KEY, "");
+      const url = `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/team/scouting/skills/template?fmt=${fmt}`;
+      if (Platform.OS === "web") {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) throw new Error(`Download failed (${res.status})`);
+        const blob = await res.blob();
+        const objUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objUrl; a.download = filename;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+      } else {
+        const FS: any = await import("expo-file-system/legacy");
+        const Sharing: any = await import("expo-sharing");
+        const path = `${FS.cacheDirectory}${filename}`;
+        const dl = await FS.downloadAsync(url, path, { headers: { Authorization: `Bearer ${token}` } });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(dl.uri, { mimeType: mime, dialogTitle: "Save template" });
+        } else {
+          Alert.alert("Saved", `Template saved to ${dl.uri}`);
+        }
+      }
+    } catch (e: any) {
+      Alert.alert("Download failed", e?.message || "Could not download the template.");
+    } finally { setBusy(null); }
+  };
+
+  const onTemplatePress = () => {
+    Alert.alert("Download template", "Pick a format. Fill in Category, Level (1-7) and Skill Name, then upload.", [
+      { text: "CSV (.csv)", onPress: () => downloadTemplate("csv") },
+      { text: "Excel (.xlsx)", onPress: () => downloadTemplate("xlsx") },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  };
+
+  const pickAndImport = async () => {
+    if (busy) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["text/csv", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel", "*/*"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (!asset) return;
+      setBusy("import");
+      const fd = new FormData();
+      if (Platform.OS === "web") {
+        const blob = await fetch(asset.uri).then((r) => r.blob());
+        fd.append("file", blob, asset.name || "upload");
+      } else {
+        // @ts-expect-error RN FormData accepts file objects with uri/name/type
+        fd.append("file", { uri: asset.uri, name: asset.name || "upload", type: asset.mimeType || "application/octet-stream" });
+      }
+      const token = await storage.secureGet<string>(TOKEN_KEY, "");
+      const res = await fetch(`${process.env.EXPO_PUBLIC_BACKEND_URL}/api/team/scouting/skills/import`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(t || `Upload failed (${res.status})`);
+      }
+      const data = await res.json();
+      await load();
+      const parts = [`${data.added || 0} skill${(data.added === 1) ? "" : "s"} added`];
+      if (data.skipped_duplicates) parts.push(`${data.skipped_duplicates} duplicate${data.skipped_duplicates === 1 ? "" : "s"} skipped`);
+      if (data.invalid_rows) parts.push(`${data.invalid_rows} row${data.invalid_rows === 1 ? "" : "s"} skipped (missing category/level/name)`);
+      Alert.alert("Import complete", parts.join("\n"));
+    } catch (e: any) {
+      let msg = e?.message || "Could not import the file.";
+      try { const j = JSON.parse(msg); if (j?.detail) msg = j.detail; } catch {}
+      Alert.alert("Import failed", msg);
+    } finally { setBusy(null); }
+  };
 
   const persist = async (data: Row[]) => {
     // Recompute each skill's category + level from the anchors above it.
@@ -156,6 +246,12 @@ export default function ScoutingSkills() {
           <Text style={styles.title}>Skill Library</Text>
           <Text style={styles.subtitle}>Drag skills to reorder or move between levels</Text>
         </View>
+        <TouchableOpacity onPress={onTemplatePress} disabled={!!busy} hitSlop={8} style={styles.headBtn} testID="skills-template-btn">
+          {busy === "template" ? <ActivityIndicator size="small" color={colors.accent} /> : <Ionicons name="download-outline" size={22} color={colors.accent} />}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={pickAndImport} disabled={!!busy} hitSlop={8} style={styles.headBtn} testID="skills-import-btn">
+          {busy === "import" ? <ActivityIndicator size="small" color={colors.accent} /> : <Ionicons name="cloud-upload-outline" size={22} color={colors.accent} />}
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -192,6 +288,7 @@ export default function ScoutingSkills() {
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: c.border },
+  headBtn: { padding: 4, minWidth: 30, alignItems: "center" as const },
   title: { ...typography.h3, color: c.textPrimary },
   subtitle: { ...typography.caption, color: c.textSecondary },
   content: { padding: spacing.md, paddingBottom: spacing.xxl },
