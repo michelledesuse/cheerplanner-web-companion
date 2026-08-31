@@ -13,13 +13,18 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { SCOUT_CATEGORIES } from "@/src/utils/scouting";
 
-type Skill = { id: string; name: string; category: string; level_group?: number };
+type Skill = { id: string; name: string; category: string; level_group?: number; sub_category?: string };
 type Row =
   | { type: "cat"; key: string; category: string; label: string; icon: string }
   | { type: "divider"; key: string; category: string; level: number }
+  | { type: "subdivider"; key: string; category: string; level: number; sub: string }
   | { type: "skill"; key: string; skill: Skill };
 
 const LEVELS = [1, 2, 3, 4, 5, 6, 7];
+const SUBS: { key: string; label: string }[] = [
+  { key: "standing", label: "Standing Tumbling" },
+  { key: "running", label: "Running Tumbling" },
+];
 
 function buildRows(cats: Record<string, Skill[]>): Row[] {
   const rows: Row[] = [];
@@ -28,10 +33,18 @@ function buildRows(cats: Record<string, Skill[]>): Row[] {
     const list = cats[c.key] || [];
     for (const lvl of LEVELS) {
       rows.push({ type: "divider", key: `div-${c.key}-${lvl}`, category: c.key, level: lvl });
-      list
-        .filter((s) => (s.level_group || 1) === lvl)
-        .sort((a, b) => 0)
-        .forEach((s) => rows.push({ type: "skill", key: `sk-${s.id}`, skill: { ...s, level_group: lvl } }));
+      if (c.key === "tumbling") {
+        for (const sub of SUBS) {
+          rows.push({ type: "subdivider", key: `sub-${c.key}-${lvl}-${sub.key}`, category: c.key, level: lvl, sub: sub.key });
+          list
+            .filter((s) => (s.level_group || 1) === lvl && (s.sub_category || "standing") === sub.key)
+            .forEach((s) => rows.push({ type: "skill", key: `sk-${s.id}`, skill: { ...s, level_group: lvl, sub_category: sub.key } }));
+        }
+      } else {
+        list
+          .filter((s) => (s.level_group || 1) === lvl)
+          .forEach((s) => rows.push({ type: "skill", key: `sk-${s.id}`, skill: { ...s, level_group: lvl } }));
+      }
     }
   }
   return rows;
@@ -44,6 +57,7 @@ export default function ScoutingSkills() {
   const [loading, setLoading] = useState(true);
   const [addCat, setAddCat] = useState<string | null>(null);
   const [addLevel, setAddLevel] = useState(1);
+  const [addSub, setAddSub] = useState<string>("");
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<null | "template" | "import">(null);
@@ -145,38 +159,39 @@ export default function ScoutingSkills() {
   };
 
   const persist = async (data: Row[]) => {
-    // Recompute each skill's category + level from the anchors above it.
+    // Recompute each skill's category + level + sub-category from anchors above it.
     let curCat = SCOUT_CATEGORIES[0].key;
     let curLevel = 1;
+    let curSub = "";
     let order = 0;
-    const items: { id: string; category: string; level_group: number; order: number }[] = [];
+    const items: { id: string; category: string; level_group: number; sub_category: string; order: number }[] = [];
     for (const it of data) {
-      if (it.type === "cat") { curCat = it.category; curLevel = 1; order = 0; }
-      else if (it.type === "divider") { curLevel = it.level; order = 0; }
-      else { items.push({ id: it.skill.id, category: curCat, level_group: curLevel, order: order++ }); }
+      if (it.type === "cat") { curCat = it.category; curLevel = 1; curSub = ""; order = 0; }
+      else if (it.type === "divider") { curLevel = it.level; curSub = ""; order = 0; }
+      else if (it.type === "subdivider") { curSub = it.sub; order = 0; }
+      else { items.push({ id: it.skill.id, category: curCat, level_group: curLevel, sub_category: curCat === "tumbling" ? curSub : "", order: order++ }); }
     }
     try { await api.post("/team/scouting/skills/reorder", { items }); } catch (_e) { load(); }
   };
 
   const onDragEnd = ({ data }: { data: Row[] }) => {
-    // Keep category headers + dividers in their canonical positions; only skills move.
+    // Keep category/level/sub-dividers in canonical positions; only skills move.
     const skillsByKey: Record<string, Skill> = {};
     data.forEach((r) => { if (r.type === "skill") skillsByKey[r.skill.id] = r.skill; });
-    // Derive new (category, level) per skill from drag result
-    let curCat = SCOUT_CATEGORIES[0].key, curLevel = 1;
-    const placed: Record<string, { category: string; level: number; seq: number }> = {};
+    let curCat = SCOUT_CATEGORIES[0].key, curLevel = 1, curSub = "";
+    const placed: Record<string, { category: string; level: number; sub: string; seq: number }> = {};
     let seq = 0;
     for (const it of data) {
-      if (it.type === "cat") curCat = it.category;
-      else if (it.type === "divider") curLevel = it.level;
-      else placed[it.skill.id] = { category: curCat, level: curLevel, seq: seq++ };
+      if (it.type === "cat") { curCat = it.category; curSub = ""; }
+      else if (it.type === "divider") { curLevel = it.level; curSub = ""; }
+      else if (it.type === "subdivider") { curSub = it.sub; }
+      else placed[it.skill.id] = { category: curCat, level: curLevel, sub: curSub, seq: seq++ };
     }
-    // Rebuild canonical rows from the new placement
     const cats: Record<string, Skill[]> = {};
     Object.values(skillsByKey).forEach((s) => {
       const p = placed[s.id];
       const cat = p?.category || s.category;
-      (cats[cat] = cats[cat] || []).push({ ...s, category: cat, level_group: p?.level || 1 });
+      (cats[cat] = cats[cat] || []).push({ ...s, category: cat, level_group: p?.level || 1, sub_category: cat === "tumbling" ? (p?.sub || "standing") : "" });
     });
     Object.keys(cats).forEach((k) => cats[k].sort((a, b) => (placed[a.id]?.seq || 0) - (placed[b.id]?.seq || 0)));
     const next = buildRows(cats);
@@ -188,7 +203,7 @@ export default function ScoutingSkills() {
     if (!addCat || !name.trim() || saving) return;
     setSaving(true);
     try {
-      await api.post("/team/scouting/skills", { category: addCat, name: name.trim(), level_group: addLevel });
+      await api.post("/team/scouting/skills", { category: addCat, name: name.trim(), level_group: addLevel, sub_category: addSub });
       setAddCat(null); setName(""); load();
     } catch (_e) { Alert.alert("Error", "Could not add the skill."); }
     finally { setSaving(false); }
@@ -211,12 +226,28 @@ export default function ScoutingSkills() {
       );
     }
     if (item.type === "divider") {
+      const isTumbling = item.category === "tumbling";
       return (
         <View style={styles.dividerRow}>
           <Text style={styles.dividerText}>Level {item.level}</Text>
           <View style={styles.dividerLine} />
-          <TouchableOpacity onPress={() => { setAddCat(item.category); setAddLevel(item.level); setName(""); }} hitSlop={8} testID={`skill-add-${item.category}-${item.level}`}>
-            <Ionicons name="add-circle" size={20} color={colors.accent} />
+          {!isTumbling && (
+            <TouchableOpacity onPress={() => { setAddCat(item.category); setAddLevel(item.level); setAddSub(""); setName(""); }} hitSlop={8} testID={`skill-add-${item.category}-${item.level}`}>
+              <Ionicons name="add-circle" size={20} color={colors.accent} />
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+    if (item.type === "subdivider") {
+      const label = SUBS.find((s) => s.key === item.sub)?.label || item.sub;
+      return (
+        <View style={styles.subdividerRow}>
+          <Ionicons name={item.sub === "standing" ? "body-outline" : "walk-outline"} size={13} color={colors.textSecondary} />
+          <Text style={styles.subdividerText}>{label}</Text>
+          <View style={styles.dividerLine} />
+          <TouchableOpacity onPress={() => { setAddCat(item.category); setAddLevel(item.level); setAddSub(item.sub); setName(""); }} hitSlop={8} testID={`skill-add-${item.category}-${item.level}-${item.sub}`}>
+            <Ionicons name="add-circle" size={18} color={colors.accent} />
           </TouchableOpacity>
         </View>
       );
@@ -272,7 +303,7 @@ export default function ScoutingSkills() {
       <Modal visible={!!addCat} transparent animationType="fade" onRequestClose={() => setAddCat(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setAddCat(null)}>
           <Pressable style={styles.sheet} onPress={() => {}} testID="skill-add-modal">
-            <Text style={styles.sheetTitle}>Add skill · {SCOUT_CATEGORIES.find((c) => c.key === addCat)?.label} · Level {addLevel}</Text>
+            <Text style={styles.sheetTitle}>Add skill · {SCOUT_CATEGORIES.find((c) => c.key === addCat)?.label}{addSub ? ` · ${SUBS.find((s) => s.key === addSub)?.label}` : ""} · Level {addLevel}</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Standing Back Handspring" placeholderTextColor={colors.textTertiary} autoFocus testID="skill-name-input" />
             <TouchableOpacity style={[styles.saveBtn, (!name.trim() || saving) && { opacity: 0.6 }]} onPress={addSkill} disabled={!name.trim() || saving} testID="skill-save-btn">
               {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>Add skill</Text>}
@@ -296,6 +327,8 @@ const makeStyles = (c: ThemePalette) => ({
   catTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, fontSize: 17 },
   dividerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.sm, marginBottom: 4 },
   dividerText: { ...typography.caption, fontWeight: "800", color: c.textTertiary, letterSpacing: 0.5 },
+  subdividerRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6, marginBottom: 2, paddingLeft: 6 },
+  subdividerText: { ...typography.caption, fontWeight: "700", color: c.textSecondary, fontSize: 11 },
   dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
   skillRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.card, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: c.border, marginBottom: 6 },
   skillActive: { borderColor: c.accent, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },

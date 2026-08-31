@@ -1,0 +1,28 @@
+{
+  "summary": "Iter 111 — Tumbling Standing/Running sub_category migration validated end-to-end. Backend (7/7 pytest pass in test_iter111_scouting_sub_category.py): GET /api/team/scouting/skills returns tumbling=67 (all with sub_category standing|running), stunting=84, jumps=45 (both with sub_category=''); L1 Standing contains Forward roll+Handstand, L1 Running contains Cartwheel+Round-off, L6 Standing = {'Standing full'} exactly. POST /api/team/scouting/skills honors sub_category='running' for tumbling and forces '' for stunting/jumps. POST /api/team/scouting/skills/reorder correctly updates level_group + sub_category + order (moved a skill from tumbling standing L2 → running L5). GET /api/team/scouting/report/{roster_id} returns tumbling entries with sub_category+level_group. Frontend Skill Library (/team/scouting-skills) on 390x844 as coach.casey: 14 sub-headers rendered (7 Standing Tumbling + 7 Running Tumbling); each has its + button with testIDs skill-add-tumbling-<lvl>-standing/running (all 14 present); stunting/jumps show single skill-add-<cat>-<lvl> button (all 14 present); no plain skill-add-tumbling-<lvl>. Add-skill modal shows correct 'Running Tumbling · Level 1' subtitle, saves, and new skill appears in list. Frontend Scouting Report (/team/scouting-report): under Tumbling, DOM order Level 1 → Standing Tumbling → Running Tumbling → Level 2 → Standing/Running ... through Level 7 (14 total sub-headers); Stunting/Jumps show only Level dividers with no sub-headers. Catalog counts left at 67/84/45 after cleanup.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter111_scouting_sub_category.py",
+    "/app/test_reports/pytest/pytest_iter111.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "scouting.py:198 — de-dupe within a (category, level_group, sub_category) tuple is not applied on POST create_skill; a coach could add two skills with the same name in the same slot. Not a regression, existed before this iter. Consider adding a normalized-name uniqueness check (mirrors the bulk-import dedupe path).",
+    "scouting-skills.tsx:172 — persist() sends sub_category='' for stunting/jumps (correct); but for tumbling it derives sub from anchors and defaults to '' when a skill sits directly under the Level divider (before any subdivider). In practice buildRows always inserts a subdivider so this branch is unreachable, but a defensive fallback to 'standing' would prevent bad data if a coach drops a skill above the first subdivider via drag."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter111_scouting_sub_category.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all sub-header/add/report flows verified)"},
+  "seed_data_creation": "None. Test-created skills (TEST_iter111_*) were cleaned up via DELETE; verified catalog totals returned to tumbling=67, stunting=84, jumps=45.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Coach household still auto-seeded to 196 skills (T=67 with sub_category, S=84, J=45). Tests: pytest /app/backend/tests/test_iter111_scouting_sub_category.py. Fetch token via POST /api/auth/login (access_token). testIDs on Skill Library: skill-add-tumbling-<lvl>-standing|running (14 buttons), skill-add-stunting|jumps-<lvl> (14 buttons), skill-<id> rows, skill-del-<id>, skill-add-modal, skill-name-input, skill-save-btn. Report screen: DOM sequence confirms sub-headers only under Tumbling. Note: DraggableFlatList delete icons for tumbling levels beyond the initial viewport can scroll out — use API cleanup for teardown of leftover test skills.",
+  "rca_of_issue": "N/A — feature implementation is correct."
+}

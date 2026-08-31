@@ -9,7 +9,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { SCOUT_CATEGORIES, SCOUT_LEVELS, levelMeta } from "@/src/utils/scouting";
 
-type Skill = { skill_id: string; name: string; category: string; level?: string | null; notes?: string; pending_review?: boolean };
+type Skill = { skill_id: string; name: string; category: string; sub_category?: string; level_group?: number; level?: string | null; notes?: string; pending_review?: boolean };
 type Report = { roster_id: string; name: string; first_name?: string; role: string; can_edit: boolean; can_request: boolean; categories: Record<string, Skill[]> };
 
 export default function ScoutingReport() {
@@ -24,6 +24,10 @@ export default function ScoutingReport() {
   const [editLevel, setEditLevel] = useState<string | null>(null);
   const [editNotes, setEditNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -33,6 +37,19 @@ export default function ScoutingReport() {
     finally { setLoading(false); }
   }, [rosterId]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const toggleSelect = (id: string) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const exitSelect = () => { setSelectMode(false); setSelected(new Set()); };
+
+  const applyBulk = async (level: string) => {
+    if (bulkSaving) return;
+    setBulkSaving(true);
+    try {
+      await api.put(`/team/scouting/report/${rosterId}/skills/bulk`, { skill_ids: Array.from(selected), level });
+      setBulkOpen(false); exitSelect(); load();
+    } catch (_e) { Alert.alert("Error", "Could not update the selected skills."); }
+    finally { setBulkSaving(false); }
+  };
 
   const openEdit = (s: Skill) => {
     if (!report?.can_edit) return;
@@ -74,6 +91,43 @@ export default function ScoutingReport() {
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not create a share link."); }
   };
 
+  const renderSkill = (s: Skill) => {
+    const lm = levelMeta(s.level);
+    const selected0 = !!s.level;
+    const checked = selected.has(s.skill_id);
+    return (
+      <TouchableOpacity key={s.skill_id} style={[styles.skillCard, report?.can_edit && !selected0 && !selectMode && styles.skillCardMuted, checked && styles.skillCardChecked]} activeOpacity={report?.can_edit ? 0.7 : 1} onPress={() => selectMode ? toggleSelect(s.skill_id) : openEdit(s)} testID={`scouting-skill-${s.skill_id}`}>
+        {selectMode && (
+          <Ionicons name={checked ? "checkbox" : "square-outline"} size={22} color={checked ? colors.accent : colors.textTertiary} style={{ marginRight: 4 }} />
+        )}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.skillTitleRow}>
+            <Text style={styles.skillName}>{s.name}</Text>
+            {s.pending_review && <View style={styles.pendPill}><Text style={styles.pendText}>REVIEW</Text></View>}
+          </View>
+          {!!s.notes && <Text style={styles.notes}>{s.notes}</Text>}
+          {report?.can_request && (
+            <TouchableOpacity onPress={() => requestReview(s)} disabled={s.pending_review} hitSlop={6} testID={`scouting-request-${s.skill_id}`}>
+              <Text style={[styles.reqLink, s.pending_review && { color: colors.textTertiary }]}>
+                {s.pending_review ? "Review requested" : "Request review"}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        {selected0 ? (
+          <View style={[styles.levelChip, { backgroundColor: (lm?.color || colors.textTertiary) + "22" }]}>
+            <Text style={[styles.levelChipText, { color: lm?.color || colors.textTertiary }]}>{lm?.label || "Set"}</Text>
+          </View>
+        ) : !selectMode ? (
+          <View style={styles.addChip}>
+            <Ionicons name="add" size={14} color={colors.accent} />
+            <Text style={styles.addChipText}>Add</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]} testID="scouting-report-screen">
       <View style={styles.header}>
@@ -89,6 +143,11 @@ export default function ScoutingReport() {
             <Ionicons name="share-outline" size={22} color={colors.accent} />
           </TouchableOpacity>
         )}
+        {report && report.can_edit && (
+          <TouchableOpacity onPress={() => (selectMode ? exitSelect() : setSelectMode(true))} hitSlop={8} style={{ padding: 4 }} testID="scouting-select-toggle">
+            <Text style={styles.selectToggle}>{selectMode ? "Done" : "Select"}</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {loading ? (
@@ -98,7 +157,7 @@ export default function ScoutingReport() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator>
           {report.can_edit && (
-            <View style={styles.tip}><Ionicons name="information-circle-outline" size={15} color={colors.accent} /><Text style={styles.tipText}>{`Tap a skill and set a level to add it to ${report.first_name || "this athlete"}'s report. Skills you leave unset stay visible to coaches only.`}</Text></View>
+            <View style={styles.tip}><Ionicons name="information-circle-outline" size={15} color={colors.accent} /><Text style={styles.tipText}>{selectMode ? "Tap skills to select, then set one level for all of them at once." : `Tap a skill and set a level to add it to ${report.first_name || "this athlete"}'s report. Use Select to set several at once.`}</Text></View>
           )}
           {SCOUT_CATEGORIES.map((cat) => {
             const list = report.categories[cat.key] || [];
@@ -118,41 +177,22 @@ export default function ScoutingReport() {
                   [1, 2, 3, 4, 5, 6, 7].map((lvl) => {
                     const inLvl = list.filter((s) => (s as any).level_group === lvl || (lvl === 1 && !(s as any).level_group));
                     if (inLvl.length === 0) return null;
+                    const isTumbling = cat.key === "tumbling";
                     return (
                       <View key={lvl} style={{ gap: spacing.xs }}>
                         <Text style={styles.lvlDivider}>Level {lvl}</Text>
-                        {inLvl.map((s) => {
-                    const lm = levelMeta(s.level);
-                    const selected = !!s.level;
-                    return (
-                      <TouchableOpacity key={s.skill_id} style={[styles.skillCard, report.can_edit && !selected && styles.skillCardMuted]} activeOpacity={report.can_edit ? 0.7 : 1} onPress={() => openEdit(s)} testID={`scouting-skill-${s.skill_id}`}>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <View style={styles.skillTitleRow}>
-                            <Text style={styles.skillName}>{s.name}</Text>
-                            {s.pending_review && <View style={styles.pendPill}><Text style={styles.pendText}>REVIEW</Text></View>}
-                          </View>
-                          {!!s.notes && <Text style={styles.notes}>{s.notes}</Text>}
-                          {report.can_request && (
-                            <TouchableOpacity onPress={() => requestReview(s)} disabled={s.pending_review} hitSlop={6} testID={`scouting-request-${s.skill_id}`}>
-                              <Text style={[styles.reqLink, s.pending_review && { color: colors.textTertiary }]}>
-                                {s.pending_review ? "Review requested" : "Request review"}
-                              </Text>
-                            </TouchableOpacity>
-                          )}
-                        </View>
-                        {selected ? (
-                          <View style={[styles.levelChip, { backgroundColor: (lm?.color || colors.textTertiary) + "22" }]}>
-                            <Text style={[styles.levelChipText, { color: lm?.color || colors.textTertiary }]}>{lm?.label || "Set"}</Text>
-                          </View>
-                        ) : (
-                          <View style={styles.addChip}>
-                            <Ionicons name="add" size={14} color={colors.accent} />
-                            <Text style={styles.addChipText}>Add</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
-                    );
-                        })}
+                        {isTumbling ? (
+                          ["standing", "running"].map((sub) => {
+                            const subSkills = inLvl.filter((s) => ((s as any).sub_category || "standing") === sub);
+                            if (subSkills.length === 0) return null;
+                            return (
+                              <View key={sub} style={{ gap: spacing.xs }}>
+                                <Text style={styles.subDivider}>{sub === "standing" ? "Standing Tumbling" : "Running Tumbling"}</Text>
+                                {subSkills.map(renderSkill)}
+                              </View>
+                            );
+                          })
+                        ) : inLvl.map(renderSkill)}
                       </View>
                     );
                   })
@@ -163,11 +203,47 @@ export default function ScoutingReport() {
         </ScrollView>
       )}
 
+      {/* Bulk action bar */}
+      {selectMode && selected.size > 0 && (
+        <View style={styles.bulkBar} testID="scouting-bulk-bar">
+          <Text style={styles.bulkCount}>{selected.size} selected</Text>
+          <TouchableOpacity style={styles.bulkClear} onPress={() => setSelected(new Set())}><Text style={styles.bulkClearText}>Clear</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.bulkSet} onPress={() => setBulkOpen(true)} testID="scouting-bulk-set"><Text style={styles.bulkSetText}>Set level</Text></TouchableOpacity>
+        </View>
+      )}
+
+      {/* Bulk level picker */}
+      <Modal visible={bulkOpen} transparent animationType="slide" onRequestClose={() => setBulkOpen(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setBulkOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}} testID="scouting-bulk-modal">
+            <Text style={styles.sheetTitle}>Set level for {selected.size} skill{selected.size === 1 ? "" : "s"}</Text>
+            <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator>
+              {SCOUT_LEVELS.map((l) => (
+                <TouchableOpacity key={l.key} style={[styles.levelOpt, { marginTop: 8 }]} onPress={() => applyBulk(l.key)} disabled={bulkSaving} testID={`scouting-bulk-level-${l.key}`}>
+                  <View style={[styles.dot, { backgroundColor: l.color }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.levelOptLabel}>{l.label}</Text>
+                    <Text style={styles.levelOptDesc}>{l.desc}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity style={[styles.levelOpt, { marginTop: 8, borderColor: "#DC2626" }]} onPress={() => applyBulk("")} disabled={bulkSaving} testID="scouting-bulk-level-remove">
+                <Ionicons name="close-circle" size={18} color="#DC2626" />
+                <Text style={[styles.levelOptLabel, { color: "#DC2626" }]}>Remove from report</Text>
+              </TouchableOpacity>
+            </ScrollView>
+            {bulkSaving && <ActivityIndicator color={colors.accent} style={{ marginTop: 10 }} />}
+            <TouchableOpacity onPress={() => setBulkOpen(false)} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Coach edit modal */}
       <Modal visible={!!edit} transparent animationType="slide" onRequestClose={() => setEdit(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setEdit(null)}>
           <Pressable style={styles.sheet} onPress={() => {}} testID="scouting-edit-modal">
             <Text style={styles.sheetTitle}>{edit?.name}</Text>
+            <ScrollView style={{ maxHeight: "82%" }} showsVerticalScrollIndicator keyboardShouldPersistTaps="handled">
             <Text style={styles.sheetSub}>Progression level</Text>
             {SCOUT_LEVELS.map((l) => (
               <TouchableOpacity key={l.key} style={[styles.levelOpt, editLevel === l.key && { borderColor: l.color, backgroundColor: l.color + "14" }]} onPress={() => setEditLevel(l.key)} testID={`scouting-level-${l.key}`}>
@@ -197,6 +273,7 @@ export default function ScoutingReport() {
                 <Text style={styles.removeText}>Remove from report</Text>
               </TouchableOpacity>
             )}
+            </ScrollView>
             <TouchableOpacity onPress={() => setEdit(null)} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
           </Pressable>
         </Pressable>
@@ -217,8 +294,17 @@ const makeStyles = (c: ThemePalette) => ({
   catTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   catEmpty: { ...typography.caption, color: c.textTertiary, marginLeft: 4 },
   lvlDivider: { ...typography.caption, fontWeight: "800", color: c.textTertiary, letterSpacing: 0.5, marginTop: 4 },
+  subDivider: { ...typography.caption, fontWeight: "700", color: c.textSecondary, fontSize: 11, marginTop: 2, marginLeft: 2 },
   skillCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: c.border },
   skillCardMuted: { opacity: 0.6, backgroundColor: c.bg },
+  skillCardChecked: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  selectToggle: { ...typography.bodyMedium, color: c.accent, fontWeight: "800" },
+  bulkBar: { position: "absolute" as const, left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xl, backgroundColor: c.card, borderTopWidth: 1, borderTopColor: c.border },
+  bulkCount: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, flex: 1 },
+  bulkClear: { paddingHorizontal: 14, paddingVertical: 10 },
+  bulkClearText: { ...typography.caption, color: c.textSecondary, fontWeight: "800" },
+  bulkSet: { backgroundColor: c.accent, borderRadius: radius.md, paddingHorizontal: 18, paddingVertical: 11 },
+  bulkSetText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   addChip: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: c.accent, borderStyle: "dashed" as const },
   addChipText: { fontSize: 11, fontWeight: "800", color: c.accent },
   removeText: { ...typography.caption, color: "#DC2626", fontWeight: "800" },

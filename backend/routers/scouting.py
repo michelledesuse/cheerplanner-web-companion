@@ -60,6 +60,7 @@ async def _ensure_library(household_id: str) -> None:
             except (TypeError, ValueError):
                 lg = 1
             docs.append({"id": str(uuid.uuid4()), "household_id": household_id, "category": cat,
+                         "sub_category": (s.get("sub_category") or ""),
                          "level_group": lg, "name": str(s["name"]).strip(),
                          "order": int(s.get("order") or 0), "created_at": _now()})
         if docs:
@@ -150,6 +151,7 @@ async def _report_payload(roster: dict, h: dict, include_all: bool = True) -> di
             continue
         cats.setdefault(s.get("category") or "tumbling", []).append({
             "skill_id": s["id"], "name": s["name"], "category": s.get("category"),
+            "sub_category": s.get("sub_category") or "",
             "level_group": s.get("level_group") or 1,
             "level": a.get("level"), "notes": a.get("notes") or "",
             "updated_at": a.get("updated_at"),
@@ -185,17 +187,20 @@ async def create_skill(payload: dict = Body(...), user=Depends(require_team_acce
         raise HTTPException(status_code=400, detail="Invalid category.")
     if not name:
         raise HTTPException(status_code=400, detail="Skill name is required.")
+    sub = (payload.get("sub_category") or "").lower().strip()
+    if category != "tumbling" or sub not in ("standing", "running"):
+        sub = ""
     try:
         level_group = int(payload.get("level_group") or 1)
     except (TypeError, ValueError):
         level_group = 1
     level_group = max(1, min(level_group, 7))
     last = await db.skills.find_one(
-        {"household_id": h["id"], "category": category, "level_group": level_group}, sort=[("order", -1)]
+        {"household_id": h["id"], "category": category, "level_group": level_group, "sub_category": sub}, sort=[("order", -1)]
     )
     order = (last.get("order", 0) + 1) if last else 0
     skill = {"id": str(uuid.uuid4()), "household_id": h["id"], "category": category,
-             "level_group": level_group, "name": name, "order": order, "created_at": _now()}
+             "sub_category": sub, "level_group": level_group, "name": name, "order": order, "created_at": _now()}
     await db.skills.insert_one(dict(skill))
     return skill
 
@@ -219,8 +224,12 @@ async def reorder_skills(payload: dict = Body(...), user=Depends(require_team_ac
             order = int(it.get("order", i))
         except (TypeError, ValueError):
             order = i
+        upd = {"level_group": lg, "order": order}
+        if "sub_category" in it:
+            sub = (it.get("sub_category") or "").lower().strip()
+            upd["sub_category"] = sub if sub in ("standing", "running") else ""
         await db.skills.update_one(
-            {"id": sid, "household_id": h["id"]}, {"$set": {"level_group": lg, "order": order}}
+            {"id": sid, "household_id": h["id"]}, {"$set": upd}
         )
     return {"ok": True}
 
@@ -476,6 +485,40 @@ async def set_assessment(roster_id: str, skill_id: str, payload: dict = Body(def
         {"$set": {"status": "resolved", "resolved_at": _now()}},
     )
     return {"ok": True}
+
+
+@router.put("/team/scouting/report/{roster_id}/skills/bulk")
+async def set_assessment_bulk(roster_id: str, payload: dict = Body(default={}), user=Depends(require_team_access)):
+    """Set (or clear) a progression level for many skills at once."""
+    roster = await db.roster.find_one({"id": roster_id}, {"_id": 0})
+    if not roster:
+        raise HTTPException(status_code=404, detail="Athlete not found.")
+    h, role = await _view_role(roster, user)
+    if role != "coach":
+        raise HTTPException(status_code=403, detail="Only coaches can update skill levels.")
+    skill_ids = [s for s in (payload.get("skill_ids") or []) if s]
+    level = payload.get("level")
+    if level in ("", None):
+        level = None
+    elif level not in LEVELS:
+        raise HTTPException(status_code=400, detail="Invalid level.")
+    if not skill_ids:
+        return {"ok": True, "updated": 0}
+    valid = set()
+    async for s in db.skills.find({"household_id": h["id"], "id": {"$in": skill_ids}}, {"_id": 0, "id": 1}):
+        valid.add(s["id"])
+    now = _now()
+    for sid in valid:
+        await db.athlete_skills.update_one(
+            {"household_id": h["id"], "roster_id": roster_id, "skill_id": sid},
+            {"$set": {"level": level, "updated_by": user["id"], "updated_at": now}, "$setOnInsert": {"id": str(uuid.uuid4())}},
+            upsert=True,
+        )
+        await db.skill_reviews.update_many(
+            {"household_id": h["id"], "roster_id": roster_id, "skill_id": sid, "status": "pending"},
+            {"$set": {"status": "resolved", "resolved_at": now}},
+        )
+    return {"ok": True, "updated": len(valid)}
 
 
 @router.post("/team/scouting/report/{roster_id}/skill/{skill_id}/request-review")
