@@ -37,9 +37,10 @@ type Athlete = { id: string; name: string; avatar_color?: string };
 type Props = {
   competitionId: string;
   athletes: Athlete[];
+  onAllPacked?: () => void;
 };
 
-export default function PackingListSection({ competitionId, athletes }: Props) {
+export default function PackingListSection({ competitionId, athletes, onAllPacked }: Props) {
   const styles = useThemedStyles(makeStyles);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -127,6 +128,7 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
   const toggleItem = async (item: Item) => {
     if (!list) return;
     const key = scopedAthleteId || "shared";
+    const willCheck = !item.checked_by?.[key]; // becoming checked?
     const nextItems = list.items.map(it => {
       if (it.id !== item.id) return it;
       const cb = { ...(it.checked_by || {}) };
@@ -136,6 +138,10 @@ export default function PackingListSection({ competitionId, athletes }: Props) {
     // Optimistic update
     setList({ ...list, items: nextItems });
     try { await patchList({ items: nextItems }); } catch { load(); }
+    // Fire the "all packed" callback when the LAST item gets checked off.
+    if (willCheck && nextItems.length > 0 && nextItems.every(it => !!it.checked_by?.[key])) {
+      onAllPacked?.();
+    }
   };
 
   const removeItem = (item: Item) => {

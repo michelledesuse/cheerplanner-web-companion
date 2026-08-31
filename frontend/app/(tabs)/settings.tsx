@@ -9,6 +9,7 @@ import { usePremium } from "@/src/context/PremiumContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { shareApp } from "@/src/utils/appShare";
 
 const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", off: "Off" };
 
@@ -214,6 +215,14 @@ export default function SettingsScreen() {
 
         <Text style={styles.sectionHead}>Community</Text>
         <View style={styles.group}>
+          <SettingRow
+            icon="share-social-outline"
+            label="Share CheerPlanner"
+            subtitle="Text or email the app to another cheer family"
+            onPress={() => shareApp()}
+            chevron
+            testID="settings-share-app"
+          />
           <SettingRow
             label="Community Reviews"
             subtitle="Rate &amp; discover cheer-friendly restaurants, hotels, gyms and more"

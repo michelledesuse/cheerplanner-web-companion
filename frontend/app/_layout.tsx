@@ -11,6 +11,7 @@ import { PremiumProvider } from "@/src/context/PremiumContext";
 import { RealtimeProvider } from "@/src/context/RealtimeContext";
 import { SeasonProvider } from "@/src/context/SeasonContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
+import { RatePromptProvider } from "@/src/context/RatePromptContext";
 
 // Keep the native splash visible from cold start until icon fonts register.
 SplashScreen.preventAutoHideAsync();
@@ -46,7 +47,9 @@ export default function RootLayout() {
             <PremiumProvider>
               <RealtimeProvider>
                 <SeasonProvider>
-                  <ThemedStack />
+                  <RatePromptProvider>
+                    <ThemedStack />
+                  </RatePromptProvider>
                 </SeasonProvider>
               </RealtimeProvider>
             </PremiumProvider>

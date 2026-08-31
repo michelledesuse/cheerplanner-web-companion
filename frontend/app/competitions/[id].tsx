@@ -7,6 +7,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
+import { useRatePrompt } from "@/src/context/RatePromptContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
@@ -78,6 +79,7 @@ export default function CompetitionDetail() {
   const canExpenses = user?.visibility?.expenses !== false;
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { promptRating } = useRatePrompt();
   const [comp, setComp] = useState<Competition | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
@@ -315,7 +317,14 @@ export default function CompetitionDetail() {
         )}
 
         <Text style={styles.sectionHead}>Packing list</Text>
-        <PackingListSection competitionId={comp.id} athletes={athletes} />
+        <PackingListSection
+          competitionId={comp.id}
+          athletes={athletes}
+          onAllPacked={() => {
+            const d = daysBetween(comp.event_date);
+            if (d !== null && d >= 0) promptRating("packing_complete");
+          }}
+        />
 
         <Text style={styles.sectionHead}>To-do list</Text>
         <TodoList scope="competition" refId={comp.id} />

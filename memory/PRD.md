@@ -514,3 +514,9 @@ Get exact current paths from user before building W2.
 ## Session update 24 (SEC-003: public share link hardening)
 - share.py `_get_link` now enforces a 30-day expiry (SHARE_LINK_TTL_DAYS) from created_at for BOTH /public/share/{token}/data and /submit (expired -> 404). Manual revoke already exists: DELETE /api/team/share/{link_id} (sets active=False).
 - Public roster_member payload no longer exposes sensitive child data: dob, food_allergies, other_allergies, medical_concerns, and parent contact (parent_first/last/phone/email/relationship, caretakers) are returned blank. Non-sensitive fields (name, role, team, sizes) still returned; the public form starts blank for the removed fields and parents can still submit them. No other share behavior changed. Verified via API.
+
+## Update (2026-08-31)
+- **Share this app**: `shareApp()` util + Settings → Community "Share CheerPlanner" row opens the OS share sheet with the app link (word-of-mouth).
+- **Rate this app**: global `RatePromptProvider` (app/_layout.tsx) shows an "Enjoying CheerPlanner?" modal after (a) checking off the LAST packing-list item for an upcoming competition, or (b) completing a NEW payment. Rate-limited to once per rolling 14 days via AsyncStorage key `rate_prompt_last_shown_at`; taps the native store review (expo-store-review) which only appears on real device/build. Verified by testing agent.
+- **Pinned messages (Team Hub chat)**: personnel/admins can pin/unpin messages (long-press → Pin). Pinned bar at top of chat + "Pinned messages" modal with Unpin. Backend: POST /api/team/chat/messages/{id}/pin, GET /api/team/chat/pinned (scoped by hub + channel_id). Minors/non-personnel can view pinned but cannot pin (403). Verified on preview.
+- All above are PREVIEW-only until next redeploy.

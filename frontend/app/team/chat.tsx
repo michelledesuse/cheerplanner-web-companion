@@ -28,6 +28,7 @@ type Message = {
   created_at: string;
   media?: Media[];
   reactions?: Record<string, string[]>;
+  pinned?: boolean;
 };
 
 type Channel = { id: string; name: string; kind: string; member_count: number; member_names: string[] };
@@ -89,6 +90,8 @@ export default function TeamChatScreen() {
   const [guidelinesOk, setGuidelinesOk] = useState(true);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [actionMsg, setActionMsg] = useState<Message | null>(null);
+  const [pinned, setPinned] = useState<Message[]>([]);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
   const [token, setToken] = useState("");
   const [uploading, setUploading] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
@@ -134,6 +137,11 @@ export default function TeamChatScreen() {
       setCanModerate(!!r.data.can_moderate);
     } catch (_e) {}
     finally { setLoading(false); }
+    try {
+      const cid = activeChannel ? `?channel_id=${activeChannel.id}` : "";
+      const rp = await api.get<{ pinned: Message[] }>(`/team/chat/pinned${cid}`);
+      setPinned(rp.data.pinned || []);
+    } catch (_e) { setPinned([]); }
     if (!activeChannel) {
       try { const rc = await api.get("/team/chat/receipts"); setReceipts(rc.data.receipts || []); } catch (_e) {}
       if (focused.current) markRead();
@@ -207,6 +215,12 @@ export default function TeamChatScreen() {
     setActionMsg(null);
     setMessages((prev) => prev.filter((x) => x.id !== m.id));
     try { await api.delete(`/team/chat/messages/${m.id}`); } catch (_e) { load(); }
+  }, [load]);
+
+  const pinMsg = useCallback(async (m: Message, pin: boolean) => {
+    setActionMsg(null);
+    try { await api.post(`/team/chat/messages/${m.id}/pin`, { pinned: pin }); load(); }
+    catch (_e) { Alert.alert("Error", pin ? "Could not pin this message." : "Could not unpin this message."); }
   }, [load]);
 
   const sendMedia = useCallback(async (asset: { uri: string; mimeType?: string; fileName?: string }) => {
@@ -446,6 +460,19 @@ export default function TeamChatScreen() {
         </View>
       )}
 
+      {pinned.length > 0 && (
+        <TouchableOpacity style={styles.pinnedBar} onPress={() => setPinnedOpen(true)} testID="chat-pinned-bar" activeOpacity={0.7}>
+          <Ionicons name="pin" size={15} color={colors.accent} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.pinnedLabel}>{pinned.length === 1 ? "Pinned message" : `${pinned.length} pinned messages`}</Text>
+            <Text style={styles.pinnedPreview} numberOfLines={1}>
+              {pinned[0].text || (pinned[0].media?.length ? "📎 Attachment" : "")}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={colors.textTertiary} />
+        </TouchableOpacity>
+      )}
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "translate-with-padding"}
@@ -576,6 +603,39 @@ export default function TeamChatScreen() {
         </View>
       </Modal>
 
+      {/* Pinned messages list */}
+      <Modal visible={pinnedOpen} transparent animationType="fade" onRequestClose={() => setPinnedOpen(false)}>
+        <Pressable style={styles.modalWrap} onPress={() => setPinnedOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}} testID="chat-pinned-modal">
+            <View style={styles.pinnedHeader}>
+              <Ionicons name="pin" size={18} color={colors.accent} />
+              <Text style={styles.pinnedTitle}>Pinned messages</Text>
+            </View>
+            <ScrollView style={{ maxHeight: 360 }}>
+              {pinned.map((m) => (
+                <View key={m.id} style={styles.pinnedRow} testID={`chat-pinned-${m.id}`}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.pinnedRowName}>{m.sender_name}</Text>
+                    <Text style={styles.pinnedRowText}>
+                      {m.text || (m.media?.length ? "📎 Attachment" : "")}
+                    </Text>
+                  </View>
+                  {canModerate && (
+                    <TouchableOpacity onPress={() => pinMsg(m, false)} hitSlop={8} testID={`chat-unpin-${m.id}`}>
+                      <Text style={styles.unpinText}>Unpin</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+            <TouchableOpacity onPress={() => setPinnedOpen(false)} style={styles.actionRow}>
+              <Ionicons name="close-outline" size={18} color={colors.textSecondary} />
+              <Text style={[styles.actionText, { color: colors.textSecondary }]}>Close</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Message actions: report / block / delete */}
       <Modal visible={!!actionMsg} transparent animationType="fade" onRequestClose={() => setActionMsg(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setActionMsg(null)}>
@@ -588,6 +648,12 @@ export default function TeamChatScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
+            )}
+            {actionMsg && canModerate && (
+              <TouchableOpacity style={styles.actionRow} onPress={() => pinMsg(actionMsg, !actionMsg.pinned)} testID="chat-action-pin">
+                <Ionicons name={actionMsg.pinned ? "pin" : "pin-outline"} size={18} color={colors.accent} />
+                <Text style={[styles.actionText, { color: colors.accent }]}>{actionMsg.pinned ? "Unpin message" : "Pin message"}</Text>
+              </TouchableOpacity>
             )}
             {actionMsg && actionMsg.sender_id === me ? (
               <TouchableOpacity style={styles.actionRow} onPress={() => deleteMsg(actionMsg)} testID="chat-action-delete">
@@ -806,6 +872,22 @@ const makeStyles = (c: ThemePalette) => ({
     borderBottomWidth: 1, borderBottomColor: c.border,
   },
   supervisedText: { ...typography.caption, color: c.accent, fontWeight: "700" },
+  pinnedBar: {
+    flexDirection: "row", alignItems: "center", gap: 8,
+    backgroundColor: c.accentSubtle, paddingVertical: 8, paddingHorizontal: 14,
+    borderBottomWidth: 1, borderBottomColor: c.border,
+  },
+  pinnedLabel: { ...typography.caption, color: c.accent, fontWeight: "800", fontSize: 11 },
+  pinnedPreview: { ...typography.caption, color: c.textSecondary },
+  pinnedHeader: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
+  pinnedTitle: { ...typography.h3, color: c.textPrimary },
+  pinnedRow: {
+    flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: c.borderSoft,
+  },
+  pinnedRowName: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
+  pinnedRowText: { ...typography.body, color: c.textSecondary, marginTop: 2 },
+  unpinText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   title: { ...typography.h3, color: c.textPrimary },
   sub: { ...typography.caption, color: c.textSecondary, marginTop: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 6 },

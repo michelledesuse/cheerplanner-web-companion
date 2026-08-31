@@ -383,6 +383,38 @@ async def delete_message(message_id: str, current_user=Depends(require_chat_acce
     return {"deleted": True}
 
 
+@router.post("/team/chat/messages/{message_id}/pin")
+async def pin_message(message_id: str, payload: dict = Body(default={}), current_user=Depends(require_chat_access)):
+    """Pin/unpin a message. Only team admins (team_access) or a platform admin,
+    and only within their own hub."""
+    if not (current_user.get("team_access") or current_user.get("is_admin")):
+        raise HTTPException(status_code=403, detail="Only team admins can pin messages.")
+    m = await db.team_messages.find_one({"id": message_id}, {"_id": 0, "household_id": 1})
+    if not m:
+        raise HTTPException(status_code=404, detail="Message not found.")
+    if not current_user.get("is_admin"):
+        h = await _chat_hub(current_user["id"], current_user)
+        if not (h and m.get("household_id") == h["id"]):
+            raise HTTPException(status_code=403, detail="You can only pin messages in your own hub.")
+    pinned = bool(payload.get("pinned", True))
+    upd = {"pinned": pinned,
+           "pinned_by": current_user["id"] if pinned else None,
+           "pinned_at": utcnow_iso() if pinned else None}
+    await db.team_messages.update_one({"id": message_id}, {"$set": upd})
+    return {"message_id": message_id, "pinned": pinned}
+
+
+@router.get("/team/chat/pinned")
+async def list_pinned(channel_id: Optional[str] = None, current_user=Depends(require_chat_access)):
+    """Pinned messages for the current hub + channel scope (newest pin first)."""
+    h = await _chat_hub(current_user["id"], current_user)
+    if not h:
+        return {"pinned": []}
+    q = {"household_id": h["id"], "pinned": True, "hidden": {"$ne": True}, "channel_id": channel_id or None}
+    docs = await db.team_messages.find(q, {"_id": 0}).sort("pinned_at", -1).to_list(50)
+    return {"pinned": docs, "can_moderate": bool(current_user.get("team_access") or current_user.get("is_admin"))}
+
+
 @router.get("/team/chat/flags", dependencies=[Depends(require_admin)])
 async def list_chat_flags():
     flags = await db.chat_message_flags.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)

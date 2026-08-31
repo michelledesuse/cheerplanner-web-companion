@@ -11,6 +11,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import { useSeason } from "@/src/context/SeasonContext";
+import { useRatePrompt } from "@/src/context/RatePromptContext";
 import { todayISO, formatCurrency, formatDate } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 
@@ -21,6 +22,7 @@ type ExpenseLite = { id: string; category: string; amount: number; incurred_on: 
 
 export default function PaymentForm() {
   const router = useRouter();
+  const { promptRating } = useRatePrompt();
   const styles = useThemedStyles(makeStyles);
   const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ athlete_id?: string; id?: string; expense_id?: string; amount?: string }>();
@@ -147,6 +149,8 @@ export default function PaymentForm() {
         });
       }
       router.back();
+      // Nudge for a rating after a completed payment (rate-limited to 1/2 weeks).
+      if (!isEdit) setTimeout(() => promptRating("payment_complete"), 400);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
     } finally { setSaving(false); }
