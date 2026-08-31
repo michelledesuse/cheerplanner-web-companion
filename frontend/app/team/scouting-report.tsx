@@ -101,7 +101,13 @@ export default function ScoutingReport() {
                 {list.length === 0 ? (
                   <Text style={styles.catEmpty}>No {cat.label.toLowerCase()} skills yet.</Text>
                 ) : (
-                  list.map((s) => {
+                  [1, 2, 3, 4, 5, 6, 7].map((lvl) => {
+                    const inLvl = list.filter((s) => (s as any).level_group === lvl || (lvl === 1 && !(s as any).level_group));
+                    if (inLvl.length === 0) return null;
+                    return (
+                      <View key={lvl} style={{ gap: spacing.xs }}>
+                        <Text style={styles.lvlDivider}>Level {lvl}</Text>
+                        {inLvl.map((s) => {
                     const lm = levelMeta(s.level);
                     return (
                       <TouchableOpacity key={s.skill_id} style={styles.skillCard} activeOpacity={report.can_edit ? 0.7 : 1} onPress={() => openEdit(s)} testID={`scouting-skill-${s.skill_id}`}>
@@ -123,6 +129,9 @@ export default function ScoutingReport() {
                           <Text style={[styles.levelChipText, { color: lm?.color || colors.textTertiary }]}>{lm?.label || "Not set"}</Text>
                         </View>
                       </TouchableOpacity>
+                    );
+                        })}
+                      </View>
                     );
                   })
                 )}
@@ -180,6 +189,7 @@ const makeStyles = (c: ThemePalette) => ({
   catHead: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.xs },
   catTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   catEmpty: { ...typography.caption, color: c.textTertiary, marginLeft: 4 },
+  lvlDivider: { ...typography.caption, fontWeight: "800", color: c.textTertiary, letterSpacing: 0.5, marginTop: 4 },
   skillCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: c.border },
   skillTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   skillName: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },

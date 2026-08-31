@@ -90,7 +90,7 @@ async def _view_role(roster: dict, user: dict):
 
 
 async def _report_payload(roster: dict, h: dict) -> dict:
-    skills = await db.skills.find({"household_id": h["id"]}, {"_id": 0}).sort("order", 1).to_list(1000)
+    skills = await db.skills.find({"household_id": h["id"]}, {"_id": 0}).sort([("level_group", 1), ("order", 1)]).to_list(1000)
     assess = {}
     async for a in db.athlete_skills.find({"household_id": h["id"], "roster_id": roster["id"]}, {"_id": 0}):
         assess[a["skill_id"]] = a
@@ -104,6 +104,7 @@ async def _report_payload(roster: dict, h: dict) -> dict:
         a = assess.get(s["id"]) or {}
         cats.setdefault(s.get("category") or "tumbling", []).append({
             "skill_id": s["id"], "name": s["name"], "category": s.get("category"),
+            "level_group": s.get("level_group") or 1,
             "level": a.get("level"), "notes": a.get("notes") or "",
             "updated_at": a.get("updated_at"),
             "pending_review": s["id"] in pending,
@@ -119,7 +120,7 @@ async def list_skills(user=Depends(require_team_access)):
     h = await _resolve_active_household(user["id"])
     if not h:
         return {"categories": {c: [] for c in CATEGORIES}}
-    skills = await db.skills.find({"household_id": h["id"]}, {"_id": 0}).sort("order", 1).to_list(1000)
+    skills = await db.skills.find({"household_id": h["id"]}, {"_id": 0}).sort([("level_group", 1), ("order", 1)]).to_list(1000)
     cats = {c: [] for c in CATEGORIES}
     for s in skills:
         cats.setdefault(s.get("category") or "tumbling", []).append(s)
@@ -137,12 +138,44 @@ async def create_skill(payload: dict = Body(...), user=Depends(require_team_acce
         raise HTTPException(status_code=400, detail="Invalid category.")
     if not name:
         raise HTTPException(status_code=400, detail="Skill name is required.")
-    last = await db.skills.find_one({"household_id": h["id"], "category": category}, sort=[("order", -1)])
+    try:
+        level_group = int(payload.get("level_group") or 1)
+    except (TypeError, ValueError):
+        level_group = 1
+    level_group = max(1, min(level_group, 7))
+    last = await db.skills.find_one(
+        {"household_id": h["id"], "category": category, "level_group": level_group}, sort=[("order", -1)]
+    )
     order = (last.get("order", 0) + 1) if last else 0
     skill = {"id": str(uuid.uuid4()), "household_id": h["id"], "category": category,
-             "name": name, "order": order, "created_at": _now()}
+             "level_group": level_group, "name": name, "order": order, "created_at": _now()}
     await db.skills.insert_one(dict(skill))
     return skill
+
+
+@router.post("/team/scouting/skills/reorder")
+async def reorder_skills(payload: dict = Body(...), user=Depends(require_team_access)):
+    """Persist a new arrangement after a drag: items = [{id, level_group, order}]."""
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        raise HTTPException(status_code=400, detail="No team hub found.")
+    items = payload.get("items") or []
+    for i, it in enumerate(items):
+        sid = it.get("id")
+        if not sid:
+            continue
+        try:
+            lg = max(1, min(int(it.get("level_group") or 1), 7))
+        except (TypeError, ValueError):
+            lg = 1
+        try:
+            order = int(it.get("order", i))
+        except (TypeError, ValueError):
+            order = i
+        await db.skills.update_one(
+            {"id": sid, "household_id": h["id"]}, {"$set": {"level_group": lg, "order": order}}
+        )
+    return {"ok": True}
 
 
 @router.patch("/team/scouting/skills/{skill_id}")

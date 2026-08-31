@@ -1,6 +1,8 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert } from "react-native";
+import { View, Text, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import DraggableFlatList, { ScaleDecorator } from "react-native-draggable-flatlist";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 
@@ -9,31 +11,94 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { SCOUT_CATEGORIES } from "@/src/utils/scouting";
 
-type Skill = { id: string; name: string; category: string };
+type Skill = { id: string; name: string; category: string; level_group?: number };
+type Row =
+  | { type: "cat"; key: string; category: string; label: string; icon: string }
+  | { type: "divider"; key: string; category: string; level: number }
+  | { type: "skill"; key: string; skill: Skill };
+
+const LEVELS = [1, 2, 3, 4, 5, 6, 7];
+
+function buildRows(cats: Record<string, Skill[]>): Row[] {
+  const rows: Row[] = [];
+  for (const c of SCOUT_CATEGORIES) {
+    rows.push({ type: "cat", key: `cat-${c.key}`, category: c.key, label: c.label, icon: c.icon });
+    const list = cats[c.key] || [];
+    for (const lvl of LEVELS) {
+      rows.push({ type: "divider", key: `div-${c.key}-${lvl}`, category: c.key, level: lvl });
+      list
+        .filter((s) => (s.level_group || 1) === lvl)
+        .sort((a, b) => 0)
+        .forEach((s) => rows.push({ type: "skill", key: `sk-${s.id}`, skill: { ...s, level_group: lvl } }));
+    }
+  }
+  return rows;
+}
 
 export default function ScoutingSkills() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
-  const [cats, setCats] = useState<Record<string, Skill[]>>({});
+  const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [addCat, setAddCat] = useState<string | null>(null);
+  const [addLevel, setAddLevel] = useState(1);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const r = await api.get<{ categories: Record<string, Skill[]> }>("/team/scouting/skills");
-      setCats(r.data.categories || {});
-    } catch (_e) { setCats({}); }
+      setRows(buildRows(r.data.categories || {}));
+    } catch (_e) { setRows([]); }
     finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const persist = async (data: Row[]) => {
+    // Recompute each skill's category + level from the anchors above it.
+    let curCat = SCOUT_CATEGORIES[0].key;
+    let curLevel = 1;
+    let order = 0;
+    const items: { id: string; category: string; level_group: number; order: number }[] = [];
+    for (const it of data) {
+      if (it.type === "cat") { curCat = it.category; curLevel = 1; order = 0; }
+      else if (it.type === "divider") { curLevel = it.level; order = 0; }
+      else { items.push({ id: it.skill.id, category: curCat, level_group: curLevel, order: order++ }); }
+    }
+    try { await api.post("/team/scouting/skills/reorder", { items }); } catch (_e) { load(); }
+  };
+
+  const onDragEnd = ({ data }: { data: Row[] }) => {
+    // Keep category headers + dividers in their canonical positions; only skills move.
+    const skillsByKey: Record<string, Skill> = {};
+    data.forEach((r) => { if (r.type === "skill") skillsByKey[r.skill.id] = r.skill; });
+    // Derive new (category, level) per skill from drag result
+    let curCat = SCOUT_CATEGORIES[0].key, curLevel = 1;
+    const placed: Record<string, { category: string; level: number; seq: number }> = {};
+    let seq = 0;
+    for (const it of data) {
+      if (it.type === "cat") curCat = it.category;
+      else if (it.type === "divider") curLevel = it.level;
+      else placed[it.skill.id] = { category: curCat, level: curLevel, seq: seq++ };
+    }
+    // Rebuild canonical rows from the new placement
+    const cats: Record<string, Skill[]> = {};
+    Object.values(skillsByKey).forEach((s) => {
+      const p = placed[s.id];
+      const cat = p?.category || s.category;
+      (cats[cat] = cats[cat] || []).push({ ...s, category: cat, level_group: p?.level || 1 });
+    });
+    Object.keys(cats).forEach((k) => cats[k].sort((a, b) => (placed[a.id]?.seq || 0) - (placed[b.id]?.seq || 0)));
+    const next = buildRows(cats);
+    setRows(next);
+    persist(next);
+  };
 
   const addSkill = async () => {
     if (!addCat || !name.trim() || saving) return;
     setSaving(true);
     try {
-      await api.post("/team/scouting/skills", { category: addCat, name: name.trim() });
+      await api.post("/team/scouting/skills", { category: addCat, name: name.trim(), level_group: addLevel });
       setAddCat(null); setName(""); load();
     } catch (_e) { Alert.alert("Error", "Could not add the skill."); }
     finally { setSaving(false); }
@@ -46,6 +111,41 @@ export default function ScoutingSkills() {
     ]);
   };
 
+  const renderItem = ({ item, drag, isActive }: { item: Row; drag: () => void; isActive: boolean }) => {
+    if (item.type === "cat") {
+      return (
+        <View style={styles.catHead}>
+          <Ionicons name={item.icon as any} size={16} color={colors.accent} />
+          <Text style={styles.catTitle}>{item.label}</Text>
+        </View>
+      );
+    }
+    if (item.type === "divider") {
+      return (
+        <View style={styles.dividerRow}>
+          <Text style={styles.dividerText}>Level {item.level}</Text>
+          <View style={styles.dividerLine} />
+          <TouchableOpacity onPress={() => { setAddCat(item.category); setAddLevel(item.level); setName(""); }} hitSlop={8} testID={`skill-add-${item.category}-${item.level}`}>
+            <Ionicons name="add-circle" size={20} color={colors.accent} />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <ScaleDecorator>
+        <View style={[styles.skillRow, isActive && styles.skillActive]} testID={`skill-${item.skill.id}`}>
+          <TouchableOpacity onLongPress={drag} delayLongPress={120} hitSlop={8} testID={`skill-drag-${item.skill.id}`}>
+            <Ionicons name="reorder-three-outline" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <Text style={styles.skillName}>{item.skill.name}</Text>
+          <TouchableOpacity onPress={() => removeSkill(item.skill)} hitSlop={8} testID={`skill-del-${item.skill.id}`}>
+            <Ionicons name="trash-outline" size={18} color="#DC2626" />
+          </TouchableOpacity>
+        </View>
+      </ScaleDecorator>
+    );
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]} testID="scouting-skills-screen">
       <View style={styles.header}>
@@ -54,41 +154,29 @@ export default function ScoutingSkills() {
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title}>Skill Library</Text>
-          <Text style={styles.subtitle}>Skills your team is assessed on</Text>
+          <Text style={styles.subtitle}>Drag skills to reorder or move between levels</Text>
         </View>
       </View>
 
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator>
-          {SCOUT_CATEGORIES.map((cat) => (
-            <View key={cat.key} style={{ gap: spacing.xs }}>
-              <View style={styles.catHead}>
-                <Ionicons name={cat.icon as any} size={16} color={colors.accent} />
-                <Text style={styles.catTitle}>{cat.label}</Text>
-              </View>
-              {(cats[cat.key] || []).map((s) => (
-                <View key={s.id} style={styles.skillRow} testID={`skill-${s.id}`}>
-                  <Text style={styles.skillName}>{s.name}</Text>
-                  <TouchableOpacity onPress={() => removeSkill(s)} hitSlop={8} testID={`skill-del-${s.id}`}>
-                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                  </TouchableOpacity>
-                </View>
-              ))}
-              <TouchableOpacity style={styles.addRow} onPress={() => { setAddCat(cat.key); setName(""); }} testID={`skill-add-${cat.key}`}>
-                <Ionicons name="add-circle-outline" size={18} color={colors.accent} />
-                <Text style={styles.addText}>Add {cat.label.toLowerCase()} skill</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-        </ScrollView>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <DraggableFlatList
+            data={rows}
+            keyExtractor={(it) => it.key}
+            renderItem={renderItem}
+            onDragEnd={onDragEnd}
+            contentContainerStyle={styles.content}
+            showsVerticalScrollIndicator
+          />
+        </GestureHandlerRootView>
       )}
 
       <Modal visible={!!addCat} transparent animationType="fade" onRequestClose={() => setAddCat(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setAddCat(null)}>
           <Pressable style={styles.sheet} onPress={() => {}} testID="skill-add-modal">
-            <Text style={styles.sheetTitle}>Add {SCOUT_CATEGORIES.find((c) => c.key === addCat)?.label} skill</Text>
+            <Text style={styles.sheetTitle}>Add skill · {SCOUT_CATEGORIES.find((c) => c.key === addCat)?.label} · Level {addLevel}</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Standing Back Handspring" placeholderTextColor={colors.textTertiary} autoFocus testID="skill-name-input" />
             <TouchableOpacity style={[styles.saveBtn, (!name.trim() || saving) && { opacity: 0.6 }]} onPress={addSkill} disabled={!name.trim() || saving} testID="skill-save-btn">
               {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>Add skill</Text>}
@@ -106,16 +194,18 @@ const makeStyles = (c: ThemePalette) => ({
   header: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: c.border },
   title: { ...typography.h3, color: c.textPrimary },
   subtitle: { ...typography.caption, color: c.textSecondary },
-  content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xxl },
-  catHead: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.xs },
-  catTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
-  skillRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: c.card, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: c.border },
+  content: { padding: spacing.md, paddingBottom: spacing.xxl },
+  catHead: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, marginBottom: 4 },
+  catTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, fontSize: 17 },
+  dividerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.sm, marginBottom: 4 },
+  dividerText: { ...typography.caption, fontWeight: "800", color: c.textTertiary, letterSpacing: 0.5 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+  skillRow: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: c.card, borderRadius: radius.md, padding: 12, borderWidth: 1, borderColor: c.border, marginBottom: 6 },
+  skillActive: { borderColor: c.accent, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   skillName: { ...typography.body, color: c.textPrimary, flex: 1 },
-  addRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 8, paddingLeft: 4 },
-  addText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
   sheet: { width: "100%", maxWidth: 420, backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg, gap: 10 },
-  sheetTitle: { ...typography.h3, color: c.textPrimary },
+  sheetTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 12, ...typography.body, color: c.textPrimary },
   saveBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 13, alignItems: "center" },
   saveText: { color: "#fff", fontWeight: "800", fontSize: 15 },
