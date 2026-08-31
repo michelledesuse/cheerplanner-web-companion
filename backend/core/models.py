@@ -1288,7 +1288,7 @@ class SignupClaimCreate(BaseModel):
 class ShareLink(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     token: str
-    kind: Literal["signup", "roster", "sizes", "roster_member", "form"]
+    kind: Literal["signup", "roster", "sizes", "roster_member", "form", "scouting"]
     ref_id: Optional[str] = None  # signup sheet id (kind="signup") or roster member id (kind="roster_member")
     user_id: str                   # creator (used to scope the household)
     active: bool = True
@@ -1296,7 +1296,7 @@ class ShareLink(BaseModel):
 
 
 class ShareLinkCreate(BaseModel):
-    kind: Literal["signup", "roster", "sizes", "roster_member", "form"]
+    kind: Literal["signup", "roster", "sizes", "roster_member", "form", "scouting"]
     ref_id: Optional[str] = None
 
 

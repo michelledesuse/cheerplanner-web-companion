@@ -520,3 +520,11 @@ Get exact current paths from user before building W2.
 - **Rate this app**: global `RatePromptProvider` (app/_layout.tsx) shows an "Enjoying CheerPlanner?" modal after (a) checking off the LAST packing-list item for an upcoming competition, or (b) completing a NEW payment. Rate-limited to once per rolling 14 days via AsyncStorage key `rate_prompt_last_shown_at`; taps the native store review (expo-store-review) which only appears on real device/build. Verified by testing agent.
 - **Pinned messages (Team Hub chat)**: personnel/admins can pin/unpin messages (long-press → Pin). Pinned bar at top of chat + "Pinned messages" modal with Unpin. Backend: POST /api/team/chat/messages/{id}/pin, GET /api/team/chat/pinned (scoped by hub + channel_id). Minors/non-personnel can view pinned but cannot pin (403). Verified on preview.
 - All above are PREVIEW-only until next redeploy.
+
+## Update (2026-08-31) — Athlete Scouting Reports (Team Hub)
+- Backend router `routers/scouting.py` (collections: skills, athlete_skills, skill_reviews). Categories: tumbling/stunting/jumps. Levels: on_deck, spotted, unassisted, routine_ready, hit_zero.
+- Endpoints: GET/POST/PATCH/DELETE /api/team/scouting/skills; GET /api/team/scouting/overview; GET /api/team/scouting/report/{roster_id}; PUT .../skill/{skill_id} (coach); POST .../request-review (athlete/parent); GET /api/team/scouting/review-requests + POST /{id}/dismiss (coach).
+- Permissions (ParentGuard pattern): coach edits; coach+athlete+linked parent view. Athlete match via athlete_chat_links; parent via household scope or guardian_email.
+- Share: new share-link kind "scouting" (share.py + models ShareLink/ShareLinkCreate). Public HTML page renders first+last-initial on screen and FULL NAME on Print/Save PDF (for tryouts).
+- Frontend: Team Hub tool + review badge + viewer button (team.tsx); screens app/team/scouting.tsx, scouting-report.tsx, scouting-skills.tsx, scouting-requests.tsx; util src/utils/scouting.ts.
+- Verified end-to-end on preview (coach CRUD/assess, athlete request->coach resolve, permissions 403s, share link + public page). PREVIEW-only until redeploy. No scouting demo data in seed scripts yet.

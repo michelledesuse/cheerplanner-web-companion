@@ -32,6 +32,7 @@ const TOOLS: Tool[] = [
   { key: "attendance", title: "Attendance", desc: "Check off who's present at practices & events.", icon: "checkmark-done-outline", route: "/team/attendance" },
   { key: "todos", title: "To-Do List", desc: "A shared checklist for your team's tasks.", icon: "checkbox-outline", route: "/team/todos" },
   { key: "music", title: "Team Music", desc: "Upload competition mixes & music to share with the team.", icon: "musical-notes-outline", route: "/team/music" },
+  { key: "scouting", title: "Scouting Reports", desc: "Track each athlete's skills across Tumbling, Stunting & Jumps.", icon: "ribbon-outline", route: "/team/scouting" },
   { key: "export", title: "Custom Roster Export", desc: "Pick columns (sizes, paperwork, payments) into one downloadable view for a competition.", icon: "download-outline", route: "/team/export" },
 ];
 
@@ -51,6 +52,7 @@ export default function TeamScreen() {
   const [chatAthlete, setChatAthlete] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [scoutReq, setScoutReq] = useState(0);
   const [showJoin, setShowJoin] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
@@ -66,6 +68,12 @@ export default function TeamScreen() {
       const p = await api.get<{ count: number; is_owner: boolean }>("/team/members/pending-count");
       setIsOwner(!!p.data.is_owner); setPendingCount(p.data.count || 0);
     } catch (_e) { /* keep last-known owner state on a transient error */ }
+    if (user?.team_access) {
+      try {
+        const rr = await api.get<{ count: number }>("/team/scouting/review-requests");
+        setScoutReq(rr.data.count || 0);
+      } catch (_e) { setScoutReq(0); }
+    }
   }, [user]);
   useRealtimeRefetch(loadUnread);
 
@@ -128,6 +136,10 @@ export default function TeamScreen() {
             <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => setShowJoin(true)} testID="team-join-code">
               <Ionicons name="key-outline" size={18} color={colors.accent} />
               <Text style={styles.chatAthleteText}>Have a team code?</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/scouting" as any)} testID="athlete-open-scouting">
+              <Ionicons name="ribbon-outline" size={18} color={colors.accent} />
+              <Text style={styles.chatAthleteText}>My Scouting Report</Text>
             </TouchableOpacity>
             {chatAthlete && (
               <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/chat" as any)} testID="athlete-open-chat">
@@ -194,6 +206,11 @@ export default function TeamScreen() {
                   {t.key === "chat" && unread > 0 && (
                     <View style={styles.unreadBadge} testID="team-chat-unread">
                       <Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text>
+                    </View>
+                  )}
+                  {t.key === "scouting" && scoutReq > 0 && (
+                    <View style={styles.unreadBadge} testID="team-scouting-badge">
+                      <Text style={styles.unreadText}>{scoutReq > 99 ? "99+" : scoutReq}</Text>
                     </View>
                   )}
                   {!t.route && (

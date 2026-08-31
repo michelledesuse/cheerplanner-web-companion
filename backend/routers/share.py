@@ -52,6 +52,12 @@ async def create_share(payload: ShareLinkCreate, current_user=Depends(get_curren
         m = await db.roster.find_one({"id": payload.ref_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
         if not m:
             raise HTTPException(status_code=404, detail="Roster member not found")
+    if payload.kind == "scouting":
+        if not payload.ref_id:
+            raise HTTPException(status_code=400, detail="ref_id (athlete) required")
+        m = await db.roster.find_one({"id": payload.ref_id, "user_id": {"$in": member_ids}, "role": "athlete"}, {"_id": 0, "id": 1})
+        if not m:
+            raise HTTPException(status_code=404, detail="Athlete not found")
     # Reuse an existing active link for the same kind+ref in this household.
     existing = await db.share_links.find_one(
         {"kind": payload.kind, "ref_id": payload.ref_id, "user_id": {"$in": member_ids}, "active": True},
@@ -232,6 +238,15 @@ async def public_data(token: str):
                 "sizes": sizes_vals,
             }
         return out
+    if link["kind"] == "scouting":
+        roster = await db.roster.find_one({"id": link["ref_id"], "user_id": {"$in": member_ids}, "role": "athlete"}, {"_id": 0})
+        if not roster:
+            raise HTTPException(status_code=404, detail="Athlete not found")
+        from routers.scouting import public_scouting_data, _hub_for_roster
+        h = await _hub_for_roster(roster)
+        if not h:
+            raise HTTPException(status_code=404, detail="Team not found")
+        return await public_scouting_data(roster, h)
     if link["kind"] == "sizes":
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
@@ -509,11 +524,13 @@ function render(d){{
   if(KIND==="roster"||KIND==="roster_member") return renderRoster(d);
   if(KIND==="sizes") return renderSizes(d);
   if(KIND==="form") return renderForm(d);
+  if(KIND==="scouting") return renderScouting(d);
 }}
 {_JS_SIGNUP}
 {_JS_ROSTER}
 {_JS_SIZES}
 {_JS_FORM}
+{_JS_SCOUTING}
 load();
 </script>
 """
@@ -523,6 +540,40 @@ load();
 def _js(s: str) -> str:
     import json
     return json.dumps(s)
+
+
+_JS_SCOUTING = r"""
+function renderScouting(d){
+  var CATS=[["tumbling","Tumbling"],["stunting","Stunting"],["jumps","Jumps"]];
+  var COLORS={on_deck:"#94A3B8",spotted:"#F59E0B",unassisted:"#3B82F6",routine_ready:"#8B5CF6",hit_zero:"#10B981"};
+  var labels=d.level_labels||{};
+  var css="<style>@media print{.screen-only{display:none!important}.print-only{display:block!important}.noprint{display:none!important}}.print-only{display:none}</style>";
+  var head="<div class='screen-only'><h1 style=\"margin:0\">"+esc(d.display_name)+"</h1></div>"+
+           "<div class='print-only'><h1 style=\"margin:0\">"+esc(d.full_name)+"</h1></div>"+
+           "<p style=\"color:#64748B;margin:4px 0 16px\">Scouting Report</p>";
+  var out="";
+  for(var i=0;i<CATS.length;i++){
+    var key=CATS[i][0], name=CATS[i][1];
+    var list=(d.categories&&d.categories[key])||[];
+    out+="<h2 style=\"font-size:16px;margin:18px 0 8px\">"+esc(name)+"</h2>";
+    if(!list.length){ out+="<p style=\"color:#94A3B8;margin:0 0 8px\">No skills.</p>"; continue; }
+    for(var j=0;j<list.length;j++){
+      var s=list[j];
+      var c=COLORS[s.level]||"#94A3B8";
+      var lab=labels[s.level]||"Not set";
+      out+="<div style=\"border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin-bottom:8px\">"+
+           "<div style=\"display:flex;justify-content:space-between;align-items:center;gap:8px\">"+
+           "<div style=\"font-weight:700;color:#0F172A\">"+esc(s.name)+"</div>"+
+           "<span style=\"background:"+c+"22;color:"+c+";border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;white-space:nowrap\">"+esc(lab)+"</span>"+
+           "</div>"+
+           (s.notes?"<div style=\"color:#475569;font-size:14px;margin-top:6px;line-height:1.5\">"+esc(s.notes)+"</div>":"")+
+           "</div>";
+    }
+  }
+  var btn="<button class='noprint' onclick='window.print()' style=\"margin-top:16px;background:#4169E1;color:#fff;border:0;border-radius:10px;padding:12px 18px;font-weight:800;font-size:15px;cursor:pointer\">Print / Save PDF</button>";
+  document.getElementById("app").innerHTML="<div class='card'>"+css+head+out+btn+"</div>";
+}
+"""
 
 
 def _shell(title: str, body: str) -> str:
