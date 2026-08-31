@@ -16,6 +16,26 @@ const STARTERS = [
   "How do I add an event to my calendar?",
 ];
 
+// Contextual "Did you know?" tips, chosen by the current screen path.
+const TIPS: { match: string; tip: string }[] = [
+  { match: "team/scouting", tip: "Coaches can tap “Select” to set a progression level on several skills at once." },
+  { match: "team/calendar", tip: "Open any team event and tap “Add to my calendar” to sync it to your personal Schedule." },
+  { match: "team/results", tip: "You can toggle whether each competition result is visible to families." },
+  { match: "team/chat", tip: "Pin an important message so everyone on the team sees it at the top." },
+  { match: "team/broadcast", tip: "Send an SMS blast to reach every family instantly." },
+  { match: "team/roster", tip: "Add athletes here so they appear across scouting, calendar and chat." },
+  { match: "team", tip: "The Team Hub holds all your coaching tools — chat, scouting, calendar, results and flyers." },
+  { match: "schedule", tip: "Add a repeating event once and it fills your whole season automatically." },
+  { match: "athletes", tip: "Tap an athlete to view their profile, scouting report and progress." },
+  { match: "profile", tip: "Manage your subscription and Universal Key balance under “Manage plan.”" },
+];
+const DEFAULT_TIP = "Tap the help buoy on any screen to ask how something works.";
+
+function pickTip(pathname: string): string {
+  for (const t of TIPS) if (pathname.includes(t.match)) return t.tip;
+  return DEFAULT_TIP;
+}
+
 // Persistent, app-wide "Assistant Coach" help widget. Available to every signed-in
 // user; explains how to use CheerPlanner (role-aware) and declines off-topic asks.
 export default function AssistantCoachWidget() {
@@ -79,6 +99,13 @@ export default function AssistantCoachWidget() {
 
             <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }} keyboardVerticalOffset={10}>
               <ScrollView ref={scroller} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+                <View style={[styles.tipCard, { backgroundColor: c.accentSubtle, borderColor: c.accent }]} testID="assistant-coach-tip">
+                  <Ionicons name="bulb" size={16} color={c.accent} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.tipLabel, { color: c.accent }]}>Did you know?</Text>
+                    <Text style={[styles.tipText, { color: c.textPrimary }]}>{pickTip(pathname)}</Text>
+                  </View>
+                </View>
                 {messages.length === 0 && (
                   <View style={styles.welcome}>
                     <Text style={[styles.welcomeText, { color: c.textSecondary }]}>Hi! I can help you find your way around CheerPlanner. Ask me how to do something, or try:</Text>
@@ -128,6 +155,9 @@ const styles = {
   title: { fontSize: 16, fontWeight: "800" as const },
   subtitle: { fontSize: 12 },
   content: { padding: 16, gap: 10 },
+  tipCard: { flexDirection: "row" as const, alignItems: "flex-start" as const, gap: 8, padding: 12, borderRadius: 12, borderWidth: 1 },
+  tipLabel: { fontSize: 12, fontWeight: "800" as const, marginBottom: 2 },
+  tipText: { fontSize: 13, lineHeight: 18 },
   welcome: { gap: 10 },
   welcomeText: { fontSize: 14, lineHeight: 20 },
   starter: { borderWidth: 1, borderRadius: 12, padding: 12 },
