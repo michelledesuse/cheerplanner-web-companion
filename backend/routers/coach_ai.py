@@ -9,6 +9,7 @@ post straight into Team Chat.
 Access is gated by require_team_access, so athletes and parents cannot use it.
 """
 import base64
+import io
 import os
 import re
 import secrets
@@ -18,6 +19,7 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import APIRouter, Body, Depends, HTTPException
 from starlette.concurrency import run_in_threadpool
+from PIL import Image, ImageDraw, ImageOps
 
 from core.db import db
 from core.security import require_team_access
@@ -196,8 +198,73 @@ def _flyer_prompt(p: dict) -> str:
         lines.append(f"Color theme / style: {theme}.")
     if extra:
         lines.append(f"Also mention: {extra}.")
+    if p.get("_has_logo"):
+        lines.append("Leave clean empty space at the very top center for a team logo.")
+    if p.get("_has_photos"):
+        lines.append("Leave a clear horizontal band near the bottom for a row of team photos.")
     lines.append("Ensure any text is spelled correctly and easy to read. Portrait flyer format.")
     return " ".join(lines)
+
+
+def _decode_image(b64: str):
+    """Decode a base64 string (optionally a data URI) into a PIL RGBA image."""
+    if not b64:
+        return None
+    try:
+        if "," in b64 and b64.strip().lower().startswith("data:"):
+            b64 = b64.split(",", 1)[1]
+        img = Image.open(io.BytesIO(base64.b64decode(b64)))
+        return img.convert("RGBA")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _rounded(img, radius: int):
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, img.size[0], img.size[1]], radius=radius, fill=255)
+    out = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    out.paste(img, (0, 0), mask)
+    return out
+
+
+def _composite_flyer(flyer_bytes: bytes, logo_b64: str, photos_b64: list) -> bytes:
+    """Overlay an uploaded logo (top-center) and photos (bottom row) onto the flyer."""
+    base = Image.open(io.BytesIO(flyer_bytes)).convert("RGBA")
+    W, H = base.size
+
+    logo = _decode_image(logo_b64)
+    if logo is not None:
+        fitted = ImageOps.contain(logo, (int(W * 0.34), int(H * 0.20)))
+        # White rounded plate behind the logo for legibility on busy backgrounds.
+        pad = int(W * 0.02)
+        plate = Image.new("RGBA", (fitted.width + pad * 2, fitted.height + pad * 2), (255, 255, 255, 235))
+        plate = _rounded(plate, int(pad * 1.2))
+        px = (W - plate.width) // 2
+        py = int(H * 0.035)
+        base.alpha_composite(plate, (px, py))
+        base.alpha_composite(fitted, (px + pad, py + pad))
+
+    photos = [im for im in (_decode_image(b) for b in (photos_b64 or [])) if im is not None][:3]
+    if photos:
+        n = len(photos)
+        gap = int(W * 0.03)
+        thumb = min(int(W * 0.27), int((W - gap * (n + 1)) / n))
+        total = thumb * n + gap * (n - 1)
+        x = (W - total) // 2
+        y = H - thumb - int(H * 0.05)
+        for im in photos:
+            sq = ImageOps.fit(im, (thumb, thumb), method=Image.LANCZOS)
+            # White border
+            border = int(thumb * 0.03)
+            framed = Image.new("RGBA", (thumb + border * 2, thumb + border * 2), (255, 255, 255, 255))
+            framed.alpha_composite(sq, (border, border))
+            framed = _rounded(framed, int(thumb * 0.08))
+            base.alpha_composite(framed, (x - border, y - border))
+            x += thumb + gap
+
+    out = io.BytesIO()
+    base.convert("RGB").save(out, format="PNG")
+    return out.getvalue()
 
 
 @router.post("/team/coach-ai/flyer")
@@ -210,7 +277,9 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
     api_key = os.environ.get("EMERGENT_LLM_KEY", "")
     if not api_key:
         raise HTTPException(status_code=503, detail="Flyer generation isn't configured yet.")
-    prompt = _flyer_prompt(payload)
+    logo_b64 = payload.get("logo") or ""
+    photos_b64 = [p for p in (payload.get("photos") or []) if p][:3]
+    prompt = _flyer_prompt({**payload, "_has_logo": bool(logo_b64), "_has_photos": bool(photos_b64)})
     try:
         from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
         image_gen = OpenAIImageGeneration(api_key=api_key)
@@ -226,6 +295,12 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
     if not images:
         raise HTTPException(status_code=502, detail="No flyer was generated. Please try again.")
     data = images[0]
+
+    if logo_b64 or photos_b64:
+        try:
+            data = await run_in_threadpool(_composite_flyer, data, logo_b64, photos_b64)
+        except Exception:  # noqa: BLE001
+            pass  # fall back to the plain generated flyer if compositing fails
 
     media_id = secrets.token_urlsafe(10)
     path = f"{APP_NAME}/coach_ai/{h['id']}/{user['id']}/{uuid.uuid4()}.png"

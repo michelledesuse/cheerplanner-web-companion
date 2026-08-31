@@ -1,8 +1,9 @@
 import React, { useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -136,6 +137,27 @@ function FlyerMode({ styles }: any) {
   const [flyer, setFlyer] = useState<{ id: string; b64: string } | null>(null);
   const [caption, setCaption] = useState("");
   const [error, setError] = useState("");
+  const [logo, setLogo] = useState<string>("");
+  const [photos, setPhotos] = useState<string[]>([]);
+
+  const pickImage = async (kind: "logo" | "photo") => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Photo access needed", "Allow photo access to add images to your flyer.",
+        perm.canAskAgain ? [{ text: "OK" }] : [{ text: "Cancel", style: "cancel" }, { text: "Open Settings", onPress: () => Linking.openSettings() }]);
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6, base64: true,
+      allowsEditing: kind === "logo", aspect: kind === "logo" ? undefined : undefined,
+    });
+    if (!res.canceled && res.assets?.[0]?.base64) {
+      const a = res.assets[0];
+      const uri = `data:${a.mimeType || "image/jpeg"};base64,${a.base64}`;
+      if (kind === "logo") setLogo(uri);
+      else setPhotos((p) => [...p, uri].slice(0, 3));
+    }
+  };
 
   const generate = async () => {
     if (!title.trim()) { setError("Give the flyer an event name."); return; }
@@ -143,6 +165,7 @@ function FlyerMode({ styles }: any) {
     try {
       const r = await api.post<{ flyer_id: string; image_base64: string }>("/team/coach-ai/flyer", {
         event_type: type, title: title.trim(), date: date.trim(), time: time.trim(), location: location.trim(), theme: theme.trim(), details: details.trim(),
+        logo: logo || undefined, photos: photos.length ? photos : undefined,
       });
       setFlyer({ id: r.data.flyer_id, b64: r.data.image_base64 });
       setCaption(title.trim());
@@ -186,6 +209,29 @@ function FlyerMode({ styles }: any) {
         <TextInput style={styles.fInput} value={theme} onChangeText={setTheme} placeholder="e.g. Navy & gold, bold and energetic" placeholderTextColor={colors.textTertiary} testID="flyer-theme" />
         <Text style={styles.label}>Anything else (optional)</Text>
         <TextInput style={[styles.fInput, { minHeight: 60, maxHeight: 120, textAlignVertical: "top" }]} value={details} onChangeText={setDetails} placeholder="e.g. Ages 6–18, no experience needed, register online" placeholderTextColor={colors.textTertiary} multiline testID="flyer-details" />
+
+        <Text style={styles.label}>Team logo (optional)</Text>
+        {logo ? (
+          <View style={styles.logoRow}>
+            <Image source={{ uri: logo }} style={styles.logoThumb} resizeMode="contain" />
+            <TouchableOpacity style={styles.removeChip} onPress={() => setLogo("")} testID="flyer-logo-remove"><Ionicons name="close" size={14} color="#DC2626" /><Text style={styles.removeChipText}>Remove logo</Text></TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.uploadBtn} onPress={() => pickImage("logo")} testID="flyer-logo-add"><Ionicons name="image-outline" size={18} color={colors.accent} /><Text style={styles.uploadText}>Upload logo</Text></TouchableOpacity>
+        )}
+
+        <Text style={styles.label}>Photos (optional, up to 3)</Text>
+        <View style={styles.photoRow}>
+          {photos.map((p, i) => (
+            <View key={i} style={styles.photoWrap}>
+              <Image source={{ uri: p }} style={styles.photoThumb} resizeMode="cover" />
+              <TouchableOpacity style={styles.photoX} onPress={() => setPhotos((arr) => arr.filter((_, idx) => idx !== i))} testID={`flyer-photo-remove-${i}`}><Ionicons name="close-circle" size={20} color="#DC2626" /></TouchableOpacity>
+            </View>
+          ))}
+          {photos.length < 3 && (
+            <TouchableOpacity style={styles.photoAdd} onPress={() => pickImage("photo")} testID="flyer-photo-add"><Ionicons name="add" size={24} color={colors.accent} /></TouchableOpacity>
+          )}
+        </View>
 
         <TouchableOpacity style={[styles.genBtn, loading && { opacity: 0.6 }]} onPress={generate} disabled={loading} testID="flyer-generate">
           {loading ? <ActivityIndicator color="#fff" /> : <><Ionicons name="sparkles" size={16} color="#fff" /><Text style={styles.genText}>{flyer ? "Regenerate flyer" : "Generate flyer"}</Text></>}
@@ -252,6 +298,17 @@ const makeStyles = (c: ThemePalette) => ({
   hint: { ...typography.caption, color: c.textTertiary, textAlign: "center" as const, marginTop: 8 },
   errorBox: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.sm, padding: 12, borderRadius: radius.md, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
   errorText: { ...typography.caption, color: "#DC2626", flex: 1, fontWeight: "600" },
+  uploadBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderWidth: 1, borderColor: c.accent, borderStyle: "dashed" as const, borderRadius: radius.md, paddingVertical: 12 },
+  uploadText: { ...typography.body, color: c.accent, fontWeight: "700" },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  logoThumb: { width: 80, height: 56, borderRadius: radius.sm, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  removeChip: { flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 8, paddingHorizontal: 12, borderRadius: radius.sm, backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA" },
+  removeChipText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
+  photoRow: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  photoWrap: { position: "relative" as const },
+  photoThumb: { width: 72, height: 72, borderRadius: radius.sm, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  photoX: { position: "absolute" as const, top: -8, right: -8, backgroundColor: c.bg, borderRadius: 10 },
+  photoAdd: { width: 72, height: 72, borderRadius: radius.sm, borderWidth: 1, borderColor: c.accent, borderStyle: "dashed" as const, alignItems: "center", justifyContent: "center" },
   preview: { marginTop: spacing.lg, gap: 4 },
   flyerImg: { width: "100%", aspectRatio: 1, borderRadius: radius.lg, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   postBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", borderRadius: radius.md, paddingVertical: 14, marginTop: spacing.sm },
