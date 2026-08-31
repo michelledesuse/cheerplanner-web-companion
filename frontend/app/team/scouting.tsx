@@ -36,7 +36,7 @@ export default function ScoutingLanding() {
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.title}>🎀 Scouting Reports</Text>
+          <Text style={styles.title}>Scouting Reports</Text>
           <Text style={styles.subtitle}>{isCoach ? "Tumbling · Stunting · Jumps" : "Your athlete's skill progress"}</Text>
         </View>
       </View>
