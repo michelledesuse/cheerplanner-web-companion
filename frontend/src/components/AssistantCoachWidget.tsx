@@ -82,7 +82,7 @@ export default function AssistantCoachWidget() {
         testID="assistant-coach-fab"
         accessibilityLabel="Open Assistant Coach help"
       >
-        <Ionicons name="star" size={26} color="#fff" />
+        <Ionicons name="star" size={20} color="#fff" />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -147,7 +147,7 @@ export default function AssistantCoachWidget() {
 }
 
 const styles = {
-  fab: { position: "absolute" as const, right: 16, width: 56, height: 56, borderRadius: 28, alignItems: "center" as const, justifyContent: "center" as const, shadowOpacity: 0.25, shadowRadius: 8, shadowOffset: { width: 0, height: 4 }, elevation: 6, zIndex: 50 },
+  fab: { position: "absolute" as const, right: 16, width: 44, height: 44, borderRadius: 22, alignItems: "center" as const, justifyContent: "center" as const, shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6, zIndex: 50 },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "flex-end" as const },
   sheet: { height: "82%" as const, borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: "hidden" as const },
   header: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1 },
