@@ -13,6 +13,7 @@ import { SeasonProvider } from "@/src/context/SeasonContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
 import { RatePromptProvider } from "@/src/context/RatePromptContext";
 import AssistantCoachWidget from "@/src/components/AssistantCoachWidget";
+import GuidedTour from "@/src/components/GuidedTour";
 
 // Keep the native splash visible from cold start until icon fonts register.
 SplashScreen.preventAutoHideAsync();
@@ -26,6 +27,7 @@ function ThemedStack() {
     <View style={{ flex: 1, backgroundColor: palette.bg }}>
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: palette.bg } }} />
       <AssistantCoachWidget />
+      <GuidedTour />
     </View>
   );
 }
