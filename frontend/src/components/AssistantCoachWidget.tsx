@@ -29,7 +29,7 @@ const TIPS: { match: string; tip: string }[] = [
   { match: "athletes", tip: "Tap an athlete to view their profile, scouting report and progress." },
   { match: "profile", tip: "Manage your subscription and Universal Key balance under “Manage plan.”" },
 ];
-const DEFAULT_TIP = "Tap the help buoy on any screen to ask how something works.";
+const DEFAULT_TIP = "Tap the star button on any screen to ask how something works.";
 
 function pickTip(pathname: string): string {
   for (const t of TIPS) if (pathname.includes(t.match)) return t.tip;
