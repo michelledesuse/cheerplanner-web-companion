@@ -82,14 +82,14 @@ export default function AssistantCoachWidget() {
         testID="assistant-coach-fab"
         accessibilityLabel="Open Assistant Coach help"
       >
-        <Ionicons name="help-buoy" size={26} color="#fff" />
+        <Ionicons name="star" size={26} color="#fff" />
       </TouchableOpacity>
 
       <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
           <Pressable style={[styles.sheet, { backgroundColor: c.bg, paddingBottom: insets.bottom }]} onPress={() => {}} testID="assistant-coach-sheet">
             <View style={[styles.header, { borderBottomColor: c.border }]}>
-              <View style={[styles.headIcon, { backgroundColor: c.accentSubtle }]}><Ionicons name="help-buoy" size={18} color={c.accent} /></View>
+              <View style={[styles.headIcon, { backgroundColor: c.accentSubtle }]}><Ionicons name="star" size={18} color={c.accent} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.title, { color: c.textPrimary }]}>Assistant Coach</Text>
                 <Text style={[styles.subtitle, { color: c.textSecondary }]}>How to use CheerPlanner</Text>
