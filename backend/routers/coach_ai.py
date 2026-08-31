@@ -26,7 +26,7 @@ from core.security import require_team_access
 from core.helpers import _resolve_active_household
 from core.models import utcnow_iso
 from core.moderation import assert_clean
-from core.storage import put_object, APP_NAME
+from core.storage import put_object, get_object, APP_NAME
 from routers.team_chat import _chat_hub, _display_name
 
 router = APIRouter(prefix="/api")
@@ -55,6 +55,13 @@ SYSTEM_PROMPT = (
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+STYLE_PROMPTS = {
+    "classic": "Style: clean and classic — balanced composition, elegant typography, tasteful spacing.",
+    "bold": "Style: bold and high-energy — a big impactful headline, strong color contrast, dynamic angles.",
+    "glam": "Style: glam and sparkly — glitter, metallic gold/silver accents, chic and eye-catching.",
+}
 
 
 DECLINE = ("I can only help with cheerleading and coaching topics — try asking me about skills, "
@@ -178,6 +185,7 @@ def _flyer_prompt(p: dict) -> str:
     location = (p.get("location") or "").strip()
     theme = (p.get("theme") or "").strip()
     extra = (p.get("details") or "").strip()
+    style = STYLE_PROMPTS.get((p.get("style") or "").strip().lower(), "")
     lines = [
         f"Design a vibrant, professional promotional flyer for a cheerleading {kind}.",
         "Modern, energetic layout with dynamic cheer imagery (pom-poms, cheerleaders, spirit),",
@@ -196,6 +204,8 @@ def _flyer_prompt(p: dict) -> str:
         lines.append("Include these details as clean text: " + "; ".join(details) + ".")
     if theme:
         lines.append(f"Color theme / style: {theme}.")
+    if style:
+        lines.append(style)
     if extra:
         lines.append(f"Also mention: {extra}.")
     if p.get("_has_logo"):
@@ -313,7 +323,63 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
         "storage_path": path, "content_type": "image/png", "kind": "image",
         "name": (payload.get("title") or "flyer")[:120] + ".png", "size": len(data), "created_at": utcnow_iso(),
     })
+    # Remember the team logo for next time.
+    if logo_b64:
+        await db.flyer_settings.update_one(
+            {"household_id": h["id"]}, {"$set": {"logo": logo_b64, "updated_at": utcnow_iso()}}, upsert=True,
+        )
+    # Save to the coach's flyer gallery (with a small thumbnail for listing).
+    try:
+        thumb = await run_in_threadpool(_thumb, data)
+    except Exception:  # noqa: BLE001
+        thumb = ""
+    await db.flyers.insert_one({
+        "id": media_id, "household_id": h["id"], "owner_id": user["id"], "storage_path": path,
+        "title": (payload.get("title") or "Flyer")[:120], "style": (payload.get("style") or ""),
+        "event_type": payload.get("event_type") or "", "thumb": thumb, "created_at": utcnow_iso(),
+    })
     return {"flyer_id": media_id, "image_base64": base64.b64encode(data).decode("utf-8"), "prompt": prompt}
+
+
+def _thumb(data: bytes) -> str:
+    im = Image.open(io.BytesIO(data)).convert("RGB")
+    im = ImageOps.contain(im, (256, 256))
+    out = io.BytesIO()
+    im.save(out, format="JPEG", quality=70)
+    return "data:image/jpeg;base64," + base64.b64encode(out.getvalue()).decode("utf-8")
+
+
+@router.get("/team/coach-ai/settings")
+async def flyer_settings(user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        return {"logo": ""}
+    s = await db.flyer_settings.find_one({"household_id": h["id"]}, {"_id": 0, "logo": 1})
+    return {"logo": (s or {}).get("logo", "")}
+
+
+@router.get("/team/coach-ai/flyers")
+async def list_flyers(user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        return {"flyers": []}
+    rows = await db.flyers.find(
+        {"household_id": h["id"]}, {"_id": 0, "id": 1, "title": 1, "style": 1, "event_type": 1, "thumb": 1, "created_at": 1}
+    ).sort("created_at", -1).to_list(30)
+    return {"flyers": rows}
+
+
+@router.get("/team/coach-ai/flyers/{flyer_id}")
+async def get_flyer(flyer_id: str, user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    rec = await db.flyers.find_one({"id": flyer_id, "household_id": h["id"]}, {"_id": 0, "storage_path": 1})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Flyer not found.")
+    try:
+        content, _ = await run_in_threadpool(get_object, rec["storage_path"])
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=404, detail="Flyer image is no longer available.")
+    return {"flyer_id": flyer_id, "image_base64": base64.b64encode(content).decode("utf-8")}
 
 
 @router.post("/team/coach-ai/flyer/{flyer_id}/post-to-chat")

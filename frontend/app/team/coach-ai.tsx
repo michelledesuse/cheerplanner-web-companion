@@ -1,5 +1,5 @@
-import React, { useRef, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform, Linking } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform, Linking, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -23,6 +23,12 @@ const FLYER_TYPES = [
   { key: "competition", label: "Competition" },
   { key: "fundraiser", label: "Fundraiser" },
   { key: "event", label: "Event" },
+];
+
+const FLYER_STYLES = [
+  { key: "classic", label: "Classic" },
+  { key: "bold", label: "Bold" },
+  { key: "glam", label: "Glam" },
 ];
 
 export default function CoachAI() {
@@ -126,6 +132,7 @@ function ChatMode({ styles }: any) {
 
 function FlyerMode({ styles }: any) {
   const [type, setType] = useState("tryouts");
+  const [style, setStyle] = useState("classic");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -139,6 +146,30 @@ function FlyerMode({ styles }: any) {
   const [error, setError] = useState("");
   const [logo, setLogo] = useState<string>("");
   const [photos, setPhotos] = useState<string[]>([]);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [saved, setSaved] = useState<any[]>([]);
+
+  // Prefill the remembered team logo.
+  useEffect(() => {
+    (async () => {
+      try { const r = await api.get<{ logo: string }>("/team/coach-ai/settings"); if (r.data.logo) setLogo(r.data.logo); } catch (_e) { /* ignore */ }
+    })();
+  }, []);
+
+  const openSaved = async () => {
+    setSavedOpen(true);
+    try { const r = await api.get<{ flyers: any[] }>("/team/coach-ai/flyers"); setSaved(r.data.flyers || []); } catch (_e) { setSaved([]); }
+  };
+
+  const openSavedFlyer = async (id: string) => {
+    try {
+      const r = await api.get<{ image_base64: string }>(`/team/coach-ai/flyers/${id}`);
+      setFlyer({ id, b64: r.data.image_base64 });
+      const meta = saved.find((s) => s.id === id);
+      setCaption(meta?.title || "");
+      setSavedOpen(false);
+    } catch (_e) { setError("Couldn't open that flyer."); }
+  };
 
   const pickImage = async (kind: "logo" | "photo") => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -164,7 +195,7 @@ function FlyerMode({ styles }: any) {
     setLoading(true); setFlyer(null); setError("");
     try {
       const r = await api.post<{ flyer_id: string; image_base64: string }>("/team/coach-ai/flyer", {
-        event_type: type, title: title.trim(), date: date.trim(), time: time.trim(), location: location.trim(), theme: theme.trim(), details: details.trim(),
+        event_type: type, style, title: title.trim(), date: date.trim(), time: time.trim(), location: location.trim(), theme: theme.trim(), details: details.trim(),
         logo: logo || undefined, photos: photos.length ? photos : undefined,
       });
       setFlyer({ id: r.data.flyer_id, b64: r.data.image_base64 });
@@ -193,6 +224,18 @@ function FlyerMode({ styles }: any) {
           {FLYER_TYPES.map((t) => (
             <TouchableOpacity key={t.key} style={[styles.chip, type === t.key && styles.chipOn]} onPress={() => setType(t.key)} testID={`flyer-type-${t.key}`}>
               <Text style={[styles.chipText, type === t.key && { color: "#fff" }]}>{t.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={styles.styleHead}>
+          <Text style={styles.label}>Style</Text>
+          <TouchableOpacity onPress={openSaved} hitSlop={8} testID="flyer-saved-open"><Text style={styles.savedLink}>★ Saved flyers</Text></TouchableOpacity>
+        </View>
+        <View style={styles.chips}>
+          {FLYER_STYLES.map((s) => (
+            <TouchableOpacity key={s.key} style={[styles.chip, style === s.key && styles.chipOn]} onPress={() => setStyle(s.key)} testID={`flyer-style-${s.key}`}>
+              <Text style={[styles.chipText, style === s.key && { color: "#fff" }]}>{s.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -255,6 +298,29 @@ function FlyerMode({ styles }: any) {
           </View>
         )}
       </ScrollView>
+
+      <Modal visible={savedOpen} transparent animationType="slide" onRequestClose={() => setSavedOpen(false)}>
+        <Pressable style={styles.galleryWrap} onPress={() => setSavedOpen(false)}>
+          <Pressable style={styles.gallerySheet} onPress={() => {}} testID="flyer-gallery">
+            <View style={styles.galleryHead}>
+              <Text style={styles.galleryTitle}>Saved flyers</Text>
+              <TouchableOpacity onPress={() => setSavedOpen(false)} hitSlop={8}><Ionicons name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
+            </View>
+            {saved.length === 0 ? (
+              <Text style={styles.hint}>{"No saved flyers yet. Generate one and it'll appear here."}</Text>
+            ) : (
+              <ScrollView contentContainerStyle={styles.galleryGrid} showsVerticalScrollIndicator>
+                {saved.map((s) => (
+                  <TouchableOpacity key={s.id} style={styles.galleryItem} onPress={() => openSavedFlyer(s.id)} testID={`flyer-saved-${s.id}`}>
+                    {!!s.thumb && <Image source={{ uri: s.thumb }} style={styles.galleryThumb} resizeMode="cover" />}
+                    <Text style={styles.galleryLabel} numberOfLines={1}>{s.title}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -309,6 +375,16 @@ const makeStyles = (c: ThemePalette) => ({
   photoThumb: { width: 72, height: 72, borderRadius: radius.sm, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   photoX: { position: "absolute" as const, top: -8, right: -8, backgroundColor: c.bg, borderRadius: 10 },
   photoAdd: { width: 72, height: 72, borderRadius: radius.sm, borderWidth: 1, borderColor: c.accent, borderStyle: "dashed" as const, alignItems: "center", justifyContent: "center" },
+  styleHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  savedLink: { ...typography.caption, color: c.accent, fontWeight: "800", marginTop: spacing.md },
+  galleryWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  gallerySheet: { backgroundColor: c.bg, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: spacing.md, maxHeight: "80%" },
+  galleryHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.sm },
+  galleryTitle: { ...typography.h3, color: c.textPrimary },
+  galleryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12, paddingBottom: spacing.lg },
+  galleryItem: { width: "47%" as const },
+  galleryThumb: { width: "100%" as const, aspectRatio: 1, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  galleryLabel: { ...typography.caption, color: c.textPrimary, marginTop: 4, fontWeight: "600" },
   preview: { marginTop: spacing.lg, gap: 4 },
   flyerImg: { width: "100%", aspectRatio: 1, borderRadius: radius.lg, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   postBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: "#16A34A", borderRadius: radius.md, paddingVertical: 14, marginTop: spacing.sm },
