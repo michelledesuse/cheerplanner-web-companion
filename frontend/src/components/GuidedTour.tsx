@@ -10,12 +10,18 @@ import { storage } from "@/src/utils/storage";
 const SEEN_KEY = "cp_guided_tour_seen_v1";
 
 type Step = { icon: string; title: string; body: string; highlight?: "tabs" | "star" };
-const STEPS: Step[] = [
-  { icon: "sparkles", title: "Welcome to CheerPlanner!", body: "Here's a quick 20-second tour so you know where everything is." },
-  { icon: "grid", title: "Your tabs", body: "Use the tabs at the bottom to jump between Home, Athletes, Schedule, Calendar, and more.", highlight: "tabs" },
-  { icon: "people", title: "Team Hub", body: "Open the Team tab for your coaching tools — chat, scouting reports, team calendar, results and flyers." },
-  { icon: "star", title: "Your Assistant Coach", body: "Stuck? Tap the star button anytime to ask how to use any part of the app.", highlight: "star" },
-];
+
+function buildSteps(isCoach: boolean): Step[] {
+  const roleStep: Step = isCoach
+    ? { icon: "clipboard", title: "Your coaching tools", body: "Open the Team tab for your Team Hub — build Scouting Reports (set athletes' skill levels) and design event Flyers with the AI Coaching Assistant." }
+    : { icon: "checkmark-circle", title: "Stay on top of it all", body: "RSVP to team events from the Team calendar, and track your Expenses and payments — all from the tabs." };
+  return [
+    { icon: "sparkles", title: "Welcome to CheerPlanner!", body: "Here's a quick 20-second tour so you know where everything is." },
+    { icon: "grid", title: "Your tabs", body: "Use the tabs at the bottom to jump between Home, Athletes, Schedule, Calendar, and more.", highlight: "tabs" },
+    roleStep,
+    { icon: "star", title: "Your Assistant Coach", body: "Stuck? Tap the star button anytime to ask how to use any part of the app.", highlight: "star" },
+  ];
+}
 
 // One-time first-run walkthrough that points out the tabs and the star help button.
 export default function GuidedTour() {
@@ -37,6 +43,7 @@ export default function GuidedTour() {
 
   if (!user || !show) return null;
 
+  const STEPS = buildSteps(!!user?.team_access);
   const s = STEPS[step];
   const last = step === STEPS.length - 1;
   const finish = async () => { setShow(false); await storage.setItem(SEEN_KEY, true); };
