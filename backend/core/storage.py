@@ -53,3 +53,16 @@ def get_object(path: str):
         resp = requests.get(url, headers={"X-Storage-Key": key}, timeout=60)
     resp.raise_for_status()
     return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
+
+def delete_object(path: str) -> None:
+    key = init_storage()
+    url = f"{STORAGE_URL}/objects/{path}"
+    resp = requests.delete(url, headers={"X-Storage-Key": key}, timeout=60)
+    if resp.status_code == 503:
+        _reset()
+        key = init_storage()
+        resp = requests.delete(url, headers={"X-Storage-Key": key}, timeout=60)
+    # 404 is fine (already gone); raise on other hard errors.
+    if resp.status_code not in (200, 202, 204, 404):
+        resp.raise_for_status()

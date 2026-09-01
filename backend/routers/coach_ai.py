@@ -175,24 +175,30 @@ async def chat(payload: dict = Body(...), user=Depends(require_team_access)):
 
 
 # ---------------------------------------------------------------
-# Flyer generation (DALL·E via Emergent universal key)
+# Flyer generation (Google Imagen 4 via the user's Gemini API key)
 # ---------------------------------------------------------------
 def _flyer_prompt(p: dict) -> str:
     kind = (p.get("event_type") or "event").strip()
     title = (p.get("title") or "").strip()
+    team = (p.get("team_name") or "").strip()
     date = (p.get("date") or "").strip()
     time = (p.get("time") or "").strip()
     location = (p.get("location") or "").strip()
     theme = (p.get("theme") or "").strip()
     extra = (p.get("details") or "").strip()
+    auto = bool(p.get("auto_layout"))
     style = STYLE_PROMPTS.get((p.get("style") or "").strip().lower(), "")
     lines = [
         f"Design a vibrant, professional promotional flyer for a cheerleading {kind}.",
         "Modern, energetic layout with dynamic cheer imagery (pom-poms, cheerleaders, spirit),",
         "bold readable headline text, clear hierarchy, and space for details.",
     ]
+    if auto:
+        lines.append("Use your own creative, eye-catching layout and composition — surprise me with a polished professional design.")
     if title:
         lines.append(f'Headline / event name: "{title}".')
+    if team:
+        lines.append(f'Team name to feature prominently: "{team}".')
     details = []
     if date:
         details.append(f"Date: {date}")
@@ -284,23 +290,28 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
     h = await _resolve_active_household(user["id"])
     if not h:
         raise HTTPException(status_code=400, detail="No team hub found.")
-    api_key = os.environ.get("EMERGENT_LLM_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=503, detail="Flyer generation isn't configured yet.")
+        raise HTTPException(status_code=503, detail="Flyer generation isn't configured yet. Add your Google Gemini API key.")
     logo_b64 = payload.get("logo") or ""
     photos_b64 = [p for p in (payload.get("photos") or []) if p][:3]
     prompt = _flyer_prompt({**payload, "_has_logo": bool(logo_b64), "_has_photos": bool(photos_b64)})
+    model = os.environ.get("IMAGEN_MODEL", "imagen-4.0-fast-generate-001")
     try:
-        from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-        image_gen = OpenAIImageGeneration(api_key=api_key)
-        images = await image_gen.generate_images(prompt=prompt, model="gpt-image-1", number_of_images=1)
+        from emergentintegrations.llm.gemeni.image_generation import GeminiImageGeneration
+        image_gen = GeminiImageGeneration(api_key=api_key)
+        images = await image_gen.generate_images(prompt=prompt, model=model, number_of_images=1)
     except Exception as e:  # noqa: BLE001
         msg = str(e).lower()
-        if "budget" in msg or "402" in msg or "insufficient" in msg or "429" in msg:
+        if "not found" in msg or "not supported" in msg or "404" in msg:
             raise HTTPException(
-                status_code=402,
-                detail="Your Universal Key balance is too low to generate a flyer. Add balance in Profile → Manage plan → Universal Key.",
+                status_code=503,
+                detail="Imagen 4 isn't available on your Google API key yet. Enable billing on the key's Google Cloud project and turn on the Generative Language API, then try again.",
             )
+        if "permission" in msg or "denied" in msg or "403" in msg or "401" in msg or "api key" in msg:
+            raise HTTPException(status_code=503, detail="Your Google Gemini API key was rejected. Please check the key and its billing.")
+        if "quota" in msg or "rate" in msg or "429" in msg or "resource_exhausted" in msg:
+            raise HTTPException(status_code=429, detail="Imagen 4 is rate-limited or out of quota right now. Please try again shortly.")
         raise HTTPException(status_code=502, detail="Couldn't generate the flyer. Please try again.")
     if not images:
         raise HTTPException(status_code=502, detail="No flyer was generated. Please try again.")
@@ -323,11 +334,12 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
         "storage_path": path, "content_type": "image/png", "kind": "image",
         "name": (payload.get("title") or "flyer")[:120] + ".png", "size": len(data), "created_at": utcnow_iso(),
     })
-    # Remember the team logo for next time.
+    # Remember the team logo for next time + keep a reusable logo library.
     if logo_b64:
         await db.flyer_settings.update_one(
             {"household_id": h["id"]}, {"$set": {"logo": logo_b64, "updated_at": utcnow_iso()}}, upsert=True,
         )
+        await _remember_logo(h["id"], user["id"], logo_b64)
     # Save to the coach's flyer gallery (with a small thumbnail for listing).
     try:
         thumb = await run_in_threadpool(_thumb, data)
@@ -339,6 +351,33 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
         "event_type": payload.get("event_type") or "", "thumb": thumb, "created_at": utcnow_iso(),
     })
     return {"flyer_id": media_id, "image_base64": base64.b64encode(data).decode("utf-8"), "prompt": prompt}
+
+
+async def _remember_logo(household_id: str, owner_id: str, logo_b64: str) -> None:
+    """Store a downscaled copy of an uploaded logo in a reusable, per-team library
+    (deduped by content hash). Keeps the most recent 24."""
+    import hashlib
+    img = _decode_image(logo_b64)
+    if img is None:
+        return
+    fitted = ImageOps.contain(img, (400, 400))
+    out = io.BytesIO()
+    fitted.save(out, format="PNG")
+    raw = out.getvalue()
+    small = "data:image/png;base64," + base64.b64encode(raw).decode("utf-8")
+    digest = hashlib.sha256(raw).hexdigest()
+    exists = await db.flyer_logos.find_one({"household_id": household_id, "hash": digest}, {"_id": 0, "id": 1})
+    if exists:
+        await db.flyer_logos.update_one({"household_id": household_id, "hash": digest}, {"$set": {"updated_at": utcnow_iso()}})
+        return
+    await db.flyer_logos.insert_one({
+        "id": secrets.token_urlsafe(9), "household_id": household_id, "owner_id": owner_id,
+        "hash": digest, "image": small, "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
+    })
+    # Trim to the most recent 24 logos.
+    old = await db.flyer_logos.find({"household_id": household_id}, {"_id": 0, "id": 1}).sort("updated_at", -1).skip(24).to_list(100)
+    if old:
+        await db.flyer_logos.delete_many({"id": {"$in": [o["id"] for o in old]}})
 
 
 def _thumb(data: bytes) -> str:
@@ -367,6 +406,40 @@ async def list_flyers(user=Depends(require_team_access)):
         {"household_id": h["id"]}, {"_id": 0, "id": 1, "title": 1, "style": 1, "event_type": 1, "thumb": 1, "created_at": 1}
     ).sort("created_at", -1).to_list(30)
     return {"flyers": rows}
+
+
+@router.get("/team/coach-ai/logos")
+async def list_logos(user=Depends(require_team_access)):
+    """Previously uploaded team logos, for the flyer logo picker."""
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        return {"logos": []}
+    rows = await db.flyer_logos.find(
+        {"household_id": h["id"]}, {"_id": 0, "id": 1, "image": 1, "created_at": 1}
+    ).sort("updated_at", -1).to_list(24)
+    return {"logos": rows}
+
+
+@router.delete("/team/coach-ai/flyers/{flyer_id}")
+async def delete_flyer(flyer_id: str, user=Depends(require_team_access)):
+    """Delete a flyer from the Media Library (staff only). Removes the gallery
+    entry, the chat_media record, and the stored image object. Any message that
+    already posted this flyer is left intact (delete it from chat separately)."""
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        raise HTTPException(status_code=404, detail="No team hub found.")
+    rec = await db.flyers.find_one({"id": flyer_id, "household_id": h["id"]}, {"_id": 0, "storage_path": 1})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Flyer not found.")
+    await db.flyers.delete_one({"id": flyer_id, "household_id": h["id"]})
+    await db.chat_media.delete_one({"id": flyer_id, "household_id": h["id"]})
+    if rec.get("storage_path"):
+        try:
+            from core.storage import delete_object
+            await run_in_threadpool(delete_object, rec["storage_path"])
+        except Exception:  # noqa: BLE001
+            pass  # best-effort; DB records already removed
+    return {"deleted": True}
 
 
 @router.get("/team/coach-ai/flyers/{flyer_id}")
