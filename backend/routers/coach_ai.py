@@ -283,6 +283,27 @@ def _composite_flyer(flyer_bytes: bytes, logo_b64: str, photos_b64: list) -> byt
     return out.getvalue()
 
 
+GEMINI_IMAGE_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-2.5-flash-image")
+
+
+def _gemini_flash_image(api_key: str, prompt: str) -> bytes:
+    """Generate a flyer image with the Gemini image model (works on a standard
+    Gemini key). Used as an automatic fallback when Imagen 4 isn't provisioned
+    for the account. Returns raw image bytes."""
+    from google import genai
+    client = genai.Client(api_key=api_key)
+    resp = client.models.generate_content(model=GEMINI_IMAGE_MODEL, contents=prompt)
+    cands = getattr(resp, "candidates", None) or []
+    for cand in cands:
+        content = getattr(cand, "content", None)
+        parts = getattr(content, "parts", None) or []
+        for part in parts:
+            inline = getattr(part, "inline_data", None)
+            if inline and getattr(inline, "data", None):
+                return inline.data
+    raise RuntimeError("Gemini image model returned no image.")
+
+
 @router.post("/team/coach-ai/flyer")
 async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_access)):
     if not (payload.get("title") or "").strip():
@@ -297,25 +318,30 @@ async def generate_flyer(payload: dict = Body(...), user=Depends(require_team_ac
     photos_b64 = [p for p in (payload.get("photos") or []) if p][:3]
     prompt = _flyer_prompt({**payload, "_has_logo": bool(logo_b64), "_has_photos": bool(photos_b64)})
     model = os.environ.get("IMAGEN_MODEL", "imagen-4.0-fast-generate-001")
+    data = None
     try:
         from emergentintegrations.llm.gemeni.image_generation import GeminiImageGeneration
         image_gen = GeminiImageGeneration(api_key=api_key)
         images = await image_gen.generate_images(prompt=prompt, model=model, number_of_images=1)
+        data = images[0] if images else None
     except Exception as e:  # noqa: BLE001
         msg = str(e).lower()
         if "not found" in msg or "not supported" in msg or "404" in msg:
-            raise HTTPException(
-                status_code=503,
-                detail="Imagen 4 isn't available on your Google API key yet. Enable billing on the key's Google Cloud project and turn on the Generative Language API, then try again.",
-            )
-        if "permission" in msg or "denied" in msg or "403" in msg or "401" in msg or "api key" in msg:
+            # Imagen 4 isn't provisioned for this account (paid-tier/region limits).
+            # Fall back to the Gemini image model, which works on the standard key.
+            # Imagen 4 will take over automatically once it becomes available.
+            try:
+                data = await run_in_threadpool(_gemini_flash_image, api_key, prompt)
+            except Exception:  # noqa: BLE001
+                raise HTTPException(status_code=502, detail="Couldn't generate the flyer. Please try again.")
+        elif "permission" in msg or "denied" in msg or "403" in msg or "401" in msg or "api key" in msg:
             raise HTTPException(status_code=503, detail="Your Google Gemini API key was rejected. Please check the key and its billing.")
-        if "quota" in msg or "rate" in msg or "429" in msg or "resource_exhausted" in msg:
-            raise HTTPException(status_code=429, detail="Imagen 4 is rate-limited or out of quota right now. Please try again shortly.")
-        raise HTTPException(status_code=502, detail="Couldn't generate the flyer. Please try again.")
-    if not images:
+        elif "quota" in msg or "rate" in msg or "429" in msg or "resource_exhausted" in msg:
+            raise HTTPException(status_code=429, detail="Image generation is rate-limited or out of quota right now. Please try again shortly.")
+        else:
+            raise HTTPException(status_code=502, detail="Couldn't generate the flyer. Please try again.")
+    if not data:
         raise HTTPException(status_code=502, detail="No flyer was generated. Please try again.")
-    data = images[0]
 
     if logo_b64 or photos_b64:
         try:

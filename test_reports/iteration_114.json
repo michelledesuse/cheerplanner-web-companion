@@ -1,0 +1,33 @@
+{
+  "summary": "iter114 Flyer Generator (Team Hub → Coach AI → 'Flyer' tab): backend + frontend fully verified on live preview. All 14 backend pytest cases PASSED — auth gating for parent/athlete (sophia) returns 403 on /flyer, /logos, /flyers, and DELETE /flyers/{id}; POST /team/coach-ai/flyer returns a real ~large PNG in ~7-10s (Imagen 4 -> gemini-2.5-flash-image automatic fallback path); GET /flyers/{id} returns the image_base64; DELETE /flyers/{id} removes gallery entry (verified via subsequent 404); POST /flyer/{id}/post-to-chat posts the flyer message; parent/athlete gets 403 on chat delete; staff can delete their own posted message. Frontend Expo web preview verified: coach-ai-screen loads, coach-ai-tab-flyer switches modes; every requested testID renders (flyer-title, flyer-team, flyer-date, flyer-time, flyer-location, flyer-theme, flyer-details, flyer-auto-layout, flyer-generate, flyer-saved-open, style chips flyer-style-classic/bold/glam, flyer-type-tryouts, flyer-photo-add); typing + Generate produced flyer-image in ~7.5s; flyer-caption/flyer-post/flyer-delete render; flyer-saved-open opens flyer-gallery with per-item flyer-saved-del-<id> trash button; delete removes the preview. Logo picker verified separately: on demo the pre-saved logo is auto-loaded (so 'Remove logo' shows first as expected); after Remove, both flyer-logo-add and flyer-logo-choose render and 'Choose saved' opens flyer-logos modal correctly.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter113_flyer_generator.py",
+    "/app/test_reports/pytest/pytest_iter113.xml"
+  ],
+  "action_items": [
+    "No fixes required — feature is working end-to-end on preview and matches the review spec.",
+    "Behavioural note (not a bug): with a saved team logo the flyer-logo-add/flyer-logo-choose buttons are hidden until 'Remove logo' is tapped. This is by design (conditional render in coach-ai.tsx around line 291). If the intent is to ALWAYS show 'Choose saved' next to the current logo, that would be a minor UX enhancement."
+  ],
+  "critical_code_review_comments": [
+    "coach_ai.py line ~328: exception routing uses substring matching on str(e) for 404/permission/quota — brittle but acceptable, and the 'not found/not supported/404' branch is what routes Imagen 4 misses to the gemini-2.5-flash-image fallback path.",
+    "coach_ai.py _remember_logo: dedupes by sha256, trims to most-recent 24 — good hygiene.",
+    "coach_ai.py delete_flyer: swallows storage delete exception (best-effort) — acceptable because DB rows are removed first, so the endpoint is idempotent.",
+    "coach-ai.tsx web deleteSavedFlyer: uses Alert on native and immediate action on web with no confirmation — acceptable for a testing surface but worth a browser confirm() on web for symmetry."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter113_flyer_generator.py (new)"
+  ],
+  "success_rate": { "backend": "100% (14/14)", "frontend": "100% (all requested testIDs + flows)" },
+  "seed_data_creation": "Created 'TEST_iter113 Flyer' via backend test — DELETED by same test (verified 404). Created 'TEST_UI Flyer' via UI — DELETED via flyer-delete button in UI. The pre-existing demo flyer 'Glitter Gala Fundraiser' is untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login endpoint returns {access_token, token_type, user} — use access_token. Preview URL comes from EXPO_PUBLIC_BACKEND_URL in frontend/.env. Flyer generation currently uses the gemini-2.5-flash-image fallback (Imagen 4 not provisioned on this account) and completes in ~5-15s. An onboarding tour modal appears on first login on preview — dismiss via 'Skip' before interacting with the flyer tab. Demo account has a saved team logo, so the upload/choose buttons are hidden by default (click 'Remove logo' to reveal them).",
+  "rca_of_issue": "N/A — no bugs found."
+}
