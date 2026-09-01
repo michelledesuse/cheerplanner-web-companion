@@ -99,12 +99,15 @@ export default function ScheduleForm() {
 
   // Edit-time series context (set when editing an event that is part of a series)
   const [seriesId, setSeriesId] = useState<string | null>(null);
+  // Signature of the recurrence rule as loaded, to detect pattern changes on save.
+  const [origRuleSig, setOrigRuleSig] = useState<string>("none");
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
 
   const isPartOfSeries = !!seriesId;
   const [scopeAction, setScopeAction] = useState<null | "save" | "delete">(null);
+  const [rescheduleConfirm, setRescheduleConfirm] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -138,6 +141,10 @@ export default function ScheduleForm() {
               setFrequency(e.recurrence_rule.frequency || "weekly");
               setDaysOfWeek(new Set(e.recurrence_rule.days_of_week || []));
               setUntil(e.recurrence_rule.until || defaultUntil(e.date || todayISO()));
+              const days = [...(e.recurrence_rule.days_of_week || [])].sort((a: number, b: number) => a - b).join(",");
+              setOrigRuleSig(`${e.recurrence_rule.frequency}|${days}|${e.recurrence_rule.until || ""}`);
+            } else {
+              setOrigRuleSig("none");
             }
           }
         } finally { setLoading(false); }
@@ -222,6 +229,26 @@ export default function ScheduleForm() {
     } finally { setSaving(false); }
   };
 
+  // Signature of the currently-selected recurrence rule (for change detection).
+  const ruleSig = () => {
+    if (!repeat) return "none";
+    const days = (frequency === "weekly" || frequency === "biweekly")
+      ? Array.from(daysOfWeek).sort((a, b) => a - b).join(",") : "";
+    return `${frequency}|${days}|${until}`;
+  };
+
+  // Rebuild the whole series from the new recurrence pattern.
+  const doReschedule = async () => {
+    setRescheduleConfirm(false);
+    setSaving(true);
+    try {
+      await api.post(`/schedule/${params.id}/reschedule-series?anchor=series_start`, { ...buildPayload(true), season_ids: seasonIds });
+      router.back();
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not update the series");
+    } finally { setSaving(false); }
+  };
+
   const save = async () => {
     if (!title.trim()) { Alert.alert("Missing", "Add a title."); return; }
     if (repeat && !until) { Alert.alert("Missing", "Pick a 'Repeat until' date."); return; }
@@ -230,6 +257,8 @@ export default function ScheduleForm() {
     }
 
     if (isEdit && isPartOfSeries) {
+      // If the recurrence pattern itself changed, regenerate the series.
+      if (ruleSig() !== origRuleSig) { setRescheduleConfirm(true); return; }
       setScopeAction("save");
       return;
     }
@@ -385,9 +414,8 @@ export default function ScheduleForm() {
             testIDPrefix="schedule-event-sms-offset"
           />
 
-          {/* Repeat section — hidden for series edits so the rule can't be re-expanded */}
-          {!isPartOfSeries && (
-            <View style={styles.repeatBlock}>
+          {/* Repeat section — editable for series too; changing the pattern rebuilds the series */}
+          <View style={styles.repeatBlock}>
               <View style={styles.repeatHeader}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Ionicons name="repeat" size={18} color={colors.textPrimary} />
@@ -401,6 +429,9 @@ export default function ScheduleForm() {
                   testID="schedule-repeat-toggle"
                 />
               </View>
+              {isPartOfSeries && (
+                <Text style={styles.seriesHint}>Changing repeat settings rebuilds the whole series. Any per-day edits (different times/notes on individual days) will be reset.</Text>
+              )}
 
               {repeat && (
                 <>
@@ -437,7 +468,6 @@ export default function ScheduleForm() {
                 </>
               )}
             </View>
-          )}
 
           {athletes.length > 0 && (
             <>
@@ -519,6 +549,21 @@ export default function ScheduleForm() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal visible={rescheduleConfirm} transparent animationType="fade" onRequestClose={() => setRescheduleConfirm(false)}>
+        <Pressable style={styles.scopeBackdrop} onPress={() => setRescheduleConfirm(false)}>
+          <Pressable style={styles.scopeSheet} onPress={() => {}}>
+            <Text style={styles.scopeTitle}>Update recurring series?</Text>
+            <Text style={styles.scopeSub}>You changed the repeat settings. This rebuilds the whole series from its start date — any per-day edits (different times/notes on individual days) will be reset.</Text>
+            <TouchableOpacity style={[styles.saveBtn, { marginTop: spacing.lg }]} onPress={doReschedule} testID="reschedule-confirm">
+              <Text style={styles.saveBtnText}>Rebuild series</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.scopeCancel} onPress={() => setRescheduleConfirm(false)} testID="reschedule-cancel">
+              <Text style={styles.scopeCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -558,6 +603,7 @@ const makeStyles = () => ({
   repeatBlock: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   repeatHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   repeatTitle: { ...typography.bodyMedium, color: colors.textPrimary },
+  seriesHint: { ...typography.caption, color: colors.textSecondary, marginTop: 8 },
   freqRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   freqBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg },
   freqBtnOn: { backgroundColor: colors.accent, borderColor: colors.accent },

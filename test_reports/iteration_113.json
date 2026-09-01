@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend testing of the new 'edit recurring pattern → rebuild series' feature on /schedule/new.tsx. All 5 user-facing scenarios PASS end-to-end against the preview URL. (1) Repeat section is now editable for series events, pre-filled with the loaded frequency/DOW/until, and shows the 'Changing repeat settings rebuilds the whole series' hint. (2) Editing only non-recurrence fields (e.g. title) on a series event still opens the This/Future/All scope chooser (scope-single / scope-future / scope-series) and does NOT open the reschedule modal — no regression. (3) Changing the recurrence pattern (frequency Weekly→Daily) then Save opens the 'Update recurring series?' confirm modal with reschedule-confirm / reschedule-cancel testIDs. (4) Tapping 'Rebuild series' fires POST /api/schedule/{id}/reschedule-series?anchor=series_start; verified via API that the 8-event weekly series (days [Mon,Wed]) was regenerated into 28 daily events (Jun 3–30). (5) Turning the Repeat switch OFF then Rebuild collapsed the 28-event daily series into a single standalone event (series_id=null, recurrence_rule=null). Login uses demo@cheerplanner.app / CheerDemo2026!.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_113.json"],
+  "action_items": [
+    "(Minor / non-blocking) After a successful rebuild the code calls router.back(); when the edit screen is opened without a navigation stack (deep-link) a dev-only 'The action GO_BACK was not handled by any navigator' console warning appears. In real user flow (tap a Schedule list row → edit) the stack exists and back works. Consider router.replace('/schedule') as a safe fallback if this warning is ever surfaced in production logs. Not required for MVP.",
+    "(Edge case, pre-existing) If the URL /schedule/new?id=<uuid> is opened for an id that no longer exists (e.g. after a series rebuild deleted the previous occurrence ids), the effect silently sets loading=false and the form falls back to a blank 'new event' state instead of showing an error. Encountered while retesting the same id post-rebuild. Not on the tested feature path — leaving as an FYI."
+  ],
+  "critical_code_review_comments": [
+    "ruleSig() and origRuleSig correctly compare pattern signatures (frequency|sorted-days|until) so pattern-change detection is accurate; 'none' vs 'none' handles the repeat-off case symmetrically.",
+    "doReschedule sends buildPayload(true) with the new recurrence_rule and anchor=series_start — matches the verified backend contract. Turning the Repeat switch OFF causes buildPayload to omit recurrence_rule, and the backend collapses the series (verified: series_id=null on the resulting event).",
+    "Both modals (scope chooser and 'Update recurring series?') are custom RN Modal + Pressable components (not Alert.alert), so they render correctly on RN-Web preview."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (backend already verified per E1)", "frontend": "100% (5/5 scenarios pass)"},
+  "seed_data_creation": "No new seed data created. Used the demo account's existing series a0021c68 (weekly, Mon+Wed, 8 occurrences). During testing the series was rebuilt to daily (28 occurrences) and then collapsed to a single standalone event — main agent may want to re-run seed_marketing_demo.py to restore the original 6-recurring-practices state before recording screenshots.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Frontend edit-recurring-pattern flow is fully working on preview. If retesting, first re-seed via /app/backend/scripts/seed_marketing_demo.py to restore the recurring-series data (the tests above consumed it — the demo account is now down to 8 standalone events, no recurring series remaining)."
+}
