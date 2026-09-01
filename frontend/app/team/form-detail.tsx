@@ -138,6 +138,16 @@ export default function FormDetailScreen() {
     Alert.alert("Delete question?", "", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: doIt }]);
   };
 
+  const moveQ = (i: number, dir: -1 | 1) => {
+    if (!data) return;
+    const j = i + dir;
+    if (j < 0 || j >= data.questions.length) return;
+    const questions = [...data.questions];
+    [questions[i], questions[j]] = [questions[j], questions[i]];
+    setData({ ...data, questions });
+    patch({ questions });
+  };
+
   // ---- responses ----
   const openResp = (m: Member) => {
     if (data?.locked) { Alert.alert("Form locked", "Unlock the form to edit responses."); return; }
@@ -334,10 +344,19 @@ export default function FormDetailScreen() {
           <Text style={styles.sectionHead}>QUESTIONS</Text>
           <TouchableOpacity onPress={openNewQ} testID="form-add-question"><Text style={styles.addLink}>+ Add question</Text></TouchableOpacity>
         </View>
+        {data.questions.length > 1 ? <Text style={styles.reorderHint}>Use the arrows to reorder questions.</Text> : null}
         {data.questions.length === 0 ? (
           <Text style={styles.emptyText}>No questions yet. Add one to get started.</Text>
         ) : data.questions.map((q, i) => (
           <View key={q.id || i} style={styles.qRow}>
+            <View style={styles.reorderCol}>
+              <TouchableOpacity onPress={() => moveQ(i, -1)} disabled={i === 0} hitSlop={6} testID={`form-q-up-${i}`}>
+                <Ionicons name="chevron-up" size={18} color={i === 0 ? colors.textTertiary : colors.accent} />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => moveQ(i, 1)} disabled={i === data.questions.length - 1} hitSlop={6} testID={`form-q-down-${i}`}>
+                <Ionicons name="chevron-down" size={18} color={i === data.questions.length - 1 ? colors.textTertiary : colors.accent} />
+              </TouchableOpacity>
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.qLabel}>{q.label}{q.required ? " *" : ""}</Text>
               <Text style={styles.qMeta}>{TYPE_LABELS[q.type]}{q.options?.length ? ` · ${q.options.join(", ")}` : ""}</Text>
@@ -562,8 +581,10 @@ const makeStyles = (c: ThemePalette) => ({
   sectionHead: { ...typography.micro, color: c.textTertiary },
   addLink: { ...typography.caption, color: c.accent, fontWeight: "800", marginTop: 6 },
   emptyText: { ...typography.caption, color: c.textTertiary, paddingVertical: spacing.sm },
+  reorderHint: { ...typography.caption, color: c.textTertiary, marginBottom: spacing.sm },
 
   qRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.xs },
+  reorderCol: { alignItems: "center", justifyContent: "center", marginRight: 2 },
   qLabel: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700" },
   qMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
 

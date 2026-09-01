@@ -54,6 +54,22 @@ export default function FormsScreen() {
     } finally { setSaving(false); }
   };
 
+  const duplicate = async (f: Form) => {
+    const doIt = async () => {
+      try {
+        const r = await api.post<Form>(`/team/forms/${f.id}/duplicate`, {});
+        router.push(`/team/form-detail?id=${r.data.id}` as any);
+      } catch (e: any) {
+        Alert.alert("Couldn't duplicate", e?.response?.data?.detail || "Please try again.");
+      }
+    };
+    if (Platform.OS === "web") { doIt(); return; }
+    Alert.alert("Duplicate form?", `Make a copy of "${f.name}" with all its questions (no responses).`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Duplicate", onPress: doIt },
+    ]);
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
@@ -99,6 +115,9 @@ export default function FormsScreen() {
                   {f.description ? <Text style={styles.cardDesc} numberOfLines={1}>{f.description}</Text> : null}
                   <Text style={styles.cardMeta}>{s.response_count}/{s.member_total} responded · {(f.questions || []).length} question{(f.questions || []).length === 1 ? "" : "s"}</Text>
                 </View>
+                <TouchableOpacity onPress={() => duplicate(f)} style={styles.dupBtn} hitSlop={8} testID={`form-duplicate-${f.id}`}>
+                  <Ionicons name="copy-outline" size={18} color={colors.accent} />
+                </TouchableOpacity>
                 <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
             );
@@ -144,6 +163,7 @@ const makeStyles = (c: ThemePalette) => ({
   cardName: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "800" },
   cardDesc: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   cardMeta: { ...typography.caption, color: c.textTertiary, marginTop: 4 },
+  dupBtn: { width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.bg, borderWidth: 1, borderColor: c.border },
   lockPill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.warningBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   lockPillText: { fontSize: 10, fontWeight: "800", color: c.warningText },
 
