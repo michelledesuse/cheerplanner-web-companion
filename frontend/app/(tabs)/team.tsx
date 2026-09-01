@@ -23,6 +23,7 @@ type Tool = {
 
 const TOOLS: Tool[] = [
   { key: "coach_ai", title: "AI Coaching Assistant", desc: "Ask cheer questions & design event flyers. Coaches & staff only.", icon: "sparkles-outline", route: "/team/coach-ai" },
+  { key: "ai_designer", title: "AI Designer", desc: "Describe any design and generate it with AI. Coaches & staff only.", icon: "color-palette-outline", route: "/team/ai-designer" },
   { key: "chat", title: "Team Chat", desc: "Message your coaches, reps & staff in one group thread.", icon: "chatbubbles-outline", route: "/team/chat" },
   { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
   { key: "payments", title: "Payment Tracking", desc: "Team bonding, gifts, meals & dues — track who's paid.", icon: "cash-outline", route: "/team/payments" },
