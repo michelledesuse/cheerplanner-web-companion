@@ -187,7 +187,7 @@ function FlyerMode({ styles }: any) {
 
   const openSavedFlyer = async (id: string) => {
     try {
-      const r = await api.get<{ image_base64: string }>(`/team/coach-ai/flyers/${id}`);
+      const r = await api.get<{ image_base64: string }>(`/team/coach-ai/flyers/${id}`, { timeout: 60000 });
       setFlyer({ id, b64: r.data.image_base64 });
       const meta = saved.find((s) => s.id === id);
       setCaption(meta?.title || "");
@@ -221,7 +221,7 @@ function FlyerMode({ styles }: any) {
       const r = await api.post<{ flyer_id: string; image_base64: string }>("/team/coach-ai/flyer", {
         event_type: type, style, title: title.trim(), team_name: teamName.trim(), date: date.trim(), time: time.trim(), location: location.trim(), theme: theme.trim(), details: details.trim(), auto_layout: autoLayout,
         logo: logo || undefined, photos: photos.length ? photos : undefined,
-      });
+      }, { timeout: 120000 });
       setFlyer({ id: r.data.flyer_id, b64: r.data.image_base64 });
       setCaption(title.trim());
     } catch (e: any) {
