@@ -41,6 +41,7 @@ export default function TeamCalendar() {
   const [detail, setDetail] = useState<Ev | null>(null);
   const [formEv, setFormEv] = useState<Ev | null | "new">(null);
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
 
   const allTypes: TypeDef[] = useMemo(() => [
     ...BUILTIN_TYPES,
@@ -74,6 +75,7 @@ export default function TeamCalendar() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ padding: 4 }}><Ionicons name="chevron-back" size={24} color={colors.textPrimary} /></TouchableOpacity>
         <View style={{ flex: 1 }}><Text style={styles.title}>Calendar</Text><Text style={styles.subtitle}>{isStaff ? "Tap an event to see RSVPs" : "Tap an event to RSVP"}</Text></View>
         <TouchableOpacity onPress={importAll} hitSlop={8} style={{ padding: 4 }} testID="calendar-import-all"><Ionicons name="cloud-download-outline" size={22} color={colors.accent} /></TouchableOpacity>
+        {isStaff && <TouchableOpacity onPress={() => setImportOpen(true)} hitSlop={8} style={{ padding: 4 }} testID="calendar-import-personal"><Ionicons name="albums-outline" size={22} color={colors.accent} /></TouchableOpacity>}
         {isStaff && <TouchableOpacity onPress={() => setFormEv("new")} hitSlop={8} style={{ padding: 4 }} testID="calendar-add-btn"><Ionicons name="add-circle" size={26} color={colors.accent} /></TouchableOpacity>}
       </View>
 
@@ -105,6 +107,7 @@ export default function TeamCalendar() {
 
       {detail && <DetailModal ev={detail} isStaff={isStaff} athletes={athletes} typeOf={typeOf} onEdit={() => { const d = detail; setDetail(null); setFormEv(d); }} onClose={() => setDetail(null)} onChanged={load} styles={styles} />}
       {formEv && <EventForm ev={formEv === "new" ? null : formEv} allTypes={allTypes} customTypes={customTypes} setCustomTypes={setCustomTypes} onClose={() => setFormEv(null)} onSaved={() => { setFormEv(null); load(); }} styles={styles} />}
+      {importOpen && <ImportFromPersonalModal onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); load(); }} styles={styles} />}
     </SafeAreaView>
   );
 }
@@ -317,6 +320,101 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
   );
 }
 
+type Importable = { competitions: { id: string; name: string; date?: string }[]; events: { id: string; title: string; date?: string; event_type?: string }[] };
+
+function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
+  const [data, setData] = useState<Importable>({ competitions: [], events: [] });
+  const [loading, setLoading] = useState(true);
+  const [sel, setSel] = useState<Record<string, "competition" | "schedule">>({});
+  const [inc, setInc] = useState({ travel: true, teams_to_watch: true, packing_list: true, links: true });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { (async () => {
+    try { const r = await api.get<Importable>("/team/calendar/importable"); setData(r.data || { competitions: [], events: [] }); }
+    catch { setData({ competitions: [], events: [] }); }
+    finally { setLoading(false); }
+  })(); }, []);
+
+  const toggle = (id: string, source: "competition" | "schedule") => setSel((p) => { const n = { ...p }; if (n[id]) delete n[id]; else n[id] = source; return n; });
+  const count = Object.keys(sel).length;
+
+  const doImport = async () => {
+    if (count === 0) return;
+    setSaving(true);
+    const items = Object.entries(sel).map(([id, source]) => ({ id, source }));
+    try {
+      const r = await api.post<{ imported: number; already: number; skipped: number }>("/team/calendar/import-from-personal-bulk", { items, include: inc });
+      const { imported, already, skipped } = r.data;
+      const parts = [`${imported} imported`];
+      if (already) parts.push(`${already} already on the hub`);
+      if (skipped) parts.push(`${skipped} skipped`);
+      Alert.alert("Imported to Team Hub", parts.join(", ") + ".");
+      onDone();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not import."); }
+    finally { setSaving(false); }
+  };
+
+  const hasAny = data.competitions.length > 0 || data.events.length > 0;
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalWrap} onPress={onClose}><Pressable style={styles.sheet} onPress={() => {}} testID="import-personal-modal">
+        <Text style={styles.sheetTitle}>Import to Team Hub</Text>
+        <Text style={styles.sheetSub2}>Pick your competitions & events to add to the team calendar.</Text>
+        {loading ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 24 }} /> : (
+          <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator>
+            {!hasAny && <Text style={[styles.dim, { marginTop: 12 }]}>Nothing to import yet. Add competitions or upcoming schedule events in the parent portal first.</Text>}
+            {data.competitions.length > 0 && <Text style={styles.secLbl}>Competitions</Text>}
+            {data.competitions.map((c) => {
+              const on = !!sel[c.id];
+              return (
+                <TouchableOpacity key={c.id} style={styles.impRow} onPress={() => toggle(c.id, "competition")} testID={`imp-comp-${c.id}`}>
+                  <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? colors.accent : colors.textTertiary} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.impTitle} numberOfLines={1}>{c.name}</Text>
+                    {!!c.date && <Text style={styles.impMeta}>{fmtDate(String(c.date).slice(0, 10))}</Text>}
+                  </View>
+                  <Ionicons name="trophy" size={16} color="#F59E0B" />
+                </TouchableOpacity>
+              );
+            })}
+            {data.events.length > 0 && <Text style={styles.secLbl}>Upcoming events</Text>}
+            {data.events.map((e) => {
+              const on = !!sel[e.id];
+              return (
+                <TouchableOpacity key={e.id} style={styles.impRow} onPress={() => toggle(e.id, "schedule")} testID={`imp-ev-${e.id}`}>
+                  <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? colors.accent : colors.textTertiary} />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.impTitle} numberOfLines={1}>{e.title}</Text>
+                    {!!e.date && <Text style={styles.impMeta}>{fmtDate(String(e.date).slice(0, 10))}</Text>}
+                  </View>
+                  <Ionicons name="calendar" size={16} color={colors.textTertiary} />
+                </TouchableOpacity>
+              );
+            })}
+
+            {hasAny && (
+              <>
+                <Text style={styles.secLbl}>Include details</Text>
+                {([["travel", "✈️ Travel details"], ["teams_to_watch", "👀 Teams to watch"], ["packing_list", "🎒 Packing list"], ["links", "🔗 Links"]] as const).map(([k, label]) => (
+                  <View key={k} style={styles.incRow}>
+                    <Text style={styles.incLabel}>{label}</Text>
+                    <Switch value={(inc as any)[k]} onValueChange={(v) => setInc((p) => ({ ...p, [k]: v }))} trackColor={{ true: colors.accent, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? ((inc as any)[k] ? "white" : "#F1F5F9") : undefined} testID={`imp-inc-${k}`} />
+                  </View>
+                ))}
+              </>
+            )}
+          </ScrollView>
+        )}
+        <TouchableOpacity style={[styles.saveBtn, (count === 0 || saving) && { opacity: 0.5 }]} onPress={doImport} disabled={count === 0 || saving} testID="import-personal-confirm">
+          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{count === 0 ? "Select items to import" : `Import ${count} to Team Hub`}</Text>}
+        </TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+      </Pressable></Pressable>
+    </Modal>
+  );
+}
+
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingHorizontal: spacing.md, paddingTop: spacing.xs, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: c.border },
@@ -368,4 +466,9 @@ const makeStyles = (c: ThemePalette) => ({
   wdText: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
   saveBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 13, alignItems: "center", marginTop: spacing.md }, saveText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   cancelText: { ...typography.body, color: c.textSecondary, fontWeight: "600" },
+  impRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
+  impTitle: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
+  impMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  incRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
+  incLabel: { ...typography.body, color: c.textPrimary, fontWeight: "600" },
 });

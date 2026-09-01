@@ -1,41 +1,29 @@
 {
-  "summary": "AI Coaching Assistant (Team Hub) tested end-to-end: backend + frontend. Backend pytest = 10/10 PASS. Access control verified (parent/athlete → 403; coach → 200). Chat with Perplexity sonar-pro returns a real cheer coaching answer with a conversation_id, off-topic requests are hard-declined with the canned message, and /history returns the persisted user+assistant messages. Flyer endpoint correctly returns HTTP 402 with a 'Universal Key balance is too low' detail (expected budget state) — NOT 500. Frontend: coach.casey sees the 'AI Coaching Assistant' card at the top of the Team Hub tools list; card opens /team/coach-ai; Ask tab renders welcome/suggestions/input/send and shows real assistant bubbles; Flyer tab renders all fields (title/date/time/location/theme/details + type chips + Generate) — tapping Generate with a title triggers the 402 code path without crashing the app. Parent (team_access=false) does NOT see the AI Coaching Assistant card (verified via /api/auth/login response — user.team_access=false — which drives the `unlocked` guard in team.tsx).",
-  "backend_issues": {
-    "critical": [],
-    "minor": [
-      {"endpoint": "POST /api/team/coach-ai/chat", "issue": "Perplexity sonar-pro replies still contain inline citation markers like [4][10][14][18] despite the system prompt saying 'Do NOT include citation markers or URLs'. The bracketed indices leak into the assistant bubble (visible in the toe-touch drill answer). Consider stripping /\\[\\d+\\]/g server-side before returning."}
-    ]
-  },
+  "summary": "Iter 112 – Import personal competitions/schedule events INTO Team Hub calendar. Backend: 7/7 pytest cases passed against preview (importable listing, single import + idempotency, bulk import counts, bulk skips bad ids, viewer 403 on both single & bulk endpoints). Frontend: logged in as demo@cheerplanner.app (staff owner), the 'albums-outline' header button (calendar-import-personal) renders next to the existing cloud-download and add buttons, opens the Import-to-Team-Hub sheet (import-personal-modal). Modal lists the household's 2 competitions (Spirit Nationals, Summit Championship) and 6 upcoming schedule events, each row toggles a checkbox. All 4 include switches present (imp-inc-travel/teams_to_watch/packing_list/links) and default ON. Selecting 3 items enables the confirm button and its label updates from 'Select items to import' to 'Import 3 to Team Hub'. Tapping confirm creates the events on the Team Hub calendar (verified — 3 event cards appeared on refresh: Team practice Sep 1, Summit Championship Sep 11, Spirit Nationals Oct 3). No red screen or deprecated-package issues detected in this screen. Cleaned up the imported events after the test.",
+  "backend_issues": { "critical": [], "minor": [] },
   "frontend_issues": {
     "ui_bugs": [],
-    "integration_issues": [
-      {"flow": "Flyer Generate → 402 error", "issue": "The 402 response is fired (verified in Network console), but on Expo Web the Alert.alert('Couldn\\'t generate', ...) call did not surface a visible dialog/modal — user could be left with no obvious feedback that generation failed. App does NOT crash (screen remains interactive), so it is graceful, but consider swapping Alert.alert for an inline error banner so the message renders on web preview. Note: this may just be a preview-web quirk — Alert.alert renders correctly on native iOS/Android.", "affected_testIDs": ["flyer-generate"]}
-    ],
+    "integration_issues": [],
     "design_issues": [],
     "react_native_issues": []
   },
   "test_report_links": [
-    "/app/backend/tests/test_coach_ai.py",
-    "/app/test_reports/pytest/pytest_coach_ai.xml"
+    "/app/backend/tests/test_iter112_import_to_team_hub.py",
+    "/app/test_reports/pytest/pytest_iter112.xml"
   ],
-  "action_items": [
-    "(Optional / low priority) Strip Perplexity citation markers like [1], [12], [3][4] from the answer before persisting/returning in /api/team/coach-ai/chat — the SYSTEM_PROMPT tells the model not to include them but sonar-pro does anyway.",
-    "(Optional) Replace the Alert.alert on flyer generation failure with an inline error message so the 402 'Universal Key balance is too low' text renders visibly in the Expo Web preview. Native iOS/Android Alert is unaffected."
-  ],
+  "action_items": [],
   "critical_code_review_comments": [
-    "coach_ai.py:216 — good handling of budget/insufficient/429/402 in the exception message string; maps cleanly to HTTP 402 with a user-actionable message.",
-    "coach_ai.py — SYSTEM_PROMPT + separate CLASSIFIER_SYSTEM two-step (classifier first, then answer) is a solid off-topic guard; verified working (tax question → canned decline).",
-    "coach_ai.py — POST/GET both correctly gated by require_team_access; parent (team_access=false) receives 403 on all three endpoints (chat/flyer/history).",
-    "team.tsx:24-25 — 'coach_ai' entry placed at the TOP of the TOOLS list so team personnel see it first; hidden behind the `unlocked` (team_access) branch — correct.",
-    "coach-ai.tsx — KeyboardAvoidingView on both Chat & Flyer, testIDs on every interactive element (tabs, input, send, chips, form fields, generate, post-to-chat, image preview). Good coverage for automated testing."
+    "team_calendar.py: _import_from_personal_one uses `src` from either competitions or schedule_events. Fields like housing_required/booking_link/teams_to_watch/links/end_date are only present on competitions but the function reads them from src for both sources — harmless (returns None on schedule docs) but worth a comment.",
+    "frontend/app/team/calendar.tsx is 475 lines and packs three modals + main list; approaching the 700-line split threshold — consider extracting ImportFromPersonalModal / EventForm into separate files during a future refactor.",
+    "Bulk endpoint only returns imported/already/skipped counts; consider surfacing per-item skipped reasons for better UX in the alert."
   ],
   "updated_files": [
-    "/app/backend/tests/test_coach_ai.py (new)"
+    "/app/backend/tests/test_iter112_import_to_team_hub.py"
   ],
-  "success_rate": {"backend": "100%", "frontend": "~95% (core flows verified; only the visible Alert on flyer error could not be confirmed on Expo Web, but app does not crash)"},
-  "seed_data_creation": "None. Used existing seeded coach.casey/parent.taylor/sophia.athlete accounts.",
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "None – used the existing demo@cheerplanner.app seed (2 competitions + 6 recurring practices). Created team-hub events during the UI test were deleted after verification.",
   "retest_needed": false,
   "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Backend regression suite: pytest /app/backend/tests/test_coach_ai.py -v. Flyer test tolerates both 402 (current state) and 200 (if Emergent Universal Key budget is topped up). If budget refills, expect image_base64 + flyer_id and follow-up POST /api/team/coach-ai/flyer/{id}/post-to-chat can be exercised. Chat test relies on Perplexity being available; if PERPLEXITY_API_KEY becomes invalid, chat endpoint returns 502 with 'Couldn't reach the assistant'.",
-  "rca_of_issue": "N/A — no critical bugs found. Flyer 402 is by design (Emergent Universal Key budget exhausted); backend maps it to 402 with a clear message, so the front-end can display it. The only minor observations are (a) Perplexity citations leaking into answers and (b) Alert.alert visibility on Expo web preview."
+  "context_for_next_testing_agent": "Feature verified end-to-end on preview. Backend endpoints: GET /api/team/calendar/importable (staff-only, 403 for viewers), POST /api/team/calendar/import-from-personal, POST /api/team/calendar/import-from-personal-bulk (both staff-only, idempotent via imported_from_personal_id). Frontend testIDs: calendar-import-personal, import-personal-modal, imp-comp-<id>, imp-ev-<id>, imp-inc-travel, imp-inc-teams_to_watch, imp-inc-packing_list, imp-inc-links, import-personal-confirm. To reach the screen: login → dismiss onboarding tour ('Skip') → navigate to /team/calendar.",
+  "rca_of_issue": ""
 }

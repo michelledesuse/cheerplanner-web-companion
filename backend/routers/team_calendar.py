@@ -386,3 +386,159 @@ async def import_all_to_personal(user=Depends(get_current_user)):
         else:
             skipped += 1
     return {"ok": True, "imported": imported, "skipped": skipped}
+
+
+# ---------------------------------------------------------------
+# Import a personal competition / schedule event INTO the Team Hub
+# ---------------------------------------------------------------
+async def _household_user_ids(user_id: str) -> list:
+    h = await db.households.find_one({"$or": [{"owner_user_id": user_id}, {"member_user_ids": user_id}]}, {"_id": 0, "owner_user_id": 1, "member_user_ids": 1})
+    if not h:
+        return [user_id]
+    ids = set(h.get("member_user_ids") or [])
+    if h.get("owner_user_id"):
+        ids.add(h["owner_user_id"])
+    ids.add(user_id)
+    return list(ids)
+
+
+def _fmt_list(v):
+    out = []
+    for it in (v or []):
+        if isinstance(it, dict):
+            out.append((it.get("label") or it.get("name") or it.get("url") or "").strip() + ((" — " + it["url"]) if it.get("url") and it.get("label") else ""))
+        elif str(it).strip():
+            out.append(str(it).strip())
+    return [x for x in out if x]
+
+
+@router.get("/team/calendar/importable")
+async def importable(user=Depends(require_team_access)):
+    ids = await _household_user_ids(user["id"])
+    comps = await db.competitions.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "event_date": 1}).sort("event_date", -1).to_list(100)
+    today = date.today().isoformat()
+    evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1}).sort("date", 1).to_list(100)
+    return {
+        "competitions": [{"id": c["id"], "name": c.get("name") or "Competition", "date": c.get("event_date")} for c in comps],
+        "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type")} for e in evs],
+    }
+
+
+async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, ids: list, created_by: str) -> dict:
+    """Create ONE Team Hub event from a personal competition/schedule item.
+
+    Returns {"already": bool} or {"event_id": str} or {"skipped": reason}."""
+    if source == "competition":
+        src = await db.competitions.find_one({"id": sid, "user_id": {"$in": ids}}, {"_id": 0})
+        if not src:
+            return {"skipped": "not_found"}
+        title = src.get("name") or "Competition"
+        event_type = "competition"
+        d = str(src.get("event_date") or "")[:10]
+        start_time = src.get("event_time") or ""
+        location = src.get("location") or ""
+        address = src.get("address") or ""
+        base_notes = (src.get("notes") or "").strip()
+    elif source == "schedule":
+        src = await db.schedule_events.find_one({"id": sid, "user_id": {"$in": ids}}, {"_id": 0})
+        if not src:
+            return {"skipped": "not_found"}
+        title = src.get("title") or "Event"
+        event_type = src.get("event_type") or "practice"
+        d = str(src.get("date") or "")[:10]
+        start_time = src.get("start_time") or ""
+        location = src.get("location") or ""
+        address = src.get("address") or ""
+        base_notes = (src.get("notes") or "").strip()
+    else:
+        return {"skipped": "unknown_source"}
+    if not d:
+        return {"skipped": "no_date"}
+
+    existing = await db.team_events.find_one({"household_id": h["id"], "imported_from_personal_id": sid}, {"_id": 0, "id": 1})
+    if existing:
+        return {"already": True}
+
+    sections = [base_notes] if base_notes else []
+    if inc.get("travel"):
+        travel = []
+        if src.get("housing_required"):
+            travel.append("Hotel/housing required")
+        if src.get("booking_link"):
+            travel.append(f"Booking: {src['booking_link']}")
+        if src.get("end_date"):
+            travel.append(f"Through: {str(src['end_date'])[:10]}")
+        if travel:
+            sections.append("✈️ Travel\n" + "\n".join(travel))
+    if inc.get("teams_to_watch"):
+        tw = _fmt_list(src.get("teams_to_watch"))
+        if tw:
+            sections.append("👀 Teams to watch\n" + "\n".join(f"• {t}" for t in tw))
+    if inc.get("links"):
+        lk = _fmt_list(src.get("links"))
+        if src.get("booking_link") and not inc.get("travel"):
+            lk.append(src["booking_link"])
+        if lk:
+            sections.append("🔗 Links\n" + "\n".join(f"• {t}" for t in lk))
+    if inc.get("packing_list"):
+        plists = await db.packing_lists.find({"competition_id": sid, "user_id": {"$in": ids}}, {"_id": 0, "items": 1}).to_list(5)
+        labels = []
+        for pl in plists:
+            for it in (pl.get("items") or []):
+                if it.get("label"):
+                    labels.append(it["label"])
+        if labels:
+            preview = labels[:40]
+            more = f"\n…and {len(labels) - len(preview)} more" if len(labels) > len(preview) else ""
+            sections.append("🎒 Packing list\n" + "\n".join(f"• {t}" for t in preview) + more)
+
+    ev = {
+        "id": str(uuid.uuid4()), "household_id": h["id"], "title": title, "event_type": event_type,
+        "location": location, "address": address, "date": d, "start_time": start_time, "end_time": "",
+        "notes": "\n\n".join(sections).strip(), "recurrence": {"freq": "none"},
+        "imported_from_personal_id": sid, "created_by": created_by, "created_at": _now(),
+    }
+    await db.team_events.insert_one(dict(ev))
+    return {"event_id": ev["id"]}
+
+
+@router.post("/team/calendar/import-from-personal")
+async def import_from_personal(payload: dict = Body(...), user=Depends(require_team_access)):
+    h, role = await _hub_and_role(user)
+    if role != "staff":
+        raise HTTPException(status_code=403, detail="Only coaches/staff can import to the Team Hub.")
+    ids = await _household_user_ids(user["id"])
+    res = await _import_from_personal_one(payload.get("source"), payload.get("id"), payload.get("include") or {}, h, ids, user["id"])
+    if res.get("skipped") == "not_found":
+        raise HTTPException(status_code=404, detail="Item not found.")
+    if res.get("skipped") == "no_date":
+        raise HTTPException(status_code=400, detail="That item has no date to import.")
+    if res.get("skipped") == "unknown_source":
+        raise HTTPException(status_code=400, detail="Unknown source.")
+    return {"ok": True, **res}
+
+
+@router.post("/team/calendar/import-from-personal-bulk")
+async def import_from_personal_bulk(payload: dict = Body(...), user=Depends(require_team_access)):
+    """Import several personal competitions/events into the Team Hub in one call.
+
+    payload = {items: [{source, id}], include: {travel, teams_to_watch, links, packing_list}}
+    """
+    h, role = await _hub_and_role(user)
+    if role != "staff":
+        raise HTTPException(status_code=403, detail="Only coaches/staff can import to the Team Hub.")
+    ids = await _household_user_ids(user["id"])
+    inc = payload.get("include") or {}
+    items = payload.get("items") or []
+    imported = 0
+    already = 0
+    skipped = 0
+    for it in items:
+        res = await _import_from_personal_one((it or {}).get("source"), (it or {}).get("id"), inc, h, ids, user["id"])
+        if res.get("event_id"):
+            imported += 1
+        elif res.get("already"):
+            already += 1
+        else:
+            skipped += 1
+    return {"ok": True, "imported": imported, "already": already, "skipped": skipped}
