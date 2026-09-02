@@ -64,6 +64,7 @@ export default function AIDesigner() {
   // Preview / chat
   const [enlarge, setEnlarge] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [caption, setCaption] = useState("");
 
   const [libOpen, setLibOpen] = useState(false);
   const [designs, setDesigns] = useState<Design[]>([]);
@@ -169,9 +170,10 @@ export default function AIDesigner() {
     if (!image || posting) return;
     setPosting(true);
     try {
-      await api.post("/ai-designer/post-to-chat", { image_base64: image }, { timeout: 60000 });
+      await api.post("/ai-designer/post-to-chat", { image_base64: image, caption: caption.trim() }, { timeout: 60000 });
       setPosting(false);
       setEnlarge(false);
+      setCaption("");
       Alert.alert("Posted", "Your flyer was posted to Team Chat.");
     } catch (e: any) {
       setPosting(false);
@@ -270,6 +272,9 @@ export default function AIDesigner() {
             placeholder="e.g. A bold competition poster with a cheerleader mid-toss, navy and gold, sparkles, and space for text"
             placeholderTextColor={colors.textTertiary}
             multiline
+            scrollEnabled
+            showsVerticalScrollIndicator
+            persistentScrollbar
             editable={!loading}
             testID="ai-designer-prompt"
           />
@@ -363,6 +368,15 @@ export default function AIDesigner() {
                   <Text style={styles.actionText}>Download</Text>
                 </TouchableOpacity>
               </View>
+              <TextInput
+                style={[styles.tweakInput, { marginTop: spacing.md }]}
+                value={caption}
+                onChangeText={setCaption}
+                placeholder="Add a message for the chat (optional)"
+                placeholderTextColor={colors.textTertiary}
+                maxLength={2000}
+                testID="ai-designer-caption"
+              />
               <TouchableOpacity style={[styles.postBtn, posting && { opacity: 0.6 }]} onPress={postToChat} disabled={posting} testID="ai-designer-post-chat">
                 {posting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="chatbubbles" size={16} color="#fff" /><Text style={styles.postText}>Post to Team Chat</Text></>}
               </TouchableOpacity>
