@@ -30,18 +30,57 @@ router = APIRouter(prefix="/api")
 
 IMAGE_MODEL = os.environ.get("AI_DESIGNER_MODEL", "gpt-image-2")
 ALLOWED_SIZES = {"1024x1024", "1536x1024", "1024x1536", "auto"}
+MAX_VARIATIONS = 4
+MAX_INPUT_IMAGES = 4
 
 
-def _openai_generate(prompt: str, size: str) -> bytes:
-    """Call OpenAI GPT-Image-2 and return raw PNG bytes. Runs in a threadpool
-    because the OpenAI SDK is synchronous."""
+def _client():
     from openai import OpenAI
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    resp = client.images.generate(model=IMAGE_MODEL, prompt=prompt, size=size, n=1)
+    return OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+
+def _openai_one(prompt: str, size: str, transparent: bool, input_images: list) -> bytes:
+    """Generate ONE image. If input_images are provided use the edit endpoint
+    (reference images / logo / a design being tweaked); otherwise generate from
+    text. Returns raw PNG bytes."""
+    client = _client()
+    kwargs = {"model": IMAGE_MODEL, "prompt": prompt, "size": size, "n": 1}
+    if transparent:
+        kwargs["background"] = "transparent"
+    if input_images:
+        files = []
+        for i, raw in enumerate(input_images):
+            f = io.BytesIO(raw)
+            f.name = f"input_{i}.png"
+            files.append(f)
+        resp = client.images.edit(image=files, **kwargs)
+    else:
+        resp = client.images.generate(**kwargs)
     b64 = resp.data[0].b64_json
     if not b64:
         raise RuntimeError("No image returned.")
     return base64.b64decode(b64)
+
+
+def _decode_inputs(payload: dict) -> list:
+    """Collect reference image(s), a logo, and/or a design-to-edit into a single
+    ordered list of raw image bytes for the edit endpoint."""
+    raws = []
+    edit_img = payload.get("edit_image")
+    if edit_img:
+        raws.append(edit_img)
+    for ref in (payload.get("reference_images") or []):
+        raws.append(ref)
+    if payload.get("logo"):
+        raws.append(payload.get("logo"))
+    out = []
+    for b in raws[:MAX_INPUT_IMAGES]:
+        s = b.split(",", 1)[1] if isinstance(b, str) and b.startswith("data:") else b
+        try:
+            out.append(base64.b64decode(s))
+        except Exception:  # noqa: BLE001
+            continue
+    return out
 
 
 def _thumb(data: bytes, box: int = 400) -> str:
@@ -55,17 +94,31 @@ def _thumb(data: bytes, box: int = 400) -> str:
 
 @router.post("/ai-designer/generate")
 async def generate_design(payload: dict = Body(...), user=Depends(require_team_access)):
+    import asyncio
     prompt = (payload.get("prompt") or "").strip()
-    if not prompt:
+    input_images = _decode_inputs(payload)
+    if not prompt and not input_images:
         raise HTTPException(status_code=400, detail="Describe what you'd like to create.")
+    if not prompt:
+        prompt = "Redesign this into a polished, professional graphic."
     if len(prompt) > 4000:
         prompt = prompt[:4000]
     assert_clean(prompt)
     size = payload.get("size") if payload.get("size") in ALLOWED_SIZES else "1024x1024"
+    transparent = bool(payload.get("transparent"))
+    try:
+        variations = int(payload.get("variations") or 1)
+    except (TypeError, ValueError):
+        variations = 1
+    variations = max(1, min(MAX_VARIATIONS, variations))
     if not os.environ.get("OPENAI_API_KEY"):
         raise HTTPException(status_code=503, detail="AI Designer isn't configured yet. Add your OpenAI API key.")
     try:
-        data = await run_in_threadpool(_openai_generate, prompt, size)
+        # Run the variations in parallel so the request stays fast.
+        results = await asyncio.gather(*[
+            run_in_threadpool(_openai_one, prompt, size, transparent, input_images)
+            for _ in range(variations)
+        ])
     except Exception as e:  # noqa: BLE001
         msg = str(e).lower()
         if "verif" in msg or ("model" in msg and ("not" in msg or "access" in msg)) or "must be verified" in msg:
@@ -79,7 +132,8 @@ async def generate_design(payload: dict = Body(...), user=Depends(require_team_a
         if "api key" in msg or "401" in msg or "authentication" in msg or "incorrect api key" in msg:
             raise HTTPException(status_code=503, detail="Your OpenAI API key was rejected. Please check the key.")
         raise HTTPException(status_code=502, detail="Couldn't generate the design. Please try again.")
-    return {"image_base64": base64.b64encode(data).decode("utf-8"), "prompt": prompt, "size": size}
+    images = [base64.b64encode(d).decode("utf-8") for d in results]
+    return {"images": images, "image_base64": images[0], "prompt": prompt, "size": size}
 
 
 @router.post("/ai-designer/save")

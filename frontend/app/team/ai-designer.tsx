@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform, Modal, Pressable } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform, Modal, Pressable, Switch, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
@@ -39,29 +40,70 @@ export default function AIDesigner() {
 
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
-  const [image, setImage] = useState<string>("");   // base64 of current design
+  const [image, setImage] = useState<string>("");   // base64 of the selected design
+  const [images, setImages] = useState<string[]>([]); // all variations from last generate
   const [lastPrompt, setLastPrompt] = useState("");
   const [saved, setSaved] = useState(false);
   const [savingBusy, setSavingBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // Brand inputs & options
+  const [refImage, setRefImage] = useState("");
+  const [logo, setLogo] = useState("");
+  const [variations, setVariations] = useState(1);
+  const [transparent, setTransparent] = useState(false);
+
+  // Edit / tweak
+  const [tweak, setTweak] = useState("");
+
   const [libOpen, setLibOpen] = useState(false);
   const [designs, setDesigns] = useState<Design[]>([]);
   const [libLoading, setLibLoading] = useState(false);
 
-  const generate = async (reuse?: boolean) => {
-    const p = (reuse ? lastPrompt : prompt).trim();
-    if (!p) { setError("Describe what you'd like to create."); return; }
+  const pickImage = async (kind: "reference" | "logo") => {
+    const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert("Photo access needed", "Allow photo access to add a reference image or logo.",
+        perm.canAskAgain ? [{ text: "OK" }] : [{ text: "Cancel", style: "cancel" }, { text: "Open Settings", onPress: () => Linking.openSettings() }]);
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8, base64: true });
+    if (!res.canceled && res.assets?.[0]?.base64) {
+      const uri = `data:${res.assets[0].mimeType || "image/png"};base64,${res.assets[0].base64}`;
+      if (kind === "reference") setRefImage(uri); else setLogo(uri);
+    }
+  };
+
+  const runGenerate = async (opts: { prompt: string; editImage?: string }) => {
     setError(""); setLoading(true); setSaved(false);
     try {
-      const r = await api.post<{ image_base64: string; prompt: string }>(
-        "/ai-designer/generate", { prompt: p }, { timeout: 120000 },
+      const body: any = { prompt: opts.prompt, variations, transparent };
+      if (opts.editImage) body.edit_image = opts.editImage;
+      if (refImage) body.reference_images = [refImage];
+      if (logo) body.logo = logo;
+      const r = await api.post<{ images: string[]; image_base64: string; prompt: string }>(
+        "/ai-designer/generate", body, { timeout: 180000 },
       );
-      setImage(r.data.image_base64);
-      setLastPrompt(p);
+      const imgs = r.data.images || [r.data.image_base64];
+      setImages(imgs);
+      setImage(imgs[0]);
+      setLastPrompt(opts.prompt);
     } catch (e: any) {
       setError(e?.response?.data?.detail || "Couldn't generate the design. Please try again.");
     } finally { setLoading(false); }
+  };
+
+  const generate = async (reuse?: boolean) => {
+    const p = (reuse ? lastPrompt : prompt).trim();
+    if (!p && !refImage && !logo) { setError("Describe what you'd like to create, or add a reference image."); return; }
+    await runGenerate({ prompt: p });
+  };
+
+  const applyEdit = async () => {
+    const t = tweak.trim();
+    if (!t || !image) return;
+    await runGenerate({ prompt: t, editImage: image });
+    setTweak("");
   };
 
   const save = async () => {
@@ -97,6 +139,7 @@ export default function AIDesigner() {
     try {
       const r = await api.get<{ image_base64: string; prompt: string }>(`/ai-designer/designs/${id}`, { timeout: 60000 });
       setImage(r.data.image_base64);
+      setImages([r.data.image_base64]);
       setLastPrompt(r.data.prompt || "");
     } catch (e: any) {
       setError(e?.response?.data?.detail || "Couldn't open that design.");
@@ -145,6 +188,29 @@ export default function AIDesigner() {
           />
           {!!error && <Text style={styles.error} testID="ai-designer-error">{error}</Text>}
 
+          {/* Brand inputs */}
+          <View style={styles.brandRow}>
+            <BrandSlot label="Reference" img={refImage} onAdd={() => pickImage("reference")} onClear={() => setRefImage("")} styles={styles} testID="ai-designer-ref" />
+            <BrandSlot label="Team logo" img={logo} onAdd={() => pickImage("logo")} onClear={() => setLogo("")} styles={styles} testID="ai-designer-logo" />
+          </View>
+
+          {/* Options */}
+          <Text style={styles.optLabel}>Variations</Text>
+          <View style={styles.chips}>
+            {[1, 2, 3, 4].map((n) => (
+              <TouchableOpacity key={n} style={[styles.chip, variations === n && styles.chipOn]} onPress={() => setVariations(n)} testID={`ai-designer-var-${n}`}>
+                <Text style={[styles.chipText, variations === n && styles.chipTextOn]}>{n}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.toggleRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.optLabel}>Transparent background</Text>
+              <Text style={styles.optHint}>Great for logos & stickers (PNG, no background).</Text>
+            </View>
+            <Switch value={transparent} onValueChange={setTransparent} trackColor={{ true: colors.accent, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? (transparent ? "white" : "#F1F5F9") : undefined} testID="ai-designer-transparent" />
+          </View>
+
           <TouchableOpacity
             style={[styles.genBtn, (loading || !prompt.trim()) && { opacity: 0.6 }]}
             onPress={() => generate(false)}
@@ -163,7 +229,18 @@ export default function AIDesigner() {
 
           {!!image && !loading && (
             <View style={styles.result}>
-              <Image source={{ uri: `data:image/png;base64,${image}` }} style={styles.image} resizeMode="cover" testID="ai-designer-image" />
+              <Image source={{ uri: `data:image/png;base64,${image}` }} style={styles.image} resizeMode="contain" testID="ai-designer-image" />
+
+              {images.length > 1 && (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.strip}>
+                  {images.map((im, i) => (
+                    <TouchableOpacity key={i} onPress={() => { setImage(im); setSaved(false); }} testID={`ai-designer-variation-${i}`}>
+                      <Image source={{ uri: `data:image/png;base64,${im}` }} style={[styles.stripThumb, image === im && styles.stripThumbOn]} resizeMode="cover" />
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => generate(true)} testID="ai-designer-regenerate">
                   <Ionicons name="refresh" size={18} color={colors.accent} />
@@ -176,6 +253,22 @@ export default function AIDesigner() {
                 <TouchableOpacity style={styles.actionBtn} onPress={share} testID="ai-designer-share">
                   <Ionicons name="share-outline" size={18} color={colors.accent} />
                   <Text style={styles.actionText}>Share</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Tweak / edit the selected design */}
+              <Text style={styles.optLabel}>Tweak this design</Text>
+              <View style={styles.tweakRow}>
+                <TextInput
+                  style={styles.tweakInput}
+                  value={tweak}
+                  onChangeText={setTweak}
+                  placeholder="e.g. make it navy & gold, add sparkles"
+                  placeholderTextColor={colors.textTertiary}
+                  testID="ai-designer-tweak"
+                />
+                <TouchableOpacity style={[styles.tweakBtn, !tweak.trim() && { opacity: 0.5 }]} onPress={applyEdit} disabled={!tweak.trim()} testID="ai-designer-apply-edit">
+                  <Ionicons name="color-wand-outline" size={18} color="#fff" />
                 </TouchableOpacity>
               </View>
             </View>
@@ -216,6 +309,26 @@ export default function AIDesigner() {
   );
 }
 
+function BrandSlot({ label, img, onAdd, onClear, styles, testID }: any) {
+  return (
+    <View style={styles.brandSlot}>
+      <Text style={styles.brandLabel}>{label}</Text>
+      {img ? (
+        <View>
+          <Image source={{ uri: img }} style={styles.brandImg} resizeMode="cover" />
+          <TouchableOpacity style={styles.brandClear} onPress={onClear} hitSlop={6} testID={`${testID}-clear`}>
+            <Ionicons name="close" size={14} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.brandAdd} onPress={onAdd} testID={`${testID}-add`}>
+          <Ionicons name="add" size={22} color={colors.accent} />
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
   header: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
@@ -225,6 +338,26 @@ const makeStyles = (c: ThemePalette) => ({
   q: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
   promptBox: { minHeight: 120, maxHeight: 240, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, backgroundColor: c.card, padding: spacing.md, color: c.textPrimary, ...typography.body, textAlignVertical: "top" as const },
   error: { ...typography.caption, color: "#DC2626", marginTop: spacing.sm },
+  brandRow: { flexDirection: "row" as const, gap: spacing.md, marginTop: spacing.lg },
+  brandSlot: { alignItems: "flex-start" as const },
+  brandLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700" as const, marginBottom: 6 },
+  brandAdd: { width: 64, height: 64, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, borderStyle: "dashed" as const, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: c.card },
+  brandImg: { width: 64, height: 64, borderRadius: radius.md, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  brandClear: { position: "absolute" as const, top: -6, right: -6, width: 22, height: 22, borderRadius: 11, backgroundColor: "rgba(220,38,38,0.95)", alignItems: "center" as const, justifyContent: "center" as const },
+  optLabel: { ...typography.caption, color: c.textPrimary, fontWeight: "700" as const, marginTop: spacing.lg },
+  optHint: { ...typography.caption, color: c.textTertiary, marginTop: 2 },
+  chips: { flexDirection: "row" as const, gap: spacing.sm, marginTop: spacing.sm },
+  chip: { width: 48, height: 40, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, alignItems: "center" as const, justifyContent: "center" as const, backgroundColor: c.card },
+  chipOn: { backgroundColor: c.accent, borderColor: c.accent },
+  chipText: { ...typography.bodyMedium, color: c.textSecondary, fontWeight: "700" as const },
+  chipTextOn: { color: "#fff" },
+  toggleRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: spacing.md, marginTop: spacing.xs },
+  strip: { gap: spacing.sm, paddingVertical: spacing.sm },
+  stripThumb: { width: 64, height: 64, borderRadius: radius.md, borderWidth: 2, borderColor: "transparent", backgroundColor: c.card },
+  stripThumbOn: { borderColor: c.accent },
+  tweakRow: { flexDirection: "row" as const, gap: spacing.sm, marginTop: spacing.sm },
+  tweakInput: { flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, backgroundColor: c.card, paddingHorizontal: spacing.md, paddingVertical: 12, color: c.textPrimary, ...typography.body },
+  tweakBtn: { width: 48, borderRadius: radius.md, backgroundColor: c.accent, alignItems: "center" as const, justifyContent: "center" as const },
   genBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, backgroundColor: c.accent, borderRadius: radius.lg, paddingVertical: 16, marginTop: spacing.lg },
   genText: { ...typography.bodyMedium, color: "#fff", fontWeight: "800" as const },
   progress: { alignItems: "center" as const, gap: 8, marginTop: spacing.xl },
