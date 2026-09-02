@@ -24,7 +24,9 @@ from core.security import require_team_access
 from core.helpers import _resolve_active_household
 from core.models import utcnow_iso
 from core.moderation import assert_clean
+from core.gating import assert_premium
 from core.storage import put_object, delete_object, APP_NAME
+from routers.team_chat import _chat_hub, _display_name
 
 router = APIRouter(prefix="/api")
 
@@ -32,6 +34,7 @@ IMAGE_MODEL = os.environ.get("AI_DESIGNER_MODEL", "gpt-image-2")
 ALLOWED_SIZES = {"1024x1024", "1536x1024", "1024x1536", "auto"}
 MAX_VARIATIONS = 4
 MAX_INPUT_IMAGES = 4
+FEATURE = "ai_designer"
 
 
 def _client():
@@ -95,7 +98,24 @@ def _thumb(data: bytes, box: int = 400) -> str:
 @router.post("/ai-designer/generate")
 async def generate_design(payload: dict = Body(...), user=Depends(require_team_access)):
     import asyncio
+    await assert_premium(user["id"], FEATURE)
     prompt = (payload.get("prompt") or "").strip()
+    # Apply a saved brand preset (logo + colors) if one is selected.
+    brand_id = payload.get("brand_id")
+    if brand_id:
+        h0 = await _resolve_active_household(user["id"])
+        preset = await db.brand_presets.find_one({"id": brand_id, "household_id": (h0 or {}).get("id")}, {"_id": 0}) if h0 else None
+        if preset:
+            colors = ", ".join(preset.get("colors") or [])
+            bits = []
+            if preset.get("name"):
+                bits.append(f"team {preset['name']}")
+            if colors:
+                bits.append(f"brand colors {colors}")
+            if bits:
+                prompt = (prompt + f" Use the {' and '.join(bits)}.").strip()
+            if preset.get("logo") and not payload.get("logo"):
+                payload = {**payload, "logo": preset["logo"]}
     input_images = _decode_inputs(payload)
     if not prompt and not input_images:
         raise HTTPException(status_code=400, detail="Describe what you'd like to create.")
@@ -139,6 +159,7 @@ async def generate_design(payload: dict = Body(...), user=Depends(require_team_a
 @router.post("/ai-designer/save")
 async def save_design(payload: dict = Body(...), user=Depends(require_team_access)):
     """Save a generated design to the in-app designs library."""
+    await assert_premium(user["id"], FEATURE)
     b64 = payload.get("image_base64") or ""
     if not b64:
         raise HTTPException(status_code=400, detail="Nothing to save.")
@@ -205,4 +226,138 @@ async def delete_design(design_id: str, user=Depends(require_team_access)):
             await run_in_threadpool(delete_object, rec["storage_path"])
         except Exception:  # noqa: BLE001
             pass  # best-effort; DB record already removed
+    return {"deleted": True}
+
+
+# ---------------------------------------------------------------
+# Post a design straight into Team Chat (coaches/staff can later
+# delete it from chat via the normal long-press delete).
+# ---------------------------------------------------------------
+@router.post("/ai-designer/post-to-chat")
+async def post_design_to_chat(payload: dict = Body(...), user=Depends(require_team_access)):
+    await assert_premium(user["id"], FEATURE)
+    b64 = payload.get("image_base64") or ""
+    if not b64:
+        raise HTTPException(status_code=400, detail="Nothing to post.")
+    try:
+        data = base64.b64decode(b64)
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="Invalid image data.")
+    h = await _chat_hub(user["id"], user) or await _resolve_active_household(user["id"])
+    if not h:
+        raise HTTPException(status_code=403, detail="No team chat available.")
+    media_id = secrets.token_urlsafe(10)
+    path = f"{APP_NAME}/ai_designer/{h['id']}/{user['id']}/{uuid.uuid4()}.png"
+    try:
+        await run_in_threadpool(put_object, path, data, "image/png")
+    except Exception:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail="Couldn't post the design. Please try again.")
+    await db.chat_media.insert_one({
+        "id": media_id, "household_id": h["id"], "owner_id": user["id"],
+        "storage_path": path, "content_type": "image/png", "kind": "image",
+        "name": "design.png", "size": len(data), "created_at": utcnow_iso(),
+    })
+    caption = (payload.get("caption") or "").strip()[:2000]
+    if caption:
+        assert_clean(caption)
+    now = utcnow_iso()
+    doc = {
+        "id": secrets.token_urlsafe(9), "household_id": h["id"],
+        "sender_id": user["id"], "sender_name": _display_name(user),
+        "text": caption, "media": [{"id": media_id, "kind": "image", "content_type": "image/png", "name": "design.png"}],
+        "reactions": {}, "mentions": [], "created_at": now,
+    }
+    await db.team_messages.insert_one(dict(doc))
+    await db.chat_reads.update_one(
+        {"household_id": h["id"], "user_id": user["id"]}, {"$set": {"last_read_at": now}}, upsert=True,
+    )
+    return {"ok": True, "message_id": doc["id"]}
+
+
+# ---------------------------------------------------------------
+# Brand presets — save multiple brands (name, colors, logo),
+# update and delete them. Applied at generate time via brand_id.
+# ---------------------------------------------------------------
+def _brand_logo(logo_b64: str) -> str:
+    """Downscale an uploaded brand logo to a small data URL for storage/reuse."""
+    if not logo_b64:
+        return ""
+    s = logo_b64.split(",", 1)[1] if logo_b64.startswith("data:") else logo_b64
+    try:
+        img = Image.open(io.BytesIO(base64.b64decode(s)))
+        img.thumbnail((512, 512))
+        out = io.BytesIO()
+        img.save(out, format="PNG")
+        return "data:image/png;base64," + base64.b64encode(out.getvalue()).decode("utf-8")
+    except Exception:  # noqa: BLE001
+        return logo_b64
+
+
+def _clean_brand(payload: dict) -> dict:
+    name = (payload.get("name") or "").strip()[:80]
+    colors = [str(c).strip()[:24] for c in (payload.get("colors") or []) if str(c).strip()][:5]
+    return {"name": name, "colors": colors}
+
+
+@router.get("/ai-designer/brands")
+async def list_brands(user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        return {"brands": []}
+    rows = await db.brand_presets.find(
+        {"household_id": h["id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(50)
+    return {"brands": rows}
+
+
+@router.post("/ai-designer/brands")
+async def create_brand(payload: dict = Body(...), user=Depends(require_team_access)):
+    await assert_premium(user["id"], FEATURE)
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        raise HTTPException(status_code=400, detail="No team hub found.")
+    fields = _clean_brand(payload)
+    if not fields["name"]:
+        raise HTTPException(status_code=400, detail="Give the brand a name.")
+    doc = {
+        "id": secrets.token_urlsafe(9), "household_id": h["id"], "owner_id": user["id"],
+        "name": fields["name"], "colors": fields["colors"],
+        "logo": _brand_logo(payload.get("logo") or ""),
+        "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
+    }
+    await db.brand_presets.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return doc
+
+
+@router.patch("/ai-designer/brands/{brand_id}")
+async def update_brand(brand_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    await assert_premium(user["id"], FEATURE)
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        raise HTTPException(status_code=404, detail="No team hub found.")
+    rec = await db.brand_presets.find_one({"id": brand_id, "household_id": h["id"]}, {"_id": 0})
+    if not rec:
+        raise HTTPException(status_code=404, detail="Brand not found.")
+    fields = _clean_brand(payload)
+    update = {"updated_at": utcnow_iso()}
+    if fields["name"]:
+        update["name"] = fields["name"]
+    if "colors" in payload:
+        update["colors"] = fields["colors"]
+    if "logo" in payload:
+        update["logo"] = _brand_logo(payload.get("logo") or "")
+    await db.brand_presets.update_one({"id": brand_id, "household_id": h["id"]}, {"$set": update})
+    out = await db.brand_presets.find_one({"id": brand_id, "household_id": h["id"]}, {"_id": 0})
+    return out
+
+
+@router.delete("/ai-designer/brands/{brand_id}")
+async def delete_brand(brand_id: str, user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    if not h:
+        raise HTTPException(status_code=404, detail="No team hub found.")
+    res = await db.brand_presets.delete_one({"id": brand_id, "household_id": h["id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Brand not found.")
     return {"deleted": True}

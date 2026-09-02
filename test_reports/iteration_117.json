@@ -1,0 +1,39 @@
+{
+  "summary": "CheerPlanner 'Design a Flyer' (rename + premium badge + brand presets CRUD + post-to-chat + enlarge modal + download) — both backend and frontend fully verified. Backend: 26/26 pytest cases pass (~2m 13s wall) in /app/backend/tests/test_ai_designer.py incl. 4 real OpenAI GPT-Image-2 generate calls + full CRUD verification of brand presets and post-to-chat, and 403 gating for non-staff on every new endpoint. Frontend (mobile viewport 390x844) as demo@cheerplanner.app: Team Hub tool card renders 'Design a Flyer' (confirmed after slow first render ~16s); /team/ai-designer header title is 'Design a Flyer'; +New brand modal opens (name/colors/logo/save/delete testIDs present), chip created + applied + long-press re-opens for edit + Save changes + long-press re-opens for delete → chip removed; Generate → image rendered ~15-30s; Tap image opens full-screen enlarge modal (ai-designer-enlarge-modal) with Download/Share/Post/Close testIDs all present; Download handler runs without crashing on web; Post to Team Chat → 200 → image message appears in Team Chat (verified via chat screen screenshot); Coach can long-press their flyer msg and Delete (msg count 4→3 confirmed via DOM). Non-staff parent/athlete blocked at API (403 on /ai-designer/brands*, /post-to-chat, and DELETE /team/chat/messages/{id} for a coach-posted flyer). Cleanup: all TEST_ brands + designs + chat messages removed post-test (demo account confirmed clean: 0 designs, 0 brands).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/(tabs)/team", "issues": ["Team Hub tool cards take ~15-16s to render on first open (long GET /api/team-* fetch chain). Not a regression from this iteration but worth investigating — a spinner-only screen for 15s feels slow."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_ai_designer.py",
+    "/app/test_reports/pytest/pytest_iter117_ai_designer.xml"
+  ],
+  "action_items": [
+    "OPTIONAL/UX (carryover): /team/ai-designer route still relies on backend 403 for non-staff; a client-side redirect on !user.team_access is present via useEffect but a non-staff user briefly sees the UI before the redirect fires — consider a synchronous guard/loader.",
+    "OPTIONAL/perf: Team Hub tab first paint of tool cards takes ~15s in preview — audit the batched /api/team/* fetches that block the tools ScrollView from rendering."
+  ],
+  "critical_code_review_comments": [
+    "ai_designer.py L246: _chat_hub is called with (user['id'], user) and falls back to _resolve_active_household — good, but if a coach owns multiple hubs, post-to-chat routes to whichever _chat_hub picks. Consider accepting an explicit household_id in payload for future multi-hub coaches.",
+    "ai_designer.py L281-293: _brand_logo returns the raw base64 string if PIL fails to open it — this can silently store an invalid/oversized logo. Consider returning '' on failure and surfacing a 400.",
+    "ai_designer.py L344-349: brand PATCH only updates `name` when a non-empty string is provided (correct), but there is no way to explicitly clear the name — acceptable for now given the modal enforces a non-empty name client-side.",
+    "ai-designer.tsx L196-206: removeBrand on web calls doIt() with NO confirmation dialog (silent delete) whereas native uses Alert.alert. Add window.confirm on web for parity — a mis-tap on the 'Delete brand' row in the edit modal permanently wipes the preset.",
+    "ai-designer.tsx L236-246: same pattern for deleteDesign — silent web delete.",
+    "team.tsx L43: PREMIUM_TOOLS includes 'ai_designer' but `gatingActive` is currently false (monetization disabled pre-launch), so the PREMIUM badge does not render in the DOM (confirmed — 'PREMIUM' text not present on Team Hub during this test). This matches the spec ('no-op until monetization_active') but means the pre-launch premium-badge presence cannot be visually verified until the gate is flipped."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_ai_designer.py"
+  ],
+  "success_rate": {"backend": "100% (26/26)", "frontend": "100% (all targeted flows verified: rename, brand CRUD, enlarge modal, post-to-chat, coach chat-delete, download handler)"},
+  "seed_data_creation": "During testing: 1 brand created + edited + deleted via UI; 1 design generated (not saved) + posted to chat + chat msg deleted via UI; pytest created 1 design (saved+deleted), 1 brand (created+patched+deleted), 2 chat messages (posted+deleted). Final state verified clean: 0 saved designs and 0 brand presets on the demo account.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Full pytest suite in /app/backend/tests/test_ai_designer.py — 26 cases, ~2m 13s wall due to 4 real OpenAI generate calls. New testIDs on /team/ai-designer: ai-designer-brand-new, ai-designer-brand-none, ai-designer-brand-<id>, ai-designer-brand-modal, ai-designer-brand-name, ai-designer-brand-colors, ai-designer-brand-logo, ai-designer-brand-save, ai-designer-brand-delete, ai-designer-enlarge, ai-designer-enlarge-modal, ai-designer-enlarge-download, ai-designer-enlarge-share, ai-designer-enlarge-post, ai-designer-enlarge-close, ai-designer-post-chat, ai-designer-download. Long-press on RN Web works via page.mouse.down() + wait(~900ms) + up() at the chip center. Chat delete menu label is 'Delete my message' (not 'Delete'). The 'PREMIUM' badge is intentionally NOT visible pre-launch (gatingActive=false); when monetization flips on, verify badge renders on the tool card."
+}

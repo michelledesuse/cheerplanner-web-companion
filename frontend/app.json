@@ -15,6 +15,7 @@
       "buildNumber": "115",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes",
+        "NSPhotoLibraryAddUsageDescription": "Save designs and flyers to your photos",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -28,7 +29,8 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
