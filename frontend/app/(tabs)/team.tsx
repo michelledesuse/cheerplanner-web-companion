@@ -22,7 +22,7 @@ type Tool = {
 };
 
 const TOOLS: Tool[] = [
-  { key: "coach_ai", title: "AI Coaching Assistant", desc: "Ask cheer questions & design event flyers. Coaches & staff only.", icon: "sparkles-outline", route: "/team/coach-ai" },
+  { key: "coach_ai", title: "AI Coaching Assistant", desc: "Ask cheer coaching questions & get instant answers. Coaches & staff only.", icon: "sparkles-outline", route: "/team/coach-ai" },
   { key: "ai_designer", title: "Design a Flyer", desc: "Describe a flyer and generate it with AI. Coaches & staff only.", icon: "color-palette-outline", route: "/team/ai-designer" },
   { key: "chat", title: "Team Chat", desc: "Message your coaches, reps & staff in one group thread.", icon: "chatbubbles-outline", route: "/team/chat" },
   { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
