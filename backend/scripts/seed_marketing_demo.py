@@ -27,6 +27,30 @@ from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 import core.models as server  # noqa: E402  (models live here; aliased as `server` for brevity)
 from core.security import hash_password  # noqa: E402
 from core.entitlements import grant_lifetime  # noqa: E402
+from core.storage import put_object, APP_NAME  # noqa: E402
+import base64 as _b64  # noqa: E402
+import io as _io  # noqa: E402
+from PIL import Image as _PILImage  # noqa: E402
+
+
+def _png_thumb(data: bytes, box: int = 400) -> str:
+    img = _PILImage.open(_io.BytesIO(data)).convert("RGB")
+    img.thumbnail((box, box))
+    out = _io.BytesIO()
+    img.save(out, format="JPEG", quality=72)
+    return "data:image/jpeg;base64," + _b64.b64encode(out.getvalue()).decode("utf-8")
+
+
+def _gen_image(prompt: str, transparent: bool = False) -> bytes:
+    """Generate one image with OpenAI GPT-Image-2 (sync; called via to_thread)."""
+    from openai import OpenAI
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    kwargs = {"model": os.environ.get("AI_DESIGNER_MODEL", "gpt-image-2"),
+              "prompt": prompt, "size": "1024x1024", "n": 1}
+    if transparent:
+        kwargs["background"] = "transparent"
+    resp = client.images.generate(**kwargs)
+    return _b64.b64decode(resp.data[0].b64_json)
 
 DEMO_EMAIL = "demo@cheerplanner.app"
 DEMO_PASSWORD = "CheerDemo2026!"
@@ -104,6 +128,11 @@ async def run() -> None:
         await db.team_messages.delete_many({"household_id": household_id})
         await db.chat_channels.delete_many({"household_id": household_id})
         await db.chat_reads.delete_many({"household_id": household_id})
+        await db.team_events.delete_many({"household_id": household_id})
+        await db.calendar_rsvps.delete_many({"household_id": household_id})
+        await db.ai_designs.delete_many({"household_id": household_id})
+        await db.brand_presets.delete_many({"household_id": household_id})
+        await db.chat_media.delete_many({"household_id": household_id})
         await db.households.update_one(
             {"id": household_id},
             {"$set": {"member_user_ids": [user_id], "team_hub_member_user_ids": [], "chat_athlete_user_ids": []}},
@@ -372,6 +401,103 @@ async def run() -> None:
                 "created_at": iso(base + timedelta(minutes=i * 20)),
             })
         print("Seeded 3 team-chat messages in the main thread.")
+
+    # ---- Team Hub Calendar: a few upcoming events so the calendar looks alive.
+    if household_id:
+        today = datetime.now(timezone.utc)
+        cal = [
+            ("practice", "Full-Out Practice", "Champion Gym", "18:00", "20:00", 3),
+            ("competition", "Spirit Cup Regional", "Orlando Convention Center", "08:00", "17:00", 12),
+            ("fundraiser", "Car Wash Fundraiser", "Champion Gym Parking Lot", "10:00", "14:00", 20),
+        ]
+        for etype, title, loc, st, et, days in cal:
+            await db.team_events.insert_one({
+                "id": str(uuid.uuid4()), "household_id": household_id, "title": title,
+                "event_type": etype, "location": loc, "address": "", "date": (today + timedelta(days=days)).date().isoformat(),
+                "start_time": st, "end_time": et, "notes": "", "recurrence": {"freq": "none"},
+                "created_by": user_id, "created_at": now_iso(),
+            })
+        print("Seeded 3 Team Hub calendar events.")
+
+    # ---- Team Forms: a duplicated form so reviewers see the Duplicate feature.
+    dup_meal = str(uuid.uuid4()); dup_extra = str(uuid.uuid4())
+    await db.team_forms.insert_one({
+        "id": str(uuid.uuid4()), "user_id": user_id, "name": "Banquet Meal Order (copy)",
+        "description": "Pick your entrée for the end-of-season banquet.", "locked": False,
+        "questions": [
+            {"id": dup_meal, "label": "Entrée choice", "type": "choice",
+             "options": ["Chicken", "Pasta", "Veggie"], "required": True, "order": 0},
+            {"id": dup_extra, "label": "Any dietary notes?", "type": "paragraph",
+             "options": [], "required": False, "order": 1},
+        ],
+        "photos": [], "competition_ids": [], "event_ids": [], "season_ids": [],
+        "close_at": None, "created_at": now_iso(), "updated_at": now_iso(),
+    })
+    print("Seeded a duplicated Team Form.")
+
+    # ---- Design a Flyer: brand preset + saved designs + one posted to chat.
+    if household_id and os.environ.get("OPENAI_API_KEY"):
+        try:
+            design_prompts = [
+                "A bold cheerleading competition poster, navy blue and gold, dynamic cheerleader mid-toss, sparkles, clean space for event text, professional",
+                "A vibrant cheer tryouts flyer, energetic pom-poms and megaphone, navy and gold color theme, modern layout, space for details",
+                "An elegant end-of-season banquet invitation, gold accents on navy, tasteful sparkle, formal cheer theme",
+            ]
+            logo_prompt = "A minimalist cheerleading team logo emblem: a megaphone crossed with a star, navy and gold, flat vector, centered"
+            results = await asyncio.gather(
+                asyncio.to_thread(_gen_image, logo_prompt, True),
+                *[asyncio.to_thread(_gen_image, p, False) for p in design_prompts],
+                return_exceptions=True,
+            )
+            logo_res, design_res = results[0], results[1:]
+            # Brand preset (with generated transparent logo if available)
+            brand_logo = ""
+            if isinstance(logo_res, (bytes, bytearray)):
+                small = _PILImage.open(_io.BytesIO(logo_res)); small.thumbnail((512, 512))
+                bo = _io.BytesIO(); small.save(bo, format="PNG")
+                brand_logo = "data:image/png;base64," + _b64.b64encode(bo.getvalue()).decode("utf-8")
+            await db.brand_presets.insert_one({
+                "id": secrets.token_urlsafe(9), "household_id": household_id, "owner_id": user_id,
+                "name": "Champion Elite Allstars", "colors": ["#0A1F44", "#FFD700"],
+                "logo": brand_logo, "created_at": now_iso(), "updated_at": now_iso(),
+            })
+            # Saved designs → My Designs library
+            saved_paths = []
+            titles = ["Regional Competition Poster", "Tryouts 2026 Flyer", "Season Banquet Invite"]
+            for data, title in zip(design_res, titles):
+                if not isinstance(data, (bytes, bytearray)):
+                    continue
+                did = secrets.token_urlsafe(10)
+                path = f"{APP_NAME}/ai_designer/{household_id}/{user_id}/{uuid.uuid4()}.png"
+                await asyncio.to_thread(put_object, path, bytes(data), "image/png")
+                await db.ai_designs.insert_one({
+                    "id": did, "household_id": household_id, "owner_id": user_id, "storage_path": path,
+                    "prompt": title, "thumb": _png_thumb(bytes(data)), "size": "1024x1024", "created_at": now_iso(),
+                })
+                saved_paths.append((title, bytes(data)))
+            # Post one flyer into Team Chat
+            if saved_paths and household_id:
+                title, data = saved_paths[0]
+                media_id = secrets.token_urlsafe(10)
+                cpath = f"{APP_NAME}/ai_designer/{household_id}/{user_id}/{uuid.uuid4()}.png"
+                await asyncio.to_thread(put_object, cpath, data, "image/png")
+                await db.chat_media.insert_one({
+                    "id": media_id, "household_id": household_id, "owner_id": user_id,
+                    "storage_path": cpath, "content_type": "image/png", "kind": "image",
+                    "name": "flyer.png", "size": len(data), "created_at": now_iso(),
+                })
+                await db.team_messages.insert_one({
+                    "id": secrets.token_urlsafe(9), "household_id": household_id, "channel_id": None,
+                    "sender_id": user_id, "sender_name": DEMO_NAME,
+                    "text": "Made this for Regionals with Design a Flyer! 🎀", 
+                    "media": [{"id": media_id, "kind": "image", "content_type": "image/png", "name": "flyer.png"}],
+                    "reactions": {}, "mentions": [], "created_at": iso(datetime.now(timezone.utc) - timedelta(minutes=30)),
+                })
+            print(f"Seeded Design-a-Flyer: 1 brand preset, {len(saved_paths)} designs, 1 posted to chat.")
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️  Skipped Design-a-Flyer seeding ({type(e).__name__}: {str(e)[:120]}).")
+    else:
+        print("⚠️  Skipped Design-a-Flyer seeding (no OPENAI_API_KEY).")
 
     # ---- Set the household theme to Blue & White (brand palette)
     await db.households.update_one(
