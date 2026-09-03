@@ -621,3 +621,20 @@ Get exact current paths from user before building W2.
 - Images generated via user's OpenAI key (gpt-image-2), run concurrently via asyncio.to_thread; guarded so seed still succeeds (with a warning) if OPENAI_API_KEY is absent or org unverified. Uses core.storage.put_object + APP_NAME; thumbs via PIL.
 - Verified via API: brands=1(logo), designs=3(thumbs), calendar events=3, forms=2, chat flyer message w/ 1 media; My Designs library screenshot confirms all 3 render.
 - To re-run: `cd /app/backend && python scripts/seed_marketing_demo.py` (bcrypt __about__ warning is benign). Remember to redeploy backend so the seeded data is present in production for Apple review.
+
+## Session update — Production auto-seed FIXED (P0)
+- ROOT CAUSE: `seed_marketing_demo.py` resolved the demo user's household via a bare
+  `db.households.find_one({member_user_ids: user_id})` and left `household_id=None` when
+  none existed. On a FRESH DB (production first boot) this skipped ALL household-scoped
+  seeding (athletes, teams, chat, calendar, forms, AND Design-a-Flyer). The
+  "no OPENAI_API_KEY" print was the misleading else-branch of `if household_id and OPENAI...`.
+- FIX 1 (seed): now calls `core.helpers._get_or_create_household(user_id)` so the household
+  is lazily created → all scoped data seeds. `household_id` always set.
+- FIX 2 (server.py startup): replaced the fragile `subprocess.run(seed_marketing_demo.py)`
+  (which exited ~1s under uvicorn's running loop via child-watcher issues) with an in-process
+  background task: `from scripts.seed_marketing_demo import run; await run()`. Idempotent —
+  guarded by `if demo user exists: return`.
+- VERIFIED on a simulated fresh DB: 1 demo user, 1 household, 2 athletes, 2 teams, coach +
+  co-parent + chat, 3 calendar events, team forms, 1 brand preset, 3 flyer designs, 1 flyer
+  posted to chat. Login `demo@cheerplanner.app / CheerDemo2026!` → 200 + token. No duplicate
+  demo users; only ONE seed run (no double OpenAI cost).

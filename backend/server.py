@@ -189,6 +189,31 @@ async def startup_db_client():
         await run_in_threadpool(init_storage)
     except Exception as _e:  # noqa: BLE001
         logging.getLogger("startup").warning("storage init deferred: %s", _e)
+
+    # One-time demo/reviewer seed: if the reviewer account is missing (e.g. a
+    # freshly deployed production database), seed it once in the background by
+    # running the seed script as a subprocess (same as the known-good CLI run,
+    # so cwd/env/event-loop are correct). Idempotent — skips once the demo user
+    # exists. Never blocks or crashes startup; only touches the demo household.
+    import asyncio as _asyncio
+
+    async def _ensure_demo_seed():
+        try:
+            existing = await db.users.find_one({"email": "demo@cheerplanner.app"}, {"_id": 0, "id": 1})
+            if existing:
+                return
+            _log = logging.getLogger("startup")
+            _log.info("Reviewer demo account missing — running one-time demo seed in-process…")
+            # Import and await the seed coroutine directly in the running loop.
+            # Running it as a subprocess from inside uvicorn's loop proved
+            # unreliable (child-watcher/loop issues); in-process is deterministic.
+            from scripts.seed_marketing_demo import run as _seed_run
+            await _seed_run()
+            _log.info("One-time demo seed finished successfully.")
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger("startup").warning("Demo auto-seed skipped: %s", exc, exc_info=True)
+
+    _asyncio.create_task(_ensure_demo_seed())
     # One-time backfill: ensure expenses with missing/null due_date inherit incurred_on
     try:
         cursor = db.expenses.find(

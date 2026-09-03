@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from motor.motor_asyncio import AsyncIOMotorClient  # noqa: E402
 import core.models as server  # noqa: E402  (models live here; aliased as `server` for brevity)
@@ -117,10 +117,14 @@ async def run() -> None:
         await db[c].delete_many({"user_id": user_id})
     print("Cleared previous demo data.")
 
-    # Resolve the demo user's household + wipe ParentGuard / chat demo state so
-    # re-runs always land on the same pending-approval scenario.
-    h = await db.households.find_one({"member_user_ids": user_id}, {"_id": 0})
-    household_id = h["id"] if h else None
+    # Resolve (lazy-create) the demo user's household + wipe ParentGuard / chat
+    # demo state so re-runs always land on the same pending-approval scenario.
+    # On a fresh DB (e.g. production first boot) the household does not exist yet,
+    # so we create it here — otherwise all household-scoped seeding (athletes,
+    # teams, chat, calendar, forms, flyers) would be silently skipped.
+    from core.helpers import _get_or_create_household
+    h = await _get_or_create_household(user_id)
+    household_id = h["id"]
     mia_login = await db.users.find_one({"email": MIA_ATHLETE_EMAIL})
     mia_login_id = mia_login["id"] if mia_login else None
     if household_id:
