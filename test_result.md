@@ -512,3 +512,11 @@ Creds: applereview@cheerplanner.app / Review2026!.
 - NOTE: video/audio PLAYBACK can only be verified on a native build (not web/Expo Go). Backend range fix verified via curl + pytest test_team_chat_media 1/1.
 - Multiple chats: NOT a feature — one supervised group thread per team by design (minors group-only). Additional/separate channels would be a new feature.
 Deploy: backend redeploy + NEW build required.
+
+## Iteration 110 — Team Hub Calendar: Month/Week/Day view + import Select-all/Series/Grey-out
+- Backend GET /api/team/calendar/importable now returns `already` (bool, item already on Team Hub via imported_from_personal_id) on competitions + events, and `series_id` on events.
+- Frontend app/team/calendar.tsx: NEW view toggle (Month default / Week / Day / List) for EVERYONE (staff + viewers/athletes), using react-native-calendars multi-dot grid + day/week agenda; List = old upcoming list. Range-based load via from_/to.
+- Import modal: "Select all"/"Clear" header button (selects all non-added items); repeating events grouped by series_id into a "Repeating series" block with one-tap select-whole-series (shows N/total); already-imported items greyed + disabled + "Added" pill (excluded from select-all).
+- VERIFIED (curl, demo@cheerplanner.app): importable returns already/series_id; events?from_&to returns month range. App bundles (smoke screenshot OK).
+- NOTE: demo weekly "Team practice" events were seeded as individual docs (series_id=None) so show as singles; real recurring personal events get series_id (schedule.py) and DO group.
+Creds: demo@cheerplanner.app / CheerDemo2026! (staff/coach on Team Hub).

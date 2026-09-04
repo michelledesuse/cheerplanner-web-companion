@@ -415,12 +415,21 @@ def _fmt_list(v):
 @router.get("/team/calendar/importable")
 async def importable(user=Depends(require_team_access)):
     ids = await _household_user_ids(user["id"])
+    h, _role = await _hub_and_role(user)
+    imported_ids = set()
+    if h:
+        async for te in db.team_events.find(
+            {"household_id": h["id"], "imported_from_personal_id": {"$nin": [None, ""]}},
+            {"_id": 0, "imported_from_personal_id": 1},
+        ):
+            if te.get("imported_from_personal_id"):
+                imported_ids.add(te["imported_from_personal_id"])
     comps = await db.competitions.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "event_date": 1}).sort("event_date", -1).to_list(100)
     today = date.today().isoformat()
-    evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1}).sort("date", 1).to_list(100)
+    evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1, "series_id": 1}).sort("date", 1).to_list(100)
     return {
-        "competitions": [{"id": c["id"], "name": c.get("name") or "Competition", "date": c.get("event_date")} for c in comps],
-        "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type")} for e in evs],
+        "competitions": [{"id": c["id"], "name": c.get("name") or "Competition", "date": c.get("event_date"), "already": c["id"] in imported_ids} for c in comps],
+        "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type"), "series_id": e.get("series_id"), "already": e["id"] in imported_ids} for e in evs],
     }
 
 

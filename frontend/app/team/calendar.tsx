@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, Switch, Platform } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, Switch, Platform, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Calendar, type DateData } from "react-native-calendars";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
@@ -31,6 +32,11 @@ const BUILTIN_TYPES: TypeDef[] = [
 function fmtDate(s: string) { try { return new Date(s + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); } catch { return s; } }
 function fmtTime(s?: string) { return s ? formatTime12(s) : ""; }
 
+type CalView = "month" | "week" | "day" | "list";
+function isoAddDays(iso: string, n: number): string { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+function isoStartOfWeek(iso: string): string { const d = new Date(iso + "T00:00:00"); return isoAddDays(iso, -d.getDay()); }
+function fmtDayLong(s: string) { try { return new Date(s + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); } catch { return s; } }
+
 export default function TeamCalendar() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -38,10 +44,14 @@ export default function TeamCalendar() {
   const [events, setEvents] = useState<Ev[]>([]);
   const [athletes, setAthletes] = useState<Ath[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [detail, setDetail] = useState<Ev | null>(null);
   const [formEv, setFormEv] = useState<Ev | null | "new">(null);
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
   const [importOpen, setImportOpen] = useState(false);
+  const [view, setView] = useState<CalView>("month");
+  const [selected, setSelected] = useState<string>(todayISO());
+  const [month, setMonth] = useState<string>(todayISO().slice(0, 7));
 
   const allTypes: TypeDef[] = useMemo(() => [
     ...BUILTIN_TYPES,
@@ -49,18 +59,73 @@ export default function TeamCalendar() {
   ], [customTypes]);
   const typeOf = useCallback((k?: string) => allTypes.find((t) => t.key === k) || BUILTIN_TYPES[0], [allTypes]);
 
+  const range = useMemo(() => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    if (view === "day") return { start: selected, end: selected };
+    if (view === "week") { const s = isoStartOfWeek(selected); return { start: s, end: isoAddDays(s, 6) }; }
+    if (view === "list") { const t = todayISO(); return { start: t, end: isoAddDays(t, 120) }; }
+    const [y, m] = month.split("-").map(Number);
+    const startDate = new Date(Date.UTC(y, m - 1, 1));
+    const endDate = new Date(Date.UTC(y, m, 0));
+    return {
+      start: `${startDate.getUTCFullYear()}-${pad(startDate.getUTCMonth() + 1)}-${pad(startDate.getUTCDate())}`,
+      end: `${endDate.getUTCFullYear()}-${pad(endDate.getUTCMonth() + 1)}-${pad(endDate.getUTCDate())}`,
+    };
+  }, [view, selected, month]);
+
   const load = useCallback(async () => {
     try {
-      const from = new Date().toISOString().slice(0, 10);
-      const r = await api.get<{ role: string; events: Ev[]; athletes?: Ath[] }>(`/team/calendar/events?from_=${from}`);
+      const r = await api.get<{ role: string; events: Ev[]; athletes?: Ath[] }>(`/team/calendar/events?from_=${range.start}&to=${range.end}`);
       setRole(r.data.role); setEvents(r.data.events || []); setAthletes(r.data.athletes || []);
     } catch (_e) { setEvents([]); }
-    finally { setLoading(false); }
-  }, []);
+    finally { setLoading(false); setRefreshing(false); }
+  }, [range.start, range.end]);
+  useEffect(() => { setLoading(true); load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useEffect(() => { (async () => { try { const ht = await api.get("/household/custom-types"); setCustomTypes(ht.data.event_types || []); } catch (_e) { /* ignore */ } })(); }, []);
 
   const isStaff = role === "staff";
+
+  const markedDates = useMemo(() => {
+    const map: Record<string, any> = {};
+    const seen: Record<string, Set<string>> = {};
+    for (const e of events) {
+      const color = typeOf(e.event_type).color;
+      if (!seen[e.occ_date]) seen[e.occ_date] = new Set();
+      if (seen[e.occ_date].has(color)) continue;
+      seen[e.occ_date].add(color);
+      if (!map[e.occ_date]) map[e.occ_date] = { dots: [] };
+      map[e.occ_date].dots.push({ key: `${color}-${map[e.occ_date].dots.length}`, color });
+    }
+    map[selected] = { ...(map[selected] || { dots: [] }), selected: true, selectedColor: colors.accent };
+    return map;
+  }, [events, selected, typeOf]);
+
+  const dayEvents = useCallback((d: string) => events.filter((e) => e.occ_date === d), [events]);
+  const weekDays = useMemo(() => { const s = isoStartOfWeek(selected); return Array.from({ length: 7 }, (_, i) => isoAddDays(s, i)); }, [selected]);
+
+  const renderCard = (e: Ev, showDate = true) => {
+    const t = typeOf(e.event_type);
+    return (
+      <TouchableOpacity key={e.event_id + e.occ_date} style={styles.card} onPress={() => setDetail(e)} testID={`event-${e.event_id}-${e.occ_date}`}>
+        {showDate && <View style={styles.dateChip}><Text style={styles.dateChipText}>{fmtDate(e.occ_date)}</Text></View>}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.rowT}>
+            <View style={[styles.typeDot, { backgroundColor: t.color }]} />
+            <Text style={styles.evTitle} numberOfLines={1}>{e.title}</Text>
+            {e.recurring && <Ionicons name="repeat" size={14} color={colors.textTertiary} />}
+          </View>
+          <Text style={styles.evMeta}>{[t.label, fmtTime(e.start_time), e.location].filter(Boolean).join(" · ") || "All day"}</Text>
+          {!isStaff && (e.my_rsvps || []).length > 0 && <Text style={styles.evRsvp}>{e.my_rsvps!.map((m) => athletes.find((a) => a.roster_id === m.roster_id)?.name.split(" ")[0] + ": " + (m.status === "attending" ? "✅" : "❌")).join("  ")}</Text>}
+        </View>
+        {isStaff && <View style={styles.countChip}><Text style={styles.countText}>{e.rsvp_count || 0}</Text></View>}
+        <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+      </TouchableOpacity>
+    );
+  };
+
+  const emptyDay = <View style={styles.empty}><Ionicons name="calendar-outline" size={26} color={colors.textTertiary} /><Text style={styles.emptyText}>Nothing scheduled.</Text></View>;
+  const spinner = <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />;
 
   const importAll = async () => {
     try {
@@ -74,36 +139,82 @@ export default function TeamCalendar() {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ padding: 4 }}><Ionicons name="chevron-back" size={24} color={colors.textPrimary} /></TouchableOpacity>
         <View style={{ flex: 1 }}><Text style={styles.title}>Calendar</Text><Text style={styles.subtitle}>{isStaff ? "Tap an event to see RSVPs" : "Tap an event to RSVP"}</Text></View>
+        {selected !== todayISO() && <TouchableOpacity onPress={() => { setSelected(todayISO()); setMonth(todayISO().slice(0, 7)); }} hitSlop={8} style={{ padding: 4 }} testID="calendar-today"><Ionicons name="today-outline" size={20} color={colors.accent} /></TouchableOpacity>}
         <TouchableOpacity onPress={importAll} hitSlop={8} style={{ padding: 4 }} testID="calendar-import-all"><Ionicons name="cloud-download-outline" size={22} color={colors.accent} /></TouchableOpacity>
         {isStaff && <TouchableOpacity onPress={() => setImportOpen(true)} hitSlop={8} style={{ padding: 4 }} testID="calendar-import-personal"><Ionicons name="albums-outline" size={22} color={colors.accent} /></TouchableOpacity>}
         {isStaff && <TouchableOpacity onPress={() => setFormEv("new")} hitSlop={8} style={{ padding: 4 }} testID="calendar-add-btn"><Ionicons name="add-circle" size={26} color={colors.accent} /></TouchableOpacity>}
       </View>
 
-      {loading ? <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} /> : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator>
-          {events.length === 0 ? (
-            <View style={styles.empty}><Ionicons name="calendar-outline" size={28} color={colors.textTertiary} /><Text style={styles.emptyText}>No upcoming events.</Text></View>
-          ) : events.map((e) => {
-            const t = typeOf(e.event_type);
-            return (
-            <TouchableOpacity key={e.event_id + e.occ_date} style={styles.card} onPress={() => setDetail(e)} testID={`event-${e.event_id}-${e.occ_date}`}>
-              <View style={styles.dateChip}><Text style={styles.dateChipText}>{fmtDate(e.occ_date)}</Text></View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <View style={styles.rowT}>
-                  <View style={[styles.typeDot, { backgroundColor: t.color }]} />
-                  <Text style={styles.evTitle} numberOfLines={1}>{e.title}</Text>
-                  {e.recurring && <Ionicons name="repeat" size={14} color={colors.textTertiary} />}
-                </View>
-                <Text style={styles.evMeta}>{[t.label, fmtTime(e.start_time), e.location].filter(Boolean).join(" · ") || "All day"}</Text>
-                {!isStaff && (e.my_rsvps || []).length > 0 && <Text style={styles.evRsvp}>{e.my_rsvps!.map((m) => athletes.find((a) => a.roster_id === m.roster_id)?.name.split(" ")[0] + ": " + (m.status === "attending" ? "✅" : "❌")).join("  ")}</Text>}
-              </View>
-              {isStaff && <View style={styles.countChip}><Text style={styles.countText}>{e.rsvp_count || 0}</Text></View>}
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+      <View style={styles.viewToggleRow}>
+        <View style={styles.viewToggle}>
+          {(["month", "week", "day", "list"] as const).map((v) => (
+            <TouchableOpacity key={v} onPress={() => setView(v)} style={[styles.viewChip, view === v && styles.viewChipOn]} testID={`teamcal-view-${v}`}>
+              <Text style={[styles.viewChipText, view === v && styles.viewChipTextOn]}>{v[0].toUpperCase() + v.slice(1)}</Text>
             </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      )}
+          ))}
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}>
+        {view === "list" && (
+          loading ? spinner : events.length === 0 ? (
+            <View style={styles.empty}><Ionicons name="calendar-outline" size={28} color={colors.textTertiary} /><Text style={styles.emptyText}>No upcoming events.</Text></View>
+          ) : events.map((e) => renderCard(e, true))
+        )}
+
+        {view === "month" && (
+          <>
+            <Calendar
+              key={month}
+              current={selected}
+              markingType="multi-dot"
+              markedDates={markedDates}
+              onDayPress={(d: DateData) => setSelected(d.dateString)}
+              onMonthChange={(d: DateData) => setMonth(`${d.year}-${String(d.month).padStart(2, "0")}`)}
+              theme={{
+                backgroundColor: colors.bg, calendarBackground: colors.bg,
+                todayTextColor: colors.accent, selectedDayBackgroundColor: colors.accent,
+                selectedDayTextColor: "white", arrowColor: colors.accent,
+                textMonthFontWeight: "800", textDayFontWeight: "500", textDayHeaderFontWeight: "700",
+                monthTextColor: colors.textPrimary, dayTextColor: colors.textPrimary,
+                textSectionTitleColor: colors.textSecondary,
+              }}
+              style={styles.calGrid}
+            />
+            <View style={styles.daySection}>
+              <Text style={styles.dayTitle}>{fmtDayLong(selected)}</Text>
+              {loading ? spinner : dayEvents(selected).length === 0 ? emptyDay : dayEvents(selected).map((e) => renderCard(e, false))}
+            </View>
+          </>
+        )}
+
+        {view === "day" && (
+          <View style={styles.daySection}>
+            <View style={styles.navRow}>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, -1))} style={styles.navBtn} testID="teamcal-prev"><Ionicons name="chevron-back" size={20} color={colors.textPrimary} /></TouchableOpacity>
+              <Text style={styles.dayTitle}>{fmtDayLong(selected)}</Text>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, 1))} style={styles.navBtn} testID="teamcal-next"><Ionicons name="chevron-forward" size={20} color={colors.textPrimary} /></TouchableOpacity>
+            </View>
+            {loading ? spinner : dayEvents(selected).length === 0 ? emptyDay : dayEvents(selected).map((e) => renderCard(e, false))}
+          </View>
+        )}
+
+        {view === "week" && (
+          <View style={styles.daySection}>
+            <View style={styles.navRow}>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, -7))} style={styles.navBtn} testID="teamcal-prev"><Ionicons name="chevron-back" size={20} color={colors.textPrimary} /></TouchableOpacity>
+              <Text style={styles.dayTitle}>Week of {fmtDate(weekDays[0])}</Text>
+              <TouchableOpacity onPress={() => setSelected(isoAddDays(selected, 7))} style={styles.navBtn} testID="teamcal-next"><Ionicons name="chevron-forward" size={20} color={colors.textPrimary} /></TouchableOpacity>
+            </View>
+            {loading ? spinner : weekDays.map((d) => (
+              <View key={d} style={{ marginBottom: spacing.md }}>
+                <Text style={styles.weekDayHead}>{fmtDayLong(d)}</Text>
+                {dayEvents(d).length === 0 ? <Text style={styles.weekEmpty}>—</Text> : dayEvents(d).map((e) => renderCard(e, false))}
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
 
       {detail && <DetailModal ev={detail} isStaff={isStaff} athletes={athletes} typeOf={typeOf} onEdit={() => { const d = detail; setDetail(null); setFormEv(d); }} onClose={() => setDetail(null)} onChanged={load} styles={styles} />}
       {formEv && <EventForm ev={formEv === "new" ? null : formEv} allTypes={allTypes} customTypes={customTypes} setCustomTypes={setCustomTypes} onClose={() => setFormEv(null)} onSaved={() => { setFormEv(null); load(); }} styles={styles} />}
@@ -320,7 +431,9 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
   );
 }
 
-type Importable = { competitions: { id: string; name: string; date?: string }[]; events: { id: string; title: string; date?: string; event_type?: string }[] };
+type ImpComp = { id: string; name: string; date?: string; already?: boolean };
+type ImpEvent = { id: string; title: string; date?: string; event_type?: string; series_id?: string | null; already?: boolean };
+type Importable = { competitions: ImpComp[]; events: ImpEvent[] };
 
 function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
   const [data, setData] = useState<Importable>({ competitions: [], events: [] });
@@ -336,7 +449,32 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
   })(); }, []);
 
   const toggle = (id: string, source: "competition" | "schedule") => setSel((p) => { const n = { ...p }; if (n[id]) delete n[id]; else n[id] = source; return n; });
+  const setMany = (items: { id: string; source: "competition" | "schedule" }[], on: boolean) =>
+    setSel((p) => { const n = { ...p }; items.forEach(({ id, source }) => { if (on) n[id] = source; else delete n[id]; }); return n; });
   const count = Object.keys(sel).length;
+
+  // Split events into repeating series (2+ dates) and single events.
+  const { singleEvents, seriesGroups } = useMemo(() => {
+    const byId = new Map<string, ImpEvent[]>();
+    const singles: ImpEvent[] = [];
+    for (const e of data.events) {
+      if (e.series_id) { const a = byId.get(e.series_id) || []; a.push(e); byId.set(e.series_id, a); }
+      else singles.push(e);
+    }
+    const groups: { sid: string; items: ImpEvent[] }[] = [];
+    byId.forEach((items, sid) => {
+      if (items.length > 1) groups.push({ sid, items: items.slice().sort((a, b) => String(a.date).localeCompare(String(b.date))) });
+      else singles.push(items[0]);
+    });
+    singles.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    groups.sort((a, b) => String(a.items[0]?.date).localeCompare(String(b.items[0]?.date)));
+    return { singleEvents: singles, seriesGroups: groups };
+  }, [data.events]);
+
+  const selectableComp = data.competitions.filter((c) => !c.already);
+  const selectableEvent = data.events.filter((e) => !e.already);
+  const allSelectable = [...selectableComp.map((c) => ({ id: c.id, source: "competition" as const })), ...selectableEvent.map((e) => ({ id: e.id, source: "schedule" as const }))];
+  const allSelected = allSelectable.length > 0 && allSelectable.every(({ id }) => sel[id]);
 
   const doImport = async () => {
     if (count === 0) return;
@@ -356,42 +494,81 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
 
   const hasAny = data.competitions.length > 0 || data.events.length > 0;
 
+  const CheckRow = ({ id, source, title, date, icon, iconColor, already, indent }: any) => {
+    const on = !!sel[id];
+    return (
+      <TouchableOpacity
+        key={id}
+        style={[styles.impRow, indent && { paddingLeft: 18 }, already && { opacity: 0.5 }]}
+        onPress={() => { if (!already) toggle(id, source); }}
+        disabled={already}
+        testID={`imp-${source === "competition" ? "comp" : "ev"}-${id}`}
+      >
+        <Ionicons
+          name={already ? "checkmark-circle" : on ? "checkbox" : "square-outline"}
+          size={22}
+          color={already ? "#10B981" : on ? colors.accent : colors.textTertiary}
+        />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.impTitle} numberOfLines={1}>{title}</Text>
+          {!!date && <Text style={styles.impMeta}>{fmtDate(String(date).slice(0, 10))}</Text>}
+        </View>
+        {already ? <View style={styles.addedPill}><Text style={styles.addedPillText}>Added</Text></View> : <Ionicons name={icon} size={16} color={iconColor} />}
+      </TouchableOpacity>
+    );
+  };
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.modalWrap} onPress={onClose}><Pressable style={styles.sheet} onPress={() => {}} testID="import-personal-modal">
-        <Text style={styles.sheetTitle}>Import to Team Hub</Text>
-        <Text style={styles.sheetSub2}>Pick your competitions & events to add to the team calendar.</Text>
+        <View style={styles.rowT}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sheetTitle}>Import to Team Hub</Text>
+            <Text style={styles.sheetSub2}>Pick your competitions & events to add to the team calendar.</Text>
+          </View>
+          {hasAny && allSelectable.length > 0 && (
+            <TouchableOpacity onPress={() => setMany(allSelectable, !allSelected)} style={styles.selectAllBtn} testID="imp-select-all">
+              <Ionicons name={allSelected ? "close-circle-outline" : "checkmark-done-outline"} size={16} color={colors.accent} />
+              <Text style={styles.selectAllText}>{allSelected ? "Clear" : "Select all"}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
         {loading ? <ActivityIndicator color={colors.accent} style={{ marginVertical: 24 }} /> : (
           <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator>
             {!hasAny && <Text style={[styles.dim, { marginTop: 12 }]}>Nothing to import yet. Add competitions or upcoming schedule events in the parent portal first.</Text>}
+
             {data.competitions.length > 0 && <Text style={styles.secLbl}>Competitions</Text>}
-            {data.competitions.map((c) => {
-              const on = !!sel[c.id];
+            {data.competitions.map((c) => (
+              <CheckRow key={c.id} id={c.id} source="competition" title={c.name} date={c.date} icon="trophy" iconColor="#F59E0B" already={c.already} />
+            ))}
+
+            {seriesGroups.length > 0 && <Text style={styles.secLbl}>Repeating series</Text>}
+            {seriesGroups.map(({ sid, items }) => {
+              const selectable = items.filter((e) => !e.already);
+              const onCount = selectable.filter((e) => sel[e.id]).length;
+              const seriesOn = selectable.length > 0 && onCount === selectable.length;
+              const first = items[0]; const last = items[items.length - 1];
               return (
-                <TouchableOpacity key={c.id} style={styles.impRow} onPress={() => toggle(c.id, "competition")} testID={`imp-comp-${c.id}`}>
-                  <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? colors.accent : colors.textTertiary} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.impTitle} numberOfLines={1}>{c.name}</Text>
-                    {!!c.date && <Text style={styles.impMeta}>{fmtDate(String(c.date).slice(0, 10))}</Text>}
-                  </View>
-                  <Ionicons name="trophy" size={16} color="#F59E0B" />
-                </TouchableOpacity>
+                <View key={sid} style={styles.seriesBlock}>
+                  <TouchableOpacity style={styles.impRow} onPress={() => setMany(selectable.map((e) => ({ id: e.id, source: "schedule" as const })), !seriesOn)} disabled={selectable.length === 0} testID={`imp-series-${sid}`}>
+                    <Ionicons name={seriesOn ? "checkbox" : onCount > 0 ? "remove-circle" : "square-outline"} size={22} color={seriesOn || onCount > 0 ? colors.accent : colors.textTertiary} />
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <View style={styles.rowT}><Ionicons name="repeat" size={13} color={colors.textSecondary} /><Text style={styles.impTitle} numberOfLines={1}>{first.title}</Text></View>
+                      <Text style={styles.impMeta}>{items.length} dates · {fmtDate(String(first.date).slice(0, 10))} – {fmtDate(String(last.date).slice(0, 10))}</Text>
+                    </View>
+                    <Text style={styles.seriesCount}>{onCount}/{selectable.length}</Text>
+                  </TouchableOpacity>
+                  {items.map((e) => (
+                    <CheckRow key={e.id} id={e.id} source="schedule" title={fmtDate(String(e.date).slice(0, 10))} icon="calendar" iconColor={colors.textTertiary} already={e.already} indent />
+                  ))}
+                </View>
               );
             })}
-            {data.events.length > 0 && <Text style={styles.secLbl}>Upcoming events</Text>}
-            {data.events.map((e) => {
-              const on = !!sel[e.id];
-              return (
-                <TouchableOpacity key={e.id} style={styles.impRow} onPress={() => toggle(e.id, "schedule")} testID={`imp-ev-${e.id}`}>
-                  <Ionicons name={on ? "checkbox" : "square-outline"} size={22} color={on ? colors.accent : colors.textTertiary} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.impTitle} numberOfLines={1}>{e.title}</Text>
-                    {!!e.date && <Text style={styles.impMeta}>{fmtDate(String(e.date).slice(0, 10))}</Text>}
-                  </View>
-                  <Ionicons name="calendar" size={16} color={colors.textTertiary} />
-                </TouchableOpacity>
-              );
-            })}
+
+            {singleEvents.length > 0 && <Text style={styles.secLbl}>Upcoming events</Text>}
+            {singleEvents.map((e) => (
+              <CheckRow key={e.id} id={e.id} source="schedule" title={e.title} date={e.date} icon="calendar" iconColor={colors.textTertiary} already={e.already} />
+            ))}
 
             {hasAny && (
               <>
@@ -471,4 +648,23 @@ const makeStyles = (c: ThemePalette) => ({
   impMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   incRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8 },
   incLabel: { ...typography.body, color: c.textPrimary, fontWeight: "600" },
+  viewToggleRow: { flexDirection: "row", justifyContent: "flex-end", paddingHorizontal: spacing.md, paddingTop: spacing.sm },
+  viewToggle: { flexDirection: "row", backgroundColor: c.card, padding: 3, borderRadius: 999, borderWidth: 1, borderColor: c.border },
+  viewChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999 },
+  viewChipOn: { backgroundColor: c.accent },
+  viewChipText: { ...typography.caption, fontWeight: "800", color: c.textSecondary },
+  viewChipTextOn: { color: "white" },
+  calGrid: { marginHorizontal: spacing.md, marginTop: spacing.sm, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, paddingBottom: 8 },
+  daySection: { paddingHorizontal: spacing.md, paddingTop: spacing.md, gap: spacing.sm },
+  dayTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.xs },
+  navRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.xs },
+  navBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  weekDayHead: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, marginBottom: 6 },
+  weekEmpty: { ...typography.caption, color: c.textTertiary, marginBottom: 4 },
+  addedPill: { backgroundColor: "#10B98122", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  addedPillText: { ...typography.caption, color: "#059669", fontWeight: "800", fontSize: 11 },
+  selectAllBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 999, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  selectAllText: { ...typography.caption, color: c.accent, fontWeight: "800" },
+  seriesBlock: { borderLeftWidth: 2, borderLeftColor: c.border, paddingLeft: 6, marginTop: 2 },
+  seriesCount: { ...typography.caption, color: c.textSecondary, fontWeight: "800" },
 });

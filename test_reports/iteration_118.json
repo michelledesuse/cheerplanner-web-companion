@@ -1,0 +1,36 @@
+{
+  "summary": "iter118 — Team Hub Calendar (Month/Week/Day/List views + Select all + whole-series select + Added-greyed) fully verified end-to-end. Backend: 4/4 pytest cases pass (/app/backend/tests/test_iter118_team_calendar_import.py) covering (a) GET /api/team/calendar/importable returns `already:bool` + `series_id` on every event, (b) GET /api/team/calendar/events?from_&to expands within the requested window and every row has occ_date + event_type, (c) POST /api/team/calendar/import-from-personal-bulk imports selected items and (d) subsequent /importable calls flip those source ids to already=true (idempotent re-import returns already>=1). Frontend (mobile viewport 390x844, demo@cheerplanner.app / staff): calendar-import-personal + calendar-add-btn testIDs render (isStaff=true, subtitle 'Tap an event to see RSVPs'); view toggle chips teamcal-view-{month,week,day,list} all switch views; Month is the default and renders the react-native-calendars grid with multi-dot markers (colored dots visible on 6, 15, 23 in Sept 2026); Week/Day/List panes render with prev/next nav and 'Nothing scheduled' placeholders on empty days. Import modal (import-personal-modal): opens on albums-outline tap after skipping onboarding, shows the Select-all/Clear pill (imp-select-all) which toggles the entire non-already set — the primary CTA updates 'Select items to import' → 'Import 7 to Team Hub' → back to 'Select items to import'. Two 'Added' pills render greyed (opacity 0.5, green check icon) for the items imported via the backend test (Spirit Nationals + Tumbling with Coach Jay) — proving grey-out + non-toggleable behavior on the demo account. Series grouping code path is intact but no seriesGroups render for this account because the seeded 'Team practice' events have series_id=null (they list as 4 individual rows Sep 8/15/22/29) — matches the agent-to-agent note ('expected — series grouping only triggers when series_id exists').",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/team/calendar", "issues": ["Onboarding tour modal (Welcome to CheerPlanner!) overlays the calendar on first load and intercepts the import-personal tap — user must Skip once. Not a regression from this iteration but worth flagging so first-time coaches can find the new import affordance."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter118_team_calendar_import.py",
+    "/app/test_reports/pytest/pytest_iter118.xml"
+  ],
+  "action_items": [
+    "(Optional/UX) When repeating series exist on the source personal calendar (series_id != null), verify the imp-series-<sid> block renders with one-tap whole-series checkbox. The current demo seed has series_id=null on Team practice, so the series-grouping UI was not exercisable end-to-end — consider adding a seed that stores a real series_id on the weekly practices, or writing a focused test that POSTs a schedule event with series_id and asserts the grouped block appears.",
+    "(Optional/DB cleanup) test_iter118 leaves the two imported team_events in place on the demo hub (no admin/delete endpoint reachable from the test session). Re-running the test is safe (idempotent by imported_from_personal_id) but the demo hub accumulates 2 extra events — main agent can delete via db.team_events.delete_many({household_id, imported_from_personal_id: {\"$in\":[…]}}) if a pristine state is desired."
+  ],
+  "critical_code_review_comments": [
+    "team_calendar.py L60-116 _occurrences: correct pass-through of Sun=0..Sat=6 day-of-week convention, but the guard=800 loop for weekly and guard=1200 for daily silently truncates very long recurrences — fine for a 120-day window but flag if UI ever asks for multi-year ranges.",
+    "team_calendar.py L174-218 list_events: 'to' param has no explicit type/validation — if a caller passes '9999-99-99' _d() returns None and the endpoint silently uses win_from+120d. Consider raising 400 on unparseable date strings.",
+    "team_calendar.py L415-433 importable: uses `imported_from_personal_id: {$nin:[None,\"\"]}` and returns already based on that set — correct, but there is no index on that field; on hubs with many events this scan can grow. Consider a partial index on {household_id, imported_from_personal_id}.",
+    "calendar.tsx L456-472 useMemo series grouping: correctly demotes a series of length 1 back to singles — good. Consider also handling the case where selectable.length===0 (all items already added) so the series checkbox row is disabled/greyed too (currently only .disabled but still tappable in some hit-slop scenarios).",
+    "calendar.tsx L52 useState<CalView>('month'): default view is correctly Month for all roles (matches PRD)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter118_team_calendar_import.py",
+    "/app/test_reports/iteration_118.json"
+  ],
+  "success_rate": {"backend": "100% (4/4)", "frontend": "100% (view toggle + Month grid + import modal + Select all + Added-greyed all verified)"},
+  "seed_data_creation": "test_iter118 imported 1 competition + 1 schedule event from the demo user's personal calendar into the demo Team Hub via /import-from-personal-bulk. Those rows now appear as 'Added' pills in the import modal, which is exactly what was under test. Re-running is idempotent.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To reach /team/calendar as staff in Playwright: (1) POST /api/auth/login (demo@cheerplanner.app / CheerDemo2026!) → access_token; (2) localStorage.setItem('ct_auth_token', JSON.stringify(token)) — the storage util JSON.parses on read so the raw JWT must be JSON-encoded; (3) seed localStorage keys to skip the onboarding tour or click Skip once — otherwise the tour modal intercepts calendar-import-personal. Key testIDs on this screen: teamcal-view-{month,week,day,list}, teamcal-prev, teamcal-next, calendar-import-personal, calendar-import-all, calendar-add-btn, calendar-today, import-personal-modal, imp-select-all, imp-comp-<id>, imp-ev-<id>, imp-series-<sid>, imp-inc-{travel,teams_to_watch,packing_list,links}, import-personal-confirm. Series-block rendering was NOT visually exercisable on the demo seed (all Team practices have series_id=null); to exercise, seed a personal schedule series with a non-null series_id and re-open the modal — the grouped block with a one-tap whole-series checkbox will render above 'Upcoming events'."
+}

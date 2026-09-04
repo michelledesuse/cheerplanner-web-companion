@@ -240,13 +240,18 @@ async def run() -> None:
     ))
 
     # ---- Schedule (recurring practice + private lesson)
+    # Practices are a proper WEEKLY SERIES (shared series_id + recurrence_rule) so
+    # the Team Hub import modal can offer "select the whole series" in one tap.
     next_tue = today + timedelta(days=(1 - today.weekday()) % 7 or 7)
+    practice_series_id = str(uuid.uuid4())
+    practice_rule = server.RecurrenceRule(frequency="weekly", days_of_week=[next_tue.weekday()], until=str(next_tue + timedelta(weeks=5)))
     for i in range(6):
         d = next_tue + timedelta(weeks=i)
         await _insert(db, "schedule_events", server.ScheduleEvent(
             user_id=user_id, athlete_ids=[ava_id], event_type="practice", title="Team practice",
             location="California Allstars - Mira Mesa", address="9750 Miramar Rd, San Diego, CA 92126",
             date=str(d), start_time="18:00", end_time="20:00",
+            series_id=practice_series_id, recurrence_rule=practice_rule,
         ))
     await _insert(db, "schedule_events", server.ScheduleEvent(
         user_id=user_id, athlete_ids=[ava_id], event_type="private_lesson", title="Tumbling with Coach Jay",
