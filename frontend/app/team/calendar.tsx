@@ -142,11 +142,44 @@ export default function TeamCalendar() {
   const emptyDay = <View style={styles.empty}><Ionicons name="calendar-outline" size={26} color={colors.textTertiary} /><Text style={styles.emptyText}>Nothing scheduled.</Text></View>;
   const spinner = <ActivityIndicator color={colors.accent} style={{ marginTop: 40 }} />;
 
-  const importAll = async () => {
+  const doSync = async () => {
     try {
-      const r = await api.post<{ imported: number; skipped: number }>("/team/calendar/import-all-to-personal", {});
-      Alert.alert("Added to your calendar", `${r.data.imported} event${r.data.imported === 1 ? "" : "s"} imported${r.data.skipped ? `, ${r.data.skipped} already on your calendar` : ""}.`);
-    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not import events."); }
+      const r = await api.post<{ added: number; updated: number; removed: number }>("/team/calendar/sync-to-personal", {});
+      const { added, updated, removed } = r.data;
+      if (!added && !updated && !removed) {
+        Alert.alert("Up to date", "Your personal calendar already matches the Team Hub.");
+      } else {
+        const parts = [];
+        if (added) parts.push(`${added} added`);
+        if (updated) parts.push(`${updated} updated`);
+        if (removed) parts.push(`${removed} removed`);
+        Alert.alert("Calendar synced", parts.join(", ") + ".");
+      }
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not sync events."); }
+  };
+
+  const doRemoveImported = async () => {
+    try {
+      const r = await api.post<{ removed: number }>("/team/calendar/remove-imported-from-team", {});
+      Alert.alert(
+        r.data.removed ? "Removed" : "Nothing to remove",
+        r.data.removed
+          ? `${r.data.removed} Team Hub event${r.data.removed === 1 ? "" : "s"} removed from your personal calendar.`
+          : "You don't have any Team Hub events copied to your personal calendar.",
+      );
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not remove events."); }
+  };
+
+  const importAll = () => {
+    Alert.alert(
+      "Team Hub → My Calendar",
+      "Sync copies new Team Hub events to your personal (family) calendar and updates any that changed. You can also remove ones you added before.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Remove imported", style: "destructive", onPress: () => Alert.alert("Remove imported events?", "This deletes every Team Hub event you previously copied to your personal calendar. Your own events are untouched.", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: doRemoveImported }]) },
+        { text: "Sync my calendar", onPress: doSync },
+      ],
+    );
   };
 
   return (

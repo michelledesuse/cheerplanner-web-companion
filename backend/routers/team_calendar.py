@@ -8,6 +8,7 @@ RSVP (Attending / Not Attending + reason). Reasons are staff-only.
 Follows the ParentGuard permission pattern.
 """
 import re
+import json
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
@@ -318,6 +319,18 @@ def _to_schedule_rule(rec: dict) -> Optional[dict]:
     return None
 
 
+def _ev_sig(ev: dict) -> str:
+    """Stable signature of a team event's syncable content, so we can detect
+    when a previously-imported event changed on the hub."""
+    return json.dumps({
+        "t": ev.get("title"), "et": ev.get("event_type"),
+        "d": str(ev.get("date"))[:10], "st": ev.get("start_time"),
+        "en": ev.get("end_time"), "loc": ev.get("location"),
+        "addr": ev.get("address"), "notes": ev.get("notes"),
+        "rec": ev.get("recurrence"),
+    }, sort_keys=True, default=str)
+
+
 async def _import_one(ev: dict, user: dict) -> int:
     """Create personal schedule events mirroring a team event (whole series).
 
@@ -350,10 +363,12 @@ async def _import_one(ev: dict, user: dict) -> int:
     else:
         rows = [ScheduleEvent(user_id=user["id"], **base)]
     if rows:
+        sig = _ev_sig(ev)
         docs = []
         for r in rows:
             d = r.model_dump()
             d["imported_from_team_event_id"] = ev["id"]
+            d["imported_sig"] = sig
             docs.append(d)
         await db.schedule_events.insert_many(docs)
     return len(rows)
@@ -386,6 +401,54 @@ async def import_all_to_personal(user=Depends(get_current_user)):
         else:
             skipped += 1
     return {"ok": True, "imported": imported, "skipped": skipped}
+
+
+@router.post("/team/calendar/remove-imported-from-team")
+async def remove_imported_from_team(user=Depends(get_current_user)):
+    """Undo: remove every personal schedule event that was copied from the
+    Team Hub calendar (tagged with imported_from_team_event_id)."""
+    r = await db.schedule_events.delete_many(
+        {"user_id": user["id"], "imported_from_team_event_id": {"$nin": [None, ""]}}
+    )
+    return {"ok": True, "removed": r.deleted_count}
+
+
+@router.post("/team/calendar/sync-to-personal")
+async def sync_to_personal(user=Depends(get_current_user)):
+    """Sync: add NEW Team Hub events, refresh ones that CHANGED, and remove
+    copies whose Team Hub event was deleted. Returns per-event counts."""
+    h, role = await _hub_and_role(user)
+    if not h:
+        raise HTTPException(status_code=403, detail="No team access.")
+    evs = await db.team_events.find({"household_id": h["id"]}, {"_id": 0}).to_list(1000)
+    ev_ids = [ev["id"] for ev in evs]
+    added = updated = 0
+    for ev in evs:
+        existing = await db.schedule_events.find_one(
+            {"user_id": user["id"], "imported_from_team_event_id": ev["id"]},
+            {"_id": 0, "imported_sig": 1},
+        )
+        if existing:
+            if existing.get("imported_sig") != _ev_sig(ev):
+                await db.schedule_events.delete_many(
+                    {"user_id": user["id"], "imported_from_team_event_id": ev["id"]}
+                )
+                await _import_one(ev, user)
+                updated += 1
+        elif await _import_one(ev, user):
+            added += 1
+    # Remove personal copies whose source Team Hub event no longer exists.
+    orphan_ids = await db.schedule_events.distinct(
+        "imported_from_team_event_id",
+        {"user_id": user["id"], "imported_from_team_event_id": {"$nin": ev_ids + [None, ""]}},
+    )
+    removed = 0
+    if orphan_ids:
+        await db.schedule_events.delete_many(
+            {"user_id": user["id"], "imported_from_team_event_id": {"$in": orphan_ids}}
+        )
+        removed = len(orphan_ids)
+    return {"ok": True, "added": added, "updated": updated, "removed": removed}
 
 
 # ---------------------------------------------------------------

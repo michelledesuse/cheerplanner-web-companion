@@ -603,3 +603,11 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED: bundle compiles; PATCH timezone America/Los_Angeles -> stored + GET confirms. Scheduler tz math previously verified (iter119). Reset demo tz to default.
 - NOTE: both are FRONTEND changes -> need a NEW BUILD to reach devices (backend scheduler already respects stored tz). No manual tz picker added; detection is automatic + updates if user travels.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 121 — Team Hub "cloud" download: confirm prompt, undo, and SYNC
+- REQ1 (prompt before download): cloud icon (calendar-import-all) now opens an Alert "Team Hub → My Calendar" (Cancel / Remove imported / Sync my calendar) instead of importing silently.
+- REQ2 (reverse/undo): NEW POST /api/team/calendar/remove-imported-from-team deletes all personal schedule_events tagged imported_from_team_event_id. Exposed as "Remove imported" (double-confirm).
+- REQ3 (sync only new/updated): NEW POST /api/team/calendar/sync-to-personal -> adds new, refreshes changed (via imported_sig signature stored on import), removes orphans (team event deleted). Returns {added,updated,removed}. _import_one now stamps imported_sig.
+- VERIFIED (curl): sync add=3; re-sync 0/0/0; after mutating a team event title -> updated=1; remove-imported=3. Reverted test data.
+- NOTE: backend live on REDEPLOY; the new menu ships with next build. Old import-all-to-personal endpoint retained.
+Creds: demo@cheerplanner.app / CheerDemo2026!.
