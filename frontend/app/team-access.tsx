@@ -53,11 +53,15 @@ export default function TeamAccessScreen() {
     if (!c) { Alert.alert("Enter your code", "Paste the Team Hub code your coach or gym shared with you."); return; }
     setJoiningTeam(true);
     try {
-      await api.post("/household/join", { code: c });
+      const r = await api.post<{ team_pending?: boolean }>("/household/join", { code: c });
       setTeamCode("");
       await load();
       await refreshUser(); // team_access may now be true -> unlock the Team tab
-      Alert.alert("You're in! 🎉", "You now have Team Hub access. Open the Team tab to get started.");
+      if (r.data?.team_pending) {
+        Alert.alert("Request sent! 🎉", "You've joined the team's group chat. A coach will finish setting up your role.");
+      } else {
+        Alert.alert("You're in! 🎉", "You now have Team Hub access. Open the Team tab to get started.");
+      }
     } catch (e: any) {
       Alert.alert("Couldn't join", e?.response?.data?.detail || "Check the code and try again.");
     } finally { setJoiningTeam(false); }

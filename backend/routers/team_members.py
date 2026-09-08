@@ -69,23 +69,23 @@ async def rotate_join_code(current_user=Depends(get_current_user)):
     return {"code": code}
 
 
-@router.post("/join")
-async def join_team(payload: dict = Body(default={}), current_user=Depends(get_current_user)):
-    """Anyone: join a team with its code. Lands in the pending queue with
-    group-chat-only access until the owner assigns a role."""
-    code = (payload.get("code") or "").strip().upper()
+async def join_team_with_code(code: str, current_user) -> dict:
+    """Join a team by its reusable team_join_code. Lands in the pending queue
+    with group-chat-only access until the owner assigns a role. Returns None if
+    the code doesn't match any team (so callers can try other code types)."""
+    code = (code or "").strip().upper()
     if not code:
         raise HTTPException(status_code=400, detail="Enter a team code.")
     h = await db.households.find_one({"team_join_code": code}, {"_id": 0})
     if not h:
-        raise HTTPException(status_code=404, detail="That team code isn't valid.")
+        return None
     uid = current_user["id"]
     owner_id = _household_owner_id(h)
     if uid == owner_id or uid in (h.get("team_hub_member_user_ids") or []) or uid in (h.get("member_user_ids") or []):
         raise HTTPException(status_code=400, detail="You're already part of this team.")
     existing = await db.team_members.find_one({"household_id": h["id"], "user_id": uid}, {"_id": 0})
     if existing:
-        return {"joined": True, "status": existing.get("status", "pending"), "team_name": h.get("hub_name")}
+        return {"joined": True, "status": existing.get("status", "pending"), "team_name": h.get("hub_name"), "team_pending": True}
     now = utcnow_iso()
     await db.team_members.insert_one({
         "id": secrets.token_urlsafe(9), "household_id": h["id"], "user_id": uid,
@@ -97,7 +97,17 @@ async def join_team(payload: dict = Body(default={}), current_user=Depends(get_c
         "id": secrets.token_urlsafe(9), "household_id": h["id"], "owner_id": owner_id,
         "user_id": uid, "name": who["name"], "created_at": now, "read": False,
     })
-    return {"joined": True, "status": "pending", "team_name": h.get("hub_name")}
+    return {"joined": True, "status": "pending", "team_name": h.get("hub_name"), "team_pending": True}
+
+
+@router.post("/join")
+async def join_team(payload: dict = Body(default={}), current_user=Depends(get_current_user)):
+    """Anyone: join a team with its code. Lands in the pending queue with
+    group-chat-only access until the owner assigns a role."""
+    result = await join_team_with_code(payload.get("code"), current_user)
+    if result is None:
+        raise HTTPException(status_code=404, detail="That team code isn't valid.")
+    return result
 
 
 # --------------------------------------------------------- member lists ---

@@ -249,6 +249,13 @@ async def join_household(payload: HouseholdJoinRequest, current_user=Depends(get
     code = payload.code.strip().upper()
     invite = await db.household_invites.find_one({"code": code, "used_at": None}, {"_id": 0})
     if not invite:
+        # Fall back to the reusable Team Hub join code (Team Hub → Members). This
+        # lets people paste EITHER an email invite code OR a team join code into
+        # the "Team Hub Access" screen and have it just work.
+        from routers.team_members import join_team_with_code
+        team_result = await join_team_with_code(code, current_user)
+        if team_result is not None:
+            return team_result
         raise HTTPException(status_code=404, detail="Invalid or expired invite code")
     try:
         expires = _dt.fromisoformat(invite["expires_at"].replace("Z", ""))

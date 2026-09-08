@@ -537,3 +537,10 @@ Creds: demo@cheerplanner.app / CheerDemo2026! (staff on Team Hub). Team practice
 - VERIFIED insert-only path on simulated fresh DB: demo user + household + 2 athletes + 1 brand preset + 3 flyers seeded; NO "Cleared…" logs (deletes skipped); "One-time demo seed finished successfully."
 - Pre-existing deploy warnings NOT changed (out of scope / previously deployed): weather TTL indexes, .gitignore .env, JWT_SECRET fallback, RevenueCat+NewArch.
 - ACTION FOR USER: redeploy (Publish) so production runs current, deploy-compliant code; that restores origin health and the team code.
+
+## Iteration 113 — FIX: reusable team code rejected on "Team Hub Access" screen
+- ROOT CAUSE (from user screenshot: code UCQEPE -> "Invalid or expired invite code"): two code systems + two redemption boxes. The "Team Hub Access" screen (app/team-access.tsx submitJoinTeam) posts to /api/household/join which ONLY checked household_invites (email invites), so the reusable Team Hub join code (households.team_join_code, generated in Team Hub → Members via /api/team/join-code, redeemed by /api/team/join) returned 404.
+- FIX: extracted join_team_with_code() helper in routers/team_members.py (returns None if code isn't a team code). routers/household.py /household/join now falls back to it when no email invite matches -> pending team-member join. Frontend team-access.tsx shows accurate "Request sent" message when response.team_pending.
+- VERIFIED (curl, preview): /household/join with reusable team code -> 200 {joined,status:pending,team_pending:true} (was 404); email-invite code still -> collaborator 200; invalid -> 404. /team/join unchanged (still works for team code).
+- NOTE: production still needs REDEPLOY for this fix + the earlier origin-health/deploy-compliance changes to take effect.
+Creds: demo@cheerplanner.app / CheerDemo2026!.
