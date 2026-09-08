@@ -559,3 +559,10 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED (curl): inserted 150 future practices for demo -> importable returned 157 events (was capped at 100); cleaned up test data (demo back to 7). 
 - NOTE: backend-only fix; production needs REDEPLOY. This cap predates recent work, so it also affects the currently-deployed build.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 116 — FIX: default Team Hub theme was RED for untouched users
+- USER REPORT: another user's Team Hub is red; standard CheerPlanner colors should apply unless the user changes theme in settings.
+- ROOT CAUSE: DEFAULT_THEME.preset_id = "red_white" (core/theme_presets.py) AND frontend ThemeContext defaulted to "red_white" in 3 places (createContext, useState, wantedId fallback). Households that never set a theme (theme=null) resolved to the RED preset instead of the "cheerplanner" (blue) preset.
+- FIX: DEFAULT_THEME.preset_id -> "cheerplanner"; ThemeContext.tsx all three "red_white" defaults -> "cheerplanner". Base theme.ts already CheerPlanner blue.
+- VERIFIED (curl): fresh signup GET /household -> theme.preset_id="cheerplanner". Existing untouched users have theme=null -> now resolve to cheerplanner. Users who explicitly picked a theme are unaffected. Affected devices self-heal on next load (refreshPresets overwrites cached red palette).
+- NOTE: backend default fix is live on REDEPLOY; the frontend cache/fallback fix + no-flash needs a NEW BUILD to reach devices.

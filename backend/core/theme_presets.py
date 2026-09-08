@@ -131,6 +131,6 @@ THEME_PRESETS: List[Dict[str, Any]] = [
 
 
 DEFAULT_THEME = {
-    "preset_id": "red_white",
+    "preset_id": "cheerplanner",
     "custom": None,
 }

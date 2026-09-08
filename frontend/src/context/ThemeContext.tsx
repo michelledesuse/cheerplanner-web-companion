@@ -32,7 +32,7 @@ type ThemeContextValue = {
 };
 
 const Ctx = createContext<ThemeContextValue>({
-  presetId: "red_white",
+  presetId: "cheerplanner",
   presets: [],
   savedPresets: [],
   version: 0,
@@ -61,7 +61,7 @@ function applyToPalette(p: ThemePreset): ThemePalette {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [presetId, setPresetId] = useState<string>("red_white");
+  const [presetId, setPresetId] = useState<string>("cheerplanner");
   const [presets, setPresets] = useState<ThemePreset[]>([]);
   const [savedPresets, setSavedPresets] = useState<ThemePreset[]>([]);
   const [version, setVersion] = useState(0);
@@ -94,7 +94,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       const theme = householdRes.data?.theme;
       const saved = theme?.saved || [];
       setSavedPresets(saved);
-      const wantedId = theme?.preset_id || "red_white";
+      const wantedId = theme?.preset_id || "cheerplanner";
       // Custom theme: the palette lives in household.theme.custom (not the preset list).
       if (wantedId === "custom" && theme?.custom) {
         const custom = {
