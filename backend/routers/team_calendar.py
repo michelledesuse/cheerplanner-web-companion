@@ -424,9 +424,9 @@ async def importable(user=Depends(require_team_access)):
         ):
             if te.get("imported_from_personal_id"):
                 imported_ids.add(te["imported_from_personal_id"])
-    comps = await db.competitions.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "event_date": 1}).sort("event_date", -1).to_list(100)
+    comps = await db.competitions.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "event_date": 1}).sort("event_date", -1).to_list(500)
     today = date.today().isoformat()
-    evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1, "series_id": 1}).sort("date", 1).to_list(100)
+    evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1, "series_id": 1}).sort("date", 1).to_list(2000)
     return {
         "competitions": [{"id": c["id"], "name": c.get("name") or "Competition", "date": c.get("event_date"), "already": c["id"] in imported_ids} for c in comps],
         "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type"), "series_id": e.get("series_id"), "already": e["id"] in imported_ids} for e in evs],

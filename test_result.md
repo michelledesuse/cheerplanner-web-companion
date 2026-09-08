@@ -551,3 +551,11 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED (curl): /household/join returns team_name "Jordan's team"; pending-count is_owner:true count feeds banner. Lint clean (only _e warnings). Cleaned up junk test accounts/pending members from demo hub (now 0 pending).
 - NOTE: banner only shows when there IS a pending member; needs REDEPLOY for production.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 115 — FIX: calendar import to Team Hub capped at 100 events
+- USER REPORT: can't bring over ALL practices/events from parent portal to Team Hub in production.
+- ROOT CAUSE: GET /api/team/calendar/importable capped events at .to_list(100) (sorted date ASC), so teams with many recurring practices (each occurrence is a separate schedule_events doc) had later events truncated/hidden.
+- FIX: raised caps -> events .to_list(2000), competitions .to_list(500). (No frontend change; import-from-personal-bulk already imports all selected items.)
+- VERIFIED (curl): inserted 150 future practices for demo -> importable returned 157 events (was capped at 100); cleaned up test data (demo back to 7). 
+- NOTE: backend-only fix; production needs REDEPLOY. This cap predates recent work, so it also affects the currently-deployed build.
+Creds: demo@cheerplanner.app / CheerDemo2026!.
