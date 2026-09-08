@@ -596,3 +596,10 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED: simulated tick fired exactly one SMS ("in 2 days") and deduped on 2nd run. Digest already lists cancel-by; calendar already shows the date (iter118).
 - NOTE: SMS requires user's Twilio + SMS opt-in (Settings→Notifications). Backend live on REDEPLOY; form control ships with next build.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 120 — FIX: Team Hub month view duplicates + reminders in wrong timezone
+- BUG A (month duplicate): team/calendar.tsx Calendar had key={month} + current={selected}. Arrow press -> onMonthChange setMonth(next) -> key remount -> current(selected) snapped back to old month, showing the SAME month with the NEXT month's (empty) data. FIX: key={calKey} (only bumped on explicit Today jump), current={`${month}-01`}, onMonthChange just updates month (no remount). Today button now bumps calKey + shows when viewed month != today's month.
+- BUG B (timezone): scheduler used prefs.timezone else DEFAULT_TZ=America/New_York; the app NEVER captured the device tz, so CA users got EST timing (reminder 3h early). FIX: AuthContext syncDeviceTimezone() detects Intl.DateTimeFormat().resolvedOptions().timeZone (must contain "/"; rejects bare UTC) and PATCHes /notifications/preferences on loadMe/signIn/signUp. Scheduler already respects stored tz.
+- VERIFIED: bundle compiles; PATCH timezone America/Los_Angeles -> stored + GET confirms. Scheduler tz math previously verified (iter119). Reset demo tz to default.
+- NOTE: both are FRONTEND changes -> need a NEW BUILD to reach devices (backend scheduler already respects stored tz). No manual tz picker added; detection is automatic + updates if user travels.
+Creds: demo@cheerplanner.app / CheerDemo2026!.

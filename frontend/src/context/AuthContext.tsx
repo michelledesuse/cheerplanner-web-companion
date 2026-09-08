@@ -24,6 +24,22 @@ type AuthContextValue = {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+// Detect the device's IANA timezone and persist it so reminders fire in the
+// user's ACTUAL local time (not the server default). Fire-and-forget; updates
+// automatically if the user travels to a new zone.
+let _lastSyncedTz: string | null = null;
+async function syncDeviceTimezone() {
+  try {
+    const tz = Intl?.DateTimeFormat?.().resolvedOptions?.().timeZone;
+    if (tz && typeof tz === "string" && tz.includes("/") && tz !== _lastSyncedTz) {
+      _lastSyncedTz = tz;
+      await api.patch("/notifications/preferences", { timezone: tz });
+    }
+  } catch {
+    /* ignore — reminders fall back to the stored/default timezone */
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserPublic | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await api.get("/auth/me");
       setUser(res.data as UserPublic);
       loginRevenueCat((res.data as UserPublic).id);
+      syncDeviceTimezone();
     } catch (e: any) {
       // Only sign the user out when the token is genuinely rejected (401).
       // Transient errors (network blips, 5xx) must NOT wipe the session.
@@ -61,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storage.secureSet(TOKEN_KEY, res.data.access_token);
     setUser(res.data.user as UserPublic);
     loginRevenueCat(res.data.user.id);
+    syncDeviceTimezone();
   };
 
   const signUp = async (email: string, password: string, name?: string) => {
@@ -68,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storage.secureSet(TOKEN_KEY, res.data.access_token);
     setUser(res.data.user as UserPublic);
     loginRevenueCat(res.data.user.id);
+    syncDeviceTimezone();
   };
 
   const signOut = async () => {

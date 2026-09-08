@@ -53,6 +53,7 @@ export default function TeamCalendar() {
   const [view, setView] = useState<CalView>("month");
   const [selected, setSelected] = useState<string>(todayISO());
   const [month, setMonth] = useState<string>(todayISO().slice(0, 7));
+  const [calKey, setCalKey] = useState<number>(0); // bump only to force-jump the grid (e.g. Today)
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
 
   const allTypes: TypeDef[] = useMemo(() => [
@@ -153,7 +154,7 @@ export default function TeamCalendar() {
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ padding: 4 }}><Ionicons name="chevron-back" size={24} color={colors.textPrimary} /></TouchableOpacity>
         <View style={{ flex: 1 }}><Text style={styles.title}>Calendar</Text><Text style={styles.subtitle}>{isStaff ? "Tap an event to see RSVPs" : "Tap an event to RSVP"}</Text></View>
-        {selected !== todayISO() && <TouchableOpacity onPress={() => { setSelected(todayISO()); setMonth(todayISO().slice(0, 7)); }} hitSlop={8} style={{ padding: 4 }} testID="calendar-today"><Ionicons name="today-outline" size={20} color={colors.accent} /></TouchableOpacity>}
+        {(selected !== todayISO() || month !== todayISO().slice(0, 7)) && <TouchableOpacity onPress={() => { setSelected(todayISO()); setMonth(todayISO().slice(0, 7)); setCalKey((k) => k + 1); }} hitSlop={8} style={{ padding: 4 }} testID="calendar-today"><Ionicons name="today-outline" size={20} color={colors.accent} /></TouchableOpacity>}
         <TouchableOpacity onPress={importAll} hitSlop={8} style={{ padding: 4 }} testID="calendar-import-all"><Ionicons name="cloud-download-outline" size={22} color={colors.accent} /></TouchableOpacity>
         {isStaff && <TouchableOpacity onPress={() => setImportOpen(true)} hitSlop={8} style={{ padding: 4 }} testID="calendar-import-personal"><Ionicons name="albums-outline" size={22} color={colors.accent} /></TouchableOpacity>}
         {isStaff && <TouchableOpacity onPress={() => setFormEv("new")} hitSlop={8} style={{ padding: 4 }} testID="calendar-add-btn"><Ionicons name="add-circle" size={26} color={colors.accent} /></TouchableOpacity>}
@@ -198,8 +199,8 @@ export default function TeamCalendar() {
         {view === "month" && (
           <>
             <Calendar
-              key={month}
-              current={selected}
+              key={calKey}
+              current={`${month}-01`}
               markingType="multi-dot"
               markedDates={markedDates}
               onDayPress={(d: DateData) => setSelected(d.dateString)}
