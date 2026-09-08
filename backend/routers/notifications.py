@@ -59,6 +59,8 @@ async def update_preferences(payload: NotificationPreferencesUpdate, current_use
         merged["sms_phone"] = sent["sms_phone"]
     if "sms_consent_at" in sent:
         merged["sms_consent_at"] = sent["sms_consent_at"]
+    if "auto_sync_team_calendar" in sent:
+        merged["auto_sync_team_calendar"] = bool(sent["auto_sync_team_calendar"])
 
     await db.users.update_one(
         {"id": current_user["id"]},

@@ -26,6 +26,7 @@ type Preferences = {
   sms_enabled?: boolean;
   sms_phone?: string | null;
   sms_consent_at?: string | null;
+  auto_sync_team_calendar?: boolean;
 };
 
 const FREQUENCY_OPTIONS: { id: Frequency; label: string; sub: string }[] = [
@@ -290,6 +291,24 @@ export default function NotificationsSettingsScreen() {
             <TouchableOpacity onPress={() => Linking.openURL("https://cheer-planner.com/privacy")} testID="notif-privacy-web">
               <Text style={styles.consentLink}>cheer-planner.com/privacy</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.group}>
+          <View style={styles.catRow}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={styles.catLabel}>Auto-sync Team Hub to my calendar</Text>
+              <Text style={styles.catSub}>
+                Each morning, copy new Team Hub events to your personal (family) calendar and update any that changed.
+              </Text>
+            </View>
+            <Switch
+              value={!!prefs.auto_sync_team_calendar}
+              onValueChange={(v) => patch({ auto_sync_team_calendar: v })}
+              trackColor={{ true: colors.accent, false: "#CBD5E1" }}
+              thumbColor={Platform.OS === "android" ? (prefs.auto_sync_team_calendar ? "white" : "#F1F5F9") : undefined}
+              testID="notif-autosync-team"
+            />
           </View>
         </View>
 

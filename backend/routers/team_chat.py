@@ -280,6 +280,46 @@ async def mark_read(current_user=Depends(require_chat_access)):
     return {"ok": True, "last_read_at": now}
 
 
+async def _post_attachment(kind: str, item_id: str, user: dict, caption: str):
+    """Post a form/signup card to the team chat as a tappable attachment."""
+    h = await _chat_hub(user["id"], user)
+    if not h:
+        raise HTTPException(status_code=403, detail="No team chat available.")
+    member_ids = list({*(h.get("member_user_ids") or []), *(h.get("team_hub_member_user_ids") or []), _household_owner_id(h)})
+    coll = "team_forms" if kind == "form" else "signup_sheets"
+    item = await db[coll].find_one({"id": item_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "name": 1})
+    if not item:
+        raise HTTPException(status_code=404, detail="Not found.")
+    caption = (caption or "").strip()[:2000]
+    if caption:
+        assert_clean(caption)
+    now = utcnow_iso()
+    title = item.get("name") or ("Form" if kind == "form" else "Signup sheet")
+    doc = {
+        "id": secrets.token_urlsafe(9), "household_id": h["id"],
+        "sender_id": user["id"], "sender_name": _display_name(user),
+        "text": caption, "media": [],
+        "attachment": {"type": kind, "id": item_id, "title": title},
+        "reactions": {}, "mentions": [], "created_at": now,
+    }
+    await db.team_messages.insert_one(dict(doc))
+    await db.chat_reads.update_one(
+        {"household_id": h["id"], "user_id": user["id"]}, {"$set": {"last_read_at": now}}, upsert=True,
+    )
+    return {"ok": True, "message_id": doc["id"]}
+
+
+@router.post("/team/chat/post-form/{form_id}")
+async def post_form_to_chat(form_id: str, payload: dict = Body(default={}), current_user=Depends(require_team_access)):
+    return await _post_attachment("form", form_id, current_user, payload.get("caption") or "")
+
+
+@router.post("/team/chat/post-signup/{sheet_id}")
+async def post_signup_to_chat(sheet_id: str, payload: dict = Body(default={}), current_user=Depends(require_team_access)):
+    return await _post_attachment("signup", sheet_id, current_user, payload.get("caption") or "")
+
+
+
 @router.get("/team/chat/unread")
 async def unread_count(current_user=Depends(require_chat_access)):
     h = await _chat_hub(current_user["id"], current_user)

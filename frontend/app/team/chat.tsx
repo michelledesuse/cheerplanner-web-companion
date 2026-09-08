@@ -27,6 +27,7 @@ type Message = {
   text: string;
   created_at: string;
   media?: Media[];
+  attachment?: { type: "form" | "signup"; id: string; title: string };
   reactions?: Record<string, string[]>;
   pinned?: boolean;
 };
@@ -406,6 +407,25 @@ export default function TeamChatScreen() {
             {(item.media || []).map((md) => (
               <ChatMediaView key={md.id} media={md} token={token} mine={mine} />
             ))}
+            {!!item.attachment && (
+              <TouchableOpacity
+                style={[styles.attachCard, mine && styles.attachCardMine]}
+                onPress={() => {
+                  if (item.attachment!.type === "form") router.push(`/team/form-detail?id=${item.attachment!.id}` as any);
+                  else router.push({ pathname: "/team/signup-sheet", params: { id: item.attachment!.id } } as any);
+                }}
+                testID={`chat-attach-${item.attachment.type}-${item.attachment.id}`}
+              >
+                <View style={[styles.attachIcon, mine && { backgroundColor: "#FFFFFF33" }]}>
+                  <Ionicons name={item.attachment.type === "form" ? "document-text" : "list"} size={20} color={mine ? "#fff" : colors.accent} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={[styles.attachType, mine && { color: "#DBEAFE" }]}>{item.attachment.type === "form" ? "TEAM FORM" : "SIGNUP SHEET"}</Text>
+                  <Text style={[styles.attachTitle, mine && { color: "#fff" }]} numberOfLines={2}>{item.attachment.title}</Text>
+                  <Text style={[styles.attachCta, mine && { color: "#DBEAFE" }]}>Tap to open →</Text>
+                </View>
+              </TouchableOpacity>
+            )}
             {!!item.text && <MessageText text={item.text} mine={mine} styles={styles} />}
             <Text style={[styles.timeText, mine && { color: "#DBEAFE" }]}>{fmtTime(item.created_at)}</Text>
           </View>
@@ -906,6 +926,12 @@ const makeStyles = (c: ThemePalette) => ({
   bubbleMine: { backgroundColor: c.accent, borderBottomRightRadius: 4 },
   bubbleOther: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderBottomLeftRadius: 4 },
   senderName: { ...typography.caption, color: c.accent, fontWeight: "800", marginBottom: 2 },
+  attachCard: { flexDirection: "row", gap: 10, alignItems: "center", backgroundColor: c.accentSubtle, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 10, marginVertical: 4, maxWidth: 260 },
+  attachCardMine: { backgroundColor: "#FFFFFF22", borderColor: "#FFFFFF44" },
+  attachIcon: { width: 38, height: 38, borderRadius: 10, backgroundColor: c.card, alignItems: "center", justifyContent: "center" },
+  attachType: { ...typography.caption, fontWeight: "800", color: c.textSecondary, fontSize: 10, letterSpacing: 0.5 },
+  attachTitle: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
+  attachCta: { ...typography.caption, color: c.accent, fontWeight: "700", marginTop: 2 },
   bubbleText: { ...typography.body, color: c.textPrimary },
   timeText: { fontSize: 10, color: c.textTertiary, marginTop: 3, alignSelf: "flex-end" },
   composer: {

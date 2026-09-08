@@ -47,6 +47,21 @@ export default function SignupsScreen() {
 
   const compName = (id?: string | null) => comps.find((c) => c.id === id)?.name;
 
+  const postToChat = (id: string, name: string) => {
+    const doIt = async () => {
+      try {
+        await api.post(`/team/chat/post-signup/${id}`, { caption: `📝 Sign up: ${name}` });
+        Alert.alert("Posted to chat", "The signup sheet was shared in the team chat.");
+      } catch (e: any) {
+        Alert.alert("Couldn't post", e?.response?.data?.detail || "Please try again.");
+      }
+    };
+    Alert.alert("Post to chat?", `Share "${name}" in the team chat so members can tap to sign up.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Post", onPress: doIt },
+    ]);
+  };
+
   const duplicate = async (id: string) => {
     try { await api.post(`/team/signups/${id}/duplicate`); await load(); }
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not duplicate."); }
@@ -128,6 +143,11 @@ export default function SignupsScreen() {
                       <>
                         <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
                         {canManage && <SheetAccessButton resource="signup" resourceId={s.id} />}
+                        {canManage && (
+                          <TouchableOpacity onPress={() => postToChat(s.id, s.name)} hitSlop={8} testID={`signup-postchat-${s.id}`}>
+                            <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textTertiary} />
+                          </TouchableOpacity>
+                        )}
                         <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`signup-duplicate-${s.id}`}>
                           <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
                         </TouchableOpacity>

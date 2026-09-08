@@ -54,6 +54,21 @@ export default function FormsScreen() {
     } finally { setSaving(false); }
   };
 
+  const postToChat = (f: Form) => {
+    const doIt = async () => {
+      try {
+        await api.post(`/team/chat/post-form/${f.id}`, { caption: `📋 Please fill out: ${f.name}` });
+        Alert.alert("Posted to chat", "The form was shared in the team chat.");
+      } catch (e: any) {
+        Alert.alert("Couldn't post", e?.response?.data?.detail || "Please try again.");
+      }
+    };
+    Alert.alert("Post to chat?", `Share "${f.name}" in the team chat so members can tap to fill it out.`, [
+      { text: "Cancel", style: "cancel" },
+      { text: "Post", onPress: doIt },
+    ]);
+  };
+
   const duplicate = async (f: Form) => {
     const doIt = async () => {
       try {
@@ -115,6 +130,9 @@ export default function FormsScreen() {
                   {f.description ? <Text style={styles.cardDesc} numberOfLines={1}>{f.description}</Text> : null}
                   <Text style={styles.cardMeta}>{s.response_count}/{s.member_total} responded · {(f.questions || []).length} question{(f.questions || []).length === 1 ? "" : "s"}</Text>
                 </View>
+                <TouchableOpacity onPress={() => postToChat(f)} style={styles.dupBtn} hitSlop={8} testID={`form-postchat-${f.id}`}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.accent} />
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => duplicate(f)} style={styles.dupBtn} hitSlop={8} testID={`form-duplicate-${f.id}`}>
                   <Ionicons name="copy-outline" size={18} color={colors.accent} />
                 </TouchableOpacity>

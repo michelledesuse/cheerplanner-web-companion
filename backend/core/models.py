@@ -892,6 +892,8 @@ class NotificationPreferences(BaseModel):
     sms_enabled: bool = False
     sms_phone: Optional[str] = None
     sms_consent_at: Optional[str] = None
+    # Daily auto-sync of the Team Hub calendar onto this user's personal calendar
+    auto_sync_team_calendar: bool = False
 
 
 class NotificationPreferencesUpdate(BaseModel):
@@ -902,6 +904,7 @@ class NotificationPreferencesUpdate(BaseModel):
     sms_enabled: Optional[bool] = None
     sms_phone: Optional[str] = None
     sms_consent_at: Optional[str] = None
+    auto_sync_team_calendar: Optional[bool] = None
 
 
 # ============================================================

@@ -611,3 +611,15 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED (curl): sync add=3; re-sync 0/0/0; after mutating a team event title -> updated=1; remove-imported=3. Reverted test data.
 - NOTE: backend live on REDEPLOY; the new menu ships with next build. Old import-all-to-personal endpoint retained.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 122 — Auto-sync Team Hub -> personal calendar (daily, opt-in)
+- Added NotificationPreferences.auto_sync_team_calendar (+Update + notifications PATCH merge). Settings→Notifications: new "Auto-sync Team Hub to my calendar" Switch (testID notif-autosync-team).
+- Refactored sync into sync_personal_for_user(user) (returns None if no team access). scheduler.send_digest_tick runs it once at user-local 8AM for opt-in users (deduped key :autosync), independent of digest enabled/frequency.
+- VERIFIED: PATCH persists true; simulated 8AM tick imported 3, 2nd run deduped (3). Cleaned + reset demo prefs. (SendGrid 401s in log = unrelated preview mock key.)
+
+## Iteration 123 — Post Forms & Signup Sheets to chat (like flyers)
+- Backend team_chat.py: _post_attachment() helper + POST /api/team/chat/post-form/{id} and /api/team/chat/post-signup/{id} (require_team_access). Inserts a team_messages doc with attachment={type:form|signup,id,title} (+ optional caption). Messages already returned with _id:0 so attachment flows to client.
+- Frontend chat.tsx: Message.attachment type + tappable attachment card (form -> /team/form-detail?id=, signup -> /team/signup-sheet?id=) with styles.
+- forms.tsx: per-form "Post to chat" button (confirm) -> post-form. signups.tsx: per-sheet "Post to chat" button (confirm) -> post-signup (canManage only).
+- VERIFIED (curl): post-form 200 (attachment appears in /team/chat/messages); post-signup 200 with a test sheet. Cleaned test data. Fixed a transient forms.tsx parse error (restored const duplicate). Lint clean.
+Creds: demo@cheerplanner.app / CheerDemo2026!.

@@ -426,6 +426,25 @@ async def send_digest_tick() -> None:
     async for u in cursor:
         try:
             prefs = u.get("notification_preferences") or {}
+            tz_name = prefs.get("timezone") or DEFAULT_TZ
+            try:
+                tz = ZoneInfo(tz_name)
+            except ZoneInfoNotFoundError:
+                tz = ZoneInfo(DEFAULT_TZ)
+            local_now = now_utc.astimezone(tz)
+
+            # Daily auto-sync of Team Hub -> personal calendar (opt-in, runs
+            # regardless of digest/email settings, once per local morning).
+            if prefs.get("auto_sync_team_calendar") and local_now.hour == DEFAULT_SEND_HOUR_LOCAL:
+                key = f"{u['id']}:{local_now.date().isoformat()}:autosync"
+                if not await _already_sent(key):
+                    try:
+                        from routers.team_calendar import sync_personal_for_user
+                        await sync_personal_for_user({"id": u["id"]})
+                        await _record_sent(key, u["id"], "autosync")
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("auto-sync failed for %s: %s", u["id"], exc)
+
             if not prefs.get("enabled", True):
                 skipped += 1
                 continue
@@ -433,12 +452,6 @@ async def send_digest_tick() -> None:
             if freq not in ("daily", "weekly"):
                 skipped += 1
                 continue
-            tz_name = prefs.get("timezone") or DEFAULT_TZ
-            try:
-                tz = ZoneInfo(tz_name)
-            except ZoneInfoNotFoundError:
-                tz = ZoneInfo(DEFAULT_TZ)
-            local_now = now_utc.astimezone(tz)
             if local_now.hour != DEFAULT_SEND_HOUR_LOCAL:
                 continue
             # Weekly digest only on Monday (weekday=0).

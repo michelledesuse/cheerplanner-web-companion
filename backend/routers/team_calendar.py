@@ -413,13 +413,12 @@ async def remove_imported_from_team(user=Depends(get_current_user)):
     return {"ok": True, "removed": r.deleted_count}
 
 
-@router.post("/team/calendar/sync-to-personal")
-async def sync_to_personal(user=Depends(get_current_user)):
-    """Sync: add NEW Team Hub events, refresh ones that CHANGED, and remove
-    copies whose Team Hub event was deleted. Returns per-event counts."""
+async def sync_personal_for_user(user: dict) -> dict | None:
+    """Core sync used by the route and the daily auto-sync job. Returns None if
+    the user has no Team Hub access; else {added, updated, removed}."""
     h, role = await _hub_and_role(user)
     if not h:
-        raise HTTPException(status_code=403, detail="No team access.")
+        return None
     evs = await db.team_events.find({"household_id": h["id"]}, {"_id": 0}).to_list(1000)
     ev_ids = [ev["id"] for ev in evs]
     added = updated = 0
@@ -437,7 +436,6 @@ async def sync_to_personal(user=Depends(get_current_user)):
                 updated += 1
         elif await _import_one(ev, user):
             added += 1
-    # Remove personal copies whose source Team Hub event no longer exists.
     orphan_ids = await db.schedule_events.distinct(
         "imported_from_team_event_id",
         {"user_id": user["id"], "imported_from_team_event_id": {"$nin": ev_ids + [None, ""]}},
@@ -448,7 +446,17 @@ async def sync_to_personal(user=Depends(get_current_user)):
             {"user_id": user["id"], "imported_from_team_event_id": {"$in": orphan_ids}}
         )
         removed = len(orphan_ids)
-    return {"ok": True, "added": added, "updated": updated, "removed": removed}
+    return {"added": added, "updated": updated, "removed": removed}
+
+
+@router.post("/team/calendar/sync-to-personal")
+async def sync_to_personal(user=Depends(get_current_user)):
+    """Sync: add NEW Team Hub events, refresh ones that CHANGED, and remove
+    copies whose Team Hub event was deleted. Returns per-event counts."""
+    res = await sync_personal_for_user(user)
+    if res is None:
+        raise HTTPException(status_code=403, detail="No team access.")
+    return {"ok": True, **res}
 
 
 # ---------------------------------------------------------------
