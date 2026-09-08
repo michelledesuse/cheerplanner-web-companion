@@ -125,6 +125,15 @@ async def pending_count(current_user=Depends(get_current_user)):
     if not h or _household_owner_id(h) != current_user["id"]:
         return {"count": 0, "is_owner": False}
     n = await db.team_members.count_documents({"household_id": h["id"], "status": "pending"})
+    # Also count Team Hub collaborators (email-invite joins) who have no
+    # team_members record yet and therefore still need a role assigned.
+    tm_uids = set()
+    async for tm in db.team_members.find({"household_id": h["id"]}, {"_id": 0, "user_id": 1}):
+        tm_uids.add(tm["user_id"])
+    collab_ids = [uid for uid in (h.get("team_hub_member_user_ids") or []) if uid not in tm_uids]
+    if collab_ids:
+        existing = {u["id"] async for u in db.users.find({"id": {"$in": collab_ids}}, {"_id": 0, "id": 1})}
+        n += len(existing)
     return {"count": n, "is_owner": True}
 
 
@@ -135,7 +144,9 @@ async def list_members(current_user=Depends(get_current_user)):
     roster = {r["id"]: r async for r in db.roster.find(
         {"user_id": {"$in": [_household_owner_id(h)]}}, {"_id": 0, "id": 1, "name": 1})}
     pending, active = [], []
+    tm_uids = set()
     async for tm in db.team_members.find({"household_id": h["id"]}, {"_id": 0}).sort("joined_at", -1):
+        tm_uids.add(tm["user_id"])
         who = await _user_label(tm["user_id"])
         rids = tm.get("athlete_roster_ids") or ([tm["athlete_roster_id"]] if tm.get("athlete_roster_id") else [])
         names = [n for n in ((roster.get(r) or {}).get("name") for r in rids) if n]
@@ -148,6 +159,21 @@ async def list_members(current_user=Depends(get_current_user)):
             "joined_at": tm.get("joined_at"),
         }
         (pending if tm.get("status") == "pending" else active).append(row)
+    # Surface Team Hub collaborators who joined via an EMAIL invite (they have
+    # access but no team_members record) so the owner can assign them a role.
+    for uid in (h.get("team_hub_member_user_ids") or []):
+        if uid in tm_uids:
+            continue
+        u = await db.users.find_one({"id": uid}, {"_id": 0, "id": 1})
+        if not u:
+            continue  # skip orphaned collaborator ids (user no longer exists)
+        who = await _user_label(uid)
+        pending.append({
+            "user_id": uid, "name": who["name"], "email": who["email"],
+            "status": "pending", "role": None, "athlete_roster_id": None,
+            "athlete_roster_ids": [], "athlete_name": None, "joined_at": None,
+            "collaborator": True,
+        })
     return {"pending": pending, "active": active, "pending_count": len(pending)}
 
 
@@ -193,7 +219,17 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
         raise HTTPException(status_code=400, detail="Pick a valid role.")
     tm = await db.team_members.find_one({"household_id": h["id"], "user_id": user_id}, {"_id": 0})
     if not tm:
-        raise HTTPException(status_code=404, detail="That member isn't in this team.")
+        # The member may be an existing Team Hub collaborator or household member
+        # who joined via an email invite (access granted, but no team_members
+        # record yet). Create one so a role can be assigned.
+        if user_id in (h.get("team_hub_member_user_ids") or []) or user_id in (h.get("member_user_ids") or []):
+            await db.team_members.insert_one({
+                "id": secrets.token_urlsafe(9), "household_id": h["id"], "user_id": user_id,
+                "status": "active", "role": None, "athlete_roster_id": None, "joined_at": utcnow_iso(),
+            })
+            tm = await db.team_members.find_one({"household_id": h["id"], "user_id": user_id}, {"_id": 0})
+        else:
+            raise HTTPException(status_code=404, detail="That member isn't in this team.")
     who = await _user_label(user_id)
     now = utcnow_iso()
     athlete_roster_id = None
@@ -278,7 +314,8 @@ async def remove_member(user_id: str, current_user=Depends(get_current_user)):
     """Owner-only: reject a pending member or remove an assigned one from chat/access."""
     h = await _require_owner_hub(current_user["id"])
     tm = await db.team_members.find_one({"household_id": h["id"], "user_id": user_id}, {"_id": 0})
-    if not tm:
+    is_collaborator = user_id in (h.get("team_hub_member_user_ids") or [])
+    if not tm and not is_collaborator:
         raise HTTPException(status_code=404, detail="That member isn't in this team.")
     # Revoke chat + hub access granted by this membership.
     await db.households.update_one({"id": h["id"]}, {

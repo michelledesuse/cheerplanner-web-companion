@@ -566,3 +566,17 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - FIX: DEFAULT_THEME.preset_id -> "cheerplanner"; ThemeContext.tsx all three "red_white" defaults -> "cheerplanner". Base theme.ts already CheerPlanner blue.
 - VERIFIED (curl): fresh signup GET /household -> theme.preset_id="cheerplanner". Existing untouched users have theme=null -> now resolve to cheerplanner. Users who explicitly picked a theme are unaffected. Affected devices self-heal on next load (refreshPresets overwrites cached red palette).
 - NOTE: backend default fix is live on REDEPLOY; the frontend cache/fallback fix + no-flash needs a NEW BUILD to reach devices.
+
+## Iteration 117 — FIX: email-invited collaborators invisible in Members / can't assign role
+- USER REPORT: an invited user can use the Team Hub but the owner doesn't see her and can't assign a role.
+- ROOT CAUSE: email invites (/team-access/invite -> /household/join with grant_team_access) add the user to households.team_hub_member_user_ids (collaborator) but NEVER create a team_members record. /team/members and assign-role only read team_members -> collaborator invisible + assign-role 404.
+- FIX (routers/team_members.py):
+  * list_members: append collaborators (team_hub_member_user_ids) with no team_members doc to `pending` (flag collaborator:true); skip orphaned uids (user deleted).
+  * assign_role: if no team_members doc but user is a collaborator/household member, upsert one (status active) then assign.
+  * remove_member: allow removing a collaborator with no team_members doc.
+  * pending_count: include collaborators-needing-roles (existing users only).
+  * frontend members.tsx: subtext "Has hub access — assign a role" for collaborators; Member type + collaborator flag.
+- Seed: assign Coach Casey an active `coach` team_members record (so demo shows her in Team, not pending).
+- VERIFIED (curl): email-invite collaborator now appears in owner's pending list and assign coach -> 200 active; pending-count updates; demo cleaned (Coach Casey active coach, 0 pending, orphan collaborators removed).
+- NOTE: backend fix -> live on REDEPLOY (fixes the user's EXISTING invited collaborator too, no migration needed). Frontend subtext ships with next build.
+Creds: demo@cheerplanner.app / CheerDemo2026!.

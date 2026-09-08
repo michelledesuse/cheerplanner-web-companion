@@ -371,6 +371,15 @@ async def run(purge: bool = True) -> None:
         )
         # Land the coach on the demo team hub (they may collaborate on several).
         await db.users.update_one({"id": coach_id}, {"$set": {"active_hub_id": household_id}})
+        # Give the coach an assigned "coach" team-member record so she shows in
+        # the owner's Team list (active), not the New Members / role-needed queue.
+        if not await db.team_members.find_one({"household_id": household_id, "user_id": coach_id}):
+            _now = datetime.now(timezone.utc).isoformat()
+            await db.team_members.insert_one({
+                "id": secrets.token_urlsafe(9), "household_id": household_id, "user_id": coach_id,
+                "status": "active", "role": "coach", "athlete_roster_id": None,
+                "joined_at": _now, "assigned_at": _now,
+            })
         ch_id = secrets.token_urlsafe(8)
         await db.chat_channels.insert_one({
             "id": ch_id, "household_id": household_id, "name": "Parents & Coach", "kind": "team",

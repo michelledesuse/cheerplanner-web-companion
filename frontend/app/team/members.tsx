@@ -14,6 +14,7 @@ type Member = {
   email?: string;
   status: "pending" | "active";
   role?: string | null;
+  collaborator?: boolean;
   athlete_roster_id?: string | null;
   athlete_name?: string | null;
 };
@@ -156,7 +157,7 @@ export default function TeamMembersScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.name}>{m.name}</Text>
                 {!!m.email && <Text style={styles.sub}>{m.email}</Text>}
-                <Text style={styles.subMuted}>Group chat only — assign a role</Text>
+                <Text style={styles.subMuted}>{m.collaborator ? "Has hub access — assign a role" : "Group chat only — assign a role"}</Text>
               </View>
               <View style={{ gap: 6, alignItems: "flex-end" }}>
                 <TouchableOpacity style={styles.assignBtn} onPress={() => openAssign(m)} disabled={busy === m.user_id} testID={`assign-${m.user_id}`}>
