@@ -83,9 +83,15 @@ async def join_team_with_code(code: str, current_user) -> dict:
     owner_id = _household_owner_id(h)
     if uid == owner_id or uid in (h.get("team_hub_member_user_ids") or []) or uid in (h.get("member_user_ids") or []):
         raise HTTPException(status_code=400, detail="You're already part of this team.")
+    # Friendly team name for the join confirmation (hub name, else owner's name).
+    team_name = h.get("hub_name")
+    if not team_name:
+        owner = await db.users.find_one({"id": owner_id}, {"_id": 0, "name": 1, "email": 1})
+        nm = (owner or {}).get("name") or ((owner or {}).get("email") or "").split("@")[0]
+        team_name = f"{nm}'s team" if nm else None
     existing = await db.team_members.find_one({"household_id": h["id"], "user_id": uid}, {"_id": 0})
     if existing:
-        return {"joined": True, "status": existing.get("status", "pending"), "team_name": h.get("hub_name"), "team_pending": True}
+        return {"joined": True, "status": existing.get("status", "pending"), "team_name": team_name, "team_pending": True}
     now = utcnow_iso()
     await db.team_members.insert_one({
         "id": secrets.token_urlsafe(9), "household_id": h["id"], "user_id": uid,
@@ -97,7 +103,7 @@ async def join_team_with_code(code: str, current_user) -> dict:
         "id": secrets.token_urlsafe(9), "household_id": h["id"], "owner_id": owner_id,
         "user_id": uid, "name": who["name"], "created_at": now, "read": False,
     })
-    return {"joined": True, "status": "pending", "team_name": h.get("hub_name"), "team_pending": True}
+    return {"joined": True, "status": "pending", "team_name": team_name, "team_pending": True}
 
 
 @router.post("/join")

@@ -86,10 +86,11 @@ export default function TeamScreen() {
     if (!c || joining) return;
     setJoining(true);
     try {
-      await api.post("/team/join", { code: c });
+      const r = await api.post<{ team_name?: string | null }>("/team/join", { code: c });
       setShowJoin(false); setJoinCode("");
       await refreshUser();
-      Alert.alert("You're in!", "You've joined the team's group chat. A coach will finish setting up your role.", [
+      const tn = r.data?.team_name;
+      Alert.alert("You're in!", `You've joined ${tn || "the team"}'s group chat. A coach will finish setting up your role.`, [
         { text: "Open chat", onPress: () => router.push("/team/chat" as any) },
       ]);
       loadUnread();
@@ -165,6 +166,17 @@ export default function TeamScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="team-screen">
           <TeamHubSwitcher />
+
+          {isOwner && pendingCount > 0 && (
+            <TouchableOpacity style={styles.alertBanner} testID="team-pending-alert" activeOpacity={0.8} onPress={() => router.push("/team/members" as any)}>
+              <View style={styles.alertIcon}><Ionicons name="notifications" size={20} color="#fff" /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.alertTitle}>{pendingCount} new member{pendingCount === 1 ? "" : "s"} waiting</Text>
+                <Text style={styles.alertDesc}>Tap to assign {pendingCount === 1 ? "their role" : "roles"} and finish setup.</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+            </TouchableOpacity>
+          )}
 
           {isOwner && (
             <TouchableOpacity style={styles.toolCard} testID="team-tool-members" activeOpacity={0.7} onPress={() => router.push("/team/members" as any)}>
@@ -291,6 +303,14 @@ const makeStyles = (c: ThemePalette) => ({
     borderWidth: 1, borderColor: c.accent + "33",
   },
   introText: { ...typography.caption, color: c.textPrimary, flex: 1, lineHeight: 18 },
+  alertBanner: {
+    flexDirection: "row", gap: spacing.md, alignItems: "center",
+    backgroundColor: c.accentSubtle, borderRadius: radius.lg, padding: spacing.md,
+    borderWidth: 1, borderColor: c.accent,
+  },
+  alertIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.accent, alignItems: "center", justifyContent: "center" },
+  alertTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
+  alertDesc: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   toolCard: {
     flexDirection: "row", gap: spacing.md, alignItems: "center",
     backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.md,

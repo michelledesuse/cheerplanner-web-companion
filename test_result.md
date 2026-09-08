@@ -544,3 +544,10 @@ Creds: demo@cheerplanner.app / CheerDemo2026! (staff on Team Hub). Team practice
 - VERIFIED (curl, preview): /household/join with reusable team code -> 200 {joined,status:pending,team_pending:true} (was 404); email-invite code still -> collaborator 200; invalid -> 404. /team/join unchanged (still works for team code).
 - NOTE: production still needs REDEPLOY for this fix + the earlier origin-health/deploy-compliance changes to take effect.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 114 — Member alert banner + team name on join
+- Backend join_team_with_code() now returns friendly team_name (household hub_name, else "<Owner>'s team"). Both /team/join and /household/join(team-code fallback) include it.
+- Frontend: team.tsx joinTeam + team-access.tsx submitJoinTeam show the team name in the confirmation ("You've joined <Team>..."). team.tsx: NEW prominent alert banner (testID team-pending-alert) at top of Team Hub for owners when pendingCount>0 -> "N new members waiting", taps to /team/members. Existing Members-card badge retained.
+- VERIFIED (curl): /household/join returns team_name "Jordan's team"; pending-count is_owner:true count feeds banner. Lint clean (only _e warnings). Cleaned up junk test accounts/pending members from demo hub (now 0 pending).
+- NOTE: banner only shows when there IS a pending member; needs REDEPLOY for production.
+Creds: demo@cheerplanner.app / CheerDemo2026!.
