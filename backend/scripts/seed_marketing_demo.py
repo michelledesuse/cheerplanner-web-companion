@@ -86,7 +86,7 @@ async def _insert(db, collection: str, model) -> str:
     return doc["id"]
 
 
-async def run() -> None:
+async def run(purge: bool = True) -> None:
     client = AsyncIOMotorClient(MONGO_URL)
     db = client[DB_NAME]
 
@@ -106,16 +106,17 @@ async def run() -> None:
         })
     print(f"Demo user OK → {DEMO_EMAIL} (id={user_id})")
 
-    purge = [
+    purge_collections = [
         "athletes", "competitions", "bookings", "expenses", "payments",
         "fundraisers", "schedule_events", "packing_templates", "packing_lists",
         "teams", "roster", "team_forms", "team_form_responses", "seasons",
         "size_sheets", "signups", "paperwork", "attendance_sessions",
         "sheet_blocks", "broadcast_history", "broadcast_templates",
     ]
-    for c in purge:
-        await db[c].delete_many({"user_id": user_id})
-    print("Cleared previous demo data.")
+    if purge:
+        for c in purge_collections:
+            await db[c].delete_many({"user_id": user_id})
+        print("Cleared previous demo data.")
 
     # Resolve (lazy-create) the demo user's household + wipe ParentGuard / chat
     # demo state so re-runs always land on the same pending-approval scenario.
@@ -127,7 +128,7 @@ async def run() -> None:
     household_id = h["id"]
     mia_login = await db.users.find_one({"email": MIA_ATHLETE_EMAIL})
     mia_login_id = mia_login["id"] if mia_login else None
-    if household_id:
+    if household_id and purge:
         await db.athlete_chat_links.delete_many({"household_id": household_id})
         await db.team_messages.delete_many({"household_id": household_id})
         await db.chat_channels.delete_many({"household_id": household_id})
@@ -141,7 +142,7 @@ async def run() -> None:
             {"id": household_id},
             {"$set": {"member_user_ids": [user_id], "team_hub_member_user_ids": [], "chat_athlete_user_ids": []}},
         )
-    print("Cleared previous ParentGuard / chat demo state.")
+        print("Cleared previous ParentGuard / chat demo state.")
 
     today = datetime.now(timezone.utc).date()
 

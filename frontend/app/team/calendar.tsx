@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pre
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar, type DateData } from "react-native-calendars";
+import * as DeviceCalendar from "expo-calendar";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
@@ -52,6 +53,7 @@ export default function TeamCalendar() {
   const [view, setView] = useState<CalView>("month");
   const [selected, setSelected] = useState<string>(todayISO());
   const [month, setMonth] = useState<string>(todayISO().slice(0, 7));
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
 
   const allTypes: TypeDef[] = useMemo(() => [
     ...BUILTIN_TYPES,
@@ -86,10 +88,22 @@ export default function TeamCalendar() {
 
   const isStaff = role === "staff";
 
+  // Filter-by-type: chips for the event types present in the current window.
+  const presentTypes = useMemo(() => {
+    const s = new Set<string>();
+    for (const e of events) s.add(e.event_type || "other");
+    return allTypes.filter((t) => s.has(t.key));
+  }, [events, allTypes]);
+  const filteredEvents = useMemo(
+    () => (typeFilter.size === 0 ? events : events.filter((e) => typeFilter.has(e.event_type || "other"))),
+    [events, typeFilter],
+  );
+  const toggleType = (k: string) => setTypeFilter((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
   const markedDates = useMemo(() => {
     const map: Record<string, any> = {};
     const seen: Record<string, Set<string>> = {};
-    for (const e of events) {
+    for (const e of filteredEvents) {
       const color = typeOf(e.event_type).color;
       if (!seen[e.occ_date]) seen[e.occ_date] = new Set();
       if (seen[e.occ_date].has(color)) continue;
@@ -99,9 +113,9 @@ export default function TeamCalendar() {
     }
     map[selected] = { ...(map[selected] || { dots: [] }), selected: true, selectedColor: colors.accent };
     return map;
-  }, [events, selected, typeOf]);
+  }, [filteredEvents, selected, typeOf]);
 
-  const dayEvents = useCallback((d: string) => events.filter((e) => e.occ_date === d), [events]);
+  const dayEvents = useCallback((d: string) => filteredEvents.filter((e) => e.occ_date === d), [filteredEvents]);
   const weekDays = useMemo(() => { const s = isoStartOfWeek(selected); return Array.from({ length: 7 }, (_, i) => isoAddDays(s, i)); }, [selected]);
 
   const renderCard = (e: Ev, showDate = true) => {
@@ -155,11 +169,30 @@ export default function TeamCalendar() {
         </View>
       </View>
 
+      {presentTypes.length > 1 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow} testID="teamcal-filter-row">
+          {typeFilter.size > 0 && (
+            <TouchableOpacity onPress={() => setTypeFilter(new Set())} style={styles.filterClear} testID="teamcal-filter-all">
+              <Ionicons name="close" size={13} color={colors.accent} /><Text style={styles.filterClearText}>All</Text>
+            </TouchableOpacity>
+          )}
+          {presentTypes.map((t) => {
+            const on = typeFilter.has(t.key);
+            return (
+              <TouchableOpacity key={t.key} onPress={() => toggleType(t.key)} style={[styles.filterChip, on && { backgroundColor: t.color, borderColor: t.color }]} testID={`teamcal-filter-${t.key}`}>
+                <View style={[styles.filterDot, { backgroundColor: on ? "white" : t.color }]} />
+                <Text style={[styles.filterChipText, on && { color: "white" }]}>{t.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={colors.accent} />}>
         {view === "list" && (
-          loading ? spinner : events.length === 0 ? (
-            <View style={styles.empty}><Ionicons name="calendar-outline" size={28} color={colors.textTertiary} /><Text style={styles.emptyText}>No upcoming events.</Text></View>
-          ) : events.map((e) => renderCard(e, true))
+          loading ? spinner : filteredEvents.length === 0 ? (
+            <View style={styles.empty}><Ionicons name="calendar-outline" size={28} color={colors.textTertiary} /><Text style={styles.emptyText}>{typeFilter.size > 0 ? "No events match this filter." : "No upcoming events."}</Text></View>
+          ) : filteredEvents.map((e) => renderCard(e, true))
         )}
 
         {view === "month" && (
@@ -245,6 +278,24 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
       Alert.alert(r.data.already ? "Already added" : "Added to your calendar", r.data.already ? "This event is already on your personal calendar." : "The event was added to your family calendar.");
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not add to your calendar."); }
   };
+  const addToPhone = async () => {
+    try {
+      const mk = (t?: string) => { const [h, m] = (t || "00:00").split(":").map(Number); const d = new Date(ev.occ_date + "T00:00:00"); d.setHours(h || 0, m || 0, 0, 0); return d; };
+      const allDay = !ev.start_time;
+      const start = allDay ? new Date(ev.occ_date + "T00:00:00") : mk(ev.start_time);
+      let end: Date;
+      if (allDay) { end = new Date(start); end.setDate(end.getDate() + 1); }
+      else if (ev.end_time) { end = mk(ev.end_time); if (end <= start) end = new Date(start.getTime() + 60 * 60 * 1000); }
+      else { end = new Date(start.getTime() + 60 * 60 * 1000); }
+      const location = [ev.location, ev.address].filter(Boolean).join(", ");
+      await DeviceCalendar.createEventInCalendarAsync(
+        { title: ev.title, startDate: start, endDate: end, allDay, location, notes: ev.notes || "" },
+        { startNewActivityTask: false },
+      );
+    } catch (e: any) {
+      Alert.alert("Couldn't open calendar", e?.message || "Please try again, or add this event manually.");
+    }
+  };
 
   const timeStr = [ev.start_time && formatTime12(ev.start_time), ev.end_time && formatTime12(ev.end_time)].filter(Boolean).join(" – ");
 
@@ -291,6 +342,7 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
           )}
         </ScrollView>
         <TouchableOpacity style={styles.importBtn} onPress={addToMine} testID="event-import-personal"><Ionicons name="cloud-download-outline" size={16} color={colors.accent} /><Text style={styles.importText}>Add to my calendar</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.phoneBtn} onPress={addToPhone} testID="event-add-phone"><Ionicons name="phone-portrait-outline" size={16} color={colors.accent} /><Text style={styles.importText}>Add to phone calendar</Text></TouchableOpacity>
         <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Close</Text></TouchableOpacity>
       </Pressable></Pressable>
     </Modal>
@@ -612,6 +664,7 @@ const makeStyles = (c: ThemePalette) => ({
   editText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   importBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.sm, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: c.accent, backgroundColor: c.accentSubtle },
   importText: { ...typography.bodyMedium, color: c.accent, fontWeight: "800" },
+  phoneBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: spacing.xs, paddingVertical: 12, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
   evTitle: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary }, evMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   evRsvp: { ...typography.caption, color: c.textPrimary, marginTop: 3 },
   countChip: { backgroundColor: c.cardSubtle, borderRadius: 999, minWidth: 24, height: 24, alignItems: "center", justifyContent: "center", paddingHorizontal: 6 },
@@ -667,4 +720,10 @@ const makeStyles = (c: ThemePalette) => ({
   selectAllText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   seriesBlock: { borderLeftWidth: 2, borderLeftColor: c.border, paddingLeft: 6, marginTop: 2 },
   seriesCount: { ...typography.caption, color: c.textSecondary, fontWeight: "800" },
+  filterRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: spacing.md, paddingTop: spacing.sm, paddingBottom: 2 },
+  filterChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.border, backgroundColor: c.card },
+  filterChipText: { ...typography.caption, fontWeight: "800", color: c.textSecondary },
+  filterDot: { width: 8, height: 8, borderRadius: 4 },
+  filterClear: { flexDirection: "row", alignItems: "center", gap: 2, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.accent, backgroundColor: c.accentSubtle },
+  filterClearText: { ...typography.caption, fontWeight: "800", color: c.accent },
 });

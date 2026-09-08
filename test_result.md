@@ -520,3 +520,20 @@ Deploy: backend redeploy + NEW build required.
 - VERIFIED (curl, demo@cheerplanner.app): importable returns already/series_id; events?from_&to returns month range. App bundles (smoke screenshot OK).
 - NOTE: demo weekly "Team practice" events were seeded as individual docs (series_id=None) so show as singles; real recurring personal events get series_id (schedule.py) and DO group.
 Creds: demo@cheerplanner.app / CheerDemo2026! (staff/coach on Team Hub).
+
+## Iteration 111 — Team Hub Calendar: Filter-by-Type + Add-to-Phone-Calendar
+- app/team/calendar.tsx: NEW horizontal filter chip row (shown when >1 event type present in window) below the view toggle. Tapping a type chip shows ONLY that type across Month dots + day/week/list agendas; multi-select; an "All" chip clears the filter. Uses filteredEvents (typeFilter Set) in markedDates/dayEvents/list.
+- Event detail modal: NEW "Add to phone calendar" button (testID event-add-phone) using expo-calendar createEventInCalendarAsync — opens the OS native add-event sheet prefilled with title/date/time/location/notes (all-day if no start_time). Existing "Add to my calendar" (in-app family cal import) unchanged.
+- app.json: added iOS NSCalendarsUsageDescription + NSCalendarsWriteOnlyAccessUsageDescription, Android READ_CALENDAR/WRITE_CALENDAR, and expo-calendar config plugin.
+- NOTE: the native add-event sheet only works on a device / Expo Go (native), NOT web — on web createEventInCalendarAsync throws UnavailabilityError and shows a graceful "Couldn't open calendar" Alert. Testing agent on web should only verify the button RENDERS + tap shows the graceful alert (not a crash).
+Creds: demo@cheerplanner.app / CheerDemo2026! (staff on Team Hub). Team practice is now a 6-date weekly series; event types present include Practice, Private Lesson (+competitions via import).
+
+## Iteration 112 — Production team-code diagnosis + deploy-blocker fix
+- USER REPORT: "Team Hub access code not working in production." Screenshots (IMG_0558/IMG_0384) show Cloudflare **Error 520** + in-app "Login failed — origin web server sent a response Cloudflare could not parse" on cheer-planner.com. => PRODUCTION ORIGIN/BACKEND is unhealthy; login + everything (incl. team code) fails. NOT a team-code code bug.
+- VERIFIED team join-code flow WORKS in preview: owner GET /api/team/join-code -> new signup POST /api/team/join {code} => {joined:true,status:pending} HTTP 200.
+- deployment_agent health check => FAIL. Key NEW blocker: startup auto-seed (_ensure_demo_seed in server.py) ran destructive delete_many() at startup (disallowed by deploy policy) => would BLOCK a successful redeploy.
+- FIX: seed_marketing_demo.run(purge: bool = True); all delete_many gated behind `if purge`. server.py startup now calls run(purge=False) => INSERT-ONLY on production first boot (deletes are no-ops on fresh DB anyway). Manual CLI run() still purges for preview re-seeds.
+- Added iOS NSMicrophoneUsageDescription (health check flagged chat video picker).
+- VERIFIED insert-only path on simulated fresh DB: demo user + household + 2 athletes + 1 brand preset + 3 flyers seeded; NO "Cleared…" logs (deletes skipped); "One-time demo seed finished successfully."
+- Pre-existing deploy warnings NOT changed (out of scope / previously deployed): weather TTL indexes, .gitignore .env, JWT_SECRET fallback, RevenueCat+NewArch.
+- ACTION FOR USER: redeploy (Publish) so production runs current, deploy-compliant code; that restores origin health and the team code.

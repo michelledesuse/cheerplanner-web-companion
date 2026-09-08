@@ -16,6 +16,9 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes",
         "NSPhotoLibraryAddUsageDescription": "Save designs and flyers to your photos",
+        "NSCalendarsUsageDescription": "Add team events to your calendar",
+        "NSCalendarsWriteOnlyAccessUsageDescription": "Add team events to your calendar",
+        "NSMicrophoneUsageDescription": "Record video clips to share in team chat",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -30,7 +33,9 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "READ_MEDIA_IMAGES",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
       ]
     },
     "web": {
@@ -52,7 +57,13 @@
       "expo-font",
       "@react-native-community/datetimepicker",
       "expo-audio",
-      "expo-video"
+      "expo-video",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Add team events to your calendar"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

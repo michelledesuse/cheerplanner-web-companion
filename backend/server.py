@@ -208,7 +208,7 @@ async def startup_db_client():
             # Running it as a subprocess from inside uvicorn's loop proved
             # unreliable (child-watcher/loop issues); in-process is deterministic.
             from scripts.seed_marketing_demo import run as _seed_run
-            await _seed_run()
+            await _seed_run(purge=False)
             _log.info("One-time demo seed finished successfully.")
         except Exception as exc:  # noqa: BLE001
             logging.getLogger("startup").warning("Demo auto-seed skipped: %s", exc, exc_info=True)

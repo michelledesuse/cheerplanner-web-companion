@@ -638,3 +638,9 @@ Get exact current paths from user before building W2.
   co-parent + chat, 3 calendar events, team forms, 1 brand preset, 3 flyer designs, 1 flyer
   posted to chat. Login `demo@cheerplanner.app / CheerDemo2026!` → 200 + token. No duplicate
   demo users; only ONE seed run (no double OpenAI cost).
+
+## Session update — Production "team code not working" = origin-down (NOT a code bug)
+- User screenshots showed Cloudflare 520 + "Login failed (origin returned unparseable response)" on cheer-planner.com => the deployed backend/origin is unhealthy; login + team code + everything fails. Last deploy was weeks ago.
+- Team join-code flow verified WORKING in preview (owner /api/team/join-code -> new signup /api/team/join => joined:pending 200).
+- deployment_agent flagged a NEW deploy blocker: startup auto-seed ran destructive delete_many (policy-disallowed) -> would block redeploy. FIXED: run(purge=False) at startup = insert-only; deletes gated behind `if purge` (manual CLI still purges). Verified insert-only seed on fresh DB (user+household+athletes+1 brand+3 flyers, no deletes). Added iOS NSMicrophoneUsageDescription.
+- NEXT: user must REDEPLOY (Publish) to restore production origin health with current deploy-compliant code.

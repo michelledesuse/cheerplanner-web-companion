@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only test for Team Hub Calendar new features (Filter-by-Type chips + Add to phone calendar). All 6 requested test scenarios PASSED. Logged in as demo@cheerplanner.app (staff role on Team Hub, subtitle 'Tap an event to see RSVPs' confirms staff). View toggle renders (Month default / Week / Day / List). Filter-by-type chip row (testID teamcal-filter-row) renders with three chips: Practice / Fundraiser / Competition — each with colored dot + label. Tapping teamcal-filter-practice filtered List to 1 event (Full-Out Practice) and made teamcal-filter-all appear. Multi-select confirmed: adding teamcal-filter-fundraiser expanded list to 2 events (Practice + Fundraiser, hiding Competition). Tapping teamcal-filter-all cleared the filter (3 events restored, All chip disappears). Filter row also appears in Month view. Event detail modal opens with BOTH 'Add to my calendar' (event-import-personal) AND 'Add to phone calendar' (event-add-phone) buttons. Tapping 'Add to phone calendar' on web did NOT crash — calendar-screen remained mounted and modal still responsive (RN-web Alert may be silent, but graceful non-crash behavior is confirmed as expected per requirements).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "app/team/calendar.tsx is 729 lines — consider splitting DetailModal, EventForm, ImportFromPersonalModal into their own files for maintainability (>700 line guideline).",
+    "addToPhone() uses DeviceCalendar.createEventInCalendarAsync which is native-only; on web it rejects and the catch shows Alert.alert('Couldn't open calendar'). RN-web's Alert.alert() is a no-op in some setups so users may not see any feedback — consider Platform.OS === 'web' guard with a web-specific UX (e.g., an ICS download) or an in-app toast that renders on web."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (not tested per request)", "frontend": "100%"},
+  "seed_data_creation": "No seed data created — used pre-seeded demo account (demo@cheerplanner.app) which already had Full-Out Practice, Spirit Cup Regional, and Car Wash Fundraiser events for September 2026.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow: goto /login → fill data-testid=login-email-input + login-password-input → click data-testid=login-submit-button → land on /dashboard → after ~4s a tour modal may appear; dismiss by clicking text 'Skip'. Calendar deep-link: /team/calendar. Staff view shows filter row + add-btn + import-personal btn. September 2026 currently has 3 seeded events (Practice, Competition, Fundraiser) — sufficient for filter testing. All requested testIDs (teamcal-filter-row, teamcal-filter-<type>, teamcal-filter-all, event-add-phone) render correctly."
+}
