@@ -56,6 +56,7 @@ const KIND_ICONS: Record<string, any> = {
   flight_arrive: "airplane",
   travel_day: "navigate",
   transport: "car",
+  booking_cancel_by: "close-circle",
   fundraiser: "gift",
   team_meet: "people",
   team_performance: "ribbon",

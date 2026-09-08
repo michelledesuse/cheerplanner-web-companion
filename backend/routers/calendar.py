@@ -195,6 +195,21 @@ async def calendar_feed(
         comp_link = f"/competitions/{b.get('competition_id')}" if b.get("competition_id") else "/"
         vendor = b.get("provider") or btype.capitalize()
         conf = b.get("confirmation") or ""
+        # Free-cancellation deadline — surfaced as its own calendar item so
+        # families don't miss the last day to cancel without a penalty.
+        cancel_by = _normalize_date(b.get("cancel_by"))
+        if cancel_by and in_range(cancel_by):
+            _label = {"hotel": "hotel", "flight": "flight", "car": "car"}.get(btype, "booking")
+            items.append({
+                "id": f"cancelby-{b['id']}",
+                "kind": "booking_cancel_by",
+                "date": cancel_by,
+                "title": f"Cancel by: {vendor}",
+                "time": _extract_hhmm(b.get("cancel_by")),
+                "subtitle": f"Last day for free {_label} cancellation" + (f" \u00b7 {conf}" if conf else ""),
+                "color": "#DC2626",
+                "link": comp_link,
+            })
         if btype == "hotel":
             ci, co = _normalize_date(b.get("check_in")), _normalize_date(b.get("check_out"))
             if ci:

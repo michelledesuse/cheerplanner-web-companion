@@ -580,3 +580,11 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED (curl): email-invite collaborator now appears in owner's pending list and assign coach -> 200 active; pending-count updates; demo cleaned (Coach Casey active coach, 0 pending, orphan collaborators removed).
 - NOTE: backend fix -> live on REDEPLOY (fixes the user's EXISTING invited collaborator too, no migration needed). Frontend subtext ships with next build.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 118 — Travel cancellation dates on the calendar
+- REQUEST: make travel cancellation dates viewable on the calendar.
+- Backend routers/calendar.py: in the bookings loop, for ANY booking type (hotel/flight/car/ground) with cancel_by in range, append a calendar item kind="booking_cancel_by", red (#DC2626), title "Cancel by: <provider>", subtitle "Last day for free <type> cancellation · <conf>". Uses _normalize_date/_extract_hhmm.
+- Frontend (tabs)/calendar.tsx: added KIND_ICONS.booking_cancel_by = "close-circle". passesType lets non-schedule kinds through, so it renders + gets a month dot.
+- VERIFIED (curl): /calendar returns booking_cancel_by items (seeded Wyndham cancel_by 2026-09-17 + a test hotel) with correct date/title/color; cleaned up test booking.
+- NOTE: backend feed change -> live on REDEPLOY; the icon ships with next build (item still shows without it via default rendering).
+Creds: demo@cheerplanner.app / CheerDemo2026!.
