@@ -550,6 +550,9 @@ class Booking(BaseModel):
     check_out: Optional[str] = None
     check_out_time: Optional[str] = None
     cancel_by: Optional[str] = None
+    # Optional opt-in: text me this many days before the free-cancellation
+    # deadline (1 or 2). None/0 = no reminder.
+    cancel_reminder_days: Optional[int] = None
     # car
     pickup_at: Optional[str] = None
     pickup_location: Optional[str] = None
@@ -594,6 +597,7 @@ class BookingCreate(BaseModel):
     check_out: Optional[str] = None
     check_out_time: Optional[str] = None
     cancel_by: Optional[str] = None
+    cancel_reminder_days: Optional[int] = None
     pickup_at: Optional[str] = None
     pickup_location: Optional[str] = None
     dropoff_at: Optional[str] = None
@@ -628,6 +632,7 @@ class BookingUpdate(BaseModel):
     check_out: Optional[str] = None
     check_out_time: Optional[str] = None
     cancel_by: Optional[str] = None
+    cancel_reminder_days: Optional[int] = None
     pickup_at: Optional[str] = None
     pickup_location: Optional[str] = None
     dropoff_at: Optional[str] = None

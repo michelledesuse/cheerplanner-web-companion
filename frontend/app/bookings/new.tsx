@@ -35,6 +35,7 @@ export default function BookingForm() {
   const [checkOut, setCheckOut] = useState("");
   const [checkOutTime, setCheckOutTime] = useState("");
   const [cancelBy, setCancelBy] = useState("");
+  const [cancelReminderDays, setCancelReminderDays] = useState<number>(0);
   // car
   const [pickupAt, setPickupAt] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
@@ -90,6 +91,7 @@ export default function BookingForm() {
         setCheckOut(b.check_out || "");
         setCheckOutTime(b.check_out_time || "");
         setCancelBy(b.cancel_by || "");
+        setCancelReminderDays(b.cancel_reminder_days || 0);
         setPickupAt(b.pickup_at || "");
         setPickupLocation(b.pickup_location || "");
         setDropoffAt(b.dropoff_at || "");
@@ -140,6 +142,7 @@ export default function BookingForm() {
         check_out: type === "hotel" ? (checkOut || null) : null,
         check_out_time: type === "hotel" ? (checkOutTime || null) : null,
         cancel_by: type === "hotel" ? (cancelBy || null) : null,
+        cancel_reminder_days: type === "hotel" && cancelBy && cancelReminderDays > 0 ? cancelReminderDays : null,
         pickup_at: type === "car" ? (pickupAt || null) : null,
         pickup_location: type === "car" ? (pickupLocation.trim() || null) : null,
         dropoff_at: type === "car" ? (dropoffAt || null) : null,
@@ -227,6 +230,26 @@ export default function BookingForm() {
               <TimeField value={checkOutTime} onChange={setCheckOutTime} testID="booking-checkout-time-input" />
               <Text style={styles.label}>Free cancellation by (optional)</Text>
               <DateField value={cancelBy} onChange={setCancelBy} />
+              {!!cancelBy && (
+                <>
+                  <Text style={styles.label}>Remind me before the deadline</Text>
+                  <View style={{ flexDirection: "row", gap: 8, marginTop: 4 }}>
+                    {([[0, "Off"], [1, "1 day before"], [2, "2 days before"]] as const).map(([d, lbl]) => (
+                      <TouchableOpacity
+                        key={d}
+                        onPress={() => setCancelReminderDays(d)}
+                        style={[styles.reminderChip, cancelReminderDays === d && styles.reminderChipOn]}
+                        testID={`cancel-remind-${d}`}
+                      >
+                        <Text style={[styles.reminderChipText, cancelReminderDays === d && styles.reminderChipTextOn]}>{lbl}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {cancelReminderDays > 0 && (
+                    <Text style={styles.reminderHint}>Sent by text — turn SMS on in Settings → Notifications.</Text>
+                  )}
+                </>
+              )}
             </>
           )}
 
@@ -340,6 +363,11 @@ const makeStyles = () => ({
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
   label: { ...typography.caption, color: colors.textSecondary, marginTop: spacing.md, marginBottom: 6 },
+  reminderChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+  reminderChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  reminderChipText: { ...typography.caption, fontWeight: "700", color: colors.textSecondary },
+  reminderChipTextOn: { color: "#fff" },
+  reminderHint: { ...typography.caption, color: colors.textTertiary, marginTop: 6 },
   input: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, color: colors.textPrimary },
   row2: { flexDirection: "row", gap: spacing.md },
   section: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },

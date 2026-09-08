@@ -373,6 +373,38 @@ async def send_timed_sms_tick() -> None:
                     if send_sms(phone, _event_reminder_sms(ev.get("title") or "Event", off, ev.get("location"))):
                         await _record_sent(key, user_id, "sms_event_reminder")
                         sent += 1
+            # --- Free-cancellation deadline reminders (opt-in, N days before) ---
+            async for b in db.bookings.find(
+                {"user_id": {"$in": member_ids},
+                 "cancel_by": {"$ne": None},
+                 "cancel_reminder_days": {"$gt": 0}},
+                {"_id": 0},
+            ):
+                try:
+                    days = int(b.get("cancel_reminder_days") or 0)
+                except Exception:
+                    days = 0
+                cby = parse_local_datetime(str(b.get("cancel_by"))[:10] + "T09:00")
+                if days <= 0 or not cby:
+                    continue
+                remind_date = (cby - timedelta(days=days)).date()
+                # Fire once, in the user's 8 AM local hour on the reminder day.
+                if local_now.date() != remind_date or local_now.hour != 8:
+                    continue
+                key = f"{user_id}:booking:{b['id']}:cancelby:{remind_date.isoformat()}"
+                if await _already_sent(key):
+                    continue
+                vendor = b.get("provider") or (b.get("type") or "booking").title()
+                when = "tomorrow" if days == 1 else f"in {days} days"
+                body = (
+                    f"CheerPlanner: Free-cancellation deadline for {vendor} is {when} "
+                    f"({str(b.get('cancel_by'))[:10]}). Cancel by then to avoid fees.\n"
+                    f"Reply STOP to opt out."
+                )
+                if send_sms(phone, body):
+                    await _record_sent(key, user_id, "sms_cancel_by")
+                    sent += 1
+
         except Exception as exc:  # noqa: BLE001
             logger.exception("timed sms tick failure for user %s: %s", u.get("id"), exc)
     if sent:

@@ -588,3 +588,11 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - VERIFIED (curl): /calendar returns booking_cancel_by items (seeded Wyndham cancel_by 2026-09-17 + a test hotel) with correct date/title/color; cleaned up test booking.
 - NOTE: backend feed change -> live on REDEPLOY; the icon ships with next build (item still shows without it via default rendering).
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 119 — Optional cancel-deadline reminder (opt-in SMS, N days before)
+- REQUEST: optional reminder a day or two before a booking's free-cancellation deadline.
+- Backend: added cancel_reminder_days (Optional[int]) to Booking/BookingCreate/BookingUpdate. scheduler.send_timed_sms_tick now, per user w/ SMS on, for hotel bookings with cancel_by + cancel_reminder_days>0, fires ONE SMS at 8AM local on (cancel_by - days); deduped via sent_notifications key ...:cancelby:<date>.
+- Frontend bookings/new.tsx (hotel): under "Free cancellation by", chips Off / 1 day before / 2 days before (testID cancel-remind-0/1/2) + hint to enable SMS in Settings. Saved as cancel_reminder_days.
+- VERIFIED: simulated tick fired exactly one SMS ("in 2 days") and deduped on 2nd run. Digest already lists cancel-by; calendar already shows the date (iter118).
+- NOTE: SMS requires user's Twilio + SMS opt-in (Settings→Notifications). Backend live on REDEPLOY; form control ships with next build.
+Creds: demo@cheerplanner.app / CheerDemo2026!.
