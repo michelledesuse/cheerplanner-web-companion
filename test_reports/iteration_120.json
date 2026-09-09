@@ -1,0 +1,28 @@
+{
+  "summary": "iter119 P0 (Consolidate joining member into an EXISTING roster entry) verified end-to-end. Backend: 8/8 pytest cases pass against the public preview URL, covering coach/staff/athlete consolidation (roster is UPDATED, linked_id + email set, NO duplicate), regression paths without athlete_roster_id (fresh roster still created), roster-picker endpoint /api/team/members/athletes returns entries of ALL roles (coach/staff/athlete/team_rep), full join->assign flow, and 404 guardrail for bogus roster ids. Frontend (mobile viewport 390x844, demo owner): Assign-role modal for a pending member now shows the 'Link to an existing profile (optional)' picker for both Coach and Staff (previously only Parent/Athlete). Selecting Coach + picking 'Coach Maria' + Confirm consolidated the joining user into the existing coach roster row — roster count stayed at 9 (delta=0), the row's role stayed 'coach' with linked_id set to the joiner, and the member moved to the active list. No React Native deprecated packages or SafeAreaView issues detected in the touched file.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter119_consolidate_existing_roster.py",
+    "/app/test_reports/pytest/pytest_iter119.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_members.py:263 chat_athlete_user_ids is added even when consolidating into a NON-athlete's roster entry only guarded by role==athlete — behavior is correct.",
+    "team_members.py:246 for coach/staff link path, the existing roster's role is OVERWRITTEN to the new role — this is intentional per spec ('any role') but worth noting: consolidating a 'team_rep' entry into a joining 'coach' will change that row's role to 'coach'."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter119_consolidate_existing_roster.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Test creates throwaway TEST_ signup accounts + 3 seeded roster entries (coach/staff/athlete) per module fixture and cleans them up. UI test creates a single throwaway 'joiner_*@t.com' user, joins the demo owner's team, and removes them at the end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend endpoint under test: POST /api/team/members/{user_id}/assign-role with athlete_roster_id set for role in (coach|staff|athlete). Assertions rely on roster COUNT staying flat when a link target is supplied. If regression appears, first check /app/backend/routers/team_members.py lines 237-259.",
+  "rca_of_issue": "N/A — feature verified working."
+}

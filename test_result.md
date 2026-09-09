@@ -623,3 +623,10 @@ Creds: demo@cheerplanner.app / CheerDemo2026!.
 - forms.tsx: per-form "Post to chat" button (confirm) -> post-form. signups.tsx: per-sheet "Post to chat" button (confirm) -> post-signup (canManage only).
 - VERIFIED (curl): post-form 200 (attachment appears in /team/chat/messages); post-signup 200 with a test sheet. Cleaned test data. Fixed a transient forms.tsx parse error (restored const duplicate). Lint clean.
 Creds: demo@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 124 — Consolidate roster accounts on join (P0)
+- REQUEST: when someone already on the roster joins via the team code, the owner should be able to LINK them to their EXISTING roster profile (any role) instead of creating a duplicate entry.
+- Backend routers/team_members.py: assign_role now accepts athlete_roster_id for coach/staff/athlete to link (consolidate) to an existing roster entry (updates role/linked_id/email in place) instead of always creating a new one. Parent flow (multi-child guardian) unchanged.
+- Frontend app/team/members.tsx: existing-profile picker now shows for coach/staff too (canLinkExisting/showPicker), single-select radio, optional. Label "Link to an existing profile (optional)". New-athlete text box only for parent/athlete.
+- Test focus: owner (demo@cheerplanner.app) has roster entries. A new user joins via team code -> lands pending. Owner assigns Coach/Staff and picks an EXISTING roster entry -> that entry is updated (linked_id set, role set), NO duplicate roster row created. Also verify athlete consolidation and that leaving picker empty creates a fresh roster entry as before.
+Creds: owner demo@cheerplanner.app / CheerDemo2026!.

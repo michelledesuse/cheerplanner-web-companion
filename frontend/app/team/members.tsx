@@ -18,7 +18,7 @@ type Member = {
   athlete_roster_id?: string | null;
   athlete_name?: string | null;
 };
-type AthleteOpt = { roster_id: string; name: string };
+type AthleteOpt = { roster_id: string; name: string; role?: string };
 const ROLE_LABEL: Record<string, string> = { parent: "Parent", coach: "Coach", staff: "Staff", athlete: "Athlete" };
 
 export default function TeamMembersScreen() {
@@ -86,6 +86,9 @@ export default function TeamMembersScreen() {
       const first = Array.from(pickedAthletes)[0];
       if (first) body.athlete_roster_id = first;
       else if (newAthlete.trim()) body.athlete_name = newAthlete.trim();
+    } else if (role === "coach" || role === "staff") {
+      const first = Array.from(pickedAthletes)[0];
+      if (first) body.athlete_roster_id = first; // link (consolidate) to existing roster entry
     }
     setBusy(assignFor.user_id);
     try {
@@ -119,6 +122,12 @@ export default function TeamMembersScreen() {
   }, [load]);
 
   const needsAthlete = role === "parent" || role === "athlete";
+  const canLinkExisting = role === "coach" || role === "staff";
+  const showPicker = needsAthlete || canLinkExisting;
+  const pickerLabel =
+    role === "parent" ? "Link to their children (pick one or more)"
+    : role === "athlete" ? "Athlete's roster entry (optional)"
+    : "Link to an existing profile (optional)";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]} testID="team-members-screen">
@@ -200,9 +209,9 @@ export default function TeamMembersScreen() {
               ))}
             </View>
 
-            {needsAthlete && (
+            {showPicker && (
               <View style={{ marginTop: 4 }}>
-                <Text style={styles.sheetSub}>{role === "parent" ? "Link to their children (pick one or more)" : "Athlete's roster entry (optional)"}</Text>
+                <Text style={styles.sheetSub}>{pickerLabel}</Text>
                 <ScrollView style={{ maxHeight: 150 }}>
                   {athletes.map((a) => {
                     const on = pickedAthletes.has(a.roster_id);
@@ -215,14 +224,16 @@ export default function TeamMembersScreen() {
                     );
                   })}
                 </ScrollView>
-                <TextInput
-                  style={styles.input}
-                  placeholder="…or type a new athlete's name"
-                  placeholderTextColor={colors.textTertiary}
-                  value={newAthlete}
-                  onChangeText={(t) => { setNewAthlete(t); if (t) setPickedAthletes(new Set()); }}
-                  testID="new-athlete-name"
-                />
+                {needsAthlete && (
+                  <TextInput
+                    style={styles.input}
+                    placeholder="…or type a new athlete's name"
+                    placeholderTextColor={colors.textTertiary}
+                    value={newAthlete}
+                    onChangeText={(t) => { setNewAthlete(t); if (t) setPickedAthletes(new Set()); }}
+                    testID="new-athlete-name"
+                  />
+                )}
               </View>
             )}
 

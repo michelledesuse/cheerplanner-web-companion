@@ -183,8 +183,8 @@ async def assignable_athletes(current_user=Depends(get_current_user)):
     h = await _require_owner_hub(current_user["id"])
     owner_id = _household_owner_id(h)
     out = []
-    async for r in db.roster.find({"user_id": owner_id, "role": "athlete"}, {"_id": 0, "id": 1, "name": 1}):
-        out.append({"roster_id": r["id"], "name": r.get("name") or "Athlete"})
+    async for r in db.roster.find({"user_id": owner_id}, {"_id": 0, "id": 1, "name": 1, "role": 1}):
+        out.append({"roster_id": r["id"], "name": r.get("name") or "Member", "role": r.get("role") or "athlete"})
     return {"athletes": out}
 
 
@@ -235,10 +235,18 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
     athlete_roster_id = None
 
     if role in ("coach", "staff"):
-        # Full Team Hub access + roster entry.
+        # Full Team Hub access. Link to an existing roster entry if the owner
+        # picked one (consolidate); otherwise create a fresh roster entry.
         await db.users.update_one({"id": user_id}, {"$set": {"team_access": True, "active_hub_id": h["id"]}})
         await db.households.update_one({"id": h["id"]}, {"$addToSet": {"team_hub_member_user_ids": user_id}})
-        await _create_roster_entry(owner_id, who["name"], role, user_id)
+        if payload.athlete_roster_id:
+            r = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0, "id": 1})
+            if not r:
+                raise HTTPException(status_code=404, detail="Roster entry not found.")
+            await db.roster.update_one({"id": r["id"]}, {"$set": {"role": role, "linked_id": user_id, "email": who["email"]}})
+            athlete_roster_id = r["id"]
+        else:
+            await _create_roster_entry(owner_id, who["name"], role, user_id)
 
     elif role == "athlete":
         # Roster athlete + supervised chat link (group-only, no DMs).
@@ -246,6 +254,8 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
             r = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0, "id": 1})
             if not r:
                 raise HTTPException(status_code=404, detail="Athlete not found.")
+            # Consolidate: tie the joining account to the existing roster entry.
+            await db.roster.update_one({"id": r["id"]}, {"$set": {"linked_id": user_id, "email": who["email"]}})
             athlete_roster_id = r["id"]
         else:
             doc = await _create_roster_entry(owner_id, payload.athlete_name or who["name"], "athlete", user_id)
