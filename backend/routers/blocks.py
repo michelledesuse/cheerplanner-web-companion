@@ -28,16 +28,20 @@ async def get_blocks(resource: str, resource_id: str, current_user=Depends(get_c
     ).to_list(1000)
     blocked_ids = [b["blocked_user_id"] for b in blocked]
 
+    # Include BOTH family household members and Team Hub collaborators
+    # (coaches/staff) so the owner can hide a tracker from any of them — e.g.
+    # hide a "coach's gift" tracker from the coach who's receiving it.
+    collab_ids = set(h.get("team_hub_member_user_ids") or [])
+    all_ids = (set(h.get("member_user_ids") or []) | collab_ids) - {owner_id}
+
     members = []
     async for u in db.users.find(
-        {"id": {"$in": h.get("member_user_ids", [])}},
+        {"id": {"$in": list(all_ids)}},
         {"_id": 0, "id": 1, "email": 1, "name": 1, "team_access": 1},
     ):
-        if u["id"] == owner_id:
-            continue  # owner always has access
         members.append({
             "id": u["id"], "email": u.get("email"), "name": u.get("name"),
-            "team_access": bool(u.get("team_access")),
+            "team_access": bool(u.get("team_access")) or u["id"] in collab_ids,
             "blocked": u["id"] in blocked_ids,
         })
     return {"is_owner": True, "members": members, "blocked_user_ids": blocked_ids}
@@ -51,8 +55,9 @@ async def set_block(payload: SheetBlockCreate, blocked: bool = True, current_use
         raise HTTPException(status_code=403, detail="Only the account owner can manage sheet access")
     if payload.blocked_user_id == owner_id:
         raise HTTPException(status_code=400, detail="You can't hide a sheet from yourself")
-    if payload.blocked_user_id not in (h.get("member_user_ids") or []):
-        raise HTTPException(status_code=404, detail="That member isn't in your household")
+    allowed = set(h.get("member_user_ids") or []) | set(h.get("team_hub_member_user_ids") or [])
+    if payload.blocked_user_id not in allowed:
+        raise HTTPException(status_code=404, detail="That member isn't on your team")
     key = {"user_id": owner_id, "blocked_user_id": payload.blocked_user_id,
            "resource": payload.resource, "resource_id": payload.resource_id}
     if blocked:

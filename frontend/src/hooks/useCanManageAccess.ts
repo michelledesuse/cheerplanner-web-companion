@@ -12,11 +12,12 @@ export function useCanManageAccess(): boolean {
   useEffect(() => {
     let active = true;
     api
-      .get<{ is_owner: boolean; members: { is_owner: boolean; team_access: boolean }[] }>("/team-access")
+      .get<{ is_owner: boolean; members: { is_owner: boolean; team_access: boolean }[]; collaborators?: unknown[] }>("/team-access")
       .then((r) => {
         if (!active) return;
-        const others = (r.data.members || []).filter((m) => !m.is_owner && m.team_access).length;
-        setCanManage(!!r.data.is_owner && others > 0);
+        const grantedMembers = (r.data.members || []).filter((m) => !m.is_owner && m.team_access).length;
+        const collaborators = (r.data.collaborators || []).length;
+        setCanManage(!!r.data.is_owner && grantedMembers + collaborators > 0);
       })
       .catch(() => {});
     return () => { active = false; };

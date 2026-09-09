@@ -195,6 +195,11 @@ const FAQ: Section[] = [
           "It's a manual ledger — no real payments. Set an optional expected amount per person, then record each person's actual amount, method (Cash, Check, Venmo, Zelle, etc. or a custom one) and the date paid. Great for team bonding, gifts, meals and dues.",
       },
       {
+        q: "Can I hide a tracker (like a coach's gift) from the coach or staff receiving it?",
+        a:
+          "Yes. Open the tracker and tap the lock icon (\"Who can view this?\"). You'll see everyone with Team Hub access — including coaches and staff, not just family members — and you can toggle any of them to \"Hidden.\" That person won't see the tracker anywhere in the Hub, while you (the owner) always keep full access. Perfect for organizing a surprise coach/staff gift.",
+      },
+      {
         q: "How do Sizes work — and why no Sports bra for coaches?",
         a:
           "Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) that you can extend with your own. Values are free text (AL, YM, 7…). Personnel don't get a Sports bra size, so that cell shows N/A for them. Tap the chart icon for a size tally by item.",

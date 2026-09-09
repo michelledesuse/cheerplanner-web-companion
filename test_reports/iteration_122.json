@@ -1,0 +1,51 @@
+{
+  "summary": "iter122 — Backend fix in /app/backend/routers/blocks.py verified: owner CAN now block/hide a payment tracker from a coach/staff collaborator. 6/6 backend pytest cases pass (owner list includes coach with team_access=true & blocked=false, block returns {blocked:true}, coach's GET /api/team/payments excludes blocked tracker, coach's GET /api/team/payments/{id} returns 403, unblock restores visibility, family regression intact). BUT the frontend fix is INCOMPLETE: the lock icon (SheetAccessButton) is gated by useCanManageAccess() which only counts household `members` with team_access=true and IGNORES `collaborators` (coaches/staff). On the seeded demo hub the only granted user is the coach (collaborator) — so canManage=false and the lock icon never renders on Team → Payments even though the backend now supports blocking. User cannot reach the 'Who can view this?' modal via the UI in the exact scenario the bug is meant to fix.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "useCanManageAccess hook",
+        "issue": "Lock icon on Team → Payments (and Paperwork, Sign-ups) does NOT render when the only other granted user is a coach/staff collaborator. Hook counts `r.data.members.filter(m => !m.is_owner && m.team_access)` but coaches live in `r.data.collaborators`. Result: 'Who can view this?' modal is unreachable in exactly the scenario the backend fix targets. Reference: /app/frontend/src/hooks/useCanManageAccess.ts:15-19",
+        "testID": "sheet-access-<trackerId>",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Owner hides Coach Gift tracker from coach",
+        "issue": "Backend /api/team/blocks endpoints work perfectly (verified via pytest), but SheetAccessButton is never mounted for the owner unless a family household member has team_access=true. Fix: include collaborators in the 'others' count inside useCanManageAccess (mirror the backend blocks.py change).",
+        "affected_testIDs": ["sheet-access-<trackerId>", "sheet-access-toggle-<userId>"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter122_block_coach_from_payment.py",
+    "/app/test_reports/pytest/pytest_iter122.xml"
+  ],
+  "action_items": [
+    "Update /app/frontend/src/hooks/useCanManageAccess.ts to also count coach/staff collaborators. The /api/team-access response includes a `collaborators` array (each is a granted user separate from `members`); add its length to `others`, e.g. `const collabs = (r.data as any).collaborators?.length || 0; setCanManage(!!r.data.is_owner && (others + collabs) > 0);`. After fix, re-verify by opening Team → Payments as demo@cheerplanner.app and tapping the lock icon — coach.casey should appear with a Can-view/Hidden toggle.",
+    "Consider surfacing the SheetAccessButton also on the payment DETAIL screen (/team/payment.tsx) for discoverability."
+  ],
+  "critical_code_review_comments": [
+    "blocks.py logic is correct — allowed set unions member_user_ids and team_hub_member_user_ids; GET filters same way.",
+    "SheetAccessButton.tsx correctly disables the toggle when !m.team_access; coaches have team_access=true so they render as tappable.",
+    "useCanManageAccess only inspects members[] and ignores collaborators[] — this is the parallel frontend bug matching what was fixed on the backend."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter122_block_coach_from_payment.py (new — 6 tests, all passing)"
+  ],
+  "success_rate": {
+    "backend": "100% (6/6)",
+    "frontend": "50% — modal component itself is correct, but entry point (lock icon) doesn't render for the coach-only case"
+  },
+  "seed_data_creation": "Created + deleted a payment tracker 'TEST_Coach Gift iter122' and 'TEST_Coach Gift UI' via API as the owner during testing. All test-created blocks were removed via the unblock test. Demo hub state restored.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend for blocks/payment coach visibility is fully working — reuse /app/backend/tests/test_iter122_block_coach_from_payment.py for regression. The remaining work is a 1-line frontend hook change. After fix, verify by logging in as demo@cheerplanner.app on the web preview at /team/payments — a lock icon should appear next to each tracker (only when there's an existing tracker). Tapping it must open the 'Who can view this?' sheet listing 'Coach Casey' as a toggleable row.",
+  "rca_of_issue": "ROOT CAUSE (backend): blocks.py was previously restricting members and allowed-block sets to household.member_user_ids. Coaches/staff are stored separately in household.team_hub_member_user_ids and are not part of member_user_ids, so GET returned an empty list and PUT rejected with 404. FIXED by unioning both id sets in both GET and PUT (blocks.py L34-35 and L58). ROOT CAUSE (frontend, still open): useCanManageAccess.ts only counts members[] with team_access=true from /api/team-access and ignores the parallel collaborators[] array where coaches live, so the lock icon is hidden in the exact scenario the backend fix enables. REPRODUCTION: Log in as demo@cheerplanner.app, POST a payment tracker, open /team/payments — no lock icon renders even though /api/team-access returns collaborators:[coach.casey]. MITIGATION: See action_items — include collaborators length in the canManage decision."
+}
