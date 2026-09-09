@@ -16,6 +16,7 @@ type Member = {
   role?: string | null;
   collaborator?: boolean;
   athlete_roster_id?: string | null;
+  athlete_roster_ids?: string[];
   athlete_name?: string | null;
 };
 type AthleteOpt = { roster_id: string; name: string; role?: string };
@@ -69,7 +70,13 @@ export default function TeamMembersScreen() {
   }, []);
 
   const openAssign = useCallback(async (m: Member) => {
-    setAssignFor(m); setRole(""); setPickedAthletes(new Set()); setNewAthlete("");
+    setAssignFor(m); setNewAthlete("");
+    // Pre-fill when re-linking an already-assigned member ("Link / edit").
+    setRole(m.role || "");
+    const pre = new Set<string>(m.athlete_roster_ids && m.athlete_roster_ids.length
+      ? m.athlete_roster_ids
+      : (m.athlete_roster_id ? [m.athlete_roster_id] : []));
+    setPickedAthletes(pre);
     try { const r = await api.get<{ athletes: AthleteOpt[] }>("/team/members/athletes"); setAthletes(r.data.athletes || []); }
     catch { setAthletes([]); }
   }, []);
@@ -187,9 +194,14 @@ export default function TeamMembersScreen() {
                   {ROLE_LABEL[m.role || ""] || "Member"}{m.athlete_name ? ` · for ${m.athlete_name}` : ""}
                 </Text>
               </View>
-              <TouchableOpacity onPress={() => remove(m)} disabled={busy === m.user_id}>
-                <Text style={styles.removeText}>Remove</Text>
-              </TouchableOpacity>
+              <View style={{ gap: 6, alignItems: "flex-end" }}>
+                <TouchableOpacity style={styles.editBtn} onPress={() => openAssign(m)} disabled={busy === m.user_id} testID={`edit-${m.user_id}`}>
+                  <Text style={styles.editText}>Link / edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => remove(m)} disabled={busy === m.user_id}>
+                  <Text style={styles.removeText}>Remove</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -199,7 +211,10 @@ export default function TeamMembersScreen() {
       <Modal visible={!!assignFor} transparent animationType="fade" onRequestClose={() => setAssignFor(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setAssignFor(null)}>
           <Pressable style={styles.sheet} testID="assign-modal">
-            <Text style={styles.sheetTitle}>Set up {assignFor?.name}</Text>
+            <Text style={styles.sheetTitle}>{assignFor?.status === "active" ? "Update" : "Set up"} {assignFor?.name}</Text>
+            {assignFor?.status === "active" && (
+              <Text style={styles.sheetSub}>Change their role or link them to an existing roster profile. Linking removes any duplicate profile created earlier.</Text>
+            )}
             <Text style={styles.sheetSub}>Choose a role:</Text>
             <View style={styles.roleRow}>
               {(["parent", "coach", "staff", "athlete"] as const).map((r) => (
@@ -273,6 +288,8 @@ const makeStyles = (c: ThemePalette) => ({
   subMuted: { ...typography.caption, color: c.textTertiary, marginTop: 2, fontStyle: "italic" },
   assignBtn: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 9, paddingHorizontal: 14 },
   assignText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  editBtn: { borderWidth: 1, borderColor: c.accent, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 14 },
+  editText: { color: c.accent, fontWeight: "800", fontSize: 13 },
   removeText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
   sheet: { width: "100%", maxWidth: 440, backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg },

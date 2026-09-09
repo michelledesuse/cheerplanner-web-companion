@@ -305,6 +305,19 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
                 }}})
         athlete_roster_id = linked_ids[0]
 
+    # Consolidation cleanup: when we LINKED this member to an existing roster
+    # entry, delete any OTHER roster rows previously auto-created for this same
+    # user (prevents leftover duplicates when re-linking an already-assigned
+    # member from the "Link / edit" action).
+    if role in ("coach", "staff", "athlete") and payload.athlete_roster_id and athlete_roster_id:
+        dupes = await db.roster.find(
+            {"user_id": owner_id, "linked_id": user_id, "id": {"$ne": athlete_roster_id}},
+            {"_id": 0, "id": 1}).to_list(100)
+        if dupes:
+            dupe_ids = [d["id"] for d in dupes]
+            await db.roster.delete_many({"id": {"$in": dupe_ids}})
+            await db.athlete_chat_links.delete_many({"household_id": h["id"], "roster_id": {"$in": dupe_ids}})
+
     await db.team_members.update_one(
         {"household_id": h["id"], "user_id": user_id},
         {"$set": {"status": "active", "role": role,

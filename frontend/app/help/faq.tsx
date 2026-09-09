@@ -94,6 +94,11 @@ const FAQ: Section[] = [
         a:
           "Most cheer families fly round-trip but often book the legs separately or pay different amounts for each direction. Splitting them lets you track confirmation numbers, flight numbers, departure times, and costs independently — which also makes the calendar more accurate.",
       },
+      {
+        q: "Can I get reminded before a hotel's free-cancellation deadline?",
+        a:
+          "Yes. Free-cancellation deadlines now appear as red entries on your calendar so they're easy to spot. When adding a hotel, choose an optional heads-up text 1 or 2 days before the cancel-by date (first enable SMS in Settings → Notifications). CheerPlanner auto-detects your phone's timezone at sign-in, so the reminder arrives at the right local time even if you're traveling.",
+      },
     ],
   },
   {
@@ -229,6 +234,21 @@ const FAQ: Section[] = [
         a:
           "Yes. When you share your roster link, a parent can upload one photo of their athlete or staff member (no login needed) along with their info — it saves straight to that person on your internal roster. You can also add, change, or remove a member's photo yourself from the roster edit screen.",
       },
+      {
+        q: "What can I do on the Team Hub Calendar?",
+        a:
+          "Open Team → Calendar for the whole team's schedule. Switch between Month, Week, Day, and List views, and tap the type chips (Practice, Competition, etc.) to filter what's shown. Tap an event and choose \"Add to phone calendar\" to drop it into your device's Apple/Google calendar. Coaches can import events from a personal calendar with Select all, whole-series select, and already-added items greyed out.",
+      },
+      {
+        q: "How do I sync the Team Hub calendar to my own calendar?",
+        a:
+          "Tap the cloud icon on the Team Hub Calendar. \"Sync my calendar\" adds new events and updates any that changed; \"Remove imported\" undoes everything you pulled in. To do it automatically, open Settings → Notifications and turn on \"Auto-sync Team Hub to my calendar\" — it then syncs once a day on its own.",
+      },
+      {
+        q: "Can I post a form or sign-up sheet to Team Chat?",
+        a:
+          "Yes. From Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable card into Team Chat. Tapping the card opens the form or sheet so parents can fill it out.",
+      },
     ],
   },
   {
@@ -272,7 +292,12 @@ const FAQ: Section[] = [
       {
         q: "How do people join my team, and what can they do before I set them up?",
         a:
-          "Open Team → Members and share your one reusable team code. Anyone who enters it lands in your New Members list with group-chat-only access. Assign them a role — Parent of an Athlete, Coach, Staff, or Athlete — and they're attached to the right profile. Coaches/staff get full Team Hub access; parents stay chat-only and are linked to their athlete.",
+          "Open Team → Members and share your one reusable team code. Anyone who enters it lands in your New Members list with group-chat-only access (you get an alert when someone's waiting). Assign them a role — Parent of an Athlete, Coach, Staff, or Athlete — and they're attached to the right profile. Coaches/staff get full Team Hub access; parents stay chat-only and are linked to their athlete.",
+      },
+      {
+        q: "Someone joined but they're already on my roster — how do I merge them?",
+        a:
+          "You don't need to re-enter anything. When you Assign a role (or later, from the Team list, tap \"Link / edit\" next to their name), pick their existing profile from the \"Link to an existing profile\" list — this works for any role (Coach, Staff, Athlete, Parent). Their new login merges into that profile and any duplicate created earlier is cleaned up automatically. Leave the list blank if you'd rather create a brand-new profile.",
       },
       {
         q: "Who can see photos or videos I share in chat?",

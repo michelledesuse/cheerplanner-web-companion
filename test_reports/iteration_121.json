@@ -1,0 +1,30 @@
+{
+  "summary": "iter121 duplicate-cleanup-on-relink verified end-to-end. Backend: 5/5 pytest cases pass against public preview URL — coach/staff/athlete re-link to a DIFFERENT existing roster entry deletes the previously auto-created duplicate row (net roster count -1), target row gets linked_id=user + email, athlete_chat_links for the removed row are purged (athlete case), same-id relink is a no-op (no accidental delete), and no-athlete_roster_id path still creates a fresh row without wrongly deleting unrelated linked_id rows. Frontend (mobile viewport 390x844, demo owner): ACTIVE member row now renders a 'Link / edit' button (testID edit-<user_id>). Tapping it opens the assign modal titled 'Update <name>' pre-filled with the current role (Coach chip highlighted) and displaying the picker. Picking a different profile (Coach Maria) and Confirm cleanly updates the row to 'Coach · for Coach Maria', closes the modal, and the roster count went from 10 -> 9 in the DB (duplicate deleted). Regression: pending member row still shows 'Assign role' button (testID assign-<uid>) and flow works. No React Native deprecated packages or SafeAreaView issues detected in touched files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter121_relink_cleanup.py",
+    "/app/test_reports/pytest/pytest_iter121.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_members.py:312-319 duplicate-cleanup query is scoped to (owner_id, linked_id=user, id != target) and correctly runs only when role in coach/staff/athlete AND athlete_roster_id was supplied AND a target was resolved — good guardrails, no accidental deletes on the no-link path or on parent role.",
+    "Pre-existing (out of scope): re-linking to an existing roster row silently OVERWRITES that row's prior linked_id (e.g. Coach Maria was linked to another user before; after relink to a new joiner, the old user is now orphaned from the roster). This is the documented behavior of the consolidation flow (iter119) but worth surfacing if the product wants a warning."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter121_relink_cleanup.py (new)",
+    "/app/test_reports/pytest/pytest_iter121.xml (new)",
+    "/app/test_reports/iteration_121.json (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Backend test creates a throwaway TEST_owner121 signup + 3 seeded roster entries (coach/staff/athlete) per module and cleans them up. UI test creates a throwaway joiner_*@t.com signup, joins the demo owner's team, exercises the Link / edit flow, then removes the throwaway user and restores Coach Maria's original linked_id.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Cleanup logic under test: /app/backend/routers/team_members.py lines 308-319 (roster delete_many + athlete_chat_links delete_many when consolidating). Frontend 'Link / edit' button and 'Update <name>' modal live in /app/frontend/app/team/members.tsx lines 189-206 and 214-217 respectively. Pending members still use 'Assign role' (line 179).",
+  "rca_of_issue": "N/A — feature verified working end-to-end (backend + UI)."
+}

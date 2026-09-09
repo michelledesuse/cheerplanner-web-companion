@@ -122,8 +122,8 @@ const STEPS: Step[] = [
     num: 17,
     title: "Grow your team with one join code",
     body:
-      "Open Team → Members to share ONE reusable team code with your whole team. Anyone who enters it (from the Team tab → \"Have a team code?\") lands in your New Members list with group-chat-only access. Tap Assign role to set each person as Parent of an Athlete (linked to an existing or new athlete), Coach, Staff, or Athlete — they're then attached to the right profile. You'll see a badge on the Members card whenever someone is waiting.",
-    tip: "Coaches and staff you assign get full Team Hub access. Parents stay chat-only and are linked to their athlete. Tap New code anytime to rotate the code.",
+      "Open Team → Members to share ONE reusable team code with your whole team. Anyone who enters it (from the Team tab → \"Have a team code?\") lands in your New Members list with group-chat-only access, and you get an alert banner whenever someone is waiting. Tap Assign role to set each person as Parent of an Athlete, Coach, Staff, or Athlete. If that person is already on your roster, pick their existing profile from the \"Link to an existing profile\" list so their new login merges into it — no duplicate, no re-typing. Leave it blank to create a fresh profile.",
+    tip: "Already set someone up and got a duplicate? On the Team list tap \"Link / edit\" next to their name to link them to the right profile — the duplicate is cleaned up automatically. Coaches/staff get full Team Hub access; parents stay chat-only and are linked to their athlete. Tap New code anytime to rotate the code.",
   },
   {
     num: 18,
@@ -177,6 +177,26 @@ const STEPS: Step[] = [
     body:
       "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full Team Hub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",
     tip: "Tap Restore Purchases on the Membership screen after switching phones to get your plan back.",
+  },
+  {
+    num: 26,
+    title: "Team Hub Calendar — views, filters & phone export",
+    body:
+      "Open Team → Calendar for the whole team's schedule. Switch between Month, Week, Day, and List views, and tap the type chips (Practice, Competition, etc.) to show only what you want. Tap any event to see details and tap \"Add to phone calendar\" to drop it into your device's Apple/Google calendar. Coaches can pull events in from a personal calendar with Select all, whole-series select, and already-added events greyed out.",
+    tip: "The native \"Add to phone calendar\" sheet works on the installed app / Expo Go, not the web preview.",
+  },
+  {
+    num: 27,
+    title: "Sync the Team Hub to your personal calendar",
+    body:
+      "Tap the cloud icon on the Team Hub Calendar to choose: Sync my calendar (adds new events and updates changed ones), or Remove imported (undo everything you pulled in). Prefer hands-off? Open Settings → Notifications and turn on \"Auto-sync Team Hub to my calendar\" — CheerPlanner then syncs once a day automatically.",
+  },
+  {
+    num: 28,
+    title: "Travel cancellation reminders & posting forms to chat",
+    body:
+      "Free-cancellation deadlines for hotels now show as red entries on your calendar so you never miss them. When adding a hotel you can also turn on an optional text 1–2 days before the cancel-by date (enable SMS in Settings → Notifications first). And from Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable form/sign-up card straight into Team Chat.",
+    tip: "CheerPlanner auto-detects your phone's timezone on sign-in, so every reminder text lands at the right local time — even if you travel.",
   },
 ];
 
