@@ -144,8 +144,9 @@ export default function SignupsScreen() {
                         <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
                         {canManage && <SheetAccessButton resource="signup" resourceId={s.id} />}
                         {canManage && (
-                          <TouchableOpacity onPress={() => postToChat(s.id, s.name)} hitSlop={8} testID={`signup-postchat-${s.id}`}>
-                            <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.textTertiary} />
+                          <TouchableOpacity onPress={() => postToChat(s.id, s.name)} style={styles.chatBtn} hitSlop={8} testID={`signup-postchat-${s.id}`}>
+                            <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.accent} />
+                            <Text style={styles.chatBtnText}>Post</Text>
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`signup-duplicate-${s.id}`}>
@@ -209,6 +210,8 @@ const makeStyles = (c: ThemePalette) => ({
   card: { backgroundColor: c.card, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: spacing.md },
   cardName: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary, flex: 1 },
   cardMeta: { ...typography.caption, color: c.textSecondary, marginTop: 6 },
+  chatBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 30, paddingHorizontal: 10, borderRadius: 999, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  chatBtnText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   compTag: { ...typography.micro, color: c.accent, fontWeight: "700", marginTop: 4 },
   progressTrack: { height: 8, borderRadius: 999, backgroundColor: c.divider, marginTop: 10, overflow: "hidden" },
   progressFill: { height: 8, borderRadius: 999, backgroundColor: c.accent },

@@ -130,8 +130,9 @@ export default function FormsScreen() {
                   {f.description ? <Text style={styles.cardDesc} numberOfLines={1}>{f.description}</Text> : null}
                   <Text style={styles.cardMeta}>{s.response_count}/{s.member_total} responded · {(f.questions || []).length} question{(f.questions || []).length === 1 ? "" : "s"}</Text>
                 </View>
-                <TouchableOpacity onPress={() => postToChat(f)} style={styles.dupBtn} hitSlop={8} testID={`form-postchat-${f.id}`}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={18} color={colors.accent} />
+                <TouchableOpacity onPress={() => postToChat(f)} style={styles.chatBtn} hitSlop={8} testID={`form-postchat-${f.id}`}>
+                  <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.accent} />
+                  <Text style={styles.chatBtnText}>Post</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => duplicate(f)} style={styles.dupBtn} hitSlop={8} testID={`form-duplicate-${f.id}`}>
                   <Ionicons name="copy-outline" size={18} color={colors.accent} />
@@ -182,6 +183,8 @@ const makeStyles = (c: ThemePalette) => ({
   cardDesc: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   cardMeta: { ...typography.caption, color: c.textTertiary, marginTop: 4 },
   dupBtn: { width: 34, height: 34, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.bg, borderWidth: 1, borderColor: c.border },
+  chatBtn: { flexDirection: "row", alignItems: "center", gap: 4, height: 34, paddingHorizontal: 10, borderRadius: 999, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accent },
+  chatBtnText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   lockPill: { flexDirection: "row", alignItems: "center", gap: 3, backgroundColor: c.warningBg, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
   lockPillText: { fontSize: 10, fontWeight: "800", color: c.warningText },
 
