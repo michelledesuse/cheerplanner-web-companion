@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 
 import { api } from "@/src/api/client";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
@@ -83,17 +84,32 @@ export default function BroadcastScreen() {
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.5, base64: true,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 1,
       });
-      if (res.canceled || !res.assets?.[0]?.base64) return;
+      if (res.canceled || !res.assets?.[0]?.uri) return;
       const a = res.assets[0];
       setUploading(true);
-      const up = await api.post<{ token: string; filename: string }>("/team/broadcast/attachment", {
-        filename: a.fileName || "photo.jpg",
-        content_type: a.mimeType || "image/jpeg",
-        data_base64: a.base64,
+      // Downscale to a crisp size for MMS instead of the old heavy 0.5 blur:
+      // cap the longest edge at 1600px and use high JPEG quality. This keeps the
+      // photo sharp while staying small enough to avoid carrier re-compression.
+      const MAX_EDGE = 1600;
+      const longest = Math.max(a.width || 0, a.height || 0);
+      const actions =
+        longest > MAX_EDGE
+          ? [(a.width || 0) >= (a.height || 0)
+              ? { resize: { width: MAX_EDGE } }
+              : { resize: { height: MAX_EDGE } }]
+          : [];
+      const manip = await manipulateAsync(a.uri, actions, {
+        compress: 0.85, base64: true, format: SaveFormat.JPEG,
       });
-      setAttachments((prev) => [...prev, { token: up.data.token, filename: up.data.filename, uri: a.uri }]);
+      if (!manip.base64) return;
+      const up = await api.post<{ token: string; filename: string }>("/team/broadcast/attachment", {
+        filename: (a.fileName || "photo").replace(/\.[^.]+$/, "") + ".jpg",
+        content_type: "image/jpeg",
+        data_base64: manip.base64,
+      });
+      setAttachments((prev) => [...prev, { token: up.data.token, filename: up.data.filename, uri: manip.uri }]);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not attach photo.");
     } finally { setUploading(false); }

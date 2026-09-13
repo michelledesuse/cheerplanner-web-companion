@@ -644,3 +644,8 @@ Get exact current paths from user before building W2.
 - Team join-code flow verified WORKING in preview (owner /api/team/join-code -> new signup /api/team/join => joined:pending 200).
 - deployment_agent flagged a NEW deploy blocker: startup auto-seed ran destructive delete_many (policy-disallowed) -> would block redeploy. FIXED: run(purge=False) at startup = insert-only; deletes gated behind `if purge` (manual CLI still purges). Verified insert-only seed on fresh DB (user+household+athletes+1 brand+3 flyers, no deletes). Added iOS NSMicrophoneUsageDescription.
 - NEXT: user must REDEPLOY (Publish) to restore production origin health with current deploy-compliant code.
+
+## Session update — Fixed blurry photos in Team Hub broadcast texts (MMS)
+- BUG: photos attached to broadcast texts came through blurry. Cause: frontend picked images at JPEG quality:0.5 (heavy compression) and sent that degraded image; backend serves the stored bytes to Twilio as-is (no resize), so the blur was baked in at capture.
+- FIX frontend/app/team/broadcast.tsx addPhoto: now picks at full quality then uses expo-image-manipulator to resize the longest edge to 1600px at compress 0.85 (JPEG) before upload. Sharp result, small enough to avoid carrier re-compression. Matches existing PhotoGallery.tsx pattern. Lint clean; broadcast screen smoke-tested OK.
+- Also completed earlier this session: roster consolidation on join (+ Link/edit for active members), Post-to-chat pill on Team Forms & Sign-Up Sheets, hide payment/gift tracker from coaches/staff (blocks.py now includes team_hub collaborators; useCanManageAccess counts collaborators), FAQ/Setup/Assistant Coach docs updated.
