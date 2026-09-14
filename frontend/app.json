@@ -2,7 +2,7 @@
   "expo": {
     "name": "CheerPlanner",
     "slug": "frontend",
-    "version": "3.0.2",
+    "version": "3.0.3",
     "orientation": "portrait",
     "icon": "./assets/images/cheerplanner-logo.png",
     "scheme": "cheerplanner",
@@ -11,8 +11,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.desuse.cheerplanner",
-      "version": "3.0.2",
-      "buildNumber": "117",
+      "version": "3.0.3",
+      "buildNumber": "118",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Add a profile photo for your athletes",
         "NSPhotoLibraryAddUsageDescription": "Save designs and flyers to your photos",
@@ -24,8 +24,8 @@
     },
     "android": {
       "package": "com.desuse.cheerplannerv1",
-      "versionName": "3.0.0",
-      "versionCode": 5,
+      "versionName": "3.0.3",
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000"
