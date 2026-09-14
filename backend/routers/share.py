@@ -190,9 +190,10 @@ async def public_data(token: str):
                 "time_label": s.get("time_label"), "qty_needed": s.get("qty_needed", 1),
                 "claimed": claimed, "claims": claims,
             })
-        roster_names = sorted([v for v in rmap.values() if v], key=lambda n: n.lower())
+        roster_opts = sorted([{"id": mid, "name": nm} for mid, nm in rmap.items() if nm], key=lambda o: o["name"].lower())
+        roster_names = [o["name"] for o in roster_opts]
         slots.sort(key=lambda s: (1 if s["claimed"] >= s["qty_needed"] else 0))
-        return {"kind": "signup", "title": sheet.get("name"), "slots": slots, "roster_names": roster_names}
+        return {"kind": "signup", "title": sheet.get("name"), "slots": slots, "roster_names": roster_names, "roster": roster_opts}
     if link["kind"] in ("roster", "roster_member"):
         doc = await _size_sheet(member_ids)
         cols = sorted(doc.get("columns") or [], key=lambda c: c.get("order", 0))
@@ -288,9 +289,10 @@ async def public_submit(token: str, payload: dict = Body(...)):
 
     if link["kind"] == "signup":
         slot_id = payload.get("slot_id")
+        mid = (payload.get("member_id") or "").strip()
         name = (payload.get("name") or "").strip()
-        if not slot_id or not name:
-            raise HTTPException(status_code=400, detail="Please enter your name.")
+        if not slot_id or (not mid and not name):
+            raise HTTPException(status_code=400, detail="Please choose or enter your name.")
         sheet = await db.signup_sheets.find_one({"id": link["ref_id"], "user_id": {"$in": member_ids}}, {"_id": 0})
         if not sheet:
             raise HTTPException(status_code=404, detail="Sheet not found")
@@ -298,9 +300,19 @@ async def public_submit(token: str, payload: dict = Body(...)):
         slot = next((s for s in slots if s.get("id") == slot_id), None)
         if not slot:
             raise HTTPException(status_code=404, detail="Slot not found")
-        claim = SignupClaim(guest_name=name[:80], qty=max(1, int(payload.get("qty") or 1)),
-                            guest_phone=normalize_us_phone(payload.get("phone")),
-                            note=(payload.get("note") or None)).model_dump()
+        qty = max(1, int(payload.get("qty") or 1))
+        note = payload.get("note") or None
+        if mid:
+            # Selected an existing roster member -> LINK the claim so reminders
+            # go to that person's (parent's) phone already on file.
+            rm = await db.roster.find_one({"id": mid, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
+            if not rm:
+                raise HTTPException(status_code=404, detail="That person is no longer on the roster.")
+            claim = SignupClaim(member_id=mid, qty=qty, note=note).model_dump()
+        else:
+            claim = SignupClaim(guest_name=name[:80], qty=qty,
+                                guest_phone=normalize_us_phone(payload.get("phone")),
+                                note=note).model_dump()
         slot.setdefault("claims", []).append(claim)
         await db.signup_sheets.update_one({"id": sheet["id"]}, {"$set": {"slots": slots}})
         return {"ok": True}
@@ -589,7 +601,7 @@ def _shell(title: str, body: str) -> str:
 
 _JS_SIGNUP = """
 function renderSignup(d){
-  window._roster=d.roster_names||[];
+  window._roster=d.roster||[];
   let h="<h1>"+esc(d.title)+"</h1><p class='sub'>Volunteer sign-up</p>";
   (d.slots||[]).forEach(s=>{
     const remaining=Math.max(0,s.qty_needed-s.claimed); const full=remaining===0;
@@ -599,11 +611,11 @@ function renderSignup(d){
     (s.claims||[]).forEach(c=>{h+="<div class='claim'>✔ "+esc(c.name)+(c.qty>1?(" ×"+c.qty):"")+(c.note?(" — "+esc(c.note)):"")+"</div>";});
     h+="<label>Your name</label>";
     let opts="<option value=''>Choose your name…</option>";
-    (window._roster||[]).forEach(n=>{opts+="<option value='"+esc(n)+"'>"+esc(n)+"</option>";});
+    (window._roster||[]).forEach(m=>{opts+="<option value='"+esc(m.id)+"'>"+esc(m.name)+"</option>";});
     opts+="<option value='__other__'>Other (type name)…</option>";
     h+="<select id='sel_"+s.id+"' onchange='onSel(\\""+s.id+"\\")'>"+opts+"</select>";
     h+="<input id='n_"+s.id+"' style='display:none;margin-top:8px' placeholder='Type your name'/>";
-    h+="<label>Phone (optional — to get a text reminder)</label><input id='p_"+s.id+"' type='tel' inputmode='tel' placeholder='(555) 555-5555'/>";
+    h+="<input id='p_"+s.id+"' type='tel' inputmode='tel' style='display:none;margin-top:8px' placeholder='Phone (optional, for a text reminder)'/>";
     h+="<div class='row'><div><label>Qty</label><input id='q_"+s.id+"' type='number' value='1' min='1'/></div>";
     h+="<div><label>Note (optional)</label><input id='nt_"+s.id+"' placeholder='e.g. bringing waters'/></div></div>";
     h+="<button onclick='claim(\\""+s.id+"\\",this)'>Sign up</button><div class='ok' id='ok_"+s.id+"'></div></div>";
@@ -611,16 +623,19 @@ function renderSignup(d){
   document.getElementById("app").innerHTML=h;
 }
 function onSel(id){
-  const v=document.getElementById("sel_"+id).value;
-  document.getElementById("n_"+id).style.display=(v==="__other__")?"block":"none";
+  const v=document.getElementById("sel_"+id).value; const other=(v==="__other__");
+  document.getElementById("n_"+id).style.display=other?"block":"none";
+  document.getElementById("p_"+id).style.display=other?"block":"none";
 }
 async function claim(id,btn){
   const sel=document.getElementById("sel_"+id).value;
-  let name=sel; if(sel==="__other__") name=document.getElementById("n_"+id).value.trim();
-  if(!name||name==="__other__"){alert("Please choose or type your name.");return;}
+  let member_id="", name="";
+  if(sel==="__other__"){ name=document.getElementById("n_"+id).value.trim(); if(!name){alert("Please type your name.");return;} }
+  else if(sel){ member_id=sel; }
+  else { alert("Please choose or type your name."); return; }
   const qty=document.getElementById("q_"+id).value; const note=document.getElementById("nt_"+id).value;
   const phone=document.getElementById("p_"+id).value;
-  const ok=await submit({slot_id:id,name:name,qty:qty,note:note,phone:phone},btn);
+  const ok=await submit({slot_id:id,member_id:member_id,name:name,qty:qty,note:note,phone:phone},btn);
   if(ok){document.getElementById("ok_"+id).textContent="You're signed up!";setTimeout(load,700);}
 }
 """
