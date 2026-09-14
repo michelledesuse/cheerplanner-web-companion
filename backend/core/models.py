@@ -1220,6 +1220,7 @@ class SignupClaim(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     member_id: Optional[str] = None
     guest_name: Optional[str] = None  # set when claimed via public share link (non-roster)
+    guest_phone: Optional[str] = None  # optional phone a guest leaves so they can get reminders
     qty: int = 1
     note: Optional[str] = None
     created_at: str = Field(default_factory=utcnow_iso)

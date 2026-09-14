@@ -212,21 +212,32 @@ async def remind_signed_up(sheet_id: str, current_user=Depends(get_current_user)
     links = doc.get("links") or []
     links_txt = (" Details: " + join_links(links)) if join_links(links) else ""
 
-    # Group each roster member's claims across all slots into a readable list.
+    # Group each claim into a readable list, keyed by roster member OR by a
+    # guest's phone (guests who left a phone on the public sign-up sheet).
     per_member: dict = {}
+    guests: dict = {}          # normalized phone -> {"name", "phone", "items"}
+    guest_no_phone: list = []  # guest names that left no phone (can't be texted)
     for s in (doc.get("slots") or []):
         label = s.get("label") or "item"
         for c in (s.get("claims") or []):
-            mid = c.get("member_id")
-            if not mid:
-                continue  # guests have no phone on file
             qty = int(c.get("qty") or 1)
-            per_member.setdefault(mid, []).append(f"{label} x{qty}" if qty > 1 else label)
+            item_txt = f"{label} x{qty}" if qty > 1 else label
+            mid = c.get("member_id")
+            if mid:
+                per_member.setdefault(mid, []).append(item_txt)
+                continue
+            gp = normalize_us_phone(c.get("guest_phone"))
+            if not gp:
+                if c.get("guest_name"):
+                    guest_no_phone.append(c.get("guest_name"))
+                continue
+            g = guests.setdefault(gp, {"name": c.get("guest_name") or "there", "phone": gp, "items": []})
+            g["items"].append(item_txt)
 
     roster = await db.roster.find(await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), {"_id": 0}).to_list(2000)
     roster_by_id = {m["id"]: m for m in roster}
 
-    recipients, no_phone = [], []
+    recipients, no_phone = [], list(dict.fromkeys(guest_no_phone))
     for mid, items in per_member.items():
         m = roster_by_id.get(mid)
         if not m:
@@ -238,6 +249,11 @@ async def remind_signed_up(sheet_id: str, current_user=Depends(get_current_user)
         first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
         body = f"Hi {first}, reminder for '{sheet_name}': you signed up to bring/do — {', '.join(items)}.{links_txt} Thank you!"
         recipients.append({"name": m.get("name"), "to": phone, "body": body})
+
+    for g in guests.values():
+        first = (g["name"] or "there").split(" ")[0] or "there"
+        body = f"Hi {first}, reminder for '{sheet_name}': you signed up to bring/do — {', '.join(g['items'])}.{links_txt} Thank you!"
+        recipients.append({"name": g["name"], "to": g["phone"], "body": body})
 
     results = await send_bulk(recipients)
     sent = sum(1 for r in results if r)

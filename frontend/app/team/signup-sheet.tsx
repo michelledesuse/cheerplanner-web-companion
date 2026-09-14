@@ -208,7 +208,10 @@ export default function SignupSheetScreen() {
           const r = await api.post<{ sent: number; no_phone: string[]; failed: string[] }>(endpoint, {});
           const { sent, no_phone } = r.data;
           let msg = `Sent ${sent} reminder${sent === 1 ? "" : "s"}.`;
-          if (no_phone?.length) msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
+          if (no_phone?.length) {
+            msg += `\n\nNo phone on file: ${no_phone.join(", ")}.`;
+            if (mode === "claimed") msg += `\n\nTip: people who sign up from the shared link can now add a phone number to get reminders.`;
+          }
           await load();
           Alert.alert("Reminders sent", msg);
         } catch (e: any) {

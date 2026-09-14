@@ -299,6 +299,7 @@ async def public_submit(token: str, payload: dict = Body(...)):
         if not slot:
             raise HTTPException(status_code=404, detail="Slot not found")
         claim = SignupClaim(guest_name=name[:80], qty=max(1, int(payload.get("qty") or 1)),
+                            guest_phone=normalize_us_phone(payload.get("phone")),
                             note=(payload.get("note") or None)).model_dump()
         slot.setdefault("claims", []).append(claim)
         await db.signup_sheets.update_one({"id": sheet["id"]}, {"$set": {"slots": slots}})
@@ -602,6 +603,7 @@ function renderSignup(d){
     opts+="<option value='__other__'>Other (type name)…</option>";
     h+="<select id='sel_"+s.id+"' onchange='onSel(\\""+s.id+"\\")'>"+opts+"</select>";
     h+="<input id='n_"+s.id+"' style='display:none;margin-top:8px' placeholder='Type your name'/>";
+    h+="<label>Phone (optional — to get a text reminder)</label><input id='p_"+s.id+"' type='tel' inputmode='tel' placeholder='(555) 555-5555'/>";
     h+="<div class='row'><div><label>Qty</label><input id='q_"+s.id+"' type='number' value='1' min='1'/></div>";
     h+="<div><label>Note (optional)</label><input id='nt_"+s.id+"' placeholder='e.g. bringing waters'/></div></div>";
     h+="<button onclick='claim(\\""+s.id+"\\",this)'>Sign up</button><div class='ok' id='ok_"+s.id+"'></div></div>";
@@ -617,7 +619,8 @@ async function claim(id,btn){
   let name=sel; if(sel==="__other__") name=document.getElementById("n_"+id).value.trim();
   if(!name||name==="__other__"){alert("Please choose or type your name.");return;}
   const qty=document.getElementById("q_"+id).value; const note=document.getElementById("nt_"+id).value;
-  const ok=await submit({slot_id:id,name:name,qty:qty,note:note},btn);
+  const phone=document.getElementById("p_"+id).value;
+  const ok=await submit({slot_id:id,name:name,qty:qty,note:note,phone:phone},btn);
   if(ok){document.getElementById("ok_"+id).textContent="You're signed up!";setTimeout(load,700);}
 }
 """
