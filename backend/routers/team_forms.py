@@ -30,7 +30,7 @@ from core.helpers import (
     roster_season_query,
     active_season_id,
 )
-from core.sms import send_sms, is_configured, normalize_us_phone
+from core.sms import send_sms, send_bulk, is_configured, normalize_us_phone
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -348,7 +348,7 @@ async def remind_form(form_id: str, payload: dict, current_user=Depends(get_curr
         {**await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), "role": {"$ne": "parent"}}, {"_id": 0}
     ).to_list(2000)
 
-    sent, no_phone, failed = 0, [], []
+    recipients, no_phone = [], []
     for m in roster:
         if m["id"] in answered:
             continue
@@ -361,10 +361,11 @@ async def remind_form(form_id: str, payload: dict, current_user=Depends(get_curr
         body = (f"Hi {first}, {_custom} {url}".strip()
                 if _custom else
                 f"Hi {first}, please fill out '{doc.get('name')}' for the team here: {url} Thank you!")
-        if send_sms(phone, body):
-            sent += 1
-        else:
-            failed.append(m.get("name"))
+        recipients.append({"name": m.get("name"), "to": phone, "body": body})
+
+    results = await send_bulk(recipients)
+    sent = sum(1 for r in results if r)
+    failed = [recipients[i]["name"] for i, r in enumerate(results) if not r]
     if sent > 0:
         await db.team_forms.update_one({"id": form_id}, {"$set": {"last_reminded_at": utcnow_iso()}})
     return {"sent": sent, "no_phone": no_phone, "failed": failed, "url": url, "token": token}

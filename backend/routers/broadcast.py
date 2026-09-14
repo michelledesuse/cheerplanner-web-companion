@@ -24,7 +24,7 @@ from core.db import db
 from core.models import ExternalLink, utcnow_iso
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids, _hub_owner_id
-from core.sms import send_sms, send_sms_ex, is_configured, normalize_us_phone, join_links
+from core.sms import send_sms, send_sms_ex, send_bulk, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api")
 
@@ -242,9 +242,11 @@ async def _perform_send(user_id, base, to_send, no_phone, msg, trailer, creator,
         greeting = f"Hi {name}, " if name else ""
         return f"{greeting}{msg}{trailer}".strip()
 
+    items = [{"to": phone, "body": compose(name), "status_callback": cb, "media_urls": media_urls}
+             for phone, name in to_send]
+    results = await send_bulk(items)
     sent, failed_targets, msg_docs = 0, [], []
-    for phone, name in to_send:
-        sid = send_sms_ex(phone, compose(name), status_callback=cb, media_urls=media_urls)
+    for (phone, name), sid in zip(to_send, results):
         if sid:
             sent += 1
             msg_docs.append({
@@ -292,9 +294,13 @@ async def resend_failed(broadcast_id: str, base_url: str = "", current_user=Depe
     media_urls = b.get("media_urls") or []
 
     still_failed, sent, new_docs = [], 0, []
-    for t in targets:
-        body = (f"Hi {t['name']}, " if t.get("name") and t["name"] != "(no name)" else "") + f"{msg}{trailer}"
-        sid = send_sms_ex(t["phone"], body.strip(), status_callback=cb, media_urls=media_urls)
+    items = [{
+        "to": t["phone"],
+        "body": ((f"Hi {t['name']}, " if t.get("name") and t["name"] != "(no name)" else "") + f"{msg}{trailer}").strip(),
+        "status_callback": cb, "media_urls": media_urls,
+    } for t in targets]
+    results = await send_bulk(items)
+    for t, sid in zip(targets, results):
         if sid:
             sent += 1
             new_docs.append({

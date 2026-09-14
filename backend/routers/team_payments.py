@@ -21,7 +21,7 @@ from core.helpers import (
     roster_season_query,
     active_season_id,
 )
-from core.sms import send_sms, is_configured, normalize_us_phone, join_links
+from core.sms import send_sms, send_bulk, is_configured, normalize_us_phone, join_links
 from core.gating import assert_premium
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
@@ -163,7 +163,7 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
         {"_id": 0},
     ).to_list(2000)
 
-    sent, no_phone, failed = 0, [], []
+    recipients, no_phone = [], []
     for m in roster:
         if m["id"] in excluded:
             continue
@@ -196,11 +196,11 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
         first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
         amount_txt = f" of ${owed:,.2f}" if owed and owed > 0 else ""
         body = f"Hi {first}, friendly reminder about '{tracker_name}': a balance{amount_txt} is still outstanding.{links_txt} Thank you!"
-        if send_sms(phone, body):
-            sent += 1
-        else:
-            failed.append(m.get("name"))
+        recipients.append({"name": m.get("name"), "to": phone, "body": body})
 
+    results = await send_bulk(recipients)
+    sent = sum(1 for r in results if r)
+    failed = [recipients[i]["name"] for i, r in enumerate(results) if not r]
     if sent > 0:
         await db.payment_trackers.update_one({"id": tracker_id}, {"$set": {"last_reminded_at": utcnow_iso()}})
     return {"sent": sent, "no_phone": no_phone, "failed": failed}

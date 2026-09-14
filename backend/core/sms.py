@@ -9,12 +9,18 @@ Toll-free STOP/HELP opt-out is handled automatically by Twilio at the carrier
 level for verified US toll-free numbers — messages to opted-out numbers are
 blocked by Twilio, so we don't need our own STOP webhook for compliance.
 """
+import asyncio
 import logging
 import os
 import re
 from typing import Optional
 
 logger = logging.getLogger("core.sms")
+
+# How many Twilio sends run at once. The Twilio SDK is synchronous/blocking, so
+# bulk reminders are dispatched via a threadpool with this cap to keep the async
+# event loop responsive and finish fast (avoids request timeouts / Cloudflare 520).
+_SEND_CONCURRENCY = 8
 
 _client = None
 _client_init = False
@@ -97,6 +103,32 @@ def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None, media
     except Exception as exc:  # noqa: BLE001
         logger.warning("send_sms failed: %s", exc)
         return None
+
+
+async def send_bulk(items: list) -> list:
+    """Send many SMS/MMS concurrently WITHOUT blocking the event loop.
+
+    `items`: list of dicts, each {to, body, status_callback?, media_urls?}.
+    Each blocking Twilio call runs in a worker thread with bounded concurrency
+    (`_SEND_CONCURRENCY`). Returns message SIDs (or None on failure) in the SAME
+    order as `items`. Never raises. Mass reminders/broadcasts use this so a long
+    recipient list can't tie up the request enough to trigger a Cloudflare 520.
+    """
+    if not items:
+        return []
+    sem = asyncio.Semaphore(_SEND_CONCURRENCY)
+
+    async def _one(it: dict):
+        async with sem:
+            return await asyncio.to_thread(
+                send_sms_ex,
+                it.get("to"),
+                it.get("body") or "",
+                it.get("status_callback"),
+                it.get("media_urls"),
+            )
+
+    return await asyncio.gather(*(_one(it) for it in items))
 
 
 def join_links(links) -> str:

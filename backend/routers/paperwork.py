@@ -23,7 +23,7 @@ from core.helpers import (
     active_season_id,
 )
 from core.gating import assert_premium
-from core.sms import send_sms, is_configured, normalize_us_phone, join_links
+from core.sms import send_sms, send_bulk, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api/team", dependencies=[Depends(require_team_access)])
 
@@ -209,7 +209,7 @@ async def remind_missing_item(sheet_id: str, item_id: str, current_user=Depends(
         {"_id": 0},
     ).to_list(2000)
 
-    sent, no_phone, failed = 0, [], []
+    recipients, no_phone = [], []
     for m in roster:
         cell = (values.get(m["id"]) or {}).get(item_id) or {}
         if cell.get("done"):
@@ -220,10 +220,11 @@ async def remind_missing_item(sheet_id: str, item_id: str, current_user=Depends(
             continue
         first = (m.get("first_name") or (m.get("name") or "").split(" ")[0] or "there")
         body = f"Hi {first}, reminder: '{item_label}' for {sheet_name} is still needed.{links_txt} Thank you!"
-        if send_sms(phone, body):
-            sent += 1
-        else:
-            failed.append(m.get("name"))
+        recipients.append({"name": m.get("name"), "to": phone, "body": body})
+
+    results = await send_bulk(recipients)
+    sent = sum(1 for r in results if r)
+    failed = [recipients[i]["name"] for i, r in enumerate(results) if not r]
     if sent > 0:
         await db.paperwork_sheets.update_one(
             {"id": sheet_id, "items.id": item_id},

@@ -646,3 +646,9 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!.
 - Docs: faq.tsx new Q about hiding a coach's-gift tracker; assistant.py APP_GUIDE HIDING A TRACKER note.
 - Test focus: owner (demo@cheerplanner.app) has a hub with a coach collaborator. GET /api/team/blocks/payment/{tracker_id} as owner -> the COACH now appears in members with team_access true. PUT /api/team/blocks?blocked=true {blocked_user_id: coach, resource: payment, resource_id: tracker} -> success. Then as the COACH: GET /api/team/payments must NOT include that tracker, and GET /api/team/payments/{tracker_id} -> 403. Unblock restores visibility. Also confirm frontend SheetAccessButton modal lists the coach.
 Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplanner.app / CheerDemo2026!.
+
+## Iteration 127 — Fix "Couldn't send" (Cloudflare 520) on sign-up/reminder mass texts
+- BUG (production): sending a sign-up reminder ("what they signed up for") failed with Cloudflare "origin returned unparseable/empty response" (520). Root cause: mass-SMS endpoints called the BLOCKING Twilio SDK once per recipient inside async routes, tying up the event loop; with many recipients the request ran long enough for the proxy to drop it → 520.
+- FIX core/sms.py: added async send_bulk(items) that runs each send via asyncio.to_thread with a Semaphore(8) concurrency cap, returning SIDs in order. Refactored all per-recipient loops to build a recipients list then await send_bulk: signups /remind + /remind-claimed, team_payments /remind, team_forms /remind, paperwork item /remind, broadcast _perform_send + resend_failed.
+- Verified: unit test — 20 sends that were 10s sequential now finish in 1.5s, order preserved, sent/failed tallies correct. Routes load cleanly (404 on bad id, no 500). Did NOT send real SMS (Twilio configured in preview).
+- NOTE: takes effect on production only after REDEPLOY (Publish).
