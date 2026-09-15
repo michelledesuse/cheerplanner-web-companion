@@ -18,7 +18,7 @@ const PRIMARY: NavItem[] = [
   { label: "Competitions", icon: "trophy", route: "/competitions" },
   { label: "Schedule", icon: "time", route: "/schedule" },
   { label: "Calendar", icon: "calendar", route: "/calendar" },
-  { label: "Team Hub", icon: "ribbon", route: "/team" },
+  { label: "TeamHub", icon: "ribbon", route: "/team" },
 ];
 
 const SECONDARY: NavItem[] = [

@@ -13,7 +13,7 @@ type Step = { icon: string; title: string; body: string; highlight?: "tabs" | "s
 
 function buildSteps(isCoach: boolean): Step[] {
   const roleStep: Step = isCoach
-    ? { icon: "clipboard", title: "Your coaching tools", body: "Open the Team tab for your Team Hub — build Scouting Reports (set athletes' skill levels) and design event Flyers with the AI Coaching Assistant." }
+    ? { icon: "clipboard", title: "Your coaching tools", body: "Open the Team tab for your TeamHub — build Scouting Reports (set athletes' skill levels) and design event Flyers with the AI Coaching Assistant." }
     : { icon: "checkmark-circle", title: "Stay on top of it all", body: "RSVP to team events from the Team calendar, and track your Expenses and payments — all from the tabs." };
   return [
     { icon: "sparkles", title: "Welcome to CheerPlanner!", body: "Here's a quick 20-second tour so you know where everything is." },

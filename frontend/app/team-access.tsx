@@ -50,7 +50,7 @@ export default function TeamAccessScreen() {
 
   const submitJoinTeam = async () => {
     const c = teamCode.trim().toUpperCase();
-    if (!c) { Alert.alert("Enter your code", "Paste the Team Hub code your coach or gym shared with you."); return; }
+    if (!c) { Alert.alert("Enter your code", "Paste the TeamHub code your coach or gym shared with you."); return; }
     setJoiningTeam(true);
     try {
       const r = await api.post<{ team_pending?: boolean; team_name?: string | null }>("/household/join", { code: c });
@@ -61,7 +61,7 @@ export default function TeamAccessScreen() {
       if (r.data?.team_pending) {
         Alert.alert("Request sent! 🎉", `You've joined ${tn || "the team"}. You're in the group chat — a coach will finish setting up your role.`);
       } else {
-        Alert.alert("You're in! 🎉", `You now have Team Hub access${tn ? ` for ${tn}` : ""}. Open the Team tab to get started.`);
+        Alert.alert("You're in! 🎉", `You now have TeamHub access${tn ? ` for ${tn}` : ""}. Open the Team tab to get started.`);
       }
     } catch (e: any) {
       Alert.alert("Couldn't join", e?.response?.data?.detail || "Check the code and try again.");
@@ -77,9 +77,9 @@ export default function TeamAccessScreen() {
       setEmail("");
       await load();
       if (r.data.granted) {
-        Alert.alert("Access granted", "That household member now has Team Hub access.");
+        Alert.alert("Access granted", "That household member now has TeamHub access.");
       } else if (r.data.invited && r.data.code) {
-        Alert.alert("Invite created", `Share code ${r.data.code} with them. When they join, they'll get Team Hub access.`);
+        Alert.alert("Invite created", `Share code ${r.data.code} with them. When they join, they'll get TeamHub access.`);
       }
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not send invite.");
@@ -89,7 +89,7 @@ export default function TeamAccessScreen() {
   const shareInvite = async (inv: Invite) => {
     try {
       await Share.share({
-        message: `Join my CheerPlanner Team Hub with invite code: ${inv.code}\n\nSign up (or log in), then go to Settings → Team Hub Access and enter this code. Expires in 7 days.`,
+        message: `Join my CheerPlanner TeamHub with invite code: ${inv.code}\n\nSign up (or log in), then go to Settings → TeamHub Access and enter this code. Expires in 7 days.`,
       });
     } catch (_e) {}
   };
@@ -113,7 +113,7 @@ export default function TeamAccessScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn} testID="team-access-back">
             <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Team Hub Access</Text>
+          <Text style={styles.headerTitle}>TeamHub Access</Text>
           <View style={{ width: 36 }} />
         </View>
 
@@ -121,9 +121,9 @@ export default function TeamAccessScreen() {
           <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
         ) : !data?.is_owner ? (
           <ScrollView contentContainerStyle={{ padding: spacing.lg }} keyboardShouldPersistTaps="handled" testID="team-access-screen">
-            <Text style={styles.sectionHead}>Have a Team Hub or chat invite code?</Text>
+            <Text style={styles.sectionHead}>Have a TeamHub or chat invite code?</Text>
             <View style={styles.card}>
-              <Text style={styles.label}>Enter the code from your coach, gym, or team (this also unlocks Team Chat if you were invited)</Text>
+              <Text style={styles.label}>Enter the code from your coach, gym, or team (this also unlocks TeamChat if you were invited)</Text>
               <TextInput
                 style={styles.input}
                 value={teamCode}
@@ -139,11 +139,11 @@ export default function TeamAccessScreen() {
                 {joiningTeam ? <ActivityIndicator color="white" /> : (
                   <>
                     <Ionicons name="key-outline" size={16} color="white" />
-                    <Text style={styles.primaryBtnText}>Join Team Hub</Text>
+                    <Text style={styles.primaryBtnText}>Join TeamHub</Text>
                   </>
                 )}
               </TouchableOpacity>
-              <Text style={styles.hint}>This unlocks the Team Hub (roster, sizes, payments, paperwork). It won&apos;t share your personal calendar or expenses.</Text>
+              <Text style={styles.hint}>This unlocks the TeamHub (roster, sizes, payments, paperwork). It won&apos;t share your personal calendar or expenses.</Text>
             </View>
 
             <View style={styles.card}>
@@ -151,18 +151,18 @@ export default function TeamAccessScreen() {
                 <Ionicons name={data?.members.find((m) => m.id === user?.id)?.team_access ? "checkmark-circle-outline" : "lock-closed-outline"} size={26} color={colors.accent} />
               </View>
               <Text style={styles.statusTitle}>
-                {data?.members.find((m) => m.id === user?.id)?.team_access ? "You have Team Hub access" : "You don't have Team Hub access yet"}
+                {data?.members.find((m) => m.id === user?.id)?.team_access ? "You have TeamHub access" : "You don't have TeamHub access yet"}
               </Text>
               <Text style={styles.statusText}>
-                Team Hub access is managed by the account owner{owner ? `, ${owner.name || owner.email}` : ""}. Have a code from them? Enter it above.
+                TeamHub access is managed by the account owner{owner ? `, ${owner.name || owner.email}` : ""}. Have a code from them? Enter it above.
               </Text>
             </View>
           </ScrollView>
         ) : (
           <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }} keyboardShouldPersistTaps="handled" testID="team-access-screen">
-            <Text style={styles.sectionHead}>Have a Team Hub or chat invite code?</Text>
+            <Text style={styles.sectionHead}>Have a TeamHub or chat invite code?</Text>
             <View style={styles.card}>
-              <Text style={styles.label}>Joining another coach&apos;s or gym&apos;s Team Hub? Enter their code</Text>
+              <Text style={styles.label}>Joining another coach&apos;s or gym&apos;s TeamHub? Enter their code</Text>
               <TextInput
                 style={styles.input}
                 value={teamCode}
@@ -178,14 +178,14 @@ export default function TeamAccessScreen() {
                 {joiningTeam ? <ActivityIndicator color="white" /> : (
                   <>
                     <Ionicons name="key-outline" size={16} color="white" />
-                    <Text style={styles.primaryBtnText}>Join Team Hub</Text>
+                    <Text style={styles.primaryBtnText}>Join TeamHub</Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
 
             <Text style={styles.intro}>
-              As the account owner, you decide who can open the Team Hub (roster, sizes, payments, paperwork &amp; sign-ups). Grant it to people in your household, or invite someone new by email.
+              As the account owner, you decide who can open the TeamHub (roster, sizes, payments, paperwork &amp; sign-ups). Grant it to people in your household, or invite someone new by email.
             </Text>
 
             <Text style={styles.sectionHead}>Household members</Text>
@@ -231,7 +231,7 @@ export default function TeamAccessScreen() {
                 {inviting ? <ActivityIndicator color="white" /> : (
                   <>
                     <Ionicons name="mail-outline" size={16} color="white" />
-                    <Text style={styles.primaryBtnText}>Invite to Team Hub</Text>
+                    <Text style={styles.primaryBtnText}>Invite to TeamHub</Text>
                   </>
                 )}
               </TouchableOpacity>

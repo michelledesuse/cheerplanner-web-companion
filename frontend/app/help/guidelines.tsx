@@ -3,9 +3,9 @@ import StaticPage, { LegalSection, P } from "@/src/components/StaticPage";
 
 export default function GuidelinesScreen() {
   return (
-    <StaticPage title="Community Guidelines" subtitle="For Team Chat & Community Reviews">
+    <StaticPage title="Community Guidelines" subtitle="For TeamChat & Community Reviews">
       <LegalSection>
-        <P>CheerPlanner is a place for cheer families, coaches, and staff to organize and communicate. To keep it safe for everyone — including minor athletes — you agree to these guidelines whenever you post in Team Chat or Community Reviews. We do not tolerate objectionable content or abusive users.</P>
+        <P>CheerPlanner is a place for cheer families, coaches, and staff to organize and communicate. To keep it safe for everyone — including minor athletes — you agree to these guidelines whenever you post in TeamChat or Community Reviews. We do not tolerate objectionable content or abusive users.</P>
       </LegalSection>
 
       <LegalSection heading="Be respectful">
@@ -13,7 +13,7 @@ export default function GuidelinesScreen() {
       </LegalSection>
 
       <LegalSection heading="Keep it appropriate">
-        <P>No sexual, violent, graphic, or otherwise objectionable content. No content that exploits or endangers minors in any way. Remember minors may be present in Team Chat.</P>
+        <P>No sexual, violent, graphic, or otherwise objectionable content. No content that exploits or endangers minors in any way. Remember minors may be present in TeamChat.</P>
       </LegalSection>
 
       <LegalSection heading="No spam or misuse">
@@ -24,8 +24,8 @@ export default function GuidelinesScreen() {
         <P>Messages and reviews are automatically screened for objectionable language. Any member can report content or block another user. Content that is reported by multiple people is automatically hidden pending review. You can delete your own content, and our team can remove content and eject users who violate these guidelines — typically within 24 hours of a report.</P>
       </LegalSection>
 
-      <LegalSection heading="ParentGuard — protecting minors in Team Chat">
-        <P>ParentGuard keeps youth chat safe. A minor athlete can only join Team Chat with their own login after a parent/guardian approves it. Minors chat only in a supervised group thread (no private one-to-one messages), and a parent/guardian can see the conversation and revoke access at any time. Parent-approved. Parent-connected.</P>
+      <LegalSection heading="ParentGuard — protecting minors in TeamChat">
+        <P>ParentGuard keeps youth chat safe. A minor athlete can only join TeamChat with their own login after a parent/guardian approves it. Minors chat only in a supervised group thread (no private one-to-one messages), and a parent/guardian can see the conversation and revoke access at any time. Parent-approved. Parent-connected.</P>
       </LegalSection>
 
       <LegalSection heading="Reporting a problem">

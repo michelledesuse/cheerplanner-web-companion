@@ -297,9 +297,9 @@ export default function NotificationsSettingsScreen() {
         <View style={styles.group}>
           <View style={styles.catRow}>
             <View style={{ flex: 1, paddingRight: 12 }}>
-              <Text style={styles.catLabel}>Auto-sync Team Hub to my calendar</Text>
+              <Text style={styles.catLabel}>Auto-sync TeamHub to my calendar</Text>
               <Text style={styles.catSub}>
-                Each morning, copy new Team Hub events to your personal (family) calendar and update any that changed.
+                Each morning, copy new TeamHub events to your personal (family) calendar and update any that changed.
               </Text>
             </View>
             <Switch

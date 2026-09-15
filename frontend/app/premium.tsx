@@ -127,12 +127,12 @@ export default function PremiumScreen() {
             {!monetizationActive ? (
               <View style={styles.infoBox}>
                 <Ionicons name="sparkles" size={18} color="#16A34A" />
-                <Text style={styles.infoText}>Good news — every CheerPlanner feature, including the full Team Hub, is unlocked for free during our launch period. You can start a plan below any time; otherwise everything stays free until premium plans begin, and we&apos;ll let you know before anything changes.</Text>
+                <Text style={styles.infoText}>Good news — every CheerPlanner feature, including the full TeamHub, is unlocked for free during our launch period. You can start a plan below any time; otherwise everything stays free until premium plans begin, and we&apos;ll let you know before anything changes.</Text>
               </View>
             ) : null}
 
             <Text style={styles.sectionTitle}>{monetizationActive ? "Upgrade to Premium" : "CheerPlanner Premium plans"}</Text>
-            <Text style={styles.blurb}>Unlock the full Team Hub, advanced roster, sizes, paperwork, team payments, sign-ups, attendance, spreadsheet import/export, parent share links, automated SMS reminders, and up to 6 household members.</Text>
+            <Text style={styles.blurb}>Unlock the full TeamHub, advanced roster, sizes, paperwork, team payments, sign-ups, attendance, spreadsheet import/export, parent share links, automated SMS reminders, and up to 6 household members.</Text>
 
             {/* Annual (best value) */}
             <TouchableOpacity style={[styles.priceCard, styles.priceCardBest]} onPress={() => buy("annual")} disabled={buying} testID="upgrade-annual">

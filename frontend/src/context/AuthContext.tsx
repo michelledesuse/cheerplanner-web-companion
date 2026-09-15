@@ -11,6 +11,7 @@ export type UserPublic = {
   team_access?: boolean;
   is_admin?: boolean;
   visibility?: { expenses: boolean; travel: boolean } | null;
+  team_tool_order?: string[] | null;
 };
 
 type AuthContextValue = {

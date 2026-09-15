@@ -22,7 +22,7 @@ const FAQ: Section[] = [
       {
         q: "What roles can a person have?",
         a:
-          "Four roles: Athlete, Coach, Team Rep/Mgr, and Staff. Add anyone under Settings → Athletes and pick their role. Coaches, reps and staff are treated as team \"personnel\" — they unlock the Team Hub and are listed separately from athletes in Team Hub tools. Everyone can belong to more than one team.",
+          "Four roles: Athlete, Coach, Team Rep/Mgr, and Staff. Add anyone under Settings → Athletes and pick their role. Coaches, reps and staff are treated as team \"personnel\" — they unlock the TeamHub and are listed separately from athletes in TeamHub tools. Everyone can belong to more than one team.",
       },
       {
         q: "How do I share with a co-parent?",
@@ -172,17 +172,17 @@ const FAQ: Section[] = [
     ],
   },
   {
-    title: "Team Hub (coaches, reps & staff)",
+    title: "TeamHub (coaches, reps & staff)",
     items: [
       {
-        q: "What is the Team Hub?",
+        q: "What is the TeamHub?",
         a:
           "A private workspace on the Team tab for team personnel. It centers on a team Roster with tracking tools built on top: Payment Tracking, Sizes, Paperwork / Other, a Sign-Up Sheet, Custom Team Forms, and a Custom Roster Export.",
       },
       {
-        q: "Who can see the Team Hub?",
+        q: "Who can see the TeamHub?",
         a:
-          "The household owner controls access. Open Settings → Team Hub Access to grant or revoke it for each household member, or invite someone by email. If a coach or gym gave you a Team Hub code, open Settings → Team Hub Access and enter it in the \"Have a Team Hub code?\" box at the top to unlock the Team tab. Members with access see the Team tab and its tools; everyone else won't see the Hub or its data.",
+          "The household owner controls access. Open Settings → TeamHub Access to grant or revoke it for each household member, or invite someone by email. If a coach or gym gave you a TeamHub code, open Settings → TeamHub Access and enter it in the \"Have a TeamHub code?\" box at the top to unlock the Team tab. Members with access see the Team tab and its tools; everyone else won't see the Hub or its data.",
       },
       {
         q: "How is the Roster different from my athletes?",
@@ -197,7 +197,7 @@ const FAQ: Section[] = [
       {
         q: "Can I hide a tracker (like a coach's gift) from the coach or staff receiving it?",
         a:
-          "Yes. Open the tracker and tap the lock icon (\"Who can view this?\"). You'll see everyone with Team Hub access — including coaches and staff, not just family members — and you can toggle any of them to \"Hidden.\" That person won't see the tracker anywhere in the Hub, while you (the owner) always keep full access. Perfect for organizing a surprise coach/staff gift.",
+          "Yes. Open the tracker and tap the lock icon (\"Who can view this?\"). You'll see everyone with TeamHub access — including coaches and staff, not just family members — and you can toggle any of them to \"Hidden.\" That person won't see the tracker anywhere in the Hub, while you (the owner) always keep full access. Perfect for organizing a surprise coach/staff gift.",
       },
       {
         q: "How do Sizes work — and why no Sports bra for coaches?",
@@ -232,7 +232,7 @@ const FAQ: Section[] = [
       {
         q: "Can I share music with my team?",
         a:
-          "Yes. Open Team → Team Music to upload competition mixes or music (audio files up to 15 MB each). Everyone with Team Hub access can play them right in the app, and you can attach a track to specific teams or competitions so it's easy to find. Only team personnel can upload, edit, or delete tracks. (Background/locked-screen playback requires the installed app build, not Expo Go.)",
+          "Yes. Open Team → Team Music to upload competition mixes or music (audio files up to 15 MB each). Everyone with TeamHub access can play them right in the app, and you can attach a track to specific teams or competitions so it's easy to find. Only team personnel can upload, edit, or delete tracks. (Background/locked-screen playback requires the installed app build, not Expo Go.)",
       },
       {
         q: "Can parents add a photo of their athlete to the roster?",
@@ -240,34 +240,34 @@ const FAQ: Section[] = [
           "Yes. When you share your roster link, a parent can upload one photo of their athlete or staff member (no login needed) along with their info — it saves straight to that person on your internal roster. You can also add, change, or remove a member's photo yourself from the roster edit screen.",
       },
       {
-        q: "What can I do on the Team Hub Calendar?",
+        q: "What can I do on the TeamHub Calendar?",
         a:
           "Open Team → Calendar for the whole team's schedule. Switch between Month, Week, Day, and List views, and tap the type chips (Practice, Competition, etc.) to filter what's shown. Tap an event and choose \"Add to phone calendar\" to drop it into your device's Apple/Google calendar. Coaches can import events from a personal calendar with Select all, whole-series select, and already-added items greyed out.",
       },
       {
-        q: "How do I sync the Team Hub calendar to my own calendar?",
+        q: "How do I sync the TeamHub calendar to my own calendar?",
         a:
-          "Tap the cloud icon on the Team Hub Calendar. \"Sync my calendar\" adds new events and updates any that changed; \"Remove imported\" undoes everything you pulled in. To do it automatically, open Settings → Notifications and turn on \"Auto-sync Team Hub to my calendar\" — it then syncs once a day on its own.",
+          "Tap the cloud icon on the TeamHub Calendar. \"Sync my calendar\" adds new events and updates any that changed; \"Remove imported\" undoes everything you pulled in. To do it automatically, open Settings → Notifications and turn on \"Auto-sync TeamHub to my calendar\" — it then syncs once a day on its own.",
       },
       {
-        q: "Can I post a form or sign-up sheet to Team Chat?",
+        q: "Can I post a form or sign-up sheet to TeamChat?",
         a:
-          "Yes. From Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable card into Team Chat. Tapping the card opens the form or sheet so parents can fill it out.",
+          "Yes. From Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable card into TeamChat. Tapping the card opens the form or sheet so parents can fill it out.",
       },
     ],
   },
   {
-    title: "Team Chat",
+    title: "TeamChat",
     items: [
       {
-        q: "What is Team Chat?",
+        q: "What is TeamChat?",
         a:
-          "A group message thread inside Team Hub for your coaches, reps and staff — open it from Team → Team Chat. Send text plus photos, videos (up to 90 seconds) and music, and react to any message with an emoji. New messages arrive in real time and a badge shows when there's something unread.",
+          "A group message thread inside TeamHub for your coaches, reps and staff — open it from Team → TeamChat. Send text plus photos, videos (up to 90 seconds) and music, and react to any message with an emoji. New messages arrive in real time and a badge shows when there's something unread.",
       },
       {
         q: "Can athletes be in the chat? (ParentGuard)",
         a:
-          "Yes, safely — this is ParentGuard. An athlete uses their own login (invite them from Team Chat → the people icon → Invite). For a minor, chat stays OFF until a parent/guardian approves it, everyone shares one supervised group thread (no private one-to-one messages), and a parent can always see the conversation. Parent-approved. Parent-connected. Only the account owner or a caretaker listed on that athlete can approve, and they can switch it back off anytime.",
+          "Yes, safely — this is ParentGuard. An athlete uses their own login (invite them from TeamChat → the people icon → Invite). For a minor, chat stays OFF until a parent/guardian approves it, everyone shares one supervised group thread (no private one-to-one messages), and a parent can always see the conversation. Parent-approved. Parent-connected. Only the account owner or a caretaker listed on that athlete can approve, and they can switch it back off anytime.",
       },
       {
         q: "How do mentions and read receipts work?",
@@ -275,7 +275,7 @@ const FAQ: Section[] = [
           "Type \"@\" to tag a teammate — their name is highlighted in the message. Under your most recent message you'll see \"Seen by\" so you know how many teammates have caught up.",
       },
       {
-        q: "How is Team Chat kept safe?",
+        q: "How is TeamChat kept safe?",
         a:
           "Everyone agrees to Community Guidelines before their first message, objectionable language is blocked automatically, and you can long-press a message to report it or block a member. Any message reported by 3+ people is hidden automatically, and admins are emailed the moment something is reported so it can be removed fast if inappropriate. You can delete your own messages, team admins can remove any message, and admins can eject users — usually within 24 hours of a report.",
       },
@@ -297,7 +297,7 @@ const FAQ: Section[] = [
       {
         q: "How do people join my team, and what can they do before I set them up?",
         a:
-          "Open Team → Members and share your one reusable team code. Anyone who enters it lands in your New Members list with group-chat-only access (you get an alert when someone's waiting). Assign them a role — Parent of an Athlete, Coach, Staff, or Athlete — and they're attached to the right profile. Coaches/staff get full Team Hub access; parents stay chat-only and are linked to their athlete.",
+          "Open Team → Members and share your one reusable team code. Anyone who enters it lands in your New Members list with group-chat-only access (you get an alert when someone's waiting). Assign them a role — Parent of an Athlete, Coach, Staff, or Athlete — and they're attached to the right profile. Coaches/staff get full TeamHub access; parents stay chat-only and are linked to their athlete.",
       },
       {
         q: "Someone joined but they're already on my roster — how do I merge them?",
@@ -352,7 +352,7 @@ const FAQ: Section[] = [
       {
         q: "Are there ads or in-app purchases?",
         a:
-          "There are never any ads and we never sell your data. CheerPlanner is free to use with generous limits, and offers an optional Premium membership (in-app purchase via the App Store) that unlocks higher limits and the advanced Team Hub tools. See the Membership section below for details.",
+          "There are never any ads and we never sell your data. CheerPlanner is free to use with generous limits, and offers an optional Premium membership (in-app purchase via the App Store) that unlocks higher limits and the advanced TeamHub tools. See the Membership section below for details.",
       },
       {
         q: "Do you store my financial information?",
@@ -362,7 +362,7 @@ const FAQ: Section[] = [
       {
         q: "What happens to photos and music I upload?",
         a:
-          "Photos (athlete/staff and record photos) and Team Music audio are stored only to power those features and to sync across your household and Team Hub. They're never sold or used for anything else, and deleting the item — or your account — removes them. See our Privacy Policy for full details.",
+          "Photos (athlete/staff and record photos) and Team Music audio are stored only to power those features and to sync across your household and TeamHub. They're never sold or used for anything else, and deleting the item — or your account — removes them. See our Privacy Policy for full details.",
       },
     ],
   },
@@ -372,12 +372,12 @@ const FAQ: Section[] = [
       {
         q: "What's included in the Free plan?",
         a:
-          "Free covers everyday cheer-parent needs: unlimited athletes, expenses, payments, fundraisers, competitions, travel, schedule, calendar and packing lists for your own family, plus a household of up to 2 members. Team Hub on Free includes the Roster (up to 36 athletes / 4 personnel), 1 sign-up sheet, and 1 attendance session.",
+          "Free covers everyday cheer-parent needs: unlimited athletes, expenses, payments, fundraisers, competitions, travel, schedule, calendar and packing lists for your own family, plus a household of up to 2 members. TeamHub on Free includes the Roster (up to 36 athletes / 4 personnel), 1 sign-up sheet, and 1 attendance session.",
       },
       {
         q: "What does Premium add?",
         a:
-          "Premium raises your household to 6 members and unlocks the full Team Hub: unlimited roster, unlimited sign-up sheets and attendance sessions, plus Sizes, Paperwork, Team Payment tracking, custom roster columns & expanded fields, spreadsheet import/export, parent share links, and mass SMS reminders.",
+          "Premium raises your household to 6 members and unlocks the full TeamHub: unlimited roster, unlimited sign-up sheets and attendance sessions, plus Sizes, Paperwork, Team Payment tracking, custom roster columns & expanded fields, spreadsheet import/export, parent share links, and mass SMS reminders.",
       },
       {
         q: "How much does Premium cost?",
@@ -397,7 +397,7 @@ const FAQ: Section[] = [
       {
         q: "Does Premium apply to my whole household?",
         a:
-          "Yes. Premium is tied to your household, so once any member upgrades, everyone sharing that household gets the Premium limits and Team Hub features.",
+          "Yes. Premium is tied to your household, so once any member upgrades, everyone sharing that household gets the Premium limits and TeamHub features.",
       },
       {
         q: "What if I already have a lifetime or promo code?",

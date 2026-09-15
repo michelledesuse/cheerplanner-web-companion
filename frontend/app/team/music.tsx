@@ -220,7 +220,7 @@ export default function TeamMusicScreen() {
             <View style={styles.empty}>
               <Ionicons name="musical-notes-outline" size={40} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No music yet</Text>
-              <Text style={styles.emptyText}>Upload competition mixes or music to share with your team. Everyone with Team Hub access can listen.</Text>
+              <Text style={styles.emptyText}>Upload competition mixes or music to share with your team. Everyone with TeamHub access can listen.</Text>
               <TouchableOpacity style={styles.primaryBtn} onPress={pickAndOpen} testID="music-upload-empty">
                 <Ionicons name="cloud-upload-outline" size={16} color="white" />
                 <Text style={styles.primaryBtnText}>Upload a track</Text>

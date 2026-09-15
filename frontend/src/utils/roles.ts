@@ -16,7 +16,7 @@ export const ROLES: RoleMeta[] = [
   { value: "staff", label: "Staff", short: "Staff", icon: "briefcase-outline" },
 ];
 
-// Roles that manage the team (unlock the Team Hub tools in a later phase).
+// Roles that manage the team (unlock the TeamHub tools in a later phase).
 export const STAFF_ROLES: AthleteRole[] = ["coach", "team_rep", "staff"];
 
 export const roleMeta = (role?: string | null): RoleMeta =>

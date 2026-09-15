@@ -94,7 +94,7 @@ def send_flag_alert(kind: str, snippet: str, reason: str, count: int, hidden: bo
         f"<p style='color:#475569'><strong>Reason given:</strong> {reason or '—'}</p>"
         "<div style='border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin:10px 0;background:#F8FAFC'>"
         f"<strong>Reported content:</strong><br/>{snip or '(no text — media/attachment)'}</div>"
-        "<p>Open the app → <strong>Admin → Reports</strong> (or the Team Chat thread) to review and "
+        "<p>Open the app → <strong>Admin → Reports</strong> (or the TeamChat thread) to review and "
         "remove it. Per our Community Guidelines, please act within 24 hours of a report.</p>"
         "</div>"
     )

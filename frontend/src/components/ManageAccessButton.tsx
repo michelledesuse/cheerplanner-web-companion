@@ -9,7 +9,7 @@ type Member = { id: string; name?: string; email?: string; team_access?: boolean
 type Props = { resource: "payment" | "signup" | "paperwork" | "attendance" | "form"; resourceId: string };
 
 /**
- * Owner-only control to hide a specific sheet/tracker from individual Team Hub
+ * Owner-only control to hide a specific sheet/tracker from individual TeamHub
  * members (e.g. block the coach from the "Coach's gift" payment tracker).
  * Renders nothing unless the current user is the household owner AND there are
  * other members to manage.

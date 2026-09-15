@@ -55,7 +55,7 @@ export default function ChatAccessScreen() {
     try {
       const r = await api.post<{ code: string }>(`/team/chat/athletes/${a.roster_id}/invite`, {});
       const code = r.data.code;
-      const msg = `Invite code for ${a.name} to join Team Chat: ${code}\n\nSteps: 1) Create a CheerPlanner account (or log in). 2) Open the Team tab and tap "Manage access". 3) Enter this code. A parent/guardian then approves chat with ParentGuard.`;
+      const msg = `Invite code for ${a.name} to join TeamChat: ${code}\n\nSteps: 1) Create a CheerPlanner account (or log in). 2) Open the Team tab and tap "Manage access". 3) Enter this code. A parent/guardian then approves chat with ParentGuard.`;
       if (Platform.OS === "web") { Alert.alert("Invite code", `${code}`); }
       else { try { await Share.share({ message: msg }); } catch { Alert.alert("Invite code", code); } }
       load();

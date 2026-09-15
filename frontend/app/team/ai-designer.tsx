@@ -174,7 +174,7 @@ export default function AIDesigner() {
       setPosting(false);
       setEnlarge(false);
       setCaption("");
-      Alert.alert("Posted", "Your flyer was posted to Team Chat.");
+      Alert.alert("Posted", "Your flyer was posted to TeamChat.");
     } catch (e: any) {
       setPosting(false);
       Alert.alert("Couldn't post", e?.response?.data?.detail || "Please try again.");
@@ -378,7 +378,7 @@ export default function AIDesigner() {
                 testID="ai-designer-caption"
               />
               <TouchableOpacity style={[styles.postBtn, posting && { opacity: 0.6 }]} onPress={postToChat} disabled={posting} testID="ai-designer-post-chat">
-                {posting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="chatbubbles" size={16} color="#fff" /><Text style={styles.postText}>Post to Team Chat</Text></>}
+                {posting ? <ActivityIndicator color="#fff" /> : <><Ionicons name="chatbubbles" size={16} color="#fff" /><Text style={styles.postText}>Post to TeamChat</Text></>}
               </TouchableOpacity>
 
               {/* Tweak / edit the selected design */}

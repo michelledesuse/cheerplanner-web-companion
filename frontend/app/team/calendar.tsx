@@ -147,7 +147,7 @@ export default function TeamCalendar() {
       const r = await api.post<{ added: number; updated: number; removed: number }>("/team/calendar/sync-to-personal", {});
       const { added, updated, removed } = r.data;
       if (!added && !updated && !removed) {
-        Alert.alert("Up to date", "Your personal calendar already matches the Team Hub.");
+        Alert.alert("Up to date", "Your personal calendar already matches the TeamHub.");
       } else {
         const parts = [];
         if (added) parts.push(`${added} added`);
@@ -164,19 +164,19 @@ export default function TeamCalendar() {
       Alert.alert(
         r.data.removed ? "Removed" : "Nothing to remove",
         r.data.removed
-          ? `${r.data.removed} Team Hub event${r.data.removed === 1 ? "" : "s"} removed from your personal calendar.`
-          : "You don't have any Team Hub events copied to your personal calendar.",
+          ? `${r.data.removed} TeamHub event${r.data.removed === 1 ? "" : "s"} removed from your personal calendar.`
+          : "You don't have any TeamHub events copied to your personal calendar.",
       );
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not remove events."); }
   };
 
   const importAll = () => {
     Alert.alert(
-      "Team Hub → My Calendar",
-      "Sync copies new Team Hub events to your personal (family) calendar and updates any that changed. You can also remove ones you added before.",
+      "TeamHub → My Calendar",
+      "Sync copies new TeamHub events to your personal (family) calendar and updates any that changed. You can also remove ones you added before.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Remove imported", style: "destructive", onPress: () => Alert.alert("Remove imported events?", "This deletes every Team Hub event you previously copied to your personal calendar. Your own events are untouched.", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: doRemoveImported }]) },
+        { text: "Remove imported", style: "destructive", onPress: () => Alert.alert("Remove imported events?", "This deletes every TeamHub event you previously copied to your personal calendar. Your own events are untouched.", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: doRemoveImported }]) },
         { text: "Sync my calendar", onPress: doSync },
       ],
     );
@@ -572,7 +572,7 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
       const parts = [`${imported} imported`];
       if (already) parts.push(`${already} already on the hub`);
       if (skipped) parts.push(`${skipped} skipped`);
-      Alert.alert("Imported to Team Hub", parts.join(", ") + ".");
+      Alert.alert("Imported to TeamHub", parts.join(", ") + ".");
       onDone();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not import."); }
     finally { setSaving(false); }
@@ -609,7 +609,7 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
       <Pressable style={styles.modalWrap} onPress={onClose}><Pressable style={styles.sheet} onPress={() => {}} testID="import-personal-modal">
         <View style={styles.rowT}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.sheetTitle}>Import to Team Hub</Text>
+            <Text style={styles.sheetTitle}>Import to TeamHub</Text>
             <Text style={styles.sheetSub2}>Pick your competitions & events to add to the team calendar.</Text>
           </View>
           {hasAny && allSelectable.length > 0 && (
@@ -670,7 +670,7 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
           </ScrollView>
         )}
         <TouchableOpacity style={[styles.saveBtn, (count === 0 || saving) && { opacity: 0.5 }]} onPress={doImport} disabled={count === 0 || saving} testID="import-personal-confirm">
-          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{count === 0 ? "Select items to import" : `Import ${count} to Team Hub`}</Text>}
+          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{count === 0 ? "Select items to import" : `Import ${count} to TeamHub`}</Text>}
         </TouchableOpacity>
         <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
       </Pressable></Pressable>

@@ -12,7 +12,7 @@ const FEATURES: { icon: keyof typeof Ionicons.glyphMap; title: string; desc: str
   { icon: "wallet", title: "Expenses & Payments", desc: "Track cheer costs, dues, and who's paid — no more spreadsheets." },
   { icon: "trophy", title: "Competitions & Travel", desc: "Comp dates, locations, and travel deadlines, organized." },
   { icon: "calendar", title: "Schedule & Calendar", desc: "Practices, events, and reminders so nothing slips." },
-  { icon: "ribbon", title: "Team Hub", desc: "Coaches & reps manage roster, sizes, paperwork, sign-ups & payments." },
+  { icon: "ribbon", title: "TeamHub", desc: "Coaches & reps manage roster, sizes, paperwork, sign-ups & payments." },
   { icon: "notifications", title: "Smart Reminders", desc: "In-app and optional SMS reminders for the deadlines that matter." },
 ];
 

@@ -461,7 +461,7 @@ export default function TeamChatScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={{ flex: 1 }} onPress={() => setShowChannels(true)} testID="chat-channel-switcher" activeOpacity={0.7}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <Text style={styles.title} numberOfLines={1}>{activeChannel ? activeChannel.name : "Team Chat"}</Text>
+            <Text style={styles.title} numberOfLines={1}>{activeChannel ? activeChannel.name : "TeamChat"}</Text>
             <Ionicons name="chevron-down" size={16} color={colors.textSecondary} />
           </View>
           <Text style={styles.sub}>{activeChannel ? "Tap to switch chats" : "Main team thread · tap to switch"}</Text>
@@ -603,7 +603,7 @@ export default function TeamChatScreen() {
             <Text style={styles.sheetTitle}>Community guidelines</Text>
             <ScrollView style={{ maxHeight: 260 }}>
               <Text style={styles.guideText}>
-                To keep Team Chat safe for everyone — including minors — you agree to:{"\n\n"}
+                To keep TeamChat safe for everyone — including minors — you agree to:{"\n\n"}
                 • Be respectful. No harassment, hate speech, threats, or bullying.{"\n"}
                 • No sexual, violent, or otherwise objectionable content.{"\n"}
                 • No spam or sharing others&apos; private info.{"\n\n"}
@@ -715,7 +715,7 @@ export default function TeamChatScreen() {
               <TouchableOpacity style={styles.channelRow} onPress={() => selectChannel(null)} testID="chat-channel-main">
                 <Ionicons name="people-circle-outline" size={22} color={colors.accent} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.channelName}>Team Chat</Text>
+                  <Text style={styles.channelName}>TeamChat</Text>
                   <Text style={styles.channelSub}>Everyone on the team</Text>
                 </View>
                 {!activeChannel && <Ionicons name="checkmark" size={18} color={colors.accent} />}

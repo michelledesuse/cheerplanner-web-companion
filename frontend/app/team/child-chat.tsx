@@ -64,7 +64,7 @@ export default function ChildChatScreen() {
           <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.title} numberOfLines={1}>🛡️ {firstName}'s Team Chat</Text>
+          <Text style={styles.title} numberOfLines={1}>🛡️ {firstName}'s TeamChat</Text>
           <Text style={styles.subtitle}>Read-only • parent view</Text>
         </View>
       </View>

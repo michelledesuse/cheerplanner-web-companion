@@ -17,9 +17,9 @@ const TOOLS = [
 ];
 
 /**
- * Shows Team Hub tools (sign-ups, payments, attendance) attached to a given
+ * Shows TeamHub tools (sign-ups, payments, attendance) attached to a given
  * competition OR schedule event, with the ability to attach/detach existing
- * ones. Only rendered for Team Hub members.
+ * ones. Only rendered for TeamHub members.
  */
 export default function LinkedTools({ competitionId, eventId }: Props) {
   const { user } = useAuth();
@@ -59,7 +59,7 @@ export default function LinkedTools({ competitionId, eventId }: Props) {
 
   return (
     <View style={styles.wrap}>
-      <Text style={styles.header}>Attached Team Hub tools</Text>
+      <Text style={styles.header}>Attached TeamHub tools</Text>
       {loading ? (
         <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.sm }} />
       ) : (

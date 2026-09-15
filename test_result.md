@@ -672,3 +672,9 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - BACKEND VERIFIED already by main agent via API: POST /api/team/broadcast/send with a throwaway athlete (fictional parent phone (201)555-0102) returned {sent:1, failed:0}. send_bulk refactor is intact and awaited (broadcast.py:159 `return await _perform_send`). So messaging pipeline is NOT broken.
 - Frontend base_url comes from EXPO_PUBLIC_BACKEND_URL (valid). broadcast.tsx posts to /team/broadcast/send.
 - Creds: demo@cheerplanner.app / CheerDemo2026! (owner, team_access) and coach.casey@cheerplanner.app / CheerDemo2026! (coach, team_access). Both have team_access=true in DB.
+
+## Iteration 131 — Reorderable TeamHub tiles + rebrand (Team Hub->TeamHub, Team Chat->TeamChat)
+- FEATURE reorderable tiles: frontend/app/(tabs)/team.tsx now renders the tools in a DraggableFlatList (ListHeader = switcher/alert/Members/hint). Each tile has a ≡ drag handle (testID team-tool-drag-<key>, onPressIn={drag}); tap still opens. onDragEnd persists order to backend.
+- BACKEND: core/models.py UserPublic + team_tool_order:List[str]; new PATCH /api/auth/team-tool-order (auth.py) writes users.team_tool_order; me()/login() now return it. orderTools() applies saved order and appends any new tools at the end.
+- Verified: PATCH saves + /auth/me returns it; setting a custom order reorders the rendered hub on next load (Calendar/AI/Messaging/Roster). Demo reset to default ([] => Roster, Messaging, ... order).
+- REBRAND: replaced user-facing 'Team Hub'->'TeamHub' and 'Team Chat'->'TeamChat' across all frontend .tsx/.ts (0 remaining) and user-facing backend text (assistant.py incl. TEAM HUB->TEAMHUB, coach_ai.py, core/email.py). Routes/testIDs/identifiers (e.g. TeamHubSwitcher) unchanged. Header now shows 'TeamHub'; chat tile 'TeamChat'.

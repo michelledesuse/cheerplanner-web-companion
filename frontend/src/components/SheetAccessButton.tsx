@@ -57,14 +57,14 @@ export default function SheetAccessButton({ resource, resourceId }: Props) {
             ) : !isOwner ? (
               <Text style={styles.empty}>Only the account owner can manage who sees this sheet.</Text>
             ) : members.length === 0 ? (
-              <Text style={styles.empty}>No other members yet. Invite staff from Settings → Team Hub Access to control what each person can see.</Text>
+              <Text style={styles.empty}>No other members yet. Invite staff from Settings → TeamHub Access to control what each person can see.</Text>
             ) : (
               <ScrollView style={{ maxHeight: 340 }}>
                 {members.map((m) => (
                   <TouchableOpacity key={m.id} style={styles.row} onPress={() => toggle(m)} disabled={!m.team_access} testID={`sheet-access-toggle-${m.id}`}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.name}>{m.name || (m.email || "").split("@")[0]}</Text>
-                      {!m.team_access && <Text style={styles.noAccess}>No Team Hub access</Text>}
+                      {!m.team_access && <Text style={styles.noAccess}>No TeamHub access</Text>}
                     </View>
                     {m.team_access && (
                       <View style={[styles.pill, m.blocked ? styles.pillOff : styles.pillOn]}>

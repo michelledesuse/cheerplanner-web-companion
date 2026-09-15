@@ -259,7 +259,7 @@ export default function HouseholdScreen() {
             <TouchableOpacity style={[styles.primaryBtn, { marginTop: spacing.sm }, joining && { opacity: 0.7 }]} onPress={submitJoin} disabled={joining} testID="join-submit">
               {joining ? <ActivityIndicator color="white" /> : <Text style={styles.primaryBtnText}>Join household</Text>}
             </TouchableOpacity>
-            <Text style={styles.joinHint}>This is for family sharing (your calendar, expenses & travel). Coaches joining a team should use Settings → Team Hub Access instead.</Text>
+            <Text style={styles.joinHint}>This is for family sharing (your calendar, expenses & travel). Coaches joining a team should use Settings → TeamHub Access instead.</Text>
           </View>
 
           {/* Leave */}

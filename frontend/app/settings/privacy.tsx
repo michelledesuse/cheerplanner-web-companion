@@ -43,7 +43,7 @@ export default function PrivacyPolicyScreen() {
           technical data such as device type and app usage needed to operate the Service.
         </Text>
         <Text style={styles.p}>
-          If you use Team Hub (see below), you may also provide information about other people —
+          If you use TeamHub (see below), you may also provide information about other people —
           such as team members, athletes, and their parents/guardians — including names, contact
           details, uniform/apparel sizes, paperwork completion status, payment tracking notes, and
           answers submitted to custom Team Forms (for example meal choices, apparel sizes, or
@@ -54,17 +54,17 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.p}>
           You may also add photos (for example, an athlete or staff profile photo, or photos
           attached to a competition, event, fundraiser, sign-up, payment, or paperwork record) and,
-          in Team Hub, audio files (&quot;Team Music&quot;). If you share a roster link, a parent or
+          in TeamHub, audio files (&quot;Team Music&quot;). If you share a roster link, a parent or
           guardian can upload a single photo of their athlete or staff member without logging in.
           Photos and audio you add are stored as part of your account so they can sync across your
-          household and Team Hub.
+          household and TeamHub.
         </Text>
 
-        <Text style={styles.h}>Team Hub (for coaches &amp; team staff)</Text>
+        <Text style={styles.h}>TeamHub (for coaches &amp; team staff)</Text>
         <Text style={styles.p}>
-          Team Hub is an optional workspace for coaches, team reps, and staff to organize a team
+          TeamHub is an optional workspace for coaches, team reps, and staff to organize a team
           roster, sizes, paperwork, payment tracking, volunteer sign-ups, custom forms, and shared
-          team music. Access is controlled by the account owner, who grants Team Hub access to
+          team music. Access is controlled by the account owner, who grants TeamHub access to
           specific people and can invite others by email. Coaches may also share public links (for
           roster info, sizes, or Team Forms) that parents can fill in without an account.
         </Text>
@@ -72,7 +72,7 @@ export default function PrivacyPolicyScreen() {
           If you enter or upload information about other individuals — including photos or audio —
           you are responsible for having the appropriate authority or consent to do so, and for
           using that information solely for legitimate team-management purposes. This data is visible
-          only to household logins you have granted Team Hub access. If a person listed in your
+          only to household logins you have granted TeamHub access. If a person listed in your
           roster asks you to remove their information, you can delete it within the app.
         </Text>
 
@@ -82,7 +82,7 @@ export default function PrivacyPolicyScreen() {
           import and to create the corresponding records in your account. Photos and audio files you
           upload are stored solely to provide the feature you used them for (for example, showing an
           athlete&apos;s profile photo or letting your team play shared music) and to sync them
-          across your household and Team Hub. We do not use uploaded files or media for any other
+          across your household and TeamHub. We do not use uploaded files or media for any other
           purpose, and we do not sell them.
         </Text>
 
@@ -115,7 +115,7 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.p}>
           We do not sell your personal information. We share data only with service providers that
           help us operate the Service (such as cloud hosting, email delivery, and SMS delivery),
-          with household members you explicitly invite or people you grant Team Hub access, or when
+          with household members you explicitly invite or people you grant TeamHub access, or when
           required by law.
         </Text>
         <Text style={styles.p}>

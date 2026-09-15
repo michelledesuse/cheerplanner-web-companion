@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from core.db import db
 from core.models import (
     UserSignup, UserLogin, UserPublic, TokenResponse, DeleteAccountPayload, TeamAccessPayload,
+    TeamToolOrderPayload,
 )
 from core.security import (
     hash_password, verify_password, create_access_token, get_current_user, limiter,
@@ -63,6 +64,7 @@ async def login(request: Request, payload: UserLogin):
             team_access=bool(user_doc.get("team_access")),
             is_admin=bool(user_doc.get("is_admin")),
             visibility=visibility,
+            team_tool_order=user_doc.get("team_tool_order"),
         ),
     )
 
@@ -79,6 +81,25 @@ async def me(current_user=Depends(get_current_user)):
         team_access=bool(current_user.get("team_access")),
         is_admin=bool(current_user.get("is_admin")),
         visibility=visibility,
+        team_tool_order=current_user.get("team_tool_order"),
+    )
+
+
+@router.patch("/auth/team-tool-order", response_model=UserPublic)
+async def set_team_tool_order(payload: TeamToolOrderPayload, current_user=Depends(get_current_user)):
+    order = [str(k) for k in payload.order][:100]
+    await db.users.update_one({"id": current_user["id"]}, {"$set": {"team_tool_order": order}})
+    from core.helpers import _member_visibility
+    visibility = await _member_visibility(current_user["id"])
+    return UserPublic(
+        id=current_user["id"],
+        email=current_user["email"],
+        name=current_user.get("name"),
+        created_at=current_user["created_at"],
+        team_access=bool(current_user.get("team_access")),
+        is_admin=bool(current_user.get("is_admin")),
+        visibility=visibility,
+        team_tool_order=order,
     )
 
 

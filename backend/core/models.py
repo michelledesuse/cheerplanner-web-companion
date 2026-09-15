@@ -38,6 +38,12 @@ class UserPublic(BaseModel):
     is_admin: bool = False
     # Household data areas this user may view: {"expenses": bool, "travel": bool}.
     visibility: Optional[Dict[str, bool]] = None
+    # User's preferred ordering of Team Hub tiles (list of tool keys).
+    team_tool_order: Optional[List[str]] = None
+
+
+class TeamToolOrderPayload(BaseModel):
+    order: List[str]
 
 
 class TeamAccessPayload(BaseModel):

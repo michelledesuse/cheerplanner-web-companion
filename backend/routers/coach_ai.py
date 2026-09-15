@@ -1,10 +1,10 @@
-"""AI Coaching Assistant (Team Hub) — coach/staff only.
+"""AI Coaching Assistant (TeamHub) — coach/staff only.
 
 A cheer-only assistant: answers coaching questions (skill development, practice
 planning, team management, team bonding, athlete progression, competition prep)
 and politely declines anything off-topic. It can also design event flyers
 (tryouts, competitions, fundraisers, events) with DALL·E, which the coach can
-post straight into Team Chat.
+post straight into TeamChat.
 
 Access is gated by require_team_access, so athletes and parents cannot use it.
 """

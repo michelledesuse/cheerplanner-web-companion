@@ -19,7 +19,7 @@ const STEPS: Step[] = [
     num: 1,
     title: "Add your people (athletes, coaches & staff)",
     body:
-      "Open Settings → Athletes → tap + to add each person. Set a name, optional gym/team, an avatar color, and choose a role: Athlete, Coach, Team Rep/Mgr, or Staff. Coaches, reps and staff are treated as team \"personnel\" and unlock the Team Hub. Everyone can belong to more than one team.",
+      "Open Settings → Athletes → tap + to add each person. Set a name, optional gym/team, an avatar color, and choose a role: Athlete, Coach, Team Rep/Mgr, or Staff. Coaches, reps and staff are treated as team \"personnel\" and unlock the TeamHub. Everyone can belong to more than one team.",
     tip: "If you have multiple children at the same gym, add them now — every expense, payment, and schedule entry is tracked per athlete.",
   },
   {
@@ -87,15 +87,15 @@ const STEPS: Step[] = [
   },
   {
     num: 12,
-    title: "Open the Team Hub (coaches, reps & staff)",
+    title: "Open the TeamHub (coaches, reps & staff)",
     body:
-      "Tap the Team tab. The Team Hub unlocks automatically once your household has someone marked Coach, Team Rep/Mgr, or Staff. If a coach or gym gave you a Team Hub code, open Settings → Team Hub Access and enter it in the \"Have a Team Hub code?\" box at the top to unlock the Team tab. It's a private workspace for team personnel with a Roster and tracking tools. Start with Roster → add people manually or pull in your athletes with one tap. Athletes store a parent's contact info; personnel store their own. People can be on multiple teams, and every list separates Personnel from Athletes.",
+      "Tap the Team tab. The TeamHub unlocks automatically once your household has someone marked Coach, Team Rep/Mgr, or Staff. If a coach or gym gave you a TeamHub code, open Settings → TeamHub Access and enter it in the \"Have a TeamHub code?\" box at the top to unlock the Team tab. It's a private workspace for team personnel with a Roster and tracking tools. Start with Roster → add people manually or pull in your athletes with one tap. Athletes store a parent's contact info; personnel store their own. People can be on multiple teams, and every list separates Personnel from Athletes.",
   },
   {
     num: 13,
     title: "Track payments, sizes & paperwork",
     body:
-      "Inside the Team Hub: Payment Tracking is a manual ledger — set an optional expected amount, then record each person's actual amount, method (Cash, Venmo, etc.) and date paid. Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) you can extend; tap the chart icon for a size tally. Paperwork / Other is one or more named check-off sheets (waivers, forms) with a checkbox and note per person.",
+      "Inside the TeamHub: Payment Tracking is a manual ledger — set an optional expected amount, then record each person's actual amount, method (Cash, Venmo, etc.) and date paid. Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) you can extend; tap the chart icon for a size tally. Paperwork / Other is one or more named check-off sheets (waivers, forms) with a checkbox and note per person.",
     tip: "Grids keep the member's name frozen on the left while you scroll across columns. Personnel don't get a Sports bra size.",
   },
   {
@@ -115,7 +115,7 @@ const STEPS: Step[] = [
     num: 16,
     title: "Share team music",
     body:
-      "Open Team → Team Music to upload competition mixes or music (audio files up to 15 MB each). Everyone with Team Hub access can play them in the app, and you can attach a track to a specific team or competition so it's easy to find. Only team personnel can upload, edit, or delete tracks.",
+      "Open Team → Team Music to upload competition mixes or music (audio files up to 15 MB each). Everyone with TeamHub access can play them in the app, and you can attach a track to a specific team or competition so it's easy to find. Only team personnel can upload, edit, or delete tracks.",
     tip: "Background and locked-screen playback works on the installed app build (TestFlight / App Store), not in Expo Go.",
   },
   {
@@ -123,19 +123,19 @@ const STEPS: Step[] = [
     title: "Grow your team with one join code",
     body:
       "Open Team → Members to share ONE reusable team code with your whole team. Anyone who enters it (from the Team tab → \"Have a team code?\") lands in your New Members list with group-chat-only access, and you get an alert banner whenever someone is waiting. Tap Assign role to set each person as Parent of an Athlete, Coach, Staff, or Athlete. If that person is already on your roster, pick their existing profile from the \"Link to an existing profile\" list so their new login merges into it — no duplicate, no re-typing. Leave it blank to create a fresh profile.",
-    tip: "Already set someone up and got a duplicate? On the Team list tap \"Link / edit\" next to their name to link them to the right profile — the duplicate is cleaned up automatically. Coaches/staff get full Team Hub access; parents stay chat-only and are linked to their athlete. Tap New code anytime to rotate the code.",
+    tip: "Already set someone up and got a duplicate? On the Team list tap \"Link / edit\" next to their name to link them to the right profile — the duplicate is cleaned up automatically. Coaches/staff get full TeamHub access; parents stay chat-only and are linked to their athlete. Tap New code anytime to rotate the code.",
   },
   {
     num: 18,
-    title: "Use Team Chat & named channels",
+    title: "Use TeamChat & named channels",
     body:
-      "Tap the Team Chat message icon to talk with your team in real time — send text, photos, videos, and music, react with emoji, and @mention people. Tap the chat title to switch between the main team thread and named channels, or tap + New chat to create a channel for a sub-group (e.g. Fundraising or Coaches). Tap the download icon on any photo, video, or audio to save it to your device.",
+      "Tap the TeamChat message icon to talk with your team in real time — send text, photos, videos, and music, react with emoji, and @mention people. Tap the chat title to switch between the main team thread and named channels, or tap + New chat to create a channel for a sub-group (e.g. Fundraising or Coaches). Tap the download icon on any photo, video, or audio to save it to your device.",
   },
   {
     num: 19,
     title: "ParentGuard — safe chat for minors",
     body:
-      "ParentGuard 🛡️ keeps youth chat safe. A minor athlete joins with their own login, and their chat stays OFF until a parent/guardian approves it from Team Chat → the people icon. Minors only ever chat in a supervised group (no private one-to-one messages), a parent can always see the conversation, and access can be switched back off anytime. Parent-approved. Parent-connected.",
+      "ParentGuard 🛡️ keeps youth chat safe. A minor athlete joins with their own login, and their chat stays OFF until a parent/guardian approves it from TeamChat → the people icon. Minors only ever chat in a supervised group (no private one-to-one messages), a parent can always see the conversation, and access can be switched back off anytime. Parent-approved. Parent-connected.",
   },
   {
     num: 20,
@@ -175,27 +175,27 @@ const STEPS: Step[] = [
     num: 25,
     title: "Go Premium (optional)",
     body:
-      "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full Team Hub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",
+      "CheerPlanner is free with generous limits. Open Settings → Membership to see Premium — it raises your household to 6 members and unlocks the full TeamHub (Sizes, Paperwork, Team Payments, spreadsheet import/export, parent share links, mass SMS reminders, and unlimited roster/sign-ups/attendance). Premium is $4.99/month or $39.99/year with a 7-day free trial, and it applies to everyone in your household.",
     tip: "Tap Restore Purchases on the Membership screen after switching phones to get your plan back.",
   },
   {
     num: 26,
-    title: "Team Hub Calendar — views, filters & phone export",
+    title: "TeamHub Calendar — views, filters & phone export",
     body:
       "Open Team → Calendar for the whole team's schedule. Switch between Month, Week, Day, and List views, and tap the type chips (Practice, Competition, etc.) to show only what you want. Tap any event to see details and tap \"Add to phone calendar\" to drop it into your device's Apple/Google calendar. Coaches can pull events in from a personal calendar with Select all, whole-series select, and already-added events greyed out.",
     tip: "The native \"Add to phone calendar\" sheet works on the installed app / Expo Go, not the web preview.",
   },
   {
     num: 27,
-    title: "Sync the Team Hub to your personal calendar",
+    title: "Sync the TeamHub to your personal calendar",
     body:
-      "Tap the cloud icon on the Team Hub Calendar to choose: Sync my calendar (adds new events and updates changed ones), or Remove imported (undo everything you pulled in). Prefer hands-off? Open Settings → Notifications and turn on \"Auto-sync Team Hub to my calendar\" — CheerPlanner then syncs once a day automatically.",
+      "Tap the cloud icon on the TeamHub Calendar to choose: Sync my calendar (adds new events and updates changed ones), or Remove imported (undo everything you pulled in). Prefer hands-off? Open Settings → Notifications and turn on \"Auto-sync TeamHub to my calendar\" — CheerPlanner then syncs once a day automatically.",
   },
   {
     num: 28,
     title: "Travel cancellation reminders & posting forms to chat",
     body:
-      "Free-cancellation deadlines for hotels now show as red entries on your calendar so you never miss them. When adding a hotel you can also turn on an optional text 1–2 days before the cancel-by date (enable SMS in Settings → Notifications first). And from Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable form/sign-up card straight into Team Chat.",
+      "Free-cancellation deadlines for hotels now show as red entries on your calendar so you never miss them. When adding a hotel you can also turn on an optional text 1–2 days before the cancel-by date (enable SMS in Settings → Notifications first). And from Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable form/sign-up card straight into TeamChat.",
     tip: "CheerPlanner auto-detects your phone's timezone on sign-in, so every reminder text lands at the right local time — even if you travel.",
   },
 ];

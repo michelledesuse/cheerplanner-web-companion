@@ -24,7 +24,7 @@ const TIPS: { match: string; tip: string }[] = [
   { match: "team/chat", tip: "Pin an important message so everyone on the team sees it at the top." },
   { match: "team/broadcast", tip: "Send an SMS blast to reach every family instantly." },
   { match: "team/roster", tip: "Add athletes here so they appear across scouting, calendar and chat." },
-  { match: "team", tip: "The Team Hub holds all your coaching tools — chat, scouting, calendar, results and flyers." },
+  { match: "team", tip: "The TeamHub holds all your coaching tools — chat, scouting, calendar, results and flyers." },
   { match: "schedule", tip: "Add a repeating event once and it fills your whole season automatically." },
   { match: "athletes", tip: "Tap an athlete to view their profile, scouting report and progress." },
   { match: "profile", tip: "Manage your subscription and Universal Key balance under “Manage plan.”" },

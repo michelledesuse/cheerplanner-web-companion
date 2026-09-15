@@ -1,6 +1,8 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import DraggableFlatList, { ScaleDecorator, type RenderItemParams } from "react-native-draggable-flatlist";
 import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -26,7 +28,7 @@ const TOOLS: Tool[] = [
   { key: "messaging", title: "Messaging", desc: "Text your whole team or select members — with links, files & photos.", icon: "send-outline", route: "/team/broadcast" },
   { key: "coach_ai", title: "AI Coaching Assistant", desc: "Ask cheer coaching questions & get instant answers. Coaches & staff only.", icon: "sparkles-outline", route: "/team/coach-ai" },
   { key: "ai_designer", title: "Design a Flyer", desc: "Describe a flyer and generate it with AI. Coaches & staff only.", icon: "color-palette-outline", route: "/team/ai-designer" },
-  { key: "chat", title: "Team Chat", desc: "Message your coaches, reps & staff in one group thread.", icon: "chatbubbles-outline", route: "/team/chat" },
+  { key: "chat", title: "TeamChat", desc: "Message your coaches, reps & staff in one group thread.", icon: "chatbubbles-outline", route: "/team/chat" },
   { key: "payments", title: "Payment Tracking", desc: "Team bonding, gifts, meals & dues — track who's paid.", icon: "cash-outline", route: "/team/payments" },
   { key: "sizes", title: "Sizes", desc: "Uniform, apparel & shoe sizes for each member.", icon: "shirt-outline", route: "/team/sizes" },
   { key: "paperwork", title: "Paperwork / Other", desc: "Waivers, forms & any other check-off items.", icon: "document-text-outline", route: "/team/paperwork" },
@@ -43,8 +45,19 @@ const TOOLS: Tool[] = [
 
 const PREMIUM_TOOLS = new Set(["payments", "sizes", "paperwork", "export", "ai_designer"]);
 
+const TOOL_MAP: Record<string, Tool> = Object.fromEntries(TOOLS.map((t) => [t.key, t]));
+
+// Build the tile list in the user's saved order, keeping any tools not yet in
+// their saved order (new features) at the end, and dropping unknown keys.
+function orderTools(order?: string[] | null): Tool[] {
+  const saved = (order || []).filter((k) => TOOL_MAP[k]);
+  const seen = new Set(saved);
+  const rest = TOOLS.filter((t) => !seen.has(t.key));
+  return [...saved.map((k) => TOOL_MAP[k]), ...rest];
+}
+
 /**
- * Team Hub — a private workspace for coaches, team reps/managers & staff.
+ * TeamHub — a private workspace for coaches, team reps/managers & staff.
  * Phase C: Roster is live; Gifts & Meals and Waivers arrive next.
  */
 export default function TeamScreen() {
@@ -62,6 +75,15 @@ export default function TeamScreen() {
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
   const unlocked = !!user?.team_access;
+
+  // Reorderable TeamHub tiles (persisted per user via /auth/team-tool-order).
+  const [tools, setTools] = useState<Tool[]>(() => orderTools(user?.team_tool_order));
+  useEffect(() => { setTools(orderTools(user?.team_tool_order)); }, [user?.team_tool_order]);
+
+  const onDragEnd = useCallback(({ data }: { data: Tool[] }) => {
+    setTools(data);
+    api.patch("/auth/team-tool-order", { order: data.map((t) => t.key) }).catch(() => {});
+  }, []);
 
   const loadUnread = useCallback(async () => {
     try {
@@ -113,11 +135,108 @@ export default function TeamScreen() {
     }, [refreshUser, loadUnread])
   );
 
+  const renderTool = useCallback(({ item: t, drag, isActive }: RenderItemParams<Tool>) => {
+    const locked = PREMIUM_TOOLS.has(t.key) && gatingActive;
+    return (
+      <ScaleDecorator>
+        <TouchableOpacity
+          style={[styles.toolCard, { marginBottom: spacing.md }, isActive && styles.toolCardActive]}
+          testID={`team-tool-${t.key}`}
+          activeOpacity={t.route ? 0.7 : 1}
+          disabled={!t.route || isActive}
+          onPress={() => {
+            if (locked) { router.push("/premium" as any); return; }
+            t.route && router.push(t.route as any);
+          }}
+        >
+          <View style={styles.toolIcon}>
+            <Ionicons name={t.icon} size={22} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.toolTitleRow}>
+              <Text style={styles.toolTitle}>{t.title}</Text>
+              {t.key === "chat" && unread > 0 && (
+                <View style={styles.unreadBadge} testID="team-chat-unread">
+                  <Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text>
+                </View>
+              )}
+              {t.key === "scouting" && scoutReq > 0 && (
+                <View style={styles.unreadBadge} testID="team-scouting-badge">
+                  <Text style={styles.unreadText}>{scoutReq > 99 ? "99+" : scoutReq}</Text>
+                </View>
+              )}
+              {!t.route && (
+                <View style={styles.soonBadge}><Text style={styles.soonText}>COMING SOON</Text></View>
+              )}
+              {locked && (
+                <View style={styles.premiumBadge}>
+                  <Ionicons name="star" size={9} color="#92400E" />
+                  <Text style={styles.premiumText}>PREMIUM</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.toolDesc}>{t.desc}</Text>
+          </View>
+          {locked && <Ionicons name="lock-closed" size={16} color={colors.textTertiary} style={{ marginRight: 4 }} />}
+          <TouchableOpacity onPressIn={drag} disabled={isActive} hitSlop={10} style={styles.dragHandle} testID={`team-tool-drag-${t.key}`}>
+            <Ionicons name="reorder-three-outline" size={22} color={colors.textTertiary} />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </ScaleDecorator>
+    );
+  }, [styles, gatingActive, unread, scoutReq, router]);
+
+  const listHeader = (
+    <View style={{ gap: spacing.md, marginBottom: spacing.md }}>
+      <TeamHubSwitcher />
+
+      {isOwner && pendingCount > 0 && (
+        <TouchableOpacity style={styles.alertBanner} testID="team-pending-alert" activeOpacity={0.8} onPress={() => router.push("/team/members" as any)}>
+          <View style={styles.alertIcon}><Ionicons name="notifications" size={20} color="#fff" /></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.alertTitle}>{pendingCount} new member{pendingCount === 1 ? "" : "s"} waiting</Text>
+            <Text style={styles.alertDesc}>Tap to assign {pendingCount === 1 ? "their role" : "roles"} and finish setup.</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.accent} />
+        </TouchableOpacity>
+      )}
+
+      {isOwner && (
+        <TouchableOpacity style={styles.toolCard} testID="team-tool-members" activeOpacity={0.7} onPress={() => router.push("/team/members" as any)}>
+          <View style={styles.toolIcon}>
+            <Ionicons name="person-add-outline" size={22} color={colors.accent} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.toolTitleRow}>
+              <Text style={styles.toolTitle}>Members</Text>
+              {pendingCount > 0 && (
+                <View style={styles.unreadBadge} testID="team-members-badge">
+                  <Text style={styles.unreadText}>{pendingCount > 99 ? "99+" : pendingCount}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.toolDesc}>
+              {pendingCount > 0 ? `${pendingCount} new member${pendingCount === 1 ? "" : "s"} to set up` : "Share your team code & assign roles."}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+        </TouchableOpacity>
+      )}
+
+      <View style={styles.introCard}>
+        <Ionicons name="reorder-three-outline" size={20} color={colors.accent} />
+        <Text style={styles.introText}>
+          Drag the <Text style={{ fontWeight: "800" }}>≡</Text> handle on any tile to arrange the Hub in the order you like. Your layout is saved automatically.
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.headerBar}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.headerTitle}>Team Hub</Text>
+          <Text style={styles.headerTitle}>TeamHub</Text>
           <Text style={styles.headerSub} numberOfLines={1}>For coaches, reps & staff</Text>
         </View>
         <HomeButton />
@@ -131,9 +250,9 @@ export default function TeamScreen() {
             <View style={styles.lockedIcon}>
               <Ionicons name="lock-closed-outline" size={26} color={colors.accent} />
             </View>
-            <Text style={styles.lockedTitle}>Team Hub is for team personnel</Text>
+            <Text style={styles.lockedTitle}>TeamHub is for team personnel</Text>
             <Text style={styles.lockedText}>
-              These tools are private to coaches, team reps &amp; staff. The account owner grants Team Hub access — from Settings → Team Hub Access. If you&apos;re the owner, open it to enable access for yourself or invite your staff.
+              These tools are private to coaches, team reps &amp; staff. The account owner grants TeamHub access — from Settings → TeamHub Access. If you&apos;re the owner, open it to enable access for yourself or invite your staff.
             </Text>
             <TouchableOpacity style={styles.lockedBtn} onPress={() => router.push("/team-access" as any)} testID="team-add-staff">
               <Ionicons name="settings-outline" size={18} color="white" />
@@ -158,105 +277,25 @@ export default function TeamScreen() {
             {chatAthlete && (
               <TouchableOpacity style={styles.chatAthleteBtn} onPress={() => router.push("/team/chat" as any)} testID="athlete-open-chat">
                 <Ionicons name="chatbubbles-outline" size={18} color={colors.accent} />
-                <Text style={styles.chatAthleteText}>Open Team Chat</Text>
+                <Text style={styles.chatAthleteText}>Open TeamChat</Text>
                 {unread > 0 && <View style={styles.unreadBadge}><Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text></View>}
               </TouchableOpacity>
             )}
           </View>
         </ScrollView>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} testID="team-screen">
-          <TeamHubSwitcher />
-
-          {isOwner && pendingCount > 0 && (
-            <TouchableOpacity style={styles.alertBanner} testID="team-pending-alert" activeOpacity={0.8} onPress={() => router.push("/team/members" as any)}>
-              <View style={styles.alertIcon}><Ionicons name="notifications" size={20} color="#fff" /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.alertTitle}>{pendingCount} new member{pendingCount === 1 ? "" : "s"} waiting</Text>
-                <Text style={styles.alertDesc}>Tap to assign {pendingCount === 1 ? "their role" : "roles"} and finish setup.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.accent} />
-            </TouchableOpacity>
-          )}
-
-          {isOwner && (
-            <TouchableOpacity style={styles.toolCard} testID="team-tool-members" activeOpacity={0.7} onPress={() => router.push("/team/members" as any)}>
-              <View style={styles.toolIcon}>
-                <Ionicons name="person-add-outline" size={22} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.toolTitleRow}>
-                  <Text style={styles.toolTitle}>Members</Text>
-                  {pendingCount > 0 && (
-                    <View style={styles.unreadBadge} testID="team-members-badge">
-                      <Text style={styles.unreadText}>{pendingCount > 99 ? "99+" : pendingCount}</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.toolDesc}>
-                  {pendingCount > 0 ? `${pendingCount} new member${pendingCount === 1 ? "" : "s"} to set up` : "Share your team code & assign roles."}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.introCard}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={colors.accent} />
-            <Text style={styles.introText}>
-              A private space for you as team personnel. Access is granted by the account owner — manage who can open the Hub in Settings → Team Hub Access.
-            </Text>
-          </View>
-
-          {TOOLS.map((t) => {
-            const locked = PREMIUM_TOOLS.has(t.key) && gatingActive;
-            return (
-            <TouchableOpacity
-              key={t.key}
-              style={styles.toolCard}
-              testID={`team-tool-${t.key}`}
-              activeOpacity={t.route ? 0.7 : 1}
-              disabled={!t.route}
-              onPress={() => {
-                if (locked) { router.push("/premium" as any); return; }
-                t.route && router.push(t.route as any);
-              }}
-            >
-              <View style={styles.toolIcon}>
-                <Ionicons name={t.icon} size={22} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <View style={styles.toolTitleRow}>
-                  <Text style={styles.toolTitle}>{t.title}</Text>
-                  {t.key === "chat" && unread > 0 && (
-                    <View style={styles.unreadBadge} testID="team-chat-unread">
-                      <Text style={styles.unreadText}>{unread > 99 ? "99+" : unread}</Text>
-                    </View>
-                  )}
-                  {t.key === "scouting" && scoutReq > 0 && (
-                    <View style={styles.unreadBadge} testID="team-scouting-badge">
-                      <Text style={styles.unreadText}>{scoutReq > 99 ? "99+" : scoutReq}</Text>
-                    </View>
-                  )}
-                  {!t.route && (
-                    <View style={styles.soonBadge}>
-                      <Text style={styles.soonText}>COMING SOON</Text>
-                    </View>
-                  )}
-                  {locked && (
-                    <View style={styles.premiumBadge}>
-                      <Ionicons name="star" size={9} color="#92400E" />
-                      <Text style={styles.premiumText}>PREMIUM</Text>
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.toolDesc}>{t.desc}</Text>
-              </View>
-              {locked ? <Ionicons name="lock-closed" size={16} color={colors.textTertiary} /> : (t.route && <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />)}
-            </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <DraggableFlatList
+            data={tools}
+            keyExtractor={(t) => t.key}
+            renderItem={renderTool}
+            onDragEnd={onDragEnd}
+            ListHeaderComponent={listHeader}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            testID="team-screen"
+          />
+        </GestureHandlerRootView>
       )}
 
       {/* Join a team with a code */}
@@ -298,6 +337,7 @@ const makeStyles = (c: ThemePalette) => ({
   headerTitle: { ...typography.h1, color: c.textPrimary },
   headerSub: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
   content: { padding: spacing.lg, paddingTop: spacing.sm, gap: spacing.md },
+  listContent: { padding: spacing.lg, paddingTop: spacing.sm },
   introCard: {
     flexDirection: "row", gap: spacing.md, alignItems: "flex-start",
     backgroundColor: c.accentSubtle, borderRadius: radius.lg, padding: spacing.md,
@@ -318,6 +358,8 @@ const makeStyles = (c: ThemePalette) => ({
     borderWidth: 1, borderColor: c.border,
   },
   toolIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: c.accentSubtle, alignItems: "center", justifyContent: "center" },
+  toolCardActive: { borderColor: c.accent, shadowColor: "#000", shadowOpacity: 0.15, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
+  dragHandle: { paddingLeft: 8, paddingVertical: 4, alignItems: "center", justifyContent: "center" },
   toolTitleRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
   toolTitle: { ...typography.bodyMedium, fontWeight: "800", color: c.textPrimary },
   soonBadge: { backgroundColor: c.divider, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },

@@ -22,7 +22,7 @@ const BACKEND = process.env.EXPO_PUBLIC_BACKEND_URL || "";
 /**
  * Shows Team Music tracks attached to a competition / event / team, with an
  * inline play/pause mini-player and the ability to attach/detach existing
- * tracks. Only rendered for Team Hub members. Reused inside LinkedTools
+ * tracks. Only rendered for TeamHub members. Reused inside LinkedTools
  * (competition + event) and on the Teams screen (team context).
  */
 export default function AttachedMusic({ contextKey, contextId, standalone }: Props) {
