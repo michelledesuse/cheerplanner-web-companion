@@ -177,7 +177,17 @@ const FAQ: Section[] = [
       {
         q: "What is the TeamHub?",
         a:
-          "A private workspace on the Team tab for team personnel. It centers on a team Roster with tracking tools built on top: Payment Tracking, Sizes, Paperwork / Other, a Sign-Up Sheet, Custom Team Forms, and a Custom Roster Export.",
+          "A private workspace on the Team tab for team personnel. It centers on a team Roster with tools built on top: Messaging (mass texts), TeamChat, AI Coaching Assistant, Design a Flyer, Payment Tracking, Sizes, Paperwork / Other, Sign-Up Sheets, Custom Team Forms, Calendar, Scouting Reports, Team Music, Competition Results, and a Custom Roster Export.",
+      },
+      {
+        q: "Can I rearrange the TeamHub buttons?",
+        a:
+          "Yes. On the Team tab, press and drag the ≡ handle on the right of any tile to move it into the order you like. Your layout saves automatically to your account and comes back the same on every device. Tapping a tile still opens it as usual, and any brand-new features are added to the bottom so nothing gets hidden.",
+      },
+      {
+        q: "How do I text my whole team?",
+        a:
+          "Open Team → Messaging. Compose your message, choose recipients (everyone, a specific team, or hand-pick people), and optionally attach links, files, photos, or a music track. You can send now or schedule it for later. Reminders and mass texts go out in parallel so even a long list sends in seconds. (Requires SMS set up in Settings → Notifications.)",
       },
       {
         q: "Who can see the TeamHub?",
@@ -212,7 +222,7 @@ const FAQ: Section[] = [
       {
         q: "How does the Sign-Up Sheet work?",
         a:
-          "Create slots people can claim — like 'Water ×12' or 'Chaperone' — optionally linked to a competition. Each claim records who signed up, a quantity, and an optional note, and the slot shows how many spots are still needed.",
+          "Create slots people can claim — like 'Water ×12' or 'Chaperone' — optionally linked to a competition. Each claim records who signed up, a quantity, and an optional note, and the slot shows how many spots are still needed. Share the sheet's public link and parents pick their athlete's name from your roster (or type 'Other' and add a phone). Because their pick links to the roster, you can tap \"Remind who signed up\" to text each person a reminder of exactly what they're bringing — sent to the parent's number already on file.",
       },
       {
         q: "What can I do with Custom Roster Export?",

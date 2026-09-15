@@ -102,7 +102,7 @@ const STEPS: Step[] = [
     num: 14,
     title: "Sign-up sheets & custom exports",
     body:
-      "Sign-Up Sheet lets you create slots (e.g. \"Water ×12\", \"Chaperone\") that families claim with a quantity and note — optionally tied to a competition. Custom Roster Export lets you pick exactly which columns to include (contact info, sizes, paperwork status, payment status), filter by team, and download the combined sheet as a CSV.",
+      "Sign-Up Sheet lets you create slots (e.g. \"Water ×12\", \"Chaperone\") that families claim with a quantity and note — optionally tied to a competition. Share the public link and parents pick their athlete's name from your roster (or type \"Other\" and add a phone). Because each claim links to the roster, tap \"Remind who signed up\" to text everyone a reminder of exactly what they're bringing — sent to the parent's number on file. Custom Roster Export lets you pick exactly which columns to include (contact info, sizes, paperwork status, payment status), filter by team, and download the combined sheet as a CSV.",
   },
   {
     num: 15,
@@ -197,6 +197,19 @@ const STEPS: Step[] = [
     body:
       "Free-cancellation deadlines for hotels now show as red entries on your calendar so you never miss them. When adding a hotel you can also turn on an optional text 1–2 days before the cancel-by date (enable SMS in Settings → Notifications first). And from Team → Team Forms or Sign-Up Sheets, tap \"Post to chat\" to drop a tappable form/sign-up card straight into TeamChat.",
     tip: "CheerPlanner auto-detects your phone's timezone on sign-in, so every reminder text lands at the right local time — even if you travel.",
+  },
+  {
+    num: 29,
+    title: "Message your whole team",
+    body:
+      "Open Team → Messaging to send a mass text. Write your message, choose who gets it (everyone, a specific team, or hand-picked people), and optionally attach links, files, photos, or a music track. Send it now or schedule it for later. Texts go out in parallel so even a big list sends in seconds.",
+    tip: "Turn on SMS in Settings → Notifications first. Photos you attach are auto-sharpened and sent as picture messages.",
+  },
+  {
+    num: 30,
+    title: "Arrange your TeamHub your way",
+    body:
+      "On the Team tab, press and drag the ≡ handle on the right of any tile to reorder the TeamHub buttons into the order you like best. Your layout saves automatically to your account and looks the same on every device. Tapping a tile still opens it, and any new features are added at the bottom so nothing gets hidden.",
   },
 ];
 
