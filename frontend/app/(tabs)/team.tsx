@@ -22,10 +22,11 @@ type Tool = {
 };
 
 const TOOLS: Tool[] = [
+  { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
+  { key: "messaging", title: "Messaging", desc: "Text your whole team or select members — with links, files & photos.", icon: "send-outline", route: "/team/broadcast" },
   { key: "coach_ai", title: "AI Coaching Assistant", desc: "Ask cheer coaching questions & get instant answers. Coaches & staff only.", icon: "sparkles-outline", route: "/team/coach-ai" },
   { key: "ai_designer", title: "Design a Flyer", desc: "Describe a flyer and generate it with AI. Coaches & staff only.", icon: "color-palette-outline", route: "/team/ai-designer" },
   { key: "chat", title: "Team Chat", desc: "Message your coaches, reps & staff in one group thread.", icon: "chatbubbles-outline", route: "/team/chat" },
-  { key: "roster", title: "Roster", desc: "Team members & contact info in one place.", icon: "people-outline", route: "/team/roster" },
   { key: "payments", title: "Payment Tracking", desc: "Team bonding, gifts, meals & dues — track who's paid.", icon: "cash-outline", route: "/team/payments" },
   { key: "sizes", title: "Sizes", desc: "Uniform, apparel & shoe sizes for each member.", icon: "shirt-outline", route: "/team/sizes" },
   { key: "paperwork", title: "Paperwork / Other", desc: "Waivers, forms & any other check-off items.", icon: "document-text-outline", route: "/team/paperwork" },

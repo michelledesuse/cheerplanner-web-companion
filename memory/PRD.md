@@ -649,3 +649,8 @@ Get exact current paths from user before building W2.
 - BUG: photos attached to broadcast texts came through blurry. Cause: frontend picked images at JPEG quality:0.5 (heavy compression) and sent that degraded image; backend serves the stored bytes to Twilio as-is (no resize), so the blur was baked in at capture.
 - FIX frontend/app/team/broadcast.tsx addPhoto: now picks at full quality then uses expo-image-manipulator to resize the longest edge to 1600px at compress 0.85 (JPEG) before upload. Sharp result, small enough to avoid carrier re-compression. Matches existing PhotoGallery.tsx pattern. Lint clean; broadcast screen smoke-tested OK.
 - Also completed earlier this session: roster consolidation on join (+ Link/edit for active members), Post-to-chat pill on Team Forms & Sign-Up Sheets, hide payment/gift tracker from coaches/staff (blocks.py now includes team_hub collaborators; useCanManageAccess counts collaborators), FAQ/Setup/Assistant Coach docs updated.
+
+## Backlog — queued by user (DO NOT START until user says so)
+- [QUEUED] Reorderable Team Hub tiles: let the user drag/arrange the Team Hub buttons into their preferred order (persist per user).
+- [QUEUED] Rebrand naming: "Team Hub" -> "TeamHub" and "Team Chat" -> "TeamChat" (update UI labels/headers/tiles; keep routes).
+- [QUEUED] Bottom nav rework: remove the "Schedule" tab from the bottom menu; keep/shift "Calendar" and "Team" over; add a "Settings" tab to the bottom menu. Remove the Settings icon from the top of pages (since Settings will live in the bottom nav going forward).

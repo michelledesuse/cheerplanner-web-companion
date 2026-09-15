@@ -665,3 +665,10 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - FIX share.py: public_data now returns roster: [{id,name}] (keeps roster_names too). public_submit: if member_id provided and valid in household -> store LINKED SignupClaim(member_id=...); else fall back to guest_name (+ optional guest_phone) for typed "Other". Public HTML form now uses roster id as option value, submits member_id, and only shows the phone field for the typed "Other" case.
 - Verified via API with a throwaway athlete on a fictional parent phone: public data returns roster ids; submit with member_id stores member_id (guest_name None); remind-claimed sent:1 (parent phone), no_phone:[], failed:[]. Cleaned up after.
 - NOTE: pre-existing unlinked claims on the live sheet still can't be texted retroactively; coach can re-add them in-app (links to roster) or have parents re-sign after redeploy. Requires redeploy to reach production.
+
+## Iteration 130 — Messaging as a top-level Team Hub button + verify sending works
+- REQUEST: (1) Messaging (SMS Broadcast) was hidden inside Roster's "..." menu. Make it its own tile on the Team Hub. Order: Members (owner card, already top) -> Roster -> Messaging, then the rest. (2) Confirm sending a message actually goes through (user feared the sign-up-sheet fix / send_bulk refactor disconnected it).
+- CHANGE frontend/app/(tabs)/team.tsx: added TOOLS tile {key:'messaging', route:'/team/broadcast'} and reordered so 'roster' then 'messaging' are first in TOOLS (right under the owner-only Members card).
+- BACKEND VERIFIED already by main agent via API: POST /api/team/broadcast/send with a throwaway athlete (fictional parent phone (201)555-0102) returned {sent:1, failed:0}. send_bulk refactor is intact and awaited (broadcast.py:159 `return await _perform_send`). So messaging pipeline is NOT broken.
+- Frontend base_url comes from EXPO_PUBLIC_BACKEND_URL (valid). broadcast.tsx posts to /team/broadcast/send.
+- Creds: demo@cheerplanner.app / CheerDemo2026! (owner, team_access) and coach.casey@cheerplanner.app / CheerDemo2026! (coach, team_access). Both have team_access=true in DB.
