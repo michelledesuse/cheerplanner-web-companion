@@ -130,9 +130,6 @@ export default function DashboardScreen() {
             style={styles.headerRight}
             testID="settings-gear"
           >
-            <View style={styles.gearBtn}>
-              <Ionicons name="settings-outline" size={18} color={colors.textSecondary} />
-            </View>
             <View style={styles.avatar}>
               <Text style={styles.avatarText}>{(user?.name || user?.email || "?")[0]?.toUpperCase()}</Text>
             </View>
@@ -356,12 +353,6 @@ const makeStyles = (c: ThemePalette) => ({
   },
   avatarText: { color: "white", fontWeight: "800", fontSize: 16 },
   headerRight: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 0 },
-  gearBtn: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: c.card,
-    borderWidth: 1, borderColor: c.border,
-    alignItems: "center", justifyContent: "center",
-  },
   miniBalanceCard: {
     marginTop: spacing.lg,
     backgroundColor: c.card,

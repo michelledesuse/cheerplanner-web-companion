@@ -69,6 +69,7 @@ from routers import (
     coach_ai,
     assistant,
     ai_designer,
+    inbox,
 )
 
 
@@ -144,7 +145,8 @@ for r in (
     team_members.router,
     coach_ai.router,
     assistant.router,
-    ai_designer.router,):
+    ai_designer.router,
+    inbox.router,):
     app.include_router(r)
 
 

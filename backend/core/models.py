@@ -660,6 +660,35 @@ class BookingUpdate(BaseModel):
     sms_reminder_offsets: Optional[List[int]] = None
 
 
+# ---------------------------------------------------------------------------
+# Smart Inbox — forward an email or paste/screenshot a confirmation, and AI
+# drafts a travel booking or expense for the user to review & confirm.
+# ---------------------------------------------------------------------------
+class InboxParseRequest(BaseModel):
+    text: Optional[str] = None
+    image_base64: Optional[str] = None  # data URL or raw base64 of a screenshot
+    source: Optional[str] = "paste"     # paste | screenshot | email
+
+
+class InboxDraft(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    status: str = "pending"             # pending | confirmed | dismissed
+    kind: str = "unknown"               # expense | booking | unknown
+    source: str = "paste"               # paste | screenshot | email
+    summary: str = ""
+    raw_excerpt: str = ""
+    data: dict = Field(default_factory=dict)  # parsed expense/booking fields
+    created_at: str = Field(default_factory=utcnow_iso)
+
+
+class InboxConfirmRequest(BaseModel):
+    kind: str                           # expense | booking
+    expense: Optional[ExpenseCreate] = None
+    booking: Optional[BookingCreate] = None
+
+
+
 # ============================================================
 # Packing Lists
 # ============================================================

@@ -60,13 +60,6 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="schedule"
-        options={{
-          title: "Schedule",
-          tabBarIcon: ({ color, size }) => <Ionicons name="time" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
         name="calendar"
         options={{
           title: "Calendar",
@@ -80,9 +73,16 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="ribbon" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen name="schedule" options={{ href: null }} />
       <Tabs.Screen name="dashboard" options={{ href: null }} />
       <Tabs.Screen name="reminders" options={{ href: null }} />
-      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 

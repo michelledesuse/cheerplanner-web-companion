@@ -22,6 +22,7 @@ const PRIMARY: NavItem[] = [
 ];
 
 const SECONDARY: NavItem[] = [
+  { label: "Smart Inbox", icon: "sparkles", route: "/inbox" },
   { label: "Reminders", icon: "notifications", route: "/reminders" },
   { label: "Settings", icon: "settings", route: "/settings" },
 ];

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Image, Alert, KeyboardAvoidingView, Platform, Modal, Pressable, Switch, Linking } from "react-native";
+import { KeyboardAwareScrollView, KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -416,30 +417,39 @@ export default function AIDesigner() {
       </Modal>
 
       <Modal visible={!!editBrand} transparent animationType="slide" onRequestClose={() => setEditBrand(null)}>
-        <Pressable style={styles.modalWrap} onPress={() => setEditBrand(null)}>
-          <Pressable style={styles.sheet} onPress={() => {}} testID="ai-designer-brand-modal">
-            <View style={styles.sheetHead}>
-              <Text style={styles.sheetTitle}>{editBrand?.id ? "Edit brand" : "New brand"}</Text>
-              <TouchableOpacity onPress={() => setEditBrand(null)} hitSlop={8}><Ionicons name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
-            </View>
-            <Text style={styles.optLabel}>Brand name</Text>
-            <TextInput style={styles.tweakInput} value={editBrand?.name || ""} onChangeText={(t) => setEditBrand((b: any) => ({ ...b, name: t }))} placeholder="e.g. Champion Elite Allstars" placeholderTextColor={colors.textTertiary} testID="ai-designer-brand-name" />
-            <Text style={styles.optLabel}>Brand colors (comma-separated)</Text>
-            <TextInput style={styles.tweakInput} value={editBrand?.colors || ""} onChangeText={(t) => setEditBrand((b: any) => ({ ...b, colors: t }))} placeholder="e.g. navy, gold, #0A1F44" placeholderTextColor={colors.textTertiary} testID="ai-designer-brand-colors" />
-            <Text style={styles.optLabel}>Logo</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 6 }}>
-              {editBrand?.logo ? <Image source={{ uri: editBrand.logo }} style={styles.brandImg} resizeMode="contain" /> : null}
-              <TouchableOpacity style={styles.brandAdd} onPress={pickBrandLogo} testID="ai-designer-brand-logo"><Ionicons name={editBrand?.logo ? "swap-horizontal" : "add"} size={22} color={colors.accent} /></TouchableOpacity>
-              {editBrand?.logo ? <TouchableOpacity onPress={() => setEditBrand((b: any) => ({ ...b, logo: "" }))}><Text style={styles.link}>Remove</Text></TouchableOpacity> : null}
-            </View>
-            <TouchableOpacity style={styles.postBtn} onPress={saveBrand} testID="ai-designer-brand-save"><Text style={styles.postText}>{editBrand?.id ? "Save changes" : "Create brand"}</Text></TouchableOpacity>
-            {editBrand?.id ? (
-              <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => { const id = editBrand.id; setEditBrand(null); removeBrand(id); }} testID="ai-designer-brand-delete">
-                <Text style={{ ...typography.body, color: "#DC2626", fontWeight: "700" }}>Delete brand</Text>
-              </TouchableOpacity>
-            ) : null}
+        <KeyboardProvider>
+          <Pressable style={styles.modalWrap} onPress={() => setEditBrand(null)}>
+            <Pressable style={styles.sheet} onPress={() => {}} testID="ai-designer-brand-modal">
+              <KeyboardAwareScrollView
+                bottomOffset={24}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: spacing.md }}
+              >
+                <View style={styles.sheetHead}>
+                  <Text style={styles.sheetTitle}>{editBrand?.id ? "Edit brand" : "New brand"}</Text>
+                  <TouchableOpacity onPress={() => setEditBrand(null)} hitSlop={8}><Ionicons name="close" size={24} color={colors.textSecondary} /></TouchableOpacity>
+                </View>
+                <Text style={styles.optLabel}>Brand name</Text>
+                <TextInput style={styles.tweakInput} value={editBrand?.name || ""} onChangeText={(t) => setEditBrand((b: any) => ({ ...b, name: t }))} placeholder="e.g. Champion Elite Allstars" placeholderTextColor={colors.textTertiary} testID="ai-designer-brand-name" />
+                <Text style={styles.optLabel}>Brand colors (comma-separated)</Text>
+                <TextInput style={styles.tweakInput} value={editBrand?.colors || ""} onChangeText={(t) => setEditBrand((b: any) => ({ ...b, colors: t }))} placeholder="e.g. navy, gold, #0A1F44" placeholderTextColor={colors.textTertiary} testID="ai-designer-brand-colors" />
+                <Text style={styles.optLabel}>Logo</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: 6 }}>
+                  {editBrand?.logo ? <Image source={{ uri: editBrand.logo }} style={styles.brandImg} resizeMode="contain" /> : null}
+                  <TouchableOpacity style={styles.brandAdd} onPress={pickBrandLogo} testID="ai-designer-brand-logo"><Ionicons name={editBrand?.logo ? "swap-horizontal" : "add"} size={22} color={colors.accent} /></TouchableOpacity>
+                  {editBrand?.logo ? <TouchableOpacity onPress={() => setEditBrand((b: any) => ({ ...b, logo: "" }))}><Text style={styles.link}>Remove</Text></TouchableOpacity> : null}
+                </View>
+                <TouchableOpacity style={styles.postBtn} onPress={saveBrand} testID="ai-designer-brand-save"><Text style={styles.postText}>{editBrand?.id ? "Save changes" : "Create brand"}</Text></TouchableOpacity>
+                {editBrand?.id ? (
+                  <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => { const id = editBrand.id; setEditBrand(null); removeBrand(id); }} testID="ai-designer-brand-delete">
+                    <Text style={{ ...typography.body, color: "#DC2626", fontWeight: "700" }}>Delete brand</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </KeyboardAwareScrollView>
+            </Pressable>
           </Pressable>
-        </Pressable>
+        </KeyboardProvider>
       </Modal>
 
       <Modal visible={libOpen} transparent animationType="slide" onRequestClose={() => setLibOpen(false)}>

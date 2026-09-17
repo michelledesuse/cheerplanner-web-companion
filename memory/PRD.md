@@ -654,3 +654,15 @@ Get exact current paths from user before building W2.
 - [QUEUED] Reorderable Team Hub tiles: let the user drag/arrange the Team Hub buttons into their preferred order (persist per user).
 - [QUEUED] Rebrand naming: "Team Hub" -> "TeamHub" and "Team Chat" -> "TeamChat" (update UI labels/headers/tiles; keep routes).
 - [QUEUED] Bottom nav rework: remove the "Schedule" tab from the bottom menu; keep/shift "Calendar" and "Team" over; add a "Settings" tab to the bottom menu. Remove the Settings icon from the top of pages (since Settings will live in the bottom nav going forward).
+
+## Session update — Fix keyboard covering "New brand" inputs (AI Designer)
+- BUG: in Team → Messaging? No — Team → Design a Flyer (AI Designer) → "+ New brand" bottom-sheet modal: the on-screen keyboard covered the Brand name/colors inputs and Create/Save button, so users couldn't see what they typed or save.
+- FIX frontend/app/team/ai-designer.tsx: the brand edit Modal now wraps its content in KeyboardProvider (required because RN Modal is a separate window on Android for react-native-keyboard-controller) + KeyboardAwareScrollView (bottomOffset=24, keyboardShouldPersistTaps="handled"). Inputs scroll above the keyboard and the Create/Save button is reachable. Uses the app's already-installed react-native-keyboard-controller (KeyboardProvider is at root). Lint clean; modal renders + input focus verified on web (true keyboard-avoidance is native-only, validate on a device build).
+
+## Update — Iteration 132 (bottom nav rework + Smart Inbox)
+- Bottom nav: Schedule removed from tab bar (hidden route kept), Settings added as a tab, Dashboard gear icon removed (avatar still opens Settings). WebSidebar gained a Smart Inbox link.
+- Smart Inbox (NEW): paste booking/receipt text or a screenshot → LLM (openai/gpt-5.4 via emergentintegrations + EMERGENT_LLM_KEY) auto-detects travel booking vs expense → draft → user reviews & confirms → creates real expense/booking.
+  - Backend: routers/inbox.py (parse, drafts, confirm, dismiss, address, inbound-email webhook). Models: InboxParseRequest/InboxDraft/InboxConfirmRequest.
+  - Frontend: app/inbox.tsx; entry via sparkles icon on Money tab header.
+  - Email-forwarding path (forward a real email to add+<token>@<domain>) is implemented but INACTIVE until INBOUND_EMAIL_DOMAIN + SendGrid Inbound Parse DNS are configured. In-app paste/screenshot works today.
+- Tested: 12/12 backend pytest + full frontend flows PASS (iteration_124.json).

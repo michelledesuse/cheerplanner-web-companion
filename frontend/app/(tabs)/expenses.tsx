@@ -214,6 +214,14 @@ export default function ExpensesTab() {
         <Text style={styles.headerTitle}>Money</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <HomeButton />
+          <TouchableOpacity
+            onPress={() => router.push("/inbox")}
+            style={styles.selectBtn}
+            testID="open-inbox"
+            accessibilityLabel="Smart Inbox"
+          >
+            <Ionicons name="sparkles" size={18} color={colors.accent} />
+          </TouchableOpacity>
           {!selectMode && visibleIds.length > 0 && (
             <TouchableOpacity
               onPress={enterSelectMode}
