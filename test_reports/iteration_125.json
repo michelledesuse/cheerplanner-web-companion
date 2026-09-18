@@ -1,0 +1,18 @@
+{
+  "summary": "Iter125 Smart Inbox additions (confirm-all bulk add, inbound-email webhook, Trip summary card) verified end-to-end. Backend: 5/5 pytest passed (auth guard 401 on /inbox/drafts/confirm-all; bulk add creates >=2 with skipped:[] and empties drafts + expense in /expenses + booking in /bookings; skip-logic returns created=0 with non-empty skipped and leaves draft pending when athlete_id omitted; /inbox/inbound-email rejects bad recipient with 400; unknown token returns 404 without 500; and via curl with the real inbox_token an email draft was created with source='email', confirming signature verification is bypassed while SENDGRID_PARSE_PUBLIC_KEY is unset). Frontend: Smart Inbox 'Add all' button appears next to 'Waiting for review' once >1 draft exists; tapping opens a modal titled 'Add all (2)' with Athlete section (Ava Johnson/Mia Johnson chips) + Competition section (Summit/Spirit chips) + 'Add 2 items' primary button; picking Ava+Summit and confirming cleared both drafts within ~1s and returned to the empty inbox state. Competition detail for Summit Championship renders the 'Trip' summary card with counts '4 flights · 2 hotels · 1 car', date range '03-12-2026 – 09-26-2026', TRIP TOTAL $2,153.05, BALANCE DUE $1,133.05, and an 'Athletes attending' section directly below listing the two athlete chips.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": ["/app/backend/tests/test_inbox_iter125.py", "/app/test_reports/pytest/pytest_iter125.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "inbox.py confirm_all_drafts wraps each iteration in a bare `except Exception: skipped.append(...)` — swallows the underlying error class/message; consider logging exc_info so future failures are diagnosable.",
+    "inbox.py BookingCreate construction filters only 'vendor' from data; other LLM-extracted fields that don't match BookingCreate will raise ValidationError and end up as generic skips. Consider a permissive whitelist based on BookingCreate.model_fields.",
+    "inbound_email: recipient regex `add\\+([a-f0-9]+)@` requires lowercase hex — inbox_token is generated via secrets.token_hex which is already lowercase, so fine, but note the regex will silently reject uppercase tokens if that ever changes."
+  ],
+  "updated_files": ["/app/backend/tests/test_inbox_iter125.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "Tests create drafts + one expense + one booking on the demo account; cleanup fixture sweeps all pending drafts, plus created expenses/bookings, after the run. Manual curl smoke test also created 1 email-source draft that was deleted at the end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login via /login using inputs[0]=email, inputs[1]=password, then click get_by_text('Sign in', exact=True). Wait for URL to change off /login (up to ~10s). A 4-step Welcome tour appears post-login and blocks clicks — either dismiss with text=Skip or navigate directly (page.goto) to the target route. Inbox testIDs: inbox-paste, inbox-read, draft-{id}, review-{id}, inbox-add-all, inbox-add-all-confirm. Comp detail Trip card testID: trip-summary. Demo user inbox_token was 34a260698489f0a5 at time of test (mint via GET /api/inbox/address; not exposed in API — read from DB users.inbox_token). To exercise the 200 inbound-email path via curl, URL-encode the '+': --data-urlencode 'to=add+<token>@x.com'."
+}

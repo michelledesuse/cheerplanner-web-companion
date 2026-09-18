@@ -5,10 +5,13 @@ screenshot into an in-app inbox. An LLM auto-detects whether it's a travel
 booking or an expense and extracts the fields into a *draft* that the user
 reviews and confirms before it becomes a real expense / booking.
 """
+import base64
 import json
 import os
 import re
 import secrets
+import time
+from datetime import date
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -16,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from core.db import db
 from core.models import (
-    InboxParseRequest, InboxDraft, InboxConfirmRequest,
+    InboxParseRequest, InboxDraft, InboxConfirmRequest, InboxConfirmAllRequest,
     EXPENSE_CATEGORIES,
 )
 from core.security import get_current_user
@@ -180,6 +183,56 @@ async def confirm_draft(draft_id: str, payload: InboxConfirmRequest, current_use
     return {"ok": True, "kind": payload.kind, "created": result}
 
 
+@router.post("/inbox/drafts/confirm-all")
+async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depends(get_current_user)):
+    """Add every pending draft in one tap. Expense drafts use the chosen athlete;
+    booking drafts use the chosen competition. Drafts still missing what they need
+    (or that couldn't be read) are left behind and reported as skipped."""
+    from core.models import ExpenseCreate, BookingCreate
+
+    drafts = await db.inbox_drafts.find(
+        {"user_id": current_user["id"], "status": "pending"}, {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+
+    created = 0
+    skipped: List[str] = []
+    for d in drafts:
+        data = d.get("data") or {}
+        try:
+            if d.get("kind") == "expense":
+                amount = data.get("amount")
+                if not payload.athlete_id or amount in (None, "", 0):
+                    skipped.append(d.get("summary") or "Expense")
+                    continue
+                exp = ExpenseCreate(
+                    athlete_id=payload.athlete_id,
+                    category=data.get("category") or "Misc",
+                    amount=float(amount),
+                    incurred_on=data.get("incurred_on") or date.today().isoformat(),
+                    due_date=data.get("due_date") or None,
+                    note=" — ".join([x for x in [data.get("vendor"), data.get("note")] if x]) or None,
+                )
+                await create_expense(exp, current_user)
+            elif d.get("kind") == "booking":
+                if not payload.competition_id:
+                    skipped.append(d.get("summary") or "Travel")
+                    continue
+                booking_data = {k: v for k, v in data.items() if k in BookingCreate.model_fields}
+                booking_data["competition_id"] = payload.competition_id
+                booking_data["type"] = data.get("type") or "flight"
+                bk = BookingCreate(**booking_data)
+                await create_booking(bk, current_user)
+            else:
+                skipped.append(d.get("summary") or "Unknown item")
+                continue
+            await db.inbox_drafts.update_one({"id": d["id"]}, {"$set": {"status": "confirmed"}})
+            created += 1
+        except Exception:
+            skipped.append(d.get("summary") or "Item")
+
+    return {"ok": True, "created": created, "skipped": skipped}
+
+
 @router.delete("/inbox/drafts/{draft_id}")
 async def dismiss_draft(draft_id: str, current_user=Depends(get_current_user)):
     res = await db.inbox_drafts.delete_one({"id": draft_id, "user_id": current_user["id"]})
@@ -202,10 +255,44 @@ async def inbox_address(current_user=Depends(get_current_user)):
     return {"address": address, "configured": bool(domain)}
 
 
+def _verify_sendgrid_signature(raw_body: bytes, signature: str, timestamp: str) -> bool:
+    """Verify SendGrid Inbound Parse webhook signature (ECDSA over timestamp+body).
+
+    Only enforced when SENDGRID_PARSE_PUBLIC_KEY is configured; otherwise (dev /
+    not-yet-set-up) we accept the request so the in-app flow keeps working.
+    """
+    pub_b64 = os.environ.get("SENDGRID_PARSE_PUBLIC_KEY", "").strip()
+    if not pub_b64:
+        return True  # verification not configured yet
+    if not signature or not timestamp:
+        return False
+    try:
+        if abs(time.time() - int(timestamp)) > 300:  # reject stale (>5 min)
+            return False
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec
+        public_key = serialization.load_der_public_key(base64.b64decode(pub_b64))
+        public_key.verify(
+            base64.b64decode(signature),
+            timestamp.encode() + raw_body,
+            ec.ECDSA(hashes.SHA256()),
+        )
+        return True
+    except Exception:
+        return False
+
+
 @router.post("/inbox/inbound-email")
 async def inbound_email(request: Request):
-    """SendGrid Inbound Parse posts a multipart form here. We resolve the user
-    from the plus-token in the recipient address, then draft the email."""
+    """SendGrid Inbound Parse posts a multipart form here. We verify the webhook
+    signature, resolve the user from the plus-token in the recipient address,
+    then draft the email."""
+    raw_body = await request.body()  # cached so request.form() can still parse
+    sig = request.headers.get("X-Twilio-Email-Event-Webhook-Signature", "")
+    ts = request.headers.get("X-Twilio-Email-Event-Webhook-Timestamp", "")
+    if not _verify_sendgrid_signature(raw_body, sig, ts):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
     form = await request.form()
     to = str(form.get("to", "") or form.get("envelope", ""))
     m = re.search(r"add\+([a-f0-9]+)@", to)

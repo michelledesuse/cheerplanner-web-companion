@@ -666,3 +666,9 @@ Get exact current paths from user before building W2.
   - Frontend: app/inbox.tsx; entry via sparkles icon on Money tab header.
   - Email-forwarding path (forward a real email to add+<token>@<domain>) is implemented but INACTIVE until INBOUND_EMAIL_DOMAIN + SendGrid Inbound Parse DNS are configured. In-app paste/screenshot works today.
 - Tested: 12/12 backend pytest + full frontend flows PASS (iteration_124.json).
+
+## Update — Iteration 133
+- Email forwarding webhook secured (SendGrid signature verification, active once SENDGRID_PARSE_PUBLIC_KEY set); address activates once INBOUND_EMAIL_DOMAIN set. Needs user DNS/SendGrid setup.
+- Bulk "Add all" (POST /api/inbox/drafts/confirm-all) + Add-all sheet in inbox.tsx.
+- Trip grouping: Competition detail shows one combined "Trip" card (counts, date range, attending athletes, trip total + balance due).
+- All verified by testing agent (iteration_125): backend 5/5 + frontend flows PASS.

@@ -152,6 +152,23 @@ export default function CompetitionDetail() {
   const totalPaid = bookings.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
   const balance = totalCost - totalPaid;
 
+  // Trip summary: combine flight/hotel/car for this competition into one card.
+  const tripDates = bookings
+    .flatMap((b) => [b.check_in, b.check_out, b.depart_time, b.arrive_time, b.return_depart_time, b.return_arrive_time, b.pickup_at, b.dropoff_at])
+    .filter(Boolean)
+    .map((d) => String(d).slice(0, 10))
+    .sort();
+  const tripStart = tripDates[0];
+  const tripEnd = tripDates[tripDates.length - 1];
+  const tripCounts = { flight: 0, hotel: 0, car: 0 } as Record<string, number>;
+  bookings.forEach((b) => { if (tripCounts[b.type] !== undefined) tripCounts[b.type] += 1; });
+  const tripCountLabel = [
+    tripCounts.flight && `${tripCounts.flight} flight${tripCounts.flight > 1 ? "s" : ""}`,
+    tripCounts.hotel && `${tripCounts.hotel} hotel${tripCounts.hotel > 1 ? "s" : ""}`,
+    tripCounts.car && `${tripCounts.car} car${tripCounts.car > 1 ? "s" : ""}`,
+  ].filter(Boolean).join(" · ");
+  const attending = athletes.filter((a) => (a.competition_ids || []).includes(id!));
+
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
@@ -216,16 +233,39 @@ export default function CompetitionDetail() {
           <WeatherBadge location={comp.address || comp.location} date={comp.event_date} style={styles.weatherBadge} testID="comp-weather" />
         )}
 
-        {canTravel && canExpenses && bookings.length > 0 && (
-          <View style={styles.balanceCard}>
-            <View>
-              <Text style={styles.smallLabel}>TRAVEL BUDGET</Text>
-              <Text style={styles.balanceMain}>{formatCurrency(totalCost)}</Text>
+        {canTravel && bookings.length > 0 && (
+          <View style={styles.tripCard} testID="trip-summary">
+            <View style={styles.tripHeadRow}>
+              <View style={styles.tripIcon}><Ionicons name="briefcase" size={16} color={colors.accent} /></View>
+              <Text style={styles.tripTitle}>Trip</Text>
+              {!!tripCountLabel && <Text style={styles.tripCounts}>{tripCountLabel}</Text>}
             </View>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={styles.smallLabel}>BALANCE DUE</Text>
-              <Text style={[styles.balanceMain, { color: balance > 0 ? colors.accent : colors.successText }]}>{formatCurrency(Math.max(balance, 0))}</Text>
-            </View>
+            {!!tripStart && (
+              <View style={styles.tripRow}>
+                <Ionicons name="calendar-outline" size={15} color={colors.textSecondary} />
+                <Text style={styles.tripRowText}>
+                  {tripStart === tripEnd ? formatDate(tripStart) : `${formatDate(tripStart)} – ${formatDate(tripEnd)}`}
+                </Text>
+              </View>
+            )}
+            {attending.length > 0 && (
+              <View style={styles.tripRow}>
+                <Ionicons name="people-outline" size={15} color={colors.textSecondary} />
+                <Text style={styles.tripRowText} numberOfLines={2}>{attending.map((a) => a.name).join(", ")}</Text>
+              </View>
+            )}
+            {canExpenses && (
+              <View style={styles.tripCostRow}>
+                <View>
+                  <Text style={styles.smallLabel}>TRIP TOTAL</Text>
+                  <Text style={styles.balanceMain}>{formatCurrency(totalCost)}</Text>
+                </View>
+                <View style={{ alignItems: "flex-end" }}>
+                  <Text style={styles.smallLabel}>BALANCE DUE</Text>
+                  <Text style={[styles.balanceMain, { color: balance > 0 ? colors.accent : colors.successText }]}>{formatCurrency(Math.max(balance, 0))}</Text>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
@@ -506,7 +546,14 @@ const makeStyles = () => ({
   heroPillText: { color: "white", fontWeight: "700", fontSize: 11, letterSpacing: 0.3 },
   linkBtn: { marginTop: spacing.lg, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(255,255,255,0.12)", paddingHorizontal: 14, paddingVertical: 10, borderRadius: 10 },
   linkBtnText: { color: "white", fontWeight: "700" },
-  balanceCard: { marginTop: spacing.md, flexDirection: "row", justifyContent: "space-between", padding: spacing.lg, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border },
+  tripCard: { marginTop: spacing.md, padding: spacing.lg, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
+  tripHeadRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tripIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.accentSubtle, alignItems: "center", justifyContent: "center" },
+  tripTitle: { ...typography.h3, color: colors.textPrimary },
+  tripCounts: { ...typography.caption, color: colors.textSecondary, marginLeft: "auto" },
+  tripRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  tripRowText: { ...typography.bodyMedium, color: colors.textSecondary, flex: 1 },
+  tripCostRow: { flexDirection: "row", justifyContent: "space-between", marginTop: spacing.xs, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.divider },
   weatherBadge: { marginTop: spacing.lg },
   smallLabel: { color: colors.textTertiary, fontSize: 10, fontWeight: "700", letterSpacing: 0.6 },
   balanceMain: { ...typography.h2, color: colors.textPrimary, marginTop: 2 },

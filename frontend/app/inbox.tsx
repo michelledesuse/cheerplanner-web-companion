@@ -58,6 +58,12 @@ export default function InboxScreen() {
   const [athleteId, setAthleteId] = useState<string>("");
   const [competitionId, setCompetitionId] = useState<string>("");
 
+  // bulk "add all" state
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkAthleteId, setBulkAthleteId] = useState<string>("");
+  const [bulkCompId, setBulkCompId] = useState<string>("");
+
   const loadDrafts = useCallback(async () => {
     try {
       const { data } = await api.get("/inbox/drafts");
@@ -208,6 +214,27 @@ export default function InboxScreen() {
     }
   };
 
+  const confirmAll = async () => {
+    setBulkSaving(true);
+    try {
+      const { data } = await api.post("/inbox/drafts/confirm-all", {
+        athlete_id: bulkAthleteId || undefined,
+        competition_id: bulkCompId || undefined,
+      });
+      setBulkOpen(false);
+      setBulkAthleteId("");
+      setBulkCompId("");
+      await loadDrafts();
+      const msg = `Added ${data.created} item${data.created === 1 ? "" : "s"}.` +
+        (data.skipped?.length ? ` ${data.skipped.length} left for review.` : "");
+      Alert.alert("Done", msg);
+    } catch (e: any) {
+      Alert.alert("Couldn't add", e?.response?.data?.detail || "Please try again.");
+    } finally {
+      setBulkSaving(false);
+    }
+  };
+
   const dismiss = (d: Draft) => {
     Alert.alert("Dismiss this?", d.summary || "Remove from inbox", [
       { text: "Cancel", style: "cancel" },
@@ -302,7 +329,15 @@ export default function InboxScreen() {
           )}
 
           {/* Drafts */}
-          <Text style={styles.sectionTitle}>Waiting for review</Text>
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionTitle, { marginTop: 0, marginBottom: 0 }]}>Waiting for review</Text>
+            {drafts.length > 1 && (
+              <TouchableOpacity onPress={() => setBulkOpen(true)} style={styles.addAllBtn} testID="inbox-add-all">
+                <Ionicons name="checkmark-done" size={16} color={colors.accent} />
+                <Text style={styles.addAllText}>Add all</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {loading ? (
             <ActivityIndicator color={colors.accent} style={{ marginTop: spacing.lg }} />
           ) : drafts.length === 0 ? (
@@ -441,6 +476,65 @@ export default function InboxScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Add all modal */}
+      <Modal visible={bulkOpen} animationType="slide" transparent onRequestClose={() => setBulkOpen(false)}>
+        <View style={styles.modalWrap}>
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Add all ({drafts.length})</Text>
+              <TouchableOpacity onPress={() => setBulkOpen(false)}>
+                <Ionicons name="close" size={22} color={colors.textPrimary} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+              <Text style={styles.lede}>
+                Pick who the expenses are for and which competition the travel belongs to, and I&apos;ll add them all at once. Anything I can&apos;t place is left here for you.
+              </Text>
+
+              {drafts.some((d) => d.kind === "expense") && (
+                <>
+                  <Text style={styles.label}>Athlete (for expenses)</Text>
+                  <View style={styles.chipWrap}>
+                    {athletes.length === 0 && <Text style={styles.hint}>No athletes yet.</Text>}
+                    {athletes.map((a) => (
+                      <TouchableOpacity
+                        key={a.id}
+                        style={[styles.chip, bulkAthleteId === a.id && styles.chipActive]}
+                        onPress={() => setBulkAthleteId(a.id)}
+                      >
+                        <Text style={[styles.chipText, bulkAthleteId === a.id && styles.chipTextActive]}>{a.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              {drafts.some((d) => d.kind === "booking") && (
+                <>
+                  <Text style={styles.label}>Competition (for travel)</Text>
+                  <View style={styles.chipWrap}>
+                    {competitions.length === 0 && <Text style={styles.hint}>No competitions yet.</Text>}
+                    {competitions.map((c) => (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={[styles.chip, bulkCompId === c.id && styles.chipActive]}
+                        onPress={() => setBulkCompId(c.id)}
+                      >
+                        <Text style={[styles.chipText, bulkCompId === c.id && styles.chipTextActive]}>{c.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
+
+              <TouchableOpacity onPress={confirmAll} style={[styles.primaryBtn, styles.saveBtn, bulkSaving && { opacity: 0.6 }]} disabled={bulkSaving} testID="inbox-add-all-confirm">
+                {bulkSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Add {drafts.length} item{drafts.length === 1 ? "" : "s"}</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -482,6 +576,9 @@ const makeStyles = () => ({
   emailLabel: { ...typography.caption, color: colors.textTertiary },
   emailAddr: { ...typography.bodyMedium, color: colors.textPrimary },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
+  sectionRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: spacing.xl, marginBottom: spacing.sm },
+  addAllBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSubtle },
+  addAllText: { ...typography.caption, color: colors.accent, fontWeight: "700" as const },
   empty: { alignItems: "center" as const, paddingVertical: spacing.xl, gap: 8 },
   emptyText: { ...typography.body, color: colors.textTertiary, textAlign: "center" as const, paddingHorizontal: spacing.xl },
   draft: { flexDirection: "row" as const, gap: 12, backgroundColor: colors.card, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginBottom: spacing.sm },

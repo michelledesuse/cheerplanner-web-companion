@@ -688,6 +688,11 @@ class InboxConfirmRequest(BaseModel):
     booking: Optional[BookingCreate] = None
 
 
+class InboxConfirmAllRequest(BaseModel):
+    athlete_id: Optional[str] = None      # applied to all expense drafts
+    competition_id: Optional[str] = None  # applied to all booking drafts
+
+
 
 # ============================================================
 # Packing Lists
