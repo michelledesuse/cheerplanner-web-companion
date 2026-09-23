@@ -13,6 +13,7 @@ Flow (does NOT touch the existing household/athlete invite flows):
        • staff    -> roster entry + full Team Hub access (team_access)
        • athlete  -> roster entry + supervised chat athlete link
 """
+import re
 import secrets
 from typing import Optional, List
 
@@ -210,6 +211,44 @@ async def _create_roster_entry(owner_id: str, name: str, role: str, member_uid: 
     return doc
 
 
+async def _match_existing_roster(owner_id: str, user_id: str, email: str | None) -> dict | None:
+    """Find a preexisting roster profile to attach a joining account to, so we
+    never create a duplicate profile. Priority:
+      1. a row already linked to this exact account (linked_id == user_id),
+      2. a row with the same email that isn't linked to anyone else yet.
+    """
+    r = await db.roster.find_one({"user_id": owner_id, "linked_id": user_id}, {"_id": 0})
+    if r:
+        return r
+    if email:
+        r = await db.roster.find_one(
+            {"user_id": owner_id,
+             "email": {"$regex": f"^{re.escape(email)}$", "$options": "i"},
+             "$or": [{"linked_id": {"$in": [None, ""]}}, {"linked_id": {"$exists": False}}]},
+            {"_id": 0},
+        )
+        if r:
+            return r
+    return None
+
+
+async def _consolidate_roster(owner_id: str, household_id: str, user_id: str, keep_id: str) -> None:
+    """When a joining account is linked to ONE surviving profile, fold in any
+    OTHER auto-created rows for the same account WITHOUT losing their links:
+    re-point share links to the surviving profile, then remove the empties.
+    """
+    dupes = await db.roster.find(
+        {"user_id": owner_id, "linked_id": user_id, "id": {"$ne": keep_id}},
+        {"_id": 0, "id": 1}).to_list(100)
+    if not dupes:
+        return
+    dupe_ids = [d["id"] for d in dupes]
+    # Keep any previously-sent info links working by pointing them at the survivor.
+    await db.share_links.update_many({"ref_id": {"$in": dupe_ids}}, {"$set": {"ref_id": keep_id}})
+    await db.athlete_chat_links.delete_many({"household_id": household_id, "roster_id": {"$in": dupe_ids}})
+    await db.roster.delete_many({"id": {"$in": dupe_ids}})
+
+
 @router.post("/members/{user_id}/assign-role")
 async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends(get_current_user)):
     h = await _require_owner_hub(current_user["id"])
@@ -233,30 +272,42 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
     who = await _user_label(user_id)
     now = utcnow_iso()
     athlete_roster_id = None
+    linked_existing = False  # True when we attached to a PREEXISTING roster profile
 
     if role in ("coach", "staff"):
-        # Full Team Hub access. Link to an existing roster entry if the owner
-        # picked one (consolidate); otherwise create a fresh roster entry.
+        # Full Team Hub access. Link to an existing roster entry — one the owner
+        # picked, or an auto-matched preexisting profile — otherwise create one.
         await db.users.update_one({"id": user_id}, {"$set": {"team_access": True, "active_hub_id": h["id"]}})
         await db.households.update_one({"id": h["id"]}, {"$addToSet": {"team_hub_member_user_ids": user_id}})
+        target = None
         if payload.athlete_roster_id:
-            r = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0, "id": 1})
-            if not r:
+            target = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0, "id": 1})
+            if not target:
                 raise HTTPException(status_code=404, detail="Roster entry not found.")
-            await db.roster.update_one({"id": r["id"]}, {"$set": {"role": role, "linked_id": user_id, "email": who["email"]}})
-            athlete_roster_id = r["id"]
         else:
-            await _create_roster_entry(owner_id, who["name"], role, user_id)
+            target = await _match_existing_roster(owner_id, user_id, who["email"])
+        if target:
+            await db.roster.update_one({"id": target["id"]}, {"$set": {"role": role, "linked_id": user_id, "email": who["email"]}})
+            athlete_roster_id = target["id"]
+            linked_existing = True
+        else:
+            doc = await _create_roster_entry(owner_id, who["name"], role, user_id)
+            athlete_roster_id = doc["id"]
 
     elif role == "athlete":
         # Roster athlete + supervised chat link (group-only, no DMs).
+        target = None
         if payload.athlete_roster_id:
-            r = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0, "id": 1})
-            if not r:
+            target = await db.roster.find_one({"id": payload.athlete_roster_id, "user_id": owner_id}, {"_id": 0, "id": 1})
+            if not target:
                 raise HTTPException(status_code=404, detail="Athlete not found.")
+        else:
+            target = await _match_existing_roster(owner_id, user_id, who["email"])
+        if target:
             # Consolidate: tie the joining account to the existing roster entry.
-            await db.roster.update_one({"id": r["id"]}, {"$set": {"linked_id": user_id, "email": who["email"]}})
-            athlete_roster_id = r["id"]
+            await db.roster.update_one({"id": target["id"]}, {"$set": {"linked_id": user_id, "email": who["email"]}})
+            athlete_roster_id = target["id"]
+            linked_existing = True
         else:
             doc = await _create_roster_entry(owner_id, payload.athlete_name or who["name"], "athlete", user_id)
             athlete_roster_id = doc["id"]
@@ -305,18 +356,11 @@ async def assign_role(user_id: str, payload: AssignPayload, current_user=Depends
                 }}})
         athlete_roster_id = linked_ids[0]
 
-    # Consolidation cleanup: when we LINKED this member to an existing roster
-    # entry, delete any OTHER roster rows previously auto-created for this same
-    # user (prevents leftover duplicates when re-linking an already-assigned
-    # member from the "Link / edit" action).
-    if role in ("coach", "staff", "athlete") and payload.athlete_roster_id and athlete_roster_id:
-        dupes = await db.roster.find(
-            {"user_id": owner_id, "linked_id": user_id, "id": {"$ne": athlete_roster_id}},
-            {"_id": 0, "id": 1}).to_list(100)
-        if dupes:
-            dupe_ids = [d["id"] for d in dupes]
-            await db.roster.delete_many({"id": {"$in": dupe_ids}})
-            await db.athlete_chat_links.delete_many({"household_id": h["id"], "roster_id": {"$in": dupe_ids}})
+    # Consolidation cleanup: when we LINKED this member to a preexisting roster
+    # entry (picked OR auto-matched), fold in any OTHER auto-created rows for the
+    # same account — re-pointing their links first so nothing breaks.
+    if role in ("coach", "staff", "athlete") and linked_existing and athlete_roster_id:
+        await _consolidate_roster(owner_id, h["id"], user_id, athlete_roster_id)
 
     await db.team_members.update_one(
         {"household_id": h["id"], "user_id": user_id},

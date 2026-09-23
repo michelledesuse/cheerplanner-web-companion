@@ -523,8 +523,9 @@ _STYLE = (
 async def public_page(token: str):
     try:
         link = await _get_link(token)
-    except HTTPException:
-        return HTMLResponse(_shell("Link unavailable", "<div class='card'><p>This link is invalid or has been turned off.</p></div>"), status_code=404)
+    except HTTPException as e:
+        msg = e.detail if isinstance(e.detail, str) else "This link is invalid or has been turned off."
+        return HTMLResponse(_shell("Link unavailable", f"<div class='card'><p>{msg}</p></div>"), status_code=404)
     kind = link["kind"]
     body = f"""
 <div id="app" class="card"><p>Loading…</p></div>
