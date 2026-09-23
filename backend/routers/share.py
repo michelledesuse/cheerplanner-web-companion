@@ -58,13 +58,17 @@ async def create_share(payload: ShareLinkCreate, current_user=Depends(get_curren
         m = await db.roster.find_one({"id": payload.ref_id, "user_id": {"$in": member_ids}, "role": "athlete"}, {"_id": 0, "id": 1})
         if not m:
             raise HTTPException(status_code=404, detail="Athlete not found")
-    # Reuse an existing active link for the same kind+ref in this household.
+    # Reuse an existing active link for the same kind+ref in this household —
+    # but only if it hasn't aged past the TTL. A stale link is deactivated and
+    # replaced so the recipient never receives an already-expired link.
     existing = await db.share_links.find_one(
         {"kind": payload.kind, "ref_id": payload.ref_id, "user_id": {"$in": member_ids}, "active": True},
         {"_id": 0},
     )
-    if existing:
+    if existing and not _link_expired(existing):
         return {"token": existing["token"], "kind": existing["kind"], "id": existing["id"], "url": public_share_url(existing["token"])}
+    if existing:
+        await db.share_links.update_one({"id": existing["id"]}, {"$set": {"active": False}})
     link = ShareLink(token=secrets.token_urlsafe(9), kind=payload.kind, ref_id=payload.ref_id, user_id=current_user["id"])
     await db.share_links.insert_one(link.model_dump())
     return {"token": link.token, "kind": link.kind, "id": link.id, "url": public_share_url(link.token)}
@@ -90,9 +94,13 @@ async def request_member_info(member_id: str, payload: dict = Body(default={}), 
         {"kind": "roster_member", "ref_id": member_id, "user_id": {"$in": member_ids}, "active": True},
         {"_id": 0},
     )
-    if existing:
+    if existing and not _link_expired(existing):
         token = existing["token"]
     else:
+        # No active link, or the old one has aged out — mint a fresh one so the
+        # member never gets an already-expired link.
+        if existing:
+            await db.share_links.update_one({"id": existing["id"]}, {"$set": {"active": False}})
         link = ShareLink(token=secrets.token_urlsafe(9), kind="roster_member", ref_id=member_id, user_id=current_user["id"])
         await db.share_links.insert_one(link.model_dump())
         token = link.token
@@ -136,24 +144,28 @@ async def revoke_share(link_id: str, current_user=Depends(get_current_user)):
 SHARE_LINK_TTL_DAYS = 30
 
 
+def _link_expired(link: dict) -> bool:
+    """True if a share link is past its TTL (expiry is computed, not stored)."""
+    created = link.get("created_at")
+    if not created:
+        return False
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _tdelta
+    try:
+        c = _dt.fromisoformat(str(created).replace("Z", "+00:00"))
+        if c.tzinfo is None:
+            c = c.replace(tzinfo=_tz.utc)
+        return _dt.now(_tz.utc) - c > _tdelta(days=SHARE_LINK_TTL_DAYS)
+    except Exception:
+        return False
+
+
 async def _get_link(token: str) -> dict:
     link = await db.share_links.find_one({"token": token, "active": True}, {"_id": 0})
     if not link:
         raise HTTPException(status_code=404, detail="This link is invalid or has been turned off.")
     # Links expire 30 days after creation (manual revoke sets active=False separately).
-    created = link.get("created_at")
-    if created:
-        from datetime import datetime as _dt, timezone as _tz, timedelta as _tdelta
-        try:
-            c = _dt.fromisoformat(str(created).replace("Z", "+00:00"))
-            if c.tzinfo is None:
-                c = c.replace(tzinfo=_tz.utc)
-            if _dt.now(_tz.utc) - c > _tdelta(days=SHARE_LINK_TTL_DAYS):
-                raise HTTPException(status_code=404, detail="This link has expired. Please ask for a new one.")
-        except HTTPException:
-            raise
-        except Exception:
-            pass
+    if _link_expired(link):
+        raise HTTPException(status_code=404, detail="This link has expired. Please ask for a new one.")
     return link
 
 

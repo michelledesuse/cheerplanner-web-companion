@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import * as Clipboard from "expo-clipboard";
 
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -46,6 +47,7 @@ export default function InboxScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const [address, setAddress] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
@@ -112,6 +114,13 @@ export default function InboxScreen() {
     } catch (_e) {
       Alert.alert("Error", "Could not load image.");
     }
+  };
+
+  const copyAddress = async () => {
+    if (!address) return;
+    await Clipboard.setStringAsync(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
   };
 
   const parse = async () => {
@@ -320,11 +329,20 @@ export default function InboxScreen() {
 
           {address && (
             <View style={styles.emailCard}>
-              <Ionicons name="mail-outline" size={18} color={colors.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.emailLabel}>Forward emails to</Text>
-                <Text style={styles.emailAddr} selectable>{address}</Text>
+              <View style={styles.emailTopRow}>
+                <Ionicons name="mail-outline" size={18} color={colors.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.emailLabel}>Forward emails to</Text>
+                  <Text style={styles.emailAddr} selectable>{address}</Text>
+                </View>
+                <TouchableOpacity onPress={copyAddress} style={styles.copyBtn} testID="inbox-copy-address">
+                  <Ionicons name={copied ? "checkmark" : "copy-outline"} size={15} color={colors.accent} />
+                  <Text style={styles.copyBtnText}>{copied ? "Copied" : "Copy"}</Text>
+                </TouchableOpacity>
               </View>
+              <Text style={styles.emailHint}>
+                Forward any flight, hotel, or receipt email here and it&apos;ll land below as a draft to confirm.
+              </Text>
             </View>
           )}
 
@@ -572,9 +590,13 @@ const makeStyles = () => ({
   ghostBtnText: { ...typography.bodyMedium, color: colors.accent },
   primaryBtn: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 6, backgroundColor: colors.accent, paddingHorizontal: spacing.lg, paddingVertical: 12, borderRadius: radius.md, minWidth: 110 },
   primaryBtnText: { ...typography.bodyMedium, color: "#fff", fontWeight: "700" as const },
-  emailCard: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginTop: spacing.md },
+  emailCard: { backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md, marginTop: spacing.md, gap: spacing.sm },
+  emailTopRow: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10 },
   emailLabel: { ...typography.caption, color: colors.textTertiary },
   emailAddr: { ...typography.bodyMedium, color: colors.textPrimary },
+  emailHint: { ...typography.caption, color: colors.textSecondary },
+  copyBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 4, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSubtle },
+  copyBtnText: { ...typography.caption, color: colors.accent, fontWeight: "700" as const },
   sectionTitle: { ...typography.h3, color: colors.textPrimary, marginTop: spacing.xl, marginBottom: spacing.sm },
   sectionRow: { flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, marginTop: spacing.xl, marginBottom: spacing.sm },
   addAllBtn: { flexDirection: "row" as const, alignItems: "center" as const, gap: 6, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSubtle },
