@@ -347,7 +347,7 @@ export default function CalendarTab() {
             />
             <View style={styles.legend}>
               {[
-                { color: "#E11D48", label: "Due" },
+                { color: "#0F172A", label: "Due" },
                 { color: "#007CFF", label: "Comp" },
                 { color: "#7C3AED", label: "Travel" },
                 { color: "#16A34A", label: "Fundraiser" },

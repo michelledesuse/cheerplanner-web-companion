@@ -227,9 +227,9 @@ export default function ScoutingReport() {
                   </View>
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[styles.levelOpt, { marginTop: 8, borderColor: "#DC2626" }]} onPress={() => applyBulk("")} disabled={bulkSaving} testID="scouting-bulk-level-remove">
-                <Ionicons name="close-circle" size={18} color="#DC2626" />
-                <Text style={[styles.levelOptLabel, { color: "#DC2626" }]}>Remove from report</Text>
+              <TouchableOpacity style={[styles.levelOpt, { marginTop: 8, borderColor: "#0F172A" }]} onPress={() => applyBulk("")} disabled={bulkSaving} testID="scouting-bulk-level-remove">
+                <Ionicons name="close-circle" size={18} color="#0F172A" />
+                <Text style={[styles.levelOptLabel, { color: "#0F172A" }]}>Remove from report</Text>
               </TouchableOpacity>
             </ScrollView>
             {bulkSaving && <ActivityIndicator color={colors.accent} style={{ marginTop: 10 }} />}
@@ -307,7 +307,7 @@ const makeStyles = (c: ThemePalette) => ({
   bulkSetText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   addChip: { flexDirection: "row", alignItems: "center", gap: 2, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, borderWidth: 1, borderColor: c.accent, borderStyle: "dashed" as const },
   addChipText: { fontSize: 11, fontWeight: "800", color: c.accent },
-  removeText: { ...typography.caption, color: "#DC2626", fontWeight: "800" },
+  removeText: { ...typography.caption, color: "#0F172A", fontWeight: "800" },
   skillTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   skillName: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary },
   notes: { ...typography.caption, color: c.textSecondary, marginTop: 3, lineHeight: 17 },

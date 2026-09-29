@@ -95,6 +95,6 @@ const makeStyles = (c: ThemePalette) => ({
   knob: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
   disclosure: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 12 },
   disclosureText: { color: c.textSecondary, fontSize: 12, lineHeight: 18 },
-  blockquote: { borderLeftWidth: 4, borderLeftColor: "#E11D48", backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 16, marginTop: spacing.sm },
+  blockquote: { borderLeftWidth: 4, borderLeftColor: "#0F172A", backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: 8, padding: 16, marginTop: spacing.sm },
   blockquoteText: { color: c.textSecondary, fontSize: 14, lineHeight: 21 },
 });

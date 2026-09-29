@@ -8,7 +8,7 @@ live in `core/*.py`.
 import logging
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from starlette.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 
@@ -152,6 +152,16 @@ for r in (
 
 # ---------- Real-time broadcast (W3) ----------
 _RT_EXCLUDE = ("/api/ws", "/api/webhooks", "/api/analytics", "/api/auth")
+
+
+import os as _os
+_LOGO_PATH = _os.path.join(_os.path.dirname(__file__), "assets", "logo.png")
+
+
+@app.get("/api/public/logo.png")
+async def brand_logo():
+    """Public CheerPlanner logo, used in email headers. On-brand, no auth."""
+    return FileResponse(_LOGO_PATH, media_type="image/png")
 
 
 @app.middleware("http")

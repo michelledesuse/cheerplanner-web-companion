@@ -677,8 +677,8 @@ export default function TeamChatScreen() {
             )}
             {actionMsg && actionMsg.sender_id === me ? (
               <TouchableOpacity style={styles.actionRow} onPress={() => deleteMsg(actionMsg)} testID="chat-action-delete">
-                <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                <Text style={[styles.actionText, { color: "#DC2626" }]}>Delete my message</Text>
+                <Ionicons name="trash-outline" size={18} color="#0F172A" />
+                <Text style={[styles.actionText, { color: "#0F172A" }]}>Delete my message</Text>
               </TouchableOpacity>
             ) : actionMsg ? (
               <>
@@ -687,13 +687,13 @@ export default function TeamChatScreen() {
                   <Text style={styles.actionText}>Report message</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.actionRow} onPress={() => blockUser(actionMsg)} testID="chat-action-block">
-                  <Ionicons name="ban-outline" size={18} color="#DC2626" />
-                  <Text style={[styles.actionText, { color: "#DC2626" }]}>Block {actionMsg.sender_name}</Text>
+                  <Ionicons name="ban-outline" size={18} color="#0F172A" />
+                  <Text style={[styles.actionText, { color: "#0F172A" }]}>Block {actionMsg.sender_name}</Text>
                 </TouchableOpacity>
                 {canModerate && (
                   <TouchableOpacity style={styles.actionRow} onPress={() => deleteMsg(actionMsg)} testID="chat-action-remove">
-                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
-                    <Text style={[styles.actionText, { color: "#DC2626" }]}>Remove this message</Text>
+                    <Ionicons name="trash-outline" size={18} color="#0F172A" />
+                    <Text style={[styles.actionText, { color: "#0F172A" }]}>Remove this message</Text>
                   </TouchableOpacity>
                 )}
               </>

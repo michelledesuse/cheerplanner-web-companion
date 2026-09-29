@@ -583,7 +583,7 @@ function TemplatePicker({
                           <Ionicons name="create-outline" size={20} color={colors.textPrimary} />
                         </TouchableOpacity>
                         <TouchableOpacity onPress={() => confirmDelete(t)} hitSlop={8} testID={`packing-delete-${t.id}`}>
-                          <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                          <Ionicons name="trash-outline" size={20} color="#0F172A" />
                         </TouchableOpacity>
                       </View>
                     )}
@@ -732,7 +732,7 @@ const makeStyles = () => ({
   },
   bulkClear: { ...typography.body, color: colors.textSecondary, fontWeight: "700" },
   bulkDeleteBtn: {
-    flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#DC2626",
+    flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#0F172A",
     paddingHorizontal: 16, paddingVertical: 10, borderRadius: radius.md,
   },
   bulkDeleteText: { color: "white", fontWeight: "800", fontSize: 14 },

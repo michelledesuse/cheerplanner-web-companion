@@ -260,7 +260,7 @@ export default function ScoutingSkills() {
           </TouchableOpacity>
           <Text style={styles.skillName}>{item.skill.name}</Text>
           <TouchableOpacity onPress={() => removeSkill(item.skill)} hitSlop={8} testID={`skill-del-${item.skill.id}`}>
-            <Ionicons name="trash-outline" size={18} color="#DC2626" />
+            <Ionicons name="trash-outline" size={18} color="#0F172A" />
           </TouchableOpacity>
         </View>
       </ScaleDecorator>

@@ -71,7 +71,7 @@ export default function RedeemScreen() {
 
         {msg ? (
           <View style={[styles.msg, msg.ok ? styles.msgOk : styles.msgErr]}>
-            <Ionicons name={msg.ok ? "checkmark-circle" : "alert-circle"} size={18} color={msg.ok ? "#16A34A" : "#DC2626"} />
+            <Ionicons name={msg.ok ? "checkmark-circle" : "alert-circle"} size={18} color={msg.ok ? "#16A34A" : "#0F172A"} />
             <Text style={styles.msgText}>{msg.text}</Text>
           </View>
         ) : null}
@@ -101,7 +101,7 @@ const makeStyles = (c: ThemePalette) => ({
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 14, fontSize: 18, letterSpacing: 2, textAlign: "center", color: c.textPrimary, fontWeight: "700" },
   msg: { flexDirection: "row", gap: 8, alignItems: "center", padding: spacing.md, borderRadius: radius.md, marginTop: spacing.md },
   msgOk: { backgroundColor: "#DCFCE7" },
-  msgErr: { backgroundColor: "#FEE2E2" },
+  msgErr: { backgroundColor: "#F1F5F9" },
   msgText: { flex: 1, ...typography.caption, color: "#1F2937" },
   cta: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 15, alignItems: "center", marginTop: spacing.lg },
   ctaText: { color: "white", fontWeight: "800", fontSize: 16 },

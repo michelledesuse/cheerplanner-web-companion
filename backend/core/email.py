@@ -85,9 +85,12 @@ def send_flag_alert(kind: str, snippet: str, reason: str, count: int, hidden: bo
     status = ("It has been <strong>auto-hidden</strong> from users pending your review."
               if hidden else "It is <strong>still visible</strong> to users.")
     subject = f"⚠️ CheerPlanner: a {kind} was reported — action needed"
+    logo_url = f"{BACKEND_PUBLIC_URL}/api/public/logo.png"
     html = (
-        "<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a'>"
-        f"<h2 style='color:#B45309'>⚠️ Reported {kind}</h2>"
+        "<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;max-width:560px;margin:0 auto'>"
+        f"<div style='padding:16px 0;border-bottom:1px solid #E2E8F0;margin-bottom:16px'>"
+        f"<img src='{logo_url}' alt='CheerPlanner' height='32' style='height:32px;display:block;border:0'/></div>"
+        f"<h2 style='color:#0f172a'>⚠️ Reported {kind}</h2>"
         "<p style='font-size:16px'><strong>If this content is deemed inappropriate, it must be "
         "removed immediately.</strong></p>"
         f"<p>{status} Total distinct reports: <strong>{count}</strong>.</p>"
@@ -96,6 +99,7 @@ def send_flag_alert(kind: str, snippet: str, reason: str, count: int, hidden: bo
         f"<strong>Reported content:</strong><br/>{snip or '(no text — media/attachment)'}</div>"
         "<p>Open the app → <strong>Admin → Reports</strong> (or the TeamChat thread) to review and "
         "remove it. Per our Community Guidelines, please act within 24 hours of a report.</p>"
+        "<p style='color:#64748B;font-size:12px;text-align:center;border-top:1px solid #E2E8F0;padding-top:16px;margin-top:16px'>Sent using CheerPlanner</p>"
         "</div>"
     )
     for to in ADMIN_EMAILS:

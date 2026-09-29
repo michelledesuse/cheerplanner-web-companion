@@ -443,7 +443,7 @@ export default function AIDesigner() {
                 <TouchableOpacity style={styles.postBtn} onPress={saveBrand} testID="ai-designer-brand-save"><Text style={styles.postText}>{editBrand?.id ? "Save changes" : "Create brand"}</Text></TouchableOpacity>
                 {editBrand?.id ? (
                   <TouchableOpacity style={{ paddingVertical: 10, alignItems: "center" }} onPress={() => { const id = editBrand.id; setEditBrand(null); removeBrand(id); }} testID="ai-designer-brand-delete">
-                    <Text style={{ ...typography.body, color: "#DC2626", fontWeight: "700" }}>Delete brand</Text>
+                    <Text style={{ ...typography.body, color: "#0F172A", fontWeight: "700" }}>Delete brand</Text>
                   </TouchableOpacity>
                 ) : null}
               </KeyboardAwareScrollView>
@@ -513,7 +513,7 @@ const makeStyles = (c: ThemePalette) => ({
   body: { padding: spacing.lg, paddingBottom: spacing.xxl },
   q: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.sm },
   promptBox: { minHeight: 120, maxHeight: 240, borderWidth: 1, borderColor: c.border, borderRadius: radius.lg, backgroundColor: c.card, padding: spacing.md, color: c.textPrimary, ...typography.body, textAlignVertical: "top" as const },
-  error: { ...typography.caption, color: "#DC2626", marginTop: spacing.sm },
+  error: { ...typography.caption, color: "#0F172A", marginTop: spacing.sm },
   brandRow: { flexDirection: "row" as const, gap: spacing.md, marginTop: spacing.lg },
   brandSlot: { alignItems: "flex-start" as const },
   brandLabel: { ...typography.caption, color: c.textSecondary, fontWeight: "700" as const, marginBottom: 6 },

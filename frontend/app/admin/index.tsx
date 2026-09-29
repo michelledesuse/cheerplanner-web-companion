@@ -134,7 +134,7 @@ export default function AdminScreen() {
         <TouchableOpacity style={styles.card} onPress={() => router.push("/reviews/flags" as any)} activeOpacity={0.8} testID="admin-reports">
           <View style={styles.rowBetween}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <Ionicons name="flag" size={18} color={(flags?.total || 0) > 0 ? "#DC2626" : styles._muted.color} />
+              <Ionicons name="flag" size={18} color={(flags?.total || 0) > 0 ? "#0F172A" : styles._muted.color} />
               <Text style={styles.cardTitle}>Reports</Text>
               {(flags?.total || 0) > 0 && (
                 <View style={styles.reportBadge} testID="admin-reports-badge">
@@ -290,13 +290,13 @@ const makeStyles = (c: ThemePalette) => ({
   genHint: { ...typography.caption, color: c.textSecondary, marginBottom: spacing.sm },
   genRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 6 },
   genCode: { ...typography.bodyMedium, color: c.textPrimary, letterSpacing: 1, fontWeight: "700" },
-  disableText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
-  revokeBtn: { borderWidth: 1, borderColor: "#DC2626", borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8 },
-  revokeText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
+  disableText: { ...typography.caption, color: "#0F172A", fontWeight: "700" },
+  revokeBtn: { borderWidth: 1, borderColor: "#0F172A", borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 8 },
+  revokeText: { ...typography.caption, color: "#0F172A", fontWeight: "700" },
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   stat: { width: "47%", backgroundColor: c.bg, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: c.border },
   statValue: { ...typography.h2, color: c.textPrimary },
   statLabel: { ...typography.caption, color: c.textSecondary },
-  reportBadge: { backgroundColor: "#DC2626", borderRadius: 999, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
+  reportBadge: { backgroundColor: "#0F172A", borderRadius: 999, minWidth: 22, height: 22, paddingHorizontal: 6, alignItems: "center", justifyContent: "center" },
   reportBadgeText: { color: "#fff", fontWeight: "800", fontSize: 12 },
 });

@@ -91,7 +91,8 @@ def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None, media
         logger.warning("send_sms: invalid destination number")
         return None
     try:
-        kwargs = {"to": dest, "from_": from_number, "body": body}
+        signed = body if "Sent using CheerPlanner" in (body or "") else f"{body}\n\nSent using CheerPlanner"
+        kwargs = {"to": dest, "from_": from_number, "body": signed}
         if status_callback:
             kwargs["status_callback"] = status_callback
         if media_urls:

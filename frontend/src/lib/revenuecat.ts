@@ -99,3 +99,36 @@ export async function restorePurchases(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Read the LIVE premium entitlement straight from the RevenueCat SDK on-device.
+ * RevenueCat is the source of truth for paid status — this lets a genuine
+ * subscriber stay unlocked even if a backend webhook was missed or delayed.
+ * No-ops (returns false) on web / Expo Go where the native SDK isn't available.
+ */
+export async function getPremiumEntitlementActive(): Promise<boolean> {
+  if (!configureRevenueCat()) return false;
+  try {
+    const info = await getSdk().getCustomerInfo();
+    return !!info?.entitlements?.active?.["premium"];
+  } catch {
+    return false;
+  }
+}
+
+/** Subscribe to live entitlement changes (purchase/restore/renew/transfer/login).
+ * Returns an unsubscribe function. No-ops on unsupported runtimes. */
+export function addPremiumStatusListener(cb: (active: boolean) => void): () => void {
+  if (!configureRevenueCat()) return () => {};
+  const sdk = getSdk();
+  if (!sdk?.addCustomerInfoUpdateListener) return () => {};
+  const listener = (info: any) => cb(!!info?.entitlements?.active?.["premium"]);
+  try {
+    sdk.addCustomerInfoUpdateListener(listener);
+  } catch {
+    return () => {};
+  }
+  return () => {
+    try { sdk.removeCustomerInfoUpdateListener?.(listener); } catch {}
+  };
+}

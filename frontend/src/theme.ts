@@ -18,9 +18,9 @@ export const colors = {
   warning: "#D97706",       // amber-600
   warningBg: "#FEF3C7",
   warningText: "#B45309",
-  danger: "#DC2626",       // red-600 (kept distinct from brand blue)
-  dangerBg: "#FEE2E2",
-  dangerText: "#B91C1C",
+  danger: "#0F172A",       // brand: destructive actions use black (no red in default theme)
+  dangerBg: "#F1F5F9",     // neutral light background (slate-100)
+  dangerText: "#0F172A",   // black
   divider: "#F1F5F9",
 };
 

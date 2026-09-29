@@ -345,10 +345,10 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
             <>
               <Text style={styles.secLbl}>RSVPs</Text>
               {rsvps.length === 0 ? <Text style={styles.dim}>No responses yet.</Text> : rsvps.map((r) => (
-                <View key={r.roster_id} style={styles.rsvpRow}><Text style={styles.rsvpName}>{r.athlete_name}</Text><Text style={[styles.rsvpStat, { color: r.status === "attending" ? "#10B981" : "#DC2626" }]}>{r.status === "attending" ? "Attending" : "Not attending"}</Text>{!!r.reason && <Text style={styles.rsvpReason}>“{r.reason}”</Text>}</View>
+                <View key={r.roster_id} style={styles.rsvpRow}><Text style={styles.rsvpName}>{r.athlete_name}</Text><Text style={[styles.rsvpStat, { color: r.status === "attending" ? "#10B981" : "#0F172A" }]}>{r.status === "attending" ? "Attending" : "Not attending"}</Text>{!!r.reason && <Text style={styles.rsvpReason}>“{r.reason}”</Text>}</View>
               ))}
               <TouchableOpacity style={styles.editBtn} onPress={onEdit} testID="event-edit"><Ionicons name="create-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Edit event</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.delBtn} onPress={del} testID="event-delete"><Ionicons name="trash-outline" size={16} color="#DC2626" /><Text style={styles.delText}>Delete event</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.delBtn} onPress={del} testID="event-delete"><Ionicons name="trash-outline" size={16} color="#0F172A" /><Text style={styles.delText}>Delete event</Text></TouchableOpacity>
             </>
           ) : (
             <>
@@ -716,12 +716,12 @@ const makeStyles = (c: ThemePalette) => ({
   athBlock: { paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
   btnRow: { flexDirection: "row", gap: 8, marginTop: 6, flexWrap: "wrap" },
   rsvpBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 14 },
-  rsvpBtnOn: { backgroundColor: "#10B981", borderColor: "#10B981" }, rsvpBtnNo: { backgroundColor: "#DC2626", borderColor: "#DC2626" },
+  rsvpBtnOn: { backgroundColor: "#10B981", borderColor: "#10B981" }, rsvpBtnNo: { backgroundColor: "#0F172A", borderColor: "#0F172A" },
   rsvpBtnText: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
   reasonInput: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 10, ...typography.body, color: c.textPrimary },
   hideBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, paddingVertical: 8 },
   hideText: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
-  delBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, paddingVertical: 8 }, delText: { ...typography.caption, color: "#DC2626", fontWeight: "800" },
+  delBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, paddingVertical: 8 }, delText: { ...typography.caption, color: "#0F172A", fontWeight: "800" },
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 12, ...typography.body, color: c.textPrimary, marginTop: 8 },
   freqBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 16 }, freqOn: { backgroundColor: c.accent, borderColor: c.accent },
   freqText: { ...typography.caption, fontWeight: "800", color: c.textPrimary },

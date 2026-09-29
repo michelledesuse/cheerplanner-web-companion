@@ -78,6 +78,6 @@ const makeStyles = (c: ThemePalette) => ({
   author: { color: c.textTertiary, fontSize: 12, marginTop: 6 },
   body: { color: c.textPrimary, fontSize: 14, lineHeight: 20, marginTop: 8 },
   reason: { color: c.warningText, fontSize: 13, marginTop: 8 },
-  delBtn: { flexDirection: "row" as const, alignItems: "center" as const, alignSelf: "flex-start" as const, backgroundColor: c.danger || "#DC2626", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, marginTop: 12, gap: 6 },
+  delBtn: { flexDirection: "row" as const, alignItems: "center" as const, alignSelf: "flex-start" as const, backgroundColor: c.danger || "#0F172A", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, marginTop: 12, gap: 6 },
   delText: { color: "#fff", fontWeight: "700" as const, fontSize: 13 },
 });

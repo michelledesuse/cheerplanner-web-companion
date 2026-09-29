@@ -57,7 +57,7 @@ export default function TeamResults() {
                   <View style={styles.actions}>
                     <View style={styles.visRow}><Text style={styles.visLbl}>{r.visibility === "team" ? "Shared with team" : "Staff only"}</Text><Switch value={r.visibility === "team"} onValueChange={() => toggleVis(r)} trackColor={{ true: colors.accent }} testID={`result-vis-${r.id}`} /></View>
                     <TouchableOpacity onPress={() => setEdit(r)} hitSlop={6} testID={`result-edit-${r.id}`}><Text style={styles.link}>Edit</Text></TouchableOpacity>
-                    <TouchableOpacity onPress={() => del(r)} hitSlop={6}><Ionicons name="trash-outline" size={16} color="#DC2626" /></TouchableOpacity>
+                    <TouchableOpacity onPress={() => del(r)} hitSlop={6}><Ionicons name="trash-outline" size={16} color="#0F172A" /></TouchableOpacity>
                   </View>
                 )}
               </View>

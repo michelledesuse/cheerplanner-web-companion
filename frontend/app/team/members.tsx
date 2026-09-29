@@ -290,7 +290,7 @@ const makeStyles = (c: ThemePalette) => ({
   assignText: { color: "#fff", fontWeight: "800", fontSize: 13 },
   editBtn: { borderWidth: 1, borderColor: c.accent, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 14 },
   editText: { color: c.accent, fontWeight: "800", fontSize: 13 },
-  removeText: { ...typography.caption, color: "#DC2626", fontWeight: "700" },
+  removeText: { ...typography.caption, color: "#0F172A", fontWeight: "700" },
   modalWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", alignItems: "center", padding: spacing.lg },
   sheet: { width: "100%", maxWidth: 440, backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg },
   sheetTitle: { ...typography.h3, color: c.textPrimary },

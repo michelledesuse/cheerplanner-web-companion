@@ -246,7 +246,7 @@ export default function TeamMusicScreen() {
                     <Ionicons name="create-outline" size={18} color={colors.textSecondary} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => remove(t)} hitSlop={8} style={styles.rowAction} testID={`music-delete-${t.id}`}>
-                    <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    <Ionicons name="trash-outline" size={18} color="#0F172A" />
                   </TouchableOpacity>
                 </View>
               );

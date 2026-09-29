@@ -126,7 +126,7 @@ export default function ResetPasswordScreen() {
 
                 {error ? (
                   <View style={styles.errorBox} testID="reset-error">
-                    <Ionicons name="alert-circle" size={16} color="#B91C1C" />
+                    <Ionicons name="alert-circle" size={16} color="#0F172A" />
                     <Text style={styles.errorText}>{error}</Text>
                   </View>
                 ) : null}
@@ -183,10 +183,10 @@ const makeStyles = () => ({
   primaryBtnText: { color: colors.primaryText, fontSize: 16, fontWeight: "700" },
   errorBox: {
     flexDirection: "row", alignItems: "flex-start", gap: 8,
-    backgroundColor: "#FEF2F2", borderWidth: 1, borderColor: "#FECACA",
+    backgroundColor: "#F1F5F9", borderWidth: 1, borderColor: "#E2E8F0",
     borderRadius: radius.md, paddingHorizontal: 12, paddingVertical: 10, marginTop: spacing.sm,
   },
-  errorText: { color: "#B91C1C", fontSize: 13, flex: 1, lineHeight: 18 },
+  errorText: { color: "#0F172A", fontSize: 13, flex: 1, lineHeight: 18 },
   footerRow: { flexDirection: "row", justifyContent: "center", alignItems: "center", marginTop: spacing.lg },
   linkText: { ...typography.bodyMedium, color: colors.accent, fontWeight: "700" },
 });

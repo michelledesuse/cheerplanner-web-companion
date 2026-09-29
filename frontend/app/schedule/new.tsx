@@ -312,7 +312,7 @@ export default function ScheduleForm() {
           <Text style={styles.headerTitle}>{isEdit ? "Edit event" : "New event"}</Text>
           {isEdit ? (
             <TouchableOpacity onPress={onDelete} style={styles.iconBtn} testID="schedule-delete">
-              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+              <Ionicons name="trash-outline" size={20} color="#0F172A" />
             </TouchableOpacity>
           ) : (
             <View style={{ width: 36 }} />

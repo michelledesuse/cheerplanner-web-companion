@@ -8,13 +8,16 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from core.email import unsubscribe_link
+from core.config import BACKEND_PUBLIC_URL
 
 BRAND = "CheerPlanner"
-ACCENT = "#E11D48"
+ACCENT = "#007CFF"   # CheerPlanner brand blue (from logo) — brand palette is blue/black/white only
 BG = "#F8FAFC"
 CARD = "#FFFFFF"
-TEXT = "#0F172A"
-MUTED = "#64748B"
+TEXT = "#0F172A"     # black
+MUTED = "#64748B"    # neutral gray (tint of black) for secondary text
+LOGO_URL = f"{BACKEND_PUBLIC_URL}/api/public/logo.png"
+SIGNATURE = "Sent using CheerPlanner"
 
 _FOOTER_TMPL = (
     '<tr><td style="padding:20px 28px 28px 28px;color:{muted};font-size:12px;line-height:1.5;'
@@ -36,6 +39,11 @@ def _shell(title: str, body_html: str, unsubscribe_token: str | None, web_url: s
             unsub=unsubscribe_link(unsubscribe_token),
             web=web_url,
         )
+    # "Sent using CheerPlanner" appears on EVERY email, regardless of type.
+    signature = (
+        '<tr><td style="padding:16px 28px;color:' + MUTED + ';font-size:12px;'
+        'text-align:center;border-top:1px solid #E2E8F0">' + SIGNATURE + '</td></tr>'
+    )
     return (
         '<!doctype html><html><body style="margin:0;padding:24px 12px;background:' + BG + ';'
         'font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Helvetica,Arial,sans-serif;'
@@ -43,12 +51,13 @@ def _shell(title: str, body_html: str, unsubscribe_token: str | None, web_url: s
         '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" '
         'style="max-width:560px;margin:0 auto;background:' + CARD + ';'
         'border-radius:12px;overflow:hidden;border:1px solid #E2E8F0">'
-        '<tr><td style="padding:20px 28px;background:' + ACCENT + ';color:#fff;'
-        'font-size:18px;font-weight:700;letter-spacing:0.2px">' + BRAND + '</td></tr>'
+        '<tr><td style="padding:18px 28px;background:#FFFFFF;border-bottom:1px solid #E2E8F0">'
+        '<img src="' + LOGO_URL + '" alt="' + BRAND + '" height="32" '
+        'style="height:32px;display:block;border:0;outline:none;text-decoration:none" /></td></tr>'
         '<tr><td style="padding:24px 28px 8px 28px"><h1 '
-        'style="margin:0 0 8px 0;font-size:20px;line-height:1.3">' + title + '</h1></td></tr>'
+        'style="margin:0 0 8px 0;font-size:20px;line-height:1.3;color:' + TEXT + '">' + title + '</h1></td></tr>'
         '<tr><td style="padding:8px 28px 24px 28px;font-size:15px;line-height:1.55">' + body_html + '</td></tr>'
-        + footer +
+        + footer + signature +
         '</table></body></html>'
     )
 

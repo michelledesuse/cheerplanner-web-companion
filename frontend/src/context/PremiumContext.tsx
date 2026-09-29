@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
+import { getPremiumEntitlementActive, addPremiumStatusListener } from "@/src/lib/revenuecat";
 
 export type PremiumStatus = {
   is_premium: boolean;
@@ -42,6 +43,11 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<PremiumStatus | null>(null);
   const [config, setConfig] = useState<PlanConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  // Live premium flag read directly from the RevenueCat SDK on-device. RevenueCat
+  // is the source of truth for paid status, so this keeps a genuine subscriber
+  // unlocked even if the backend webhook was missed/delayed. Always false on
+  // web / Expo Go (native SDK unavailable) — preview stays backend-driven.
+  const [sdkPremium, setSdkPremium] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!user) {
@@ -65,7 +71,16 @@ export function PremiumProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const isPremium = !!status?.is_premium;
+  // Reconcile with the RevenueCat SDK entitlement on-device (native only).
+  useEffect(() => {
+    let cancelled = false;
+    if (!user) { setSdkPremium(false); return; }
+    getPremiumEntitlementActive().then((active) => { if (!cancelled) setSdkPremium(active); });
+    const unsubscribe = addPremiumStatusListener((active) => setSdkPremium(active));
+    return () => { cancelled = true; unsubscribe(); };
+  }, [user]);
+
+  const isPremium = !!status?.is_premium || sdkPremium;
   // Default to true (unlocked) until we learn otherwise, so we never flash locks.
   const monetizationActive = status?.monetization_active ?? config?.monetization_active ?? false;
   const gatingActive = monetizationActive && !isPremium;
