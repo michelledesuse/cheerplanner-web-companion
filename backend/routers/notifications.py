@@ -128,7 +128,7 @@ def _page(title: str, body: str) -> str:
         'background:#F8FAFC;color:#0F172A;margin:0;padding:48px 16px;">'
         '<div style="max-width:480px;margin:0 auto;background:#fff;border:1px solid #E2E8F0;'
         'border-radius:14px;padding:32px 28px;text-align:center">'
-        '<div style="font-weight:800;color:#E11D48;font-size:18px;margin-bottom:14px">CheerPlanner</div>'
+        '<div style="font-weight:800;color:#007CFF;font-size:18px;margin-bottom:14px">CheerPlanner</div>'
         f'<h1 style="margin:0 0 12px 0;font-size:22px">{title}</h1>'
         f'<p style="color:#475569;font-size:15px;line-height:1.55;margin:0">{body}</p>'
         '</div></body></html>'
@@ -191,7 +191,7 @@ async def opt_in_proof():
         '</div></div>'
 
         '<h2 style="font-size:16px;margin:24px 0 8px">Exact consent language shown to the user</h2>'
-        f'<blockquote style="margin:0;border-left:4px solid #E11D48;background:#fff;border:1px solid #E2E8F0;'
+        f'<blockquote style="margin:0;border-left:4px solid #007CFF;background:#fff;border:1px solid #E2E8F0;'
         f'border-radius:8px;padding:14px 16px;color:#334155;font-size:14px;line-height:1.6">{CONSENT_DISCLOSURE}</blockquote>'
 
         '<h2 style="font-size:16px;margin:24px 0 8px">Message types &amp; frequency</h2>'
@@ -208,7 +208,7 @@ async def opt_in_proof():
         'Reply HELP for help.</p>'
 
         '<p style="color:#334155;font-size:15px;line-height:1.6;margin:24px 0 8px">'
-        'Privacy Policy: <a href="https://cheer-planner.com/privacy" style="color:#E11D48">cheer-planner.com/privacy</a>. '
+        'Privacy Policy: <a href="https://cheer-planner.com/privacy" style="color:#007CFF">cheer-planner.com/privacy</a>. '
         'Mobile opt-in data and phone numbers are never sold or shared with third parties for marketing.</p>'
 
         '<p style="color:#94A3B8;font-size:12px;margin-top:24px">CheerPlanner &middot; info@cheer-planner.com</p>'

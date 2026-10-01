@@ -115,7 +115,7 @@ def _shell(title: str, body_html: str) -> str:
         'background:#F8FAFC;color:#0F172A;margin:0;padding:48px 16px;min-height:100vh;box-sizing:border-box">'
         '<div style="max-width:440px;margin:0 auto;background:#fff;border:1px solid #E2E8F0;'
         'border-radius:14px;padding:32px 28px">'
-        '<div style="font-weight:800;color:#E11D48;font-size:18px;text-align:center;margin-bottom:14px">CheerPlanner</div>'
+        '<div style="font-weight:800;color:#007CFF;font-size:18px;text-align:center;margin-bottom:14px">CheerPlanner</div>'
         + body_html +
         '</div></body></html>'
     )
@@ -152,14 +152,14 @@ def _reset_form_page(token: str) -> str:
         'border:1px solid #E2E8F0;border-radius:10px;font-size:15px"/>'
 
         '<button id="submit" '
-        'style="display:block;width:100%;padding:14px;background:#E11D48;color:#fff;border:0;'
+        'style="display:block;width:100%;padding:14px;background:#007CFF;color:#fff;border:0;'
         'border-radius:10px;font-size:15px;font-weight:700;cursor:pointer">Update password</button>'
 
         '<p id="msg" style="margin-top:16px;text-align:center;font-size:14px;min-height:20px"></p>'
 
         '<p style="margin-top:24px;text-align:center;font-size:13px;color:#94A3B8">'
         'Already have the app? <a href="cheerplanner://reset?token=' + token + '" '
-        'style="color:#E11D48;font-weight:600">Open in CheerPlanner</a>'
+        'style="color:#007CFF;font-weight:600">Open in CheerPlanner</a>'
         '</p>'
 
         '<script>'

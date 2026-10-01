@@ -162,6 +162,15 @@ export default function CompetitionsScreen() {
             <Text style={styles.title}>Competitions</Text>
             <View style={styles.headerActions}>
               <HomeButton />
+              <TouchableOpacity
+                onPress={() => router.push("/inbox")}
+                style={styles.selectBtn}
+                testID="comp-open-inbox"
+                accessibilityLabel="Smart Inbox"
+              >
+                <Ionicons name="sparkles" size={16} color={colors.accent} />
+                <Text style={styles.selectBtnText}>Add travel</Text>
+              </TouchableOpacity>
               {items.length > 0 && (
                 <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="comp-enter-select">
                   <Ionicons name="checkmark-done" size={16} color={colors.accent} />

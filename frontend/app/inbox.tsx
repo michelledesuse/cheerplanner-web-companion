@@ -137,9 +137,15 @@ export default function InboxScreen() {
       });
       setPasteText("");
       setImageData(null);
-      setDrafts((prev) => [data, ...prev]);
-      if (data.kind === "unknown") {
+      const items: Draft[] = Array.isArray(data) ? data : [data];
+      setDrafts((prev) => [...items, ...prev]);
+      const unknowns = items.filter((i) => i.kind === "unknown").length;
+      if (items.length === 0) {
+        Alert.alert("Hmm", "I couldn't find a booking or expense in that. Try pasting more of the confirmation.");
+      } else if (unknowns === items.length) {
         Alert.alert("Hmm", "I couldn't tell if that's travel or an expense. You can still open it and set it manually.");
+      } else if (items.length > 1) {
+        Alert.alert("Found a few", `I split that into ${items.length} items — review and add them below.`);
       }
     } catch (e: any) {
       Alert.alert("Couldn't read that", e?.response?.data?.detail || "Please try again.");
@@ -443,11 +449,19 @@ export default function InboxScreen() {
 
                   {!!review?.data && (
                     <View style={styles.detailBox}>
-                      <Text style={styles.detailTitle}>Also captured</Text>
-                      {review.data.flight_number ? <Text style={styles.detailText}>Flight {review.data.flight_number}: {review.data.depart_airport} → {review.data.arrive_airport}</Text> : null}
-                      {review.data.depart_time ? <Text style={styles.detailText}>Departs {review.data.depart_time}</Text> : null}
-                      {review.data.check_in ? <Text style={styles.detailText}>Check-in {review.data.check_in} · Check-out {review.data.check_out || "?"}</Text> : null}
+                      <Text style={styles.detailTitle}>Also captured (saved with this booking)</Text>
+                      {review.data.flight_number ? <Text style={styles.detailText}>Flight {review.data.flight_number}: {review.data.depart_airport || "?"} → {review.data.arrive_airport || "?"}</Text> : null}
+                      {review.data.depart_time ? <Text style={styles.detailText}>Departs {review.data.depart_time}{review.data.arrive_time ? ` · Arrives ${review.data.arrive_time}` : ""}</Text> : null}
+                      {review.data.return_flight_number ? <Text style={styles.detailText}>Return {review.data.return_flight_number}: {review.data.return_depart_airport || "?"} → {review.data.return_arrive_airport || "?"}</Text> : null}
+                      {review.data.return_depart_time ? <Text style={styles.detailText}>Returns {review.data.return_depart_time}{review.data.return_arrive_time ? ` · Arrives ${review.data.return_arrive_time}` : ""}</Text> : null}
+                      {review.data.address ? <Text style={styles.detailText}>Address: {review.data.address}</Text> : null}
+                      {review.data.check_in ? <Text style={styles.detailText}>Check-in {review.data.check_in}{review.data.check_in_time ? ` ${review.data.check_in_time}` : ""} · Check-out {review.data.check_out || "?"}{review.data.check_out_time ? ` ${review.data.check_out_time}` : ""}</Text> : null}
+                      {review.data.cancel_by ? <Text style={styles.detailText}>Free cancel by {review.data.cancel_by}</Text> : null}
                       {review.data.pickup_at ? <Text style={styles.detailText}>Pickup {review.data.pickup_at} @ {review.data.pickup_location || "?"}</Text> : null}
+                      {review.data.dropoff_at ? <Text style={styles.detailText}>Drop-off {review.data.dropoff_at} @ {review.data.dropoff_location || "?"}</Text> : null}
+                      {review.data.outbound_cost != null ? <Text style={styles.detailText}>Outbound cost ${review.data.outbound_cost}{review.data.return_cost != null ? ` · Return $${review.data.return_cost}` : ""}</Text> : null}
+                      {review.data.amount_paid ? <Text style={styles.detailText}>Paid ${review.data.amount_paid}{review.data.balance_due_date ? ` · Balance due ${review.data.balance_due_date}` : ""}</Text> : null}
+                      {review.data.notes ? <Text style={styles.detailText}>Notes: {review.data.notes}</Text> : null}
                     </View>
                   )}
                 </>
