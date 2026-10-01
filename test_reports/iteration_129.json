@@ -1,0 +1,28 @@
+{
+  "summary": "Iter 141 Smart Inbox enhancements verified end-to-end. Backend: 4/4 pytest cases pass (/app/backend/tests/test_iter141_smart_inbox.py) — demo login 200, /api/inbox/drafts returns array, /api/inbox/parse returns array; Smarter Dates: a hotel draft with check_in 2026-03-14 auto-matched the 2026-03-15 TEST competition on confirm-all with EMPTY body (no competition_id/athlete_id) and the resulting booking was present in /api/bookings?competition_id=<comp>; Forward Receipts: 'Payment received for TEST_IT141_Emma Johnson' expense draft auto-attached to that athlete and shows up in /api/expenses; Duplicate Guard: re-parsing the same hotel then GET /api/inbox/drafts/{id}/dup-check?competition_id=<comp> returns {duplicate:true}, a car-booking draft returns {duplicate:false}, and a second confirm-all reports the hotel in the `duplicates` array without creating a second hotel booking (confirmed with /api/bookings count=1). Frontend: in /inbox the hotel-draft review modal shows the test competition PRE-SELECTED with '✨ Auto-matched by the trip dates — tap another to change.'; tapping 'Summit Championship' chip clears the hint and switches the active chip. The receipt-draft review modal shows TEST_IT141_Emma Johnson PRE-SELECTED with '✨ Auto-matched from the receipt — tap another to change.'; tapping 'Ava Johnson' clears the hint and switches the active chip. All test data (competition, athlete, drafts, bookings, expenses) deleted at end of each test — demo account left clean. Deprecated packages detected: none in the files of reference.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter141_smart_inbox.py",
+    "/app/test_reports/pytest/pytest_iter141.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "inbox.py match_competition uses a ±3 day window — HOTEL_TEXT check_in=2026-03-14 vs event_date=2026-03-15 (within window) matched correctly. Logic verified both in backend confirm-all and in the frontend's local matchCompetitionId mirror in inbox.tsx.",
+    "inbox.py is_duplicate_booking matches on (type + confirmation) OR (type + provider + same primary date). Hotel re-parse with same confirmation # was correctly flagged; car with different type returned {duplicate:false}.",
+    "inbox.py confirm-all correctly marks duplicates as status='dismissed' and skips creation; verified /api/bookings count stayed 1 after the second confirm-all call.",
+    "inbox.tsx: tapping a chip sets setAutoComp(false) / setAutoAthlete(false), so the hint disappears — verified visually."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "100%", "frontend": "100%" },
+  "seed_data_creation": "Each test created a TEST_IT141_* competition + athlete + drafts/bookings/expenses and deleted all of them (including any residual pending drafts) in teardown. Demo account verified clean after both pytest and the UI run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview URL: https://event-planner-394.preview.emergentagent.com. Demo creds: demo@cheerplanner.app / CheerDemo2026!. AsyncStorage key for the web preview is localStorage.ct_auth_token (JSON-stringified token). The Welcome tour overlay appears on first visit — tap 'Skip' or set localStorage ct_tour_seen=1 (also cp_tour_seen/tour_seen/welcome_tour_seen for safety) before interacting with the inbox. React Native 'shadow*' deprecation warnings are noise only — not blocking. /api/inbox/parse uses real EMERGENT_LLM_KEY + openai/gpt-5.4 and takes ~5-15s per call; the two test calls needed to produce booking + expense drafts both succeeded on first try with the provided HOTEL_TEXT and RECEIPT_TEXT in the test file.",
+  "rca_of_issue": "N/A — all iteration 141 acceptance checks pass."
+}

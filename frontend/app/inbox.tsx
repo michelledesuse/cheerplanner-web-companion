@@ -24,7 +24,7 @@ type Draft = {
 };
 
 type Athlete = { id: string; name: string };
-type Competition = { id: string; name: string };
+type Competition = { id: string; name: string; event_date?: string; end_date?: string };
 
 const KIND_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   flight: "airplane",
@@ -33,6 +33,54 @@ const KIND_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   expense: "wallet",
   unknown: "help-circle",
 };
+
+const normName = (s?: string) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+const tripDate = (data: any): string | null => {
+  for (const k of ["depart_time", "check_in", "pickup_at"]) {
+    const v = data?.[k];
+    if (v) return String(v).slice(0, 10);
+  }
+  return null;
+};
+
+/** Attach a receipt to the athlete it names (full-name match, else first name). */
+function matchAthleteId(data: any, athletes: Athlete[]): string {
+  const hay = normName([data?.person, data?.note].filter(Boolean).join(" "));
+  if (!hay) return "";
+  let firstHit = "";
+  for (const a of athletes) {
+    const an = normName(a.name);
+    if (!an) continue;
+    if (hay.includes(an)) return a.id;
+    const first = an.split(" ")[0];
+    if (first.length >= 3 && new RegExp(`\\b${first}\\b`).test(hay)) firstHit = firstHit || a.id;
+  }
+  return firstHit;
+}
+
+/** Pick the competition whose dates line up with the trip (overlap or within N days). */
+function matchCompetitionId(data: any, comps: Competition[], windowDays = 3): string {
+  const d = tripDate(data);
+  if (!d) return "";
+  const bd = new Date(`${d}T00:00:00`);
+  if (isNaN(bd.getTime())) return "";
+  const DAY = 86400000;
+  let best = "";
+  let bestDiff = Infinity;
+  for (const c of comps) {
+    if (!c.event_date) continue;
+    const s = new Date(`${String(c.event_date).slice(0, 10)}T00:00:00`);
+    const e = new Date(`${String(c.end_date || c.event_date).slice(0, 10)}T00:00:00`);
+    if (isNaN(s.getTime()) || isNaN(e.getTime())) continue;
+    if (bd.getTime() >= s.getTime() - windowDays * DAY && bd.getTime() <= e.getTime() + windowDays * DAY) {
+      const diff = bd < s ? Math.round((s.getTime() - bd.getTime()) / DAY)
+        : bd > e ? Math.round((bd.getTime() - e.getTime()) / DAY) : 0;
+      if (diff < bestDiff) { best = c.id; bestDiff = diff; }
+    }
+  }
+  return best;
+}
 
 export default function InboxScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -59,6 +107,8 @@ export default function InboxScreen() {
   const [form, setForm] = useState<any>({});
   const [athleteId, setAthleteId] = useState<string>("");
   const [competitionId, setCompetitionId] = useState<string>("");
+  const [autoAthlete, setAutoAthlete] = useState(false);
+  const [autoComp, setAutoComp] = useState(false);
 
   // bulk "add all" state
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -164,7 +214,11 @@ export default function InboxScreen() {
         confirmation: data.confirmation || "",
         cost: data.cost != null ? String(data.cost) : "",
       });
-      setCompetitionId("");
+      const matchedComp = matchCompetitionId(data, competitions);
+      setCompetitionId(matchedComp);
+      setAutoComp(!!matchedComp);
+      setAthleteId("");
+      setAutoAthlete(false);
     } else {
       setForm({
         category: data.category || "Misc",
@@ -173,7 +227,11 @@ export default function InboxScreen() {
         due_date: data.due_date || "",
         note: [data.vendor, data.note].filter(Boolean).join(" — "),
       });
-      setAthleteId("");
+      const matchedAthlete = matchAthleteId(data, athletes);
+      setAthleteId(matchedAthlete);
+      setAutoAthlete(!!matchedAthlete);
+      setCompetitionId("");
+      setAutoComp(false);
     }
   };
 
@@ -182,6 +240,8 @@ export default function InboxScreen() {
     setForm({});
     setAthleteId("");
     setCompetitionId("");
+    setAutoAthlete(false);
+    setAutoComp(false);
   };
 
   const confirm = async () => {
@@ -197,6 +257,28 @@ export default function InboxScreen() {
 
     setSaving(true);
     try {
+      if (kind === "booking") {
+        // Duplicate guard — warn if this looks like a booking already on the comp.
+        try {
+          const { data: dc } = await api.get(`/inbox/drafts/${review.id}/dup-check`, {
+            params: { competition_id: competitionId },
+          });
+          if (dc?.duplicate) {
+            const proceed = await new Promise<boolean>((resolve) => {
+              Alert.alert(
+                "Looks like a duplicate",
+                "A similar booking is already on this competition. Add it anyway?",
+                [
+                  { text: "Cancel", style: "cancel", onPress: () => resolve(false) },
+                  { text: "Add anyway", style: "destructive", onPress: () => resolve(true) },
+                ],
+              );
+            });
+            if (!proceed) { setSaving(false); return; }
+          }
+        } catch { /* non-blocking — proceed if the check fails */ }
+      }
+
       const body: any = { kind };
       if (kind === "expense") {
         body.expense = {
@@ -240,9 +322,10 @@ export default function InboxScreen() {
       setBulkAthleteId("");
       setBulkCompId("");
       await loadDrafts();
-      const msg = `Added ${data.created} item${data.created === 1 ? "" : "s"}.` +
-        (data.skipped?.length ? ` ${data.skipped.length} left for review.` : "");
-      Alert.alert("Done", msg);
+      const parts = [`Added ${data.created} item${data.created === 1 ? "" : "s"}.`];
+      if (data.duplicates?.length) parts.push(`${data.duplicates.length} skipped as duplicate${data.duplicates.length === 1 ? "" : "s"}.`);
+      if (data.skipped?.length) parts.push(`${data.skipped.length} left for review.`);
+      Alert.alert("Done", parts.join(" "));
     } catch (e: any) {
       Alert.alert("Couldn't add", e?.response?.data?.detail || "Please try again.");
     } finally {
@@ -417,13 +500,14 @@ export default function InboxScreen() {
               {review?.kind === "booking" ? (
                 <>
                   <Text style={styles.label}>Competition</Text>
+                  {autoComp && <Text style={styles.autoHint}>✨ Auto-matched by the trip dates — tap another to change.</Text>}
                   <View style={styles.chipWrap}>
                     {competitions.length === 0 && <Text style={styles.hint}>No competitions yet — add one first.</Text>}
                     {competitions.map((c) => (
                       <TouchableOpacity
                         key={c.id}
                         style={[styles.chip, competitionId === c.id && styles.chipActive]}
-                        onPress={() => setCompetitionId(c.id)}
+                        onPress={() => { setCompetitionId(c.id); setAutoComp(false); }}
                       >
                         <Text style={[styles.chipText, competitionId === c.id && styles.chipTextActive]}>{c.name}</Text>
                       </TouchableOpacity>
@@ -468,13 +552,14 @@ export default function InboxScreen() {
               ) : (
                 <>
                   <Text style={styles.label}>Athlete</Text>
+                  {autoAthlete && <Text style={styles.autoHint}>✨ Auto-matched from the receipt — tap another to change.</Text>}
                   <View style={styles.chipWrap}>
                     {athletes.length === 0 && <Text style={styles.hint}>No athletes yet — add one first.</Text>}
                     {athletes.map((a) => (
                       <TouchableOpacity
                         key={a.id}
                         style={[styles.chip, athleteId === a.id && styles.chipActive]}
-                        onPress={() => setAthleteId(a.id)}
+                        onPress={() => { setAthleteId(a.id); setAutoAthlete(false); }}
                       >
                         <Text style={[styles.chipText, athleteId === a.id && styles.chipTextActive]}>{a.name}</Text>
                       </TouchableOpacity>
@@ -521,12 +606,12 @@ export default function InboxScreen() {
             </View>
             <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
               <Text style={styles.lede}>
-                Pick who the expenses are for and which competition the travel belongs to, and I&apos;ll add them all at once. Anything I can&apos;t place is left here for you.
+                I&apos;ll auto-match receipts to the athlete they name and trips to the competition whose dates line up. Pick fallbacks below for anything I can&apos;t place, and I&apos;ll skip any trip already on its competition.
               </Text>
 
               {drafts.some((d) => d.kind === "expense") && (
                 <>
-                  <Text style={styles.label}>Athlete (for expenses)</Text>
+                  <Text style={styles.label}>Athlete (fallback for expenses)</Text>
                   <View style={styles.chipWrap}>
                     {athletes.length === 0 && <Text style={styles.hint}>No athletes yet.</Text>}
                     {athletes.map((a) => (
@@ -544,7 +629,7 @@ export default function InboxScreen() {
 
               {drafts.some((d) => d.kind === "booking") && (
                 <>
-                  <Text style={styles.label}>Competition (for travel)</Text>
+                  <Text style={styles.label}>Competition (fallback for travel)</Text>
                   <View style={styles.chipWrap}>
                     {competitions.length === 0 && <Text style={styles.hint}>No competitions yet.</Text>}
                     {competitions.map((c) => (
@@ -633,6 +718,7 @@ const makeStyles = () => ({
   sheetTitle: { ...typography.h3, color: colors.textPrimary },
   label: { ...typography.caption, color: colors.textSecondary, fontWeight: "700" as const, marginTop: spacing.md, marginBottom: 6 },
   hint: { ...typography.caption, color: colors.textTertiary },
+  autoHint: { ...typography.caption, color: colors.accent, marginBottom: 6 },
   chipWrap: { flexDirection: "row" as const, flexWrap: "wrap" as const, gap: 8 },
   chip: { paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   chipActive: { backgroundColor: colors.accent, borderColor: colors.accent },

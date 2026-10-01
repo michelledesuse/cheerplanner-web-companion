@@ -742,3 +742,12 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - FRONTEND competitions.tsx (Comps tab): added a "Add travel" sparkles button (testID comp-open-inbox) in the header that opens the Smart Inbox (/inbox).
 - Lint clean (inbox.tsx, competitions.tsx); backend imports OK; test drafts cleaned from demo account.
 - Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 141 — Smart Inbox: receipt→athlete, competition date-match, duplicate guard (main agent)
+- FORWARD RECEIPTS → athlete auto-attach: LLM expense schema gains a "person" field; new match_athlete() maps a receipt to the athlete it names (full-name, else first-name on person/note). Used in confirm-all; single review pre-selects the athlete (✨ auto-match hint).
+- SMARTER DATES → competition auto-match: new match_competition() picks the competition whose dates overlap the trip or are within ±3 days (uses depart_time/check_in/pickup_at vs event_date/end_date). Used in confirm-all; single review pre-selects the competition (✨ auto-match hint). Manual chip tap clears the hint.
+- DUPLICATE GUARD: new is_duplicate_booking() (same type + same confirmation, or same provider on same primary date). New GET /api/inbox/drafts/{id}/dup-check?competition_id= powers a single-review "Looks like a duplicate — Add anyway?" prompt. confirm-all skips duplicates (dismisses them) and reports a `duplicates` count; result Alert now shows added / duplicates / left-for-review.
+- Unit-verified the three helpers (match_athlete, match_competition ±3d window, is_duplicate_booking) with direct python calls — all correct.
+- Frontend inbox.tsx: Competition type gains event_date/end_date; added matchAthleteId/matchCompetitionId JS mirrors for instant pre-select; dup-guard on confirm; bulk lede/labels reworded to "fallback"; duplicates surfaced in Add-all result.
+- Backend imports OK; frontend lint clean (only pre-existing _e warnings elsewhere); services restarted.
+- Creds: demo@cheerplanner.app / CheerDemo2026!

@@ -11,7 +11,7 @@ import os
 import re
 import secrets
 import time
-from datetime import date
+from datetime import date, timedelta
 from typing import List, Optional
 
 from dotenv import load_dotenv
@@ -50,7 +50,9 @@ _SYSTEM = (
     '      "kind": "expense" | "booking",\n'
     '      "summary": "short one-line human summary",\n'
     '      "expense": {"category": string, "amount": number, "vendor": string, '
-    '"incurred_on": "YYYY-MM-DD", "due_date": "YYYY-MM-DD or null", "note": string} or null,\n'
+    '"incurred_on": "YYYY-MM-DD", "due_date": "YYYY-MM-DD or null", '
+    '"person": "name of the athlete/person this charge is for, if the receipt names one", '
+    '"note": string} or null,\n'
     '      "booking": {"type": "flight"|"hotel"|"car", "provider": string, '
     '"address": string, "confirmation": string, "cost": number, "amount_paid": number, '
     '"balance_due_date": "YYYY-MM-DD", '
@@ -230,6 +232,87 @@ async def _store_unreadable(user_id: str, source: str, raw_text: str) -> InboxDr
 
 
 # --------------------------------------------------------------------------- #
+# Smart matching: athlete (receipts) + competition (trips) + duplicate guard   #
+# --------------------------------------------------------------------------- #
+def _norm(s: Optional[str]) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def match_athlete(data: dict, athletes: List[dict]) -> Optional[str]:
+    """Best-effort: attach a receipt to the athlete it names.
+    Matches the parsed `person` (preferred) and then the note against each
+    athlete's full name or first name."""
+    hay = _norm(" ".join([x for x in [data.get("person"), data.get("note")] if x]))
+    if not hay:
+        return None
+    first_hit = None
+    for a in athletes:
+        an = _norm(a.get("name"))
+        if not an:
+            continue
+        if an in hay:                       # full name present → confident match
+            return a["id"]
+        first = an.split(" ")[0]
+        if len(first) >= 3 and re.search(r"\b" + re.escape(first) + r"\b", hay):
+            first_hit = first_hit or a["id"]
+    return first_hit
+
+
+def _trip_date(data: dict) -> Optional[date]:
+    for k in ("depart_time", "check_in", "pickup_at"):
+        v = data.get(k)
+        if v:
+            try:
+                return date.fromisoformat(str(v)[:10])
+            except Exception:
+                continue
+    return None
+
+
+def match_competition(data: dict, comps: List[dict], window_days: int = 3) -> Optional[str]:
+    """Pick the competition whose dates line up with the trip (overlapping, or
+    within `window_days` of the event start/end)."""
+    bd = _trip_date(data)
+    if not bd:
+        return None
+    best = None
+    best_diff = 10 ** 9
+    for c in comps:
+        ev = c.get("event_date")
+        if not ev:
+            continue
+        try:
+            start = date.fromisoformat(str(ev)[:10])
+            end = date.fromisoformat(str(c.get("end_date") or ev)[:10])
+        except Exception:
+            continue
+        if start - timedelta(days=window_days) <= bd <= end + timedelta(days=window_days):
+            diff = 0 if start <= bd <= end else min(abs((bd - start).days), abs((bd - end).days))
+            if diff < best_diff:
+                best, best_diff = c["id"], diff
+    return best
+
+
+def is_duplicate_booking(data: dict, existing: List[dict]) -> bool:
+    """True if `data` looks like a booking already on the competition:
+    same type AND (same confirmation, or same provider on the same primary date)."""
+    typ = data.get("type")
+    conf = (data.get("confirmation") or "").strip().lower()
+    prov = _norm(data.get("provider"))
+    bd = _trip_date(data)
+    for b in existing:
+        if b.get("type") != typ:
+            continue
+        bconf = (b.get("confirmation") or "").strip().lower()
+        if conf and bconf and conf == bconf:
+            return True
+        if prov and _norm(b.get("provider")) == prov:
+            if not bd or _trip_date(b) == bd:
+                return True
+    return False
+
+
+# --------------------------------------------------------------------------- #
 # In-app: paste text / drop a screenshot                                       #
 # --------------------------------------------------------------------------- #
 @router.post("/inbox/parse", response_model=List[InboxDraft])
@@ -275,29 +358,67 @@ async def confirm_draft(draft_id: str, payload: InboxConfirmRequest, current_use
     return {"ok": True, "kind": payload.kind, "created": result}
 
 
+@router.get("/inbox/drafts/{draft_id}/dup-check")
+async def dup_check(draft_id: str, competition_id: str, current_user=Depends(get_current_user)):
+    """Does this booking draft look like one already on the given competition?"""
+    draft = await db.inbox_drafts.find_one(
+        {"id": draft_id, "user_id": current_user["id"]}, {"_id": 0}
+    )
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    if draft.get("kind") != "booking":
+        return {"duplicate": False}
+    existing = await db.bookings.find(
+        {"user_id": current_user["id"], "competition_id": competition_id}, {"_id": 0}
+    ).to_list(500)
+    return {"duplicate": is_duplicate_booking(draft.get("data") or {}, existing)}
+
+
 @router.post("/inbox/drafts/confirm-all")
 async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depends(get_current_user)):
-    """Add every pending draft in one tap. Expense drafts use the chosen athlete;
-    booking drafts use the chosen competition. Drafts still missing what they need
-    (or that couldn't be read) are left behind and reported as skipped."""
+    """Add every pending draft in one tap.
+
+    Expense drafts auto-attach to the athlete named on the receipt when we can
+    match one; otherwise they use the chosen athlete. Booking drafts auto-attach
+    to the competition whose dates line up with the trip; otherwise they use the
+    chosen competition. Bookings that already exist on their competition are
+    skipped as duplicates. Anything still missing what it needs is left behind
+    and reported as skipped."""
     from core.models import ExpenseCreate, BookingCreate
 
+    uid = current_user["id"]
     drafts = await db.inbox_drafts.find(
-        {"user_id": current_user["id"], "status": "pending"}, {"_id": 0}
+        {"user_id": uid, "status": "pending"}, {"_id": 0}
     ).sort("created_at", 1).to_list(200)
+
+    athletes = await db.athletes.find({"user_id": uid}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+    comps = await db.competitions.find(
+        {"user_id": uid}, {"_id": 0, "id": 1, "event_date": 1, "end_date": 1}
+    ).to_list(500)
+    # Lazy cache of existing bookings per competition (for the duplicate guard).
+    existing_cache: dict[str, list] = {}
+
+    async def _existing(comp_id: str) -> list:
+        if comp_id not in existing_cache:
+            existing_cache[comp_id] = await db.bookings.find(
+                {"user_id": uid, "competition_id": comp_id}, {"_id": 0}
+            ).to_list(500)
+        return existing_cache[comp_id]
 
     created = 0
     skipped: List[str] = []
+    duplicates: List[str] = []
     for d in drafts:
         data = d.get("data") or {}
         try:
             if d.get("kind") == "expense":
                 amount = data.get("amount")
-                if not payload.athlete_id or amount in (None, "", 0):
+                athlete_id = match_athlete(data, athletes) or payload.athlete_id
+                if not athlete_id or amount in (None, "", 0):
                     skipped.append(d.get("summary") or "Expense")
                     continue
                 exp = ExpenseCreate(
-                    athlete_id=payload.athlete_id,
+                    athlete_id=athlete_id,
                     category=data.get("category") or "Misc",
                     amount=float(amount),
                     incurred_on=data.get("incurred_on") or date.today().isoformat(),
@@ -306,14 +427,22 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
                 )
                 await create_expense(exp, current_user)
             elif d.get("kind") == "booking":
-                if not payload.competition_id:
+                comp_id = match_competition(data, comps) or payload.competition_id
+                if not comp_id:
                     skipped.append(d.get("summary") or "Travel")
                     continue
+                if is_duplicate_booking(data, await _existing(comp_id)):
+                    duplicates.append(d.get("summary") or "Travel")
+                    await db.inbox_drafts.update_one({"id": d["id"]}, {"$set": {"status": "dismissed"}})
+                    continue
                 booking_data = {k: v for k, v in data.items() if k in BookingCreate.model_fields}
-                booking_data["competition_id"] = payload.competition_id
+                booking_data["competition_id"] = comp_id
                 booking_data["type"] = data.get("type") or "flight"
                 bk = BookingCreate(**booking_data)
-                await create_booking(bk, current_user)
+                result = await create_booking(bk, current_user)
+                existing_cache.setdefault(comp_id, []).append(
+                    result.model_dump() if hasattr(result, "model_dump") else dict(result)
+                )
             else:
                 skipped.append(d.get("summary") or "Unknown item")
                 continue
@@ -322,7 +451,7 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
         except Exception:
             skipped.append(d.get("summary") or "Item")
 
-    return {"ok": True, "created": created, "skipped": skipped}
+    return {"ok": True, "created": created, "skipped": skipped, "duplicates": duplicates}
 
 
 @router.delete("/inbox/drafts/{draft_id}")
