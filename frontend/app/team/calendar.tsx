@@ -284,9 +284,29 @@ export default function TeamCalendar() {
       </ScrollView>
 
       {detail && <DetailModal ev={detail} isStaff={isStaff} athletes={athletes} typeOf={typeOf} onEdit={() => { const d = detail; setDetail(null); setFormEv(d); }} onClose={() => setDetail(null)} onChanged={load} styles={styles} />}
-      {formEv && <EventForm ev={formEv === "new" ? null : formEv} allTypes={allTypes} customTypes={customTypes} setCustomTypes={setCustomTypes} onClose={() => setFormEv(null)} onSaved={() => { setFormEv(null); load(); }} styles={styles} />}
+      {formEv && <EventForm ev={formEv === "new" ? null : formEv} allTypes={allTypes} customTypes={customTypes} setCustomTypes={setCustomTypes} onClose={() => setFormEv(null)} onSaved={() => { setFormEv(null); load(); }} onChanged={load} styles={styles} />}
       {importOpen && <ImportFromPersonalModal onClose={() => setImportOpen(false)} onDone={() => { setImportOpen(false); load(); }} styles={styles} />}
     </SafeAreaView>
+  );
+}
+
+function ConfirmModal({ visible, title, message, confirmText, cancelText, destructive, onConfirm, onCancel, styles }: any) {
+  if (!visible) return null;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.confirmWrap} onPress={onCancel}>
+        <Pressable style={styles.confirmCard} onPress={() => {}} testID="calendar-confirm-modal">
+          <Text style={styles.confirmTitle}>{title}</Text>
+          <Text style={styles.confirmMsg}>{message}</Text>
+          <TouchableOpacity style={[styles.saveBtn, destructive && { backgroundColor: "#DC2626" }]} onPress={onConfirm} testID="calendar-confirm-yes">
+            <Text style={styles.saveText}>{confirmText}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onCancel} style={{ paddingVertical: 10, alignItems: "center" }} testID="calendar-confirm-no">
+            <Text style={styles.cancelText}>{cancelText || "Cancel"}</Text>
+          </TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -294,6 +314,7 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
   const [rsvps, setRsvps] = useState<any[]>([]);
   const [reasonFor, setReasonFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
   const t = typeOf(ev.event_type);
   const load = useCallback(async () => {
     if (isStaff) { try { const r = await api.get(`/team/calendar/rsvps?event_id=${ev.event_id}&occ_date=${ev.occ_date}`); setRsvps(r.data.rsvps || []); } catch {} }
@@ -305,6 +326,14 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
     catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save RSVP."); }
   };
   const del = () => Alert.alert("Delete event?", "This removes it for the whole team.", [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: async () => { await api.delete(`/team/calendar/events/${ev.event_id}`); onChanged(); onClose(); } }]);
+  const cancelOcc = () => setCancelOpen(true);
+  const performCancel = async () => {
+    setCancelOpen(false);
+    try {
+      await api.post(`/team/calendar/events/${ev.event_id}/cancel-occurrence`, { occ_date: ev.occ_date });
+      onChanged(); onClose();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not cancel this date."); }
+  };
   const hide = async () => { await api.post("/team/calendar/hide", { event_id: ev.event_id, occ_date: ev.occ_date }); onChanged(); onClose(); };
   const addToMine = async () => {
     try {
@@ -348,7 +377,8 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
                 <View key={r.roster_id} style={styles.rsvpRow}><Text style={styles.rsvpName}>{r.athlete_name}</Text><Text style={[styles.rsvpStat, { color: r.status === "attending" ? "#10B981" : "#0F172A" }]}>{r.status === "attending" ? "Attending" : "Not attending"}</Text>{!!r.reason && <Text style={styles.rsvpReason}>“{r.reason}”</Text>}</View>
               ))}
               <TouchableOpacity style={styles.editBtn} onPress={onEdit} testID="event-edit"><Ionicons name="create-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Edit event</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.delBtn} onPress={del} testID="event-delete"><Ionicons name="trash-outline" size={16} color="#0F172A" /><Text style={styles.delText}>Delete event</Text></TouchableOpacity>
+              {ev.recurring && <TouchableOpacity style={styles.cancelOccBtn} onPress={cancelOcc} testID="event-cancel-occurrence"><Ionicons name="close-circle-outline" size={16} color="#B45309" /><Text style={styles.cancelOccText}>Cancel just this date</Text></TouchableOpacity>}
+              <TouchableOpacity style={styles.delBtn} onPress={del} testID="event-delete"><Ionicons name="trash-outline" size={16} color="#0F172A" /><Text style={styles.delText}>Delete event{ev.recurring ? " (all dates)" : ""}</Text></TouchableOpacity>
             </>
           ) : (
             <>
@@ -379,11 +409,22 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
         <TouchableOpacity style={styles.phoneBtn} onPress={addToPhone} testID="event-add-phone"><Ionicons name="phone-portrait-outline" size={16} color={colors.accent} /><Text style={styles.importText}>Add to phone calendar</Text></TouchableOpacity>
         <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Close</Text></TouchableOpacity>
       </Pressable></Pressable>
+      <ConfirmModal
+        visible={cancelOpen}
+        title="Cancel just this date?"
+        message={`This removes ${fmtDate(ev.occ_date)} from the repeating event for the whole team. Every other date stays, and you can restore it later from Edit event.`}
+        confirmText="Cancel this date"
+        cancelText="Keep it"
+        destructive
+        onConfirm={performCancel}
+        onCancel={() => setCancelOpen(false)}
+        styles={styles}
+      />
     </Modal>
   );
 }
 
-function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved, styles }: any) {
+function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved, onChanged, styles }: any) {
   const isEdit = !!ev;
   const [eventType, setEventType] = useState<string>(ev?.event_type || "practice");
   const [title, setTitle] = useState(ev?.title || "");
@@ -395,6 +436,7 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
   const [notes, setNotes] = useState(ev?.notes || "");
   const [addTypeOpen, setAddTypeOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false);
 
   // Recurrence — derive initial mode from stored recurrence
   const rec0 = ev?.recurrence || { freq: "none" };
@@ -406,6 +448,15 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
   const [mode, setMode] = useState<string>(initMode === "none" ? "weekly" : initMode);
   const [wd, setWd] = useState<number[]>(Array.isArray(rec0.byweekday) ? rec0.byweekday : []);
   const [until, setUntil] = useState<string>(rec0.until || "");
+  const [exdates, setExdates] = useState<string[]>(Array.isArray(ev?.exdates) ? ev.exdates : []);
+
+  const restoreOcc = async (d: string) => {
+    try {
+      await api.post(`/team/calendar/events/${ev.event_id}/restore-occurrence`, { occ_date: d });
+      setExdates((p) => p.filter((x) => x !== d));
+      onChanged?.();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not restore that date."); }
+  };
 
   const buildRecurrence = () => {
     if (!repeat) return { freq: "none" };
@@ -425,10 +476,8 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
     } catch (e: any) { Alert.alert("Couldn't add", e?.response?.data?.detail || "Try again."); }
   };
 
-  const save = async () => {
-    if (!title.trim()) { Alert.alert("Missing", "Add a title."); return; }
-    if (!date) { Alert.alert("Missing", "Pick a start date."); return; }
-    if (repeat && (mode === "weekly" || mode === "biweekly") && wd.length === 0) { Alert.alert("Missing", "Pick at least one day of the week."); return; }
+  const doSave = async () => {
+    setConfirmAllOpen(false);
     setSaving(true);
     const payload = {
       event_type: eventType, title: title.trim(), location: loc.trim(), address: address.trim(),
@@ -440,6 +489,16 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
       onSaved();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save event."); }
     finally { setSaving(false); }
+  };
+
+  const save = () => {
+    if (!title.trim()) { Alert.alert("Missing", "Add a title."); return; }
+    if (!date) { Alert.alert("Missing", "Pick a start date."); return; }
+    if (repeat && (mode === "weekly" || mode === "biweekly") && wd.length === 0) { Alert.alert("Missing", "Pick at least one day of the week."); return; }
+    // Edit-All confirmation: editing a repeating event changes every date.
+    const wasRecurring = isEdit && !!ev?.recurrence?.freq && ev.recurrence.freq !== "none";
+    if (wasRecurring) { setConfirmAllOpen(true); return; }
+    doSave();
   };
 
   return (
@@ -505,6 +564,19 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
             </>
           )}
 
+          {isEdit && exdates.length > 0 && (
+            <>
+              <Text style={styles.secLbl}>Cancelled dates</Text>
+              <Text style={styles.sheetSub2}>These dates are hidden from the series. Restore any to bring it back.</Text>
+              {exdates.slice().sort().map((d) => (
+                <View key={d} style={styles.exRow}>
+                  <View style={styles.rowT}><Ionicons name="close-circle" size={15} color="#B45309" /><Text style={styles.exText}>{fmtDate(d)}</Text></View>
+                  <TouchableOpacity onPress={() => restoreOcc(d)} hitSlop={8} testID={`restore-${d}`}><Text style={styles.exRestore}>Restore</Text></TouchableOpacity>
+                </View>
+              ))}
+            </>
+          )}
+
           <Text style={styles.secLbl}>Notes (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wear comp shoes" placeholderTextColor={colors.textTertiary} />
 
@@ -513,6 +585,15 @@ function EventForm({ ev, allTypes, customTypes, setCustomTypes, onClose, onSaved
         </ScrollView>
       </Pressable></Pressable>
       <AddTypeModal visible={addTypeOpen} title="New event type" placeholder="e.g. Tumbling" withColor onSubmit={(name: string, color?: string) => addType(name, color)} onClose={() => setAddTypeOpen(false)} />
+      <ConfirmModal
+        visible={confirmAllOpen}
+        title="Update every date?"
+        message="This is a repeating event, so your changes apply to all dates in the series. To change just one day, close this and cancel that single date instead."
+        confirmText="Update all dates"
+        onConfirm={doSave}
+        onCancel={() => setConfirmAllOpen(false)}
+        styles={styles}
+      />
     </Modal>
   );
 }
@@ -569,6 +650,10 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
     ...selectableSingles,
   ];
   const allSelected = allSelectable.length > 0 && allSelectable.every(({ id }) => sel[id]);
+  // How many actual dates will land on the team calendar (a series counts as its occurrences).
+  const seriesRepCount: Record<string, number> = {};
+  seriesGroups.forEach((g) => { seriesRepCount[g.items[0].id] = g.items.length; });
+  const dateCount = Object.keys(sel).reduce((acc, id) => acc + (seriesRepCount[id] || 1), 0);
 
   const doImport = async () => {
     if (count === 0) return;
@@ -685,8 +770,9 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
             )}
           </ScrollView>
         )}
+        {count > 0 && <Text style={styles.impPreview}>{`Adds ${dateCount} date${dateCount === 1 ? "" : "s"} to the team calendar${count !== dateCount ? ` (${count} item${count === 1 ? "" : "s"})` : ""}.`}</Text>}
         <TouchableOpacity style={[styles.saveBtn, (count === 0 || saving) && { opacity: 0.5 }]} onPress={doImport} disabled={count === 0 || saving} testID="import-personal-confirm">
-          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{count === 0 ? "Select items to import" : `Import ${count} to TeamHub`}</Text>}
+          {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{count === 0 ? "Select items to import" : `Import ${dateCount} date${dateCount === 1 ? "" : "s"}`}</Text>}
         </TouchableOpacity>
         <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
       </Pressable></Pressable>
@@ -738,6 +824,16 @@ const makeStyles = (c: ThemePalette) => ({
   hideBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, paddingVertical: 8 },
   hideText: { ...typography.caption, color: c.textSecondary, fontWeight: "700" },
   delBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, paddingVertical: 8 }, delText: { ...typography.caption, color: "#0F172A", fontWeight: "800" },
+  cancelOccBtn: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: spacing.md, paddingVertical: 8 },
+  cancelOccText: { ...typography.caption, color: "#B45309", fontWeight: "800" },
+  exRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.borderSoft },
+  exText: { ...typography.body, color: c.textPrimary },
+  exRestore: { ...typography.caption, color: c.accent, fontWeight: "800" },
+  impPreview: { ...typography.caption, color: c.textSecondary, fontWeight: "700", textAlign: "center", marginTop: spacing.sm },
+  confirmWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: spacing.lg },
+  confirmCard: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg, gap: 6 },
+  confirmTitle: { ...typography.h3, color: c.textPrimary },
+  confirmMsg: { ...typography.body, color: c.textSecondary, marginTop: 2 },
   input: { backgroundColor: c.bg, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, padding: 12, ...typography.body, color: c.textPrimary, marginTop: 8 },
   freqBtn: { borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingVertical: 8, paddingHorizontal: 16 }, freqOn: { backgroundColor: c.accent, borderColor: c.accent },
   freqText: { ...typography.caption, fontWeight: "800", color: c.textPrimary },

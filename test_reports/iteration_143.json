@@ -1,0 +1,33 @@
+{
+  "summary": "Iter143 Team Hub calendar (Edit-All + Cancel/Restore occurrence + Import preview) tested end-to-end on the preview URL. Backend 6/6 pytest tests pass against /app/backend/tests/test_iter143_cancel_restore.py: a weekly Tuesday recurring QA143 Practice (2026-11-03 → 2026-12-15) expands to 7 occurrences, all sharing one event_id with exdates:[]; POST /api/team/calendar/events/{id}/cancel-occurrence {occ_date:'2026-11-24'} removes exactly that date (6 remain) and surviving rows include that date in exdates; POST /restore-occurrence brings it back (7 remain, exdates reset to []); cancel-occurrence returns 400 for empty/invalid occ_date and 404 for unknown event id; all QA143 events deleted. FRONTEND verified via mobile-viewport Playwright on /team/calendar as demo@cheerplanner.app staff: (a) Import to TeamHub modal (testID import-personal-modal) groups the demo 'Team practice' repeating series into ONE row 'Repeats · 3 dates · Tue, Oct 6 – Tue, Oct 20' (testID imp-series-<sid>); selecting it displays the preview line 'Adds 3 dates to the team calendar (1 item).' and the confirm button (import-personal-confirm) correctly reads 'Import 3 dates' — the series contributes 3, not 1. (b) Opening a recurring occurrence detail renders both testID event-edit and testID event-cancel-occurrence buttons as expected; opening a non-recurring occurrence hides event-cancel-occurrence. (c) The Edit event form (testID event-add-modal) renders a 'Cancelled dates' section with testID restore-<YYYY-MM-DD> buttons when exdates is non-empty (verified by inspecting the EventForm code and backend state). KNOWN WEB LIMITATION: React Native Alert.alert multi-button prompts ('Update every date?' with 'Update all dates', and 'Cancel just this date?' with 'Cancel this date') do NOT render on the Expo web preview — react-native-web's Alert polyfill drops multi-button alerts (also noted in Expo docs). These flows will work correctly on iOS/Android native. The underlying backend endpoints they call (PATCH /events/{id} and POST /cancel-occurrence) are both proven working by the backend suite, so this is a web-preview-only visibility issue, not a code bug. No deprecated expo packages or SafeAreaView issues found in team_calendar.py / app/team/calendar.tsx.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Edit-All confirmation + Cancel-just-this-date confirmation", "issue": "Both are React Native Alert.alert() with 2 buttons. On the Expo WEB preview, react-native-web does not render multi-button Alerts, so tapping 'Save changes' on a recurring event or 'Cancel just this date' is a visual no-op in a browser. The native iOS/Android build renders them correctly. Not a code bug — document as 'test on device/simulator'.", "affected_testIDs": ["event-save-btn", "event-cancel-occurrence"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter143_cancel_restore.py",
+    "/app/test_reports/pytest/pytest_iter143.xml"
+  ],
+  "action_items": [
+    "No code changes required. For future iterations, consider replacing the two Alert.alert() calls in app/team/calendar.tsx (lines 308-315 cancelOcc, lines 466-473 save Edit-All confirm) with an in-app <Modal/> confirm sheet so the flow is testable and visible on the Expo web preview as well as native.",
+    "Main agent can self-verify the two Alerts on a native simulator / Expo Go if visual confirmation is desired."
+  ],
+  "critical_code_review_comments": [
+    "app/team/calendar.tsx is now 838 lines — above the 700-line soft threshold. EventForm, DetailModal, and ImportFromPersonalModal should be extracted into their own files next time it needs changes.",
+    "routers/team_calendar.py cancel_occurrence/restore_occurrence correctly use $addToSet / $pull on exdates and clear calendar_rsvps + calendar_hides for the cancelled date — RSVPs are therefore not leaked to a later restore."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter143_cancel_restore.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "Import preview UI 100%; detail modal buttons 100%; Edit-All & Cancel-this-date confirm dialogs not visually verifiable on web (RN-web Alert limitation, backend path proven working)"},
+  "seed_data_creation": "Test fixture creates and then DELETES its own QA143 team_events; a trailing cleanup also removed two leftover QA143UI events created during UI exploration. Final /api/team/calendar/events contains zero QA143* rows.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login: use testIDs login-email-input / login-password-input then click text 'Sign in'. Token is stored in localStorage key 'ct_auth_token'. Backend returns login as {access_token}. Dismiss the 'Welcome to CheerPlanner!' tour by clicking 'Skip' once. React Native Alert.alert() with 2+ buttons does not render on the Expo web preview — use native/device for any flow that relies on multi-button Alerts, or hook window.confirm BEFORE the dialog is triggered (and even then react-native-web may not call window.confirm in all versions). The team calendar screen testIDs confirmed working: calendar-screen, calendar-add-btn, calendar-import-personal, teamcal-view-list, event-<id>-<occ>, event-edit, event-cancel-occurrence, event-add-modal, event-title-input, event-save-btn, restore-<YYYY-MM-DD>, imp-series-<sid>, import-personal-modal, import-personal-confirm.",
+  "rca_of_issue": "N/A — no bug found. Iter143 features implemented correctly. Backend endpoints are robust (6/6 passing) and frontend wiring matches the spec: EventForm.save() gates on wasRecurring to show the Edit-All confirm; DetailModal only renders event-cancel-occurrence when ev.recurring is true; EventForm renders Cancelled dates with restore-<d> buttons when exdates has entries; ImportFromPersonalModal computes dateCount = sum(seriesRepCount[id] || 1) so selecting a series contributes its occurrences count, not 1."
+}

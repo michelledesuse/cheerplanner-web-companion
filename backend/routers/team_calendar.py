@@ -65,13 +65,14 @@ def _occurrences(ev: dict, win_from: date, win_to: date) -> list:
         return []
     rec = ev.get("recurrence") or {}
     freq = rec.get("freq") or "none"
+    exset = set(ev.get("exdates") or [])
     until = _d(rec.get("until")) or win_to
     end = min(win_to, until)
     out = []
     if freq == "none":
         if win_from <= start <= win_to:
             out.append(start.isoformat())
-        return out
+        return [x for x in out if x not in exset]
     interval = max(1, int(rec.get("interval") or 1))
     if freq == "daily":
         cur = start
@@ -114,7 +115,7 @@ def _occurrences(ev: dict, win_from: date, win_to: date) -> list:
             while m > 12:
                 m -= 12
                 y += 1
-    return sorted(set(out))
+    return sorted(d for d in set(out) if d not in exset)
 
 
 # ---------------------------------------------------------------
@@ -137,6 +138,7 @@ async def create_event(payload: dict = Body(...), user=Depends(require_team_acce
         "address": (payload.get("address") or "").strip(), "date": str(payload["date"])[:10],
         "start_time": payload.get("start_time") or "", "end_time": payload.get("end_time") or "",
         "notes": (payload.get("notes") or "").strip(), "recurrence": rec,
+        "exdates": [],
         "created_by": user["id"], "created_at": _now(),
     }
     await db.team_events.insert_one(dict(ev))
@@ -166,6 +168,41 @@ async def delete_event(event_id: str, user=Depends(require_team_access)):
     await db.team_events.delete_one({"id": event_id, "household_id": h["id"]})
     await db.calendar_rsvps.delete_many({"event_id": event_id})
     await db.calendar_hides.delete_many({"event_id": event_id})
+    return {"ok": True}
+
+
+@router.post("/team/calendar/events/{event_id}/cancel-occurrence")
+async def cancel_occurrence(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    """Cancel a single date of a repeating event for the whole team, without
+    touching the rest of the series."""
+    h = await _resolve_active_household(user["id"])
+    occ = _d(payload.get("occ_date"))
+    if not occ:
+        raise HTTPException(status_code=400, detail="A valid date is required.")
+    occ_iso = occ.isoformat()
+    r = await db.team_events.update_one(
+        {"id": event_id, "household_id": h["id"]}, {"$addToSet": {"exdates": occ_iso}}
+    )
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    # Clear that date's RSVPs/hides so stale responses don't linger.
+    await db.calendar_rsvps.delete_many({"event_id": event_id, "occ_date": occ_iso})
+    await db.calendar_hides.delete_many({"event_id": event_id, "occ_date": occ_iso})
+    return {"ok": True}
+
+
+@router.post("/team/calendar/events/{event_id}/restore-occurrence")
+async def restore_occurrence(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    """Bring back a previously-cancelled date of a repeating event."""
+    h = await _resolve_active_household(user["id"])
+    occ = _d(payload.get("occ_date"))
+    if not occ:
+        raise HTTPException(status_code=400, detail="A valid date is required.")
+    r = await db.team_events.update_one(
+        {"id": event_id, "household_id": h["id"]}, {"$pull": {"exdates": occ.isoformat()}}
+    )
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Event not found.")
     return {"ok": True}
 
 
@@ -199,6 +236,7 @@ async def list_events(from_: str = None, to: str = None, user=Depends(get_curren
                 "start_time": ev.get("start_time"), "end_time": ev.get("end_time"), "notes": ev.get("notes"),
                 "recurring": (ev.get("recurrence") or {}).get("freq", "none") != "none",
                 "recurrence": ev.get("recurrence") or {"freq": "none"}, "event_date": ev.get("date"),
+                "exdates": ev.get("exdates") or [],
                 "can_edit": role == "staff",
             }
             if role == "staff":

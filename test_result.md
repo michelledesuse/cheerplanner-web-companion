@@ -761,3 +761,14 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - _to_team_recurrence unit-checked (weekly/biweekly/monthly/none) + round-trips with _to_schedule_rule.
 - Backend import OK; frontend lint clean (pre-existing _e warnings only).
 - Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 143 — Team calendar: edit-all confirm, cancel/restore single date, import preview (main agent)
+- EDIT-ALL CONFIRMATION (frontend EventForm.save): when saving edits to a REPEATING team event, an Alert warns "Update every date? … applies to all dates" with Cancel / "Update all dates"; only patches on confirm. Non-recurring saves unchanged.
+- CANCEL SINGLE DATE: team_events now has exdates[]; _occurrences skips them. New POST /api/team/calendar/events/{id}/cancel-occurrence {occ_date} (addToSet exdates + clears that date's rsvps/hides) and POST .../restore-occurrence {occ_date} (pull). DetailModal (staff + recurring) shows "Cancel just this date" (confirm); list rows now include exdates; EventForm edit shows a "Cancelled dates" section with per-date Restore. Delete button now says "Delete event (all dates)" for recurring. VERIFIED via curl: weekly Tue series 7 occ → cancel 11-17 → 6 → restore → 7.
+- IMPORT PREVIEW: ImportFromPersonalModal computes dateCount (series counts as its occurrences) and shows "Adds N dates to the team calendar (M items)." above the button; button now reads "Import N dates".
+- Backend import OK; frontend lint clean (pre-existing _e warnings only); services restarted.
+- Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 143b — Edit-All & Cancel-date confirms converted to in-app ConfirmModal (main agent)
+- Per testing-agent note, Alert.alert multi-button confirms don't render in Expo web preview. Replaced the two NEW confirms with a reusable in-app <ConfirmModal> (testID calendar-confirm-modal / -yes / -no): EventForm "Update every date?" (Edit-All) and DetailModal "Cancel just this date?". Now visible on web + native. Delete/other pre-existing Alerts left as-is.
+- Lint clean (pre-existing _e warnings only); calendar screen renders (smoke screenshot OK); backend cancel/restore unchanged (already 6/6).
