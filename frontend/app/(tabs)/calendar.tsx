@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
@@ -294,6 +295,7 @@ export default function CalendarTab() {
       <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
         <Pressable style={styles.sheetBackdrop} onPress={() => setAddOpen(false)} testID="cal-add-backdrop">
           <Pressable style={styles.sheet} onPress={() => {}}>
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Add to {formatDateLong(selected)}</Text>
             <TouchableOpacity style={styles.sheetRow} onPress={() => startAdd("competition")} testID="cal-add-competition">
               <View style={[styles.sheetIcon, { backgroundColor: "#007CFF22" }]}>
@@ -318,6 +320,7 @@ export default function CalendarTab() {
             <TouchableOpacity style={styles.sheetCancel} onPress={() => setAddOpen(false)} testID="cal-add-cancel">
               <Text style={styles.sheetCancelText}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

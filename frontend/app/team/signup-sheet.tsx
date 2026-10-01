@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -371,6 +372,7 @@ export default function SignupSheetScreen() {
         <Pressable style={styles.backdrop} onPress={() => setAddSlotOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Add a slot</Text>
               <Text style={styles.label}>Type</Text>
               <View style={styles.kindRow}>
@@ -394,6 +396,7 @@ export default function SignupSheetScreen() {
               <TouchableOpacity style={[styles.confirm, savingSlot && { opacity: 0.6 }]} onPress={addSlot} disabled={savingSlot} testID="signup-slot-save">
                 {savingSlot ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add slot</Text>}
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>
@@ -404,6 +407,7 @@ export default function SignupSheetScreen() {
         <Pressable style={styles.backdrop} onPress={() => setSlotMenu(null)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Edit slot</Text>
               <Text style={styles.label}>Type</Text>
               <View style={styles.kindRow}>
@@ -429,6 +433,7 @@ export default function SignupSheetScreen() {
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete slot</Text>
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>
@@ -439,6 +444,7 @@ export default function SignupSheetScreen() {
         <Pressable style={styles.backdrop} onPress={() => setSheetMenuOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Edit sheet</Text>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="signup-edit-name" />
@@ -480,6 +486,7 @@ export default function SignupSheetScreen() {
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete sheet</Text>
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>

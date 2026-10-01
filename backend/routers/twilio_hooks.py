@@ -19,6 +19,7 @@ from fastapi.responses import Response
 from core.db import db
 from core.models import utcnow_iso
 from core.sms import normalize_us_phone
+from core.twilio_verify import verify_twilio_request
 
 logger = logging.getLogger("routers.twilio_hooks")
 router = APIRouter(prefix="/api")
@@ -27,6 +28,8 @@ router = APIRouter(prefix="/api")
 @router.post("/twilio/status")
 async def twilio_status(request: Request):
     form = await request.form()
+    if not verify_twilio_request(request, form):
+        return Response(status_code=403)
     sid = form.get("MessageSid") or form.get("SmsSid")
     status = (form.get("MessageStatus") or form.get("SmsStatus") or "").lower()
     if not sid or not status:
@@ -52,6 +55,8 @@ async def twilio_status(request: Request):
 @router.post("/twilio/inbound")
 async def twilio_inbound(request: Request):
     form = await request.form()
+    if not verify_twilio_request(request, form):
+        return Response(status_code=403)
     from_raw = form.get("From") or ""
     body = form.get("Body") or ""
     sid = form.get("MessageSid") or form.get("SmsSid") or ""

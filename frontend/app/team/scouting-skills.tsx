@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -303,12 +304,14 @@ export default function ScoutingSkills() {
       <Modal visible={!!addCat} transparent animationType="fade" onRequestClose={() => setAddCat(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setAddCat(null)}>
           <Pressable style={styles.sheet} onPress={() => {}} testID="skill-add-modal">
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Add skill · {SCOUT_CATEGORIES.find((c) => c.key === addCat)?.label}{addSub ? ` · ${SUBS.find((s) => s.key === addSub)?.label}` : ""} · Level {addLevel}</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Standing Back Handspring" placeholderTextColor={colors.textTertiary} autoFocus testID="skill-name-input" />
             <TouchableOpacity style={[styles.saveBtn, (!name.trim() || saving) && { opacity: 0.6 }]} onPress={addSkill} disabled={!name.trim() || saving} testID="skill-save-btn">
               {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>Add skill</Text>}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setAddCat(null)} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

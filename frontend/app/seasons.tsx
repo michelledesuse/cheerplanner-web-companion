@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, Pressable, Alert, ActivityIndicator, Switch, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -175,6 +176,7 @@ export default function SeasonsScreen() {
         <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <Pressable style={styles.backdrop} onPress={() => setCreateOpen(false)} />
           <View style={styles.sheetFlow}>
+            <SheetScroll>
             <Text style={styles.sheetTitle}>New season</Text>
             <Text style={styles.label}>Name</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. 2025–2026" placeholderTextColor={colors.textTertiary} testID="season-name" autoFocus />
@@ -186,6 +188,7 @@ export default function SeasonsScreen() {
             <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="season-create-btn">
               {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create season</Text>}
             </TouchableOpacity>
+            </SheetScroll>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -194,11 +197,13 @@ export default function SeasonsScreen() {
       <Modal visible={!!menu && !editOpen && !rollOpen} transparent animationType="fade" onRequestClose={() => setMenu(null)}>
         <Pressable style={styles.backdrop} onPress={() => setMenu(null)} />
         <View style={styles.menuSheet}>
+          <SheetScroll>
           <Text style={styles.sheetTitle}>{menu?.name}</Text>
           {!menu?.is_active && <MenuItem icon="checkmark-circle-outline" label="Make active" onPress={doActivate} testID="season-activate" />}
           <MenuItem icon="create-outline" label="Edit name / dates" onPress={openEdit} testID="season-edit" />
           <MenuItem icon="swap-horizontal-outline" label="Roll over to new season" onPress={openRollover} testID="season-rollover" />
           <MenuItem icon="trash-outline" label="Delete season" danger onPress={del} testID="season-delete" />
+          </SheetScroll>
         </View>
       </Modal>
 
@@ -207,6 +212,7 @@ export default function SeasonsScreen() {
         <KeyboardAvoidingView style={styles.kav} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <Pressable style={styles.backdrop} onPress={() => setEditOpen(false)} />
           <View style={styles.sheetFlow}>
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Edit season</Text>
             <Text style={styles.label}>Name</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholderTextColor={colors.textTertiary} testID="season-edit-name" />
@@ -215,6 +221,7 @@ export default function SeasonsScreen() {
               <View style={{ flex: 1 }}><Text style={styles.label}>End</Text><DateField value={endDate} onChange={setEndDate} /></View>
             </View>
             <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="season-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+            </SheetScroll>
           </View>
         </KeyboardAvoidingView>
       </Modal>

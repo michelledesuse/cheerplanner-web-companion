@@ -17,6 +17,7 @@ import ChatMediaView from "@/src/components/ChatMediaView";
 import { uploadChatMedia, getAuthToken } from "@/src/utils/chatMedia";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 type Media = { id: string; kind: "image" | "video" | "audio"; content_type: string; name?: string };
 
@@ -787,6 +788,7 @@ export default function TeamChatScreen() {
       <Modal visible={schedOpen} transparent animationType="fade" onRequestClose={() => setSchedOpen(false)}>
         <View style={styles.modalWrap}>
           <View style={styles.sheet} testID="chat-schedule-modal">
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Schedule a post</Text>
             <Text style={styles.channelSub}>Posts to {activeChannel ? `“${activeChannel.name}”` : "the main team chat"} at the time you pick.</Text>
             <TextInput
@@ -842,6 +844,7 @@ export default function TeamChatScreen() {
             <TouchableOpacity onPress={() => setSchedOpen(false)} style={{ paddingVertical: 8 }}>
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </View>
         </View>
       </Modal>

@@ -11,6 +11,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { shareTeamLink } from "@/src/utils/shareLink";
 import { exportAoa } from "@/src/utils/exportFile";
+import { SheetScroll } from "@/src/components/SheetScroll";
 import { toggleId } from "@/src/utils/filters";
 import SeasonBar from "@/src/components/SeasonBar";
 import { useSeason } from "@/src/context/SeasonContext";
@@ -146,7 +147,15 @@ export default function RosterScreen() {
     setActionsOpen(false);
     const seen = new Set<string>();
     const unique = members.filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)));
-    const header = ["Name", "Role", "Team(s)", "DOB", "Phone", "Email", "Parent First", "Parent Last", "Parent Relationship", "Parent Phone", "Parent Email", "Other Caretakers", "Notes"];
+    // Pull the shared size sheet so sizes join the roster download.
+    let sizeCols: { id: string; label: string }[] = [];
+    let sizeVals: Record<string, Record<string, string>> = {};
+    try {
+      const sr = await api.get<{ columns?: { id: string; label: string; order?: number }[]; values?: Record<string, Record<string, string>> }>("/team/sizes");
+      sizeCols = (sr.data.columns || []).slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)).map((c) => ({ id: c.id, label: c.label }));
+      sizeVals = sr.data.values || {};
+    } catch { /* sizes optional — fall back to roster-only export */ }
+    const header = ["Name", "Role", "Team(s)", "DOB", "Phone", "Email", "Parent First", "Parent Last", "Parent Relationship", "Parent Phone", "Parent Email", "Other Caretakers", "Notes", ...sizeCols.map((c) => c.label)];
     const roleLabel: Record<string, string> = { athlete: "Athlete", coach: "Coach", team_rep: "Team Rep", staff: "Staff", parent: "Parent" };
     const rows = unique.map((m) => [
       m.name,
@@ -157,6 +166,7 @@ export default function RosterScreen() {
       m.parent_first_name || "", m.parent_last_name || "", m.parent_relationship || "", m.parent_phone || "", m.parent_email || "",
       (m.caretakers || []).map((c) => `${[c.first_name, c.last_name].filter(Boolean).join(" ")}${c.relationship ? ` (${c.relationship})` : ""}${c.phone ? ` ${c.phone}` : ""}`.trim()).filter(Boolean).join("; "),
       m.notes || "",
+      ...sizeCols.map((c) => (sizeVals[m.id] || {})[c.id] || ""),
     ]);
     try {
       await exportAoa("cheerplanner-roster", [header, ...rows], format, "Roster");
@@ -432,6 +442,7 @@ export default function RosterScreen() {
       <Modal visible={actionsOpen} transparent animationType="fade" onRequestClose={() => setActionsOpen(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setActionsOpen(false)}>
           <Pressable style={styles.menuSheet} onPress={() => {}}>
+            <SheetScroll>
             <View style={styles.menuHandle} />
             <TouchableOpacity style={styles.menuItem} onPress={() => { setActionsOpen(false); router.push("/team/broadcast" as any); }} testID="roster-menu-broadcast">
               <Ionicons name="chatbubbles-outline" size={19} color={colors.accent} />
@@ -461,6 +472,7 @@ export default function RosterScreen() {
               <Ionicons name="document-text-outline" size={19} color={colors.accent} />
               <Text style={styles.menuText}>Download roster (CSV)</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

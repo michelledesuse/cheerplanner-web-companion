@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -372,6 +373,7 @@ export default function PaymentDetail() {
         <Pressable style={styles.backdrop} onPress={() => setEditOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheet} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Edit tracker</Text>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="payment-edit-name" />
@@ -382,6 +384,7 @@ export default function PaymentDetail() {
               <PhotoGallery photos={editPhotos} onChange={setEditPhotos} testIDPrefix="payment-photo" />
               {tracker && <AttachSection endpoint={`/team/payments/${tracker.id}`} competitionIds={tracker.competition_ids || []} eventIds={tracker.event_ids || []} onChange={(c, e) => setTracker((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="payment-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>

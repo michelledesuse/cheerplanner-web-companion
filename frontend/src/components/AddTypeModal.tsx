@@ -3,6 +3,7 @@ import { Modal, View, Text, TextInput, TouchableOpacity, Pressable, ActivityIndi
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 /** Preset swatches offered when creating a custom event type. */
 export const TYPE_COLOR_SWATCHES = [
@@ -49,6 +50,7 @@ export default function AddTypeModal({ visible, title, placeholder, withColor, o
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation?.()} testID="add-type-modal">
+          <SheetScroll contentContainerStyle={{ gap: spacing.sm }}>
           <Text style={styles.title}>{title}</Text>
           <TextInput
             style={styles.input}
@@ -87,6 +89,7 @@ export default function AddTypeModal({ visible, title, placeholder, withColor, o
               {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveText}>Add</Text>}
             </TouchableOpacity>
           </View>
+          </SheetScroll>
         </Pressable>
       </Pressable>
     </Modal>

@@ -15,6 +15,7 @@ import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 type Member = { id: string; name: string; role: string; parent_first_name?: string; parent_phone?: string; phone?: string };
 type Team = { id: string; name: string };
@@ -397,6 +398,7 @@ export default function BroadcastScreen() {
       <Modal visible={!!review} transparent animationType="slide" onRequestClose={() => setReview(null)}>
         <Pressable style={styles.backdrop} onPress={() => setReview(null)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Confirm send</Text>
             <Text style={styles.reviewCount}>{review?.recipient_count || 0} parent{review?.recipient_count === 1 ? "" : "s"} will get a text.</Text>
             {!!review?.no_phone_count && <Text style={styles.noPhone}>{review.no_phone_count} roster member(s) have no phone on file and will be skipped.</Text>}
@@ -410,6 +412,7 @@ export default function BroadcastScreen() {
               {sending ? <ActivityIndicator color="white" /> : <Text style={styles.doneText}>{sendLater ? "Schedule" : "Send now"}</Text>}
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancel} onPress={() => setReview(null)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>
@@ -442,6 +445,7 @@ export default function BroadcastScreen() {
       <Modal visible={saveOpen} transparent animationType="fade" onRequestClose={() => setSaveOpen(false)}>
         <Pressable style={styles.centerBackdrop} onPress={() => setSaveOpen(false)}>
           <Pressable style={styles.dialog} onPress={() => {}}>
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Save as template</Text>
             <TextInput
               style={styles.dialogInput}
@@ -454,6 +458,7 @@ export default function BroadcastScreen() {
             />
             <TouchableOpacity style={styles.done} onPress={saveTemplate} testID="broadcast-template-save"><Text style={styles.doneText}>Save</Text></TouchableOpacity>
             <TouchableOpacity style={styles.cancel} onPress={() => setSaveOpen(false)}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

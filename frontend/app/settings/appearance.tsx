@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -180,6 +181,7 @@ export default function AppearanceScreen() {
         <Modal visible={showSaveModal} transparent animationType="fade" onRequestClose={() => setShowSaveModal(false)}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
+              <SheetScroll>
               <Text style={styles.modalTitle}>Name this theme</Text>
               <TextInput
                 style={styles.modalInput}
@@ -203,6 +205,7 @@ export default function AppearanceScreen() {
                   <Text style={styles.modalSaveText}>Save</Text>
                 </TouchableOpacity>
               </View>
+              </SheetScroll>
             </View>
           </View>
         </Modal>

@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 const LAST_SHOWN_KEY = "rate_prompt_last_shown_at";
 const COOLDOWN_MS = 14 * 24 * 60 * 60 * 1000; // rolling 2 weeks
@@ -61,6 +62,7 @@ export function RatePromptProvider({ children }: { children: React.ReactNode }) 
       <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
         <View style={styles.overlay}>
           <View style={styles.card} testID="rate-prompt-card">
+            <SheetScroll contentContainerStyle={{ alignItems: "center", gap: spacing.sm }}>
             <View style={styles.iconWrap}>
               <Ionicons name="star" size={26} color="#F59E0B" />
             </View>
@@ -75,6 +77,7 @@ export function RatePromptProvider({ children }: { children: React.ReactNode }) 
             <TouchableOpacity style={styles.secondaryBtn} onPress={close} testID="rate-prompt-later">
               <Text style={styles.secondaryText}>Maybe later</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </View>
         </View>
       </Modal>

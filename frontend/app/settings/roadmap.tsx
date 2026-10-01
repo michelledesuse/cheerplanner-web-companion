@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl,
@@ -403,6 +404,7 @@ export default function RoadmapScreen() {
       <Modal visible={addOpen} transparent animationType="fade" onRequestClose={() => setAddOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+            <SheetScroll>
             <Text style={styles.modalTitle}>Add planned feature</Text>
             <TextInput style={styles.input} value={pTitle} onChangeText={setPTitle} placeholder="Feature title" placeholderTextColor={colors.textTertiary} maxLength={120} testID="roadmap-planned-title" />
             <TextInput style={[styles.input, styles.inputMulti]} value={pDetail} onChangeText={setPDetail} placeholder="Description (optional)" placeholderTextColor={colors.textTertiary} multiline testID="roadmap-planned-detail" />
@@ -412,6 +414,7 @@ export default function RoadmapScreen() {
                 {savingPlanned ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>Add</Text>}
               </TouchableOpacity>
             </View>
+            </SheetScroll>
           </View>
         </KeyboardAvoidingView>
       </Modal>

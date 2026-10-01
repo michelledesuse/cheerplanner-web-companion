@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl,
@@ -190,6 +191,7 @@ export default function ReviewsHome() {
       <Modal visible={addCatOpen} transparent animationType="fade" onRequestClose={() => setAddCatOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalWrap}>
           <View style={styles.modalCard}>
+            <SheetScroll>
             <Text style={styles.modalTitle}>Add a category</Text>
             <TextInput
               style={styles.modalInput}
@@ -204,6 +206,7 @@ export default function ReviewsHome() {
               <TouchableOpacity onPress={() => { setAddCatOpen(false); setNewCat(""); }}><Text style={styles.modalCancel}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity onPress={addCategory} style={styles.modalSave} testID="save-category-btn"><Text style={styles.modalSaveText}>Add</Text></TouchableOpacity>
             </View>
+            </SheetScroll>
           </View>
         </KeyboardAvoidingView>
       </Modal>

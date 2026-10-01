@@ -672,3 +672,11 @@ Get exact current paths from user before building W2.
 - Bulk "Add all" (POST /api/inbox/drafts/confirm-all) + Add-all sheet in inbox.tsx.
 - Trip grouping: Competition detail shows one combined "Trip" card (counts, date range, attending athletes, trip total + balance due).
 - All verified by testing agent (iteration_125): backend 5/5 + frontend flows PASS.
+
+## Session update 19 (iter139 — exports, webhook security, popup sweep Part 2)
+- DONE: Sizes tab now has a DOWNLOAD (CSV/Excel) in the header (testID sizes-download-open → sizes-download-xlsx/-csv), exporting Name + Role + every size column for the team-filtered roster. (Previously the Sizes tab only had import.)
+- DONE: Roster CSV/Excel download now INCLUDES the size columns (each size column label as a header + per-member value), fetched from /api/team/sizes.
+- DONE (P1 "Secure the webhook"): public Twilio webhooks POST /api/twilio/inbound + /api/twilio/status now verify X-Twilio-Signature (core/twilio_verify.py via twilio RequestValidator). 403 on missing/forged signature; signed requests pass; verification is skipped only when TWILIO_AUTH_TOKEN is unset (dev). Candidate-URL rebuild from X-Forwarded-Proto/Host (+ optional TWILIO_WEBHOOK_BASE_URL). Verified 9/9 pytest (test_iter139_twilio_sig_and_exports.py).
+- DONE: "Every popup scrolls" sweep Part 2 — wrapped remaining modals in <SheetScroll>: AddTypeModal, team join-code, delete-account, schedule scope+reschedule, broadcast review+save-template, form-detail edit-details+remind, chat schedule-post, seasons menu, RatePromptContext, roster actions-menu, signup-sheet "Edit sheet". DateField/TimeField intentionally excluded (native pickers).
+- AUDIT: AI Designer already uses gpt-image-2.5-sunburst (AI_DESIGNER_MODEL env; code default gpt-image-2) — no change needed.
+- DEFERRED (user only asked "what is it", not to do it): "Code hardening" = un-ignore .env in .gitignore, add Android READ_MEDIA_VIDEO permission, add RevenueCat Expo config plugin. Not implemented this session.

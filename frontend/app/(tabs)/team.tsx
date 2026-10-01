@@ -9,6 +9,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import HomeButton from "@/src/components/HomeButton";
 import TeamHubSwitcher from "@/src/components/TeamHubSwitcher";
+import { SheetScroll } from "@/src/components/SheetScroll";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
 import { usePremium } from "@/src/context/PremiumContext";
@@ -302,6 +303,7 @@ export default function TeamScreen() {
       <Modal visible={showJoin} transparent animationType="fade" onRequestClose={() => setShowJoin(false)}>
         <Pressable style={styles.modalWrap} onPress={() => setShowJoin(false)}>
           <Pressable style={styles.joinSheet} testID="join-modal">
+            <SheetScroll>
             <Text style={styles.joinTitle}>Join a team</Text>
             <Text style={styles.joinSub}>Enter the code your coach shared. You&apos;ll start in the group chat.</Text>
             <TextInput
@@ -321,6 +323,7 @@ export default function TeamScreen() {
             <TouchableOpacity onPress={() => setShowJoin(false)} style={{ paddingVertical: 10, alignItems: "center" }}>
               <Text style={styles.chatAthleteText}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

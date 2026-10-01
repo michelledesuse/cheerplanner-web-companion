@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -169,6 +170,7 @@ export default function SignupsScreen() {
         <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheet} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>New sign-up sheet</Text>
               <Text style={styles.label}>Name</Text>
               <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Nationals send-off party" placeholderTextColor={colors.textTertiary} testID="signup-name-input" autoFocus />
@@ -190,6 +192,7 @@ export default function SignupsScreen() {
               <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="signup-create-btn">
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create sheet</Text>}
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>

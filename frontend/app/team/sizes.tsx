@@ -3,6 +3,8 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshCon
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
+import DraggableFlatList, { ScaleDecorator, type RenderItemParams } from "react-native-draggable-flatlist";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 
 import { api } from "@/src/api/client";
@@ -11,8 +13,11 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import TrackerGrid from "@/src/components/TrackerGrid";
 import { buildGridRows, filterAndSplit, isPersonnel, type GridMember } from "@/src/utils/rosterGroups";
 import { shareTeamLink } from "@/src/utils/shareLink";
+import { exportAoa } from "@/src/utils/exportFile";
 import SeasonBar from "@/src/components/SeasonBar";
 import { useSeason } from "@/src/context/SeasonContext";
+
+const ROLE_LABEL: Record<string, string> = { athlete: "Athlete", coach: "Coach", team_rep: "Team Rep", staff: "Staff", parent: "Parent" };
 
 type Column = { id: string; label: string; is_default: boolean; order: number };
 type Sheet = { id: string; columns: Column[]; values: Record<string, Record<string, string>> };
@@ -38,6 +43,9 @@ export default function SizesScreen() {
   const [colMenu, setColMenu] = useState<Column | null>(null);
   const [renameLabel, setRenameLabel] = useState("");
   const [tallyOpen, setTallyOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const [dlOpen, setDlOpen] = useState(false);
+  const [orderCols, setOrderCols] = useState<Column[]>([]);
   const { filterSeasonId } = useSeason();
 
   const load = useCallback(async () => {
@@ -61,6 +69,21 @@ export default function SizesScreen() {
   const visibleAll = useMemo(() => filterAndSplit(members, teamFilter).all, [members, teamFilter]);
 
   const valueOf = (mid: string, cid: string) => sheet?.values?.[mid]?.[cid] ?? "";
+
+  const downloadSizes = async (format: "csv" | "xlsx") => {
+    setDlOpen(false);
+    const header = ["Name", "Role", ...columns.map((c) => c.label)];
+    const rows = visibleAll.map((m) => [
+      m.name,
+      ROLE_LABEL[m.role] || m.role,
+      ...columns.map((c) => valueOf(m.id, c.id)),
+    ]);
+    try {
+      await exportAoa("cheerplanner-sizes", [header, ...rows], format, "Sizes");
+    } catch (e: any) {
+      Alert.alert("Export failed", e?.message || "Please try again.");
+    }
+  };
 
   // Per-item tally. Personnel are excluded from the Sports bra column (they
   // don't get one) but are included in every other column's tally.
@@ -112,6 +135,41 @@ export default function SizesScreen() {
     const full = columns.find((x) => x.id === c.id) || null;
     setColMenu(full); setRenameLabel(c.label);
   };
+
+  const openReorder = () => { setOrderCols(columns.slice()); setReorderOpen(true); };
+
+  const persistOrder = async (next: Column[]) => {
+    setOrderCols(next);
+    // Reflect the new order immediately in the grid + tally.
+    setSheet((prev) => prev ? {
+      ...prev,
+      columns: prev.columns.map((c) => {
+        const idx = next.findIndex((n) => n.id === c.id);
+        return idx >= 0 ? { ...c, order: idx } : c;
+      }),
+    } : prev);
+    try {
+      const r = await api.patch<Sheet>("/team/sizes/columns/reorder", { order: next.map((c) => c.id) });
+      setSheet(r.data);
+    } catch (e: any) {
+      Alert.alert("Error", e?.response?.data?.detail || "Could not save order.");
+    }
+  };
+
+  const renderReorderItem = ({ item, drag, isActive }: RenderItemParams<Column>) => (
+    <ScaleDecorator>
+      <TouchableOpacity
+        style={[styles.reorderRow, isActive && styles.reorderRowActive]}
+        onLongPress={drag}
+        delayLongPress={120}
+        disabled={isActive}
+        testID={`sizes-reorder-${item.id}`}
+      >
+        <Ionicons name="reorder-three" size={22} color={colors.textTertiary} />
+        <Text style={styles.reorderLabel} numberOfLines={1}>{item.label}</Text>
+      </TouchableOpacity>
+    </ScaleDecorator>
+  );
 
   const renameColumn = async () => {
     if (!colMenu || !renameLabel.trim()) return;
@@ -166,8 +224,14 @@ export default function SizesScreen() {
         <TouchableOpacity onPress={() => router.push("/import/team_sizes" as any)} style={styles.iconBtn} testID="sizes-import" hitSlop={8}>
           <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => setDlOpen(true)} style={styles.iconBtn} testID="sizes-download-open" hitSlop={8}>
+          <Ionicons name="cloud-download-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
         <TouchableOpacity onPress={() => setTallyOpen(true)} style={styles.iconBtn} testID="sizes-tally-open" hitSlop={8}>
           <Ionicons name="stats-chart-outline" size={18} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={openReorder} style={styles.iconBtn} testID="sizes-reorder-open" hitSlop={8}>
+          <Ionicons name="swap-vertical-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => { setNewLabel(""); setAddOpen(true); }} style={styles.addBtn} testID="sizes-add-column">
           <Ionicons name="add" size={20} color="white" />
@@ -220,7 +284,7 @@ export default function SizesScreen() {
               <Text style={styles.sheetTitle}>Size tally</Text>
               <Text style={styles.tallySub}>{total} {total === 1 ? "person" : "people"}{teamFilter && teamFilter !== "none" ? " · this team" : ""}</Text>
             </View>
-            <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator testID="sizes-tally">
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: spacing.md }} showsVerticalScrollIndicator testID="sizes-tally">
               {tally.map(({ column, rows: trows, notSet, filled, eligible }) => (
                 <View key={column.id} style={styles.tallyBlock}>
                   <View style={styles.tallyTitleRow}>
@@ -252,16 +316,41 @@ export default function SizesScreen() {
         </Pressable>
       </Modal>
 
+      {/* Reorder item titles */}
+      <Modal visible={reorderOpen} transparent animationType="slide" onRequestClose={() => setReorderOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setReorderOpen(false)}>
+          <Pressable style={[styles.sheet, styles.tallySheet]} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Reorder items</Text>
+            <Text style={styles.reorderHint}>Press and hold an item, then drag to set the order you prefer.</Text>
+            <GestureHandlerRootView style={{ flex: 1 }}>
+              <DraggableFlatList
+                data={orderCols}
+                keyExtractor={(c) => c.id}
+                renderItem={renderReorderItem}
+                onDragEnd={({ data }) => persistOrder(data)}
+                contentContainerStyle={{ paddingBottom: spacing.md }}
+                showsVerticalScrollIndicator
+              />
+            </GestureHandlerRootView>
+            <TouchableOpacity style={styles.confirm} onPress={() => setReorderOpen(false)} testID="sizes-reorder-done">
+              <Text style={styles.confirmText}>Done</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Add column */}
       <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheet} onPress={() => {}}>
-              <Text style={styles.sheetTitle}>Add a size column</Text>
-              <TextInput style={styles.input} value={newLabel} onChangeText={setNewLabel} placeholder="e.g. Warmup pants" placeholderTextColor={colors.textTertiary} testID="sizes-new-label" autoFocus />
-              <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={addColumn} disabled={saving} testID="sizes-new-save">
-                {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add column</Text>}
-              </TouchableOpacity>
+              <ScrollView style={styles.modalScroll} contentContainerStyle={{ paddingBottom: spacing.sm }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.sheetTitle}>Add a size column</Text>
+                <TextInput style={styles.input} value={newLabel} onChangeText={setNewLabel} placeholder="e.g. Warmup pants" placeholderTextColor={colors.textTertiary} testID="sizes-new-label" autoFocus />
+                <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={addColumn} disabled={saving} testID="sizes-new-save">
+                  {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add column</Text>}
+                </TouchableOpacity>
+              </ScrollView>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>
@@ -272,15 +361,32 @@ export default function SizesScreen() {
         <Pressable style={styles.backdrop} onPress={() => setColMenu(null)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheet} onPress={() => {}}>
-              <Text style={styles.sheetTitle}>Edit column</Text>
-              <TextInput style={styles.input} value={renameLabel} onChangeText={setRenameLabel} placeholderTextColor={colors.textTertiary} testID="sizes-rename-label" />
-              <TouchableOpacity style={styles.confirm} onPress={renameColumn} testID="sizes-rename-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.deleteBtn} onPress={deleteColumn} testID="sizes-col-delete">
-                <Ionicons name="trash-outline" size={16} color={colors.danger} />
-                <Text style={styles.deleteText}>Delete column</Text>
-              </TouchableOpacity>
+              <ScrollView style={styles.modalScroll} contentContainerStyle={{ paddingBottom: spacing.sm }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+                <Text style={styles.sheetTitle}>Edit column</Text>
+                <TextInput style={styles.input} value={renameLabel} onChangeText={setRenameLabel} placeholderTextColor={colors.textTertiary} testID="sizes-rename-label" />
+                <TouchableOpacity style={styles.confirm} onPress={renameColumn} testID="sizes-rename-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>
+                <TouchableOpacity style={styles.deleteBtn} onPress={deleteColumn} testID="sizes-col-delete">
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                  <Text style={styles.deleteText}>Delete column</Text>
+                </TouchableOpacity>
+              </ScrollView>
             </Pressable>
           </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
+      {/* Download chooser (CSV / Excel) */}
+      <Modal visible={dlOpen} transparent animationType="slide" onRequestClose={() => setDlOpen(false)}>
+        <Pressable style={styles.backdrop} onPress={() => setDlOpen(false)}>
+          <Pressable style={styles.sheet} onPress={() => {}}>
+            <Text style={styles.sheetTitle}>Download sizes</Text>
+            <Text style={styles.tallySub}>{visibleAll.length} {visibleAll.length === 1 ? "person" : "people"}{teamFilter && teamFilter !== "none" ? " · this team" : ""}</Text>
+            <TouchableOpacity style={styles.confirm} onPress={() => downloadSizes("xlsx")} testID="sizes-download-xlsx">
+              <Text style={styles.confirmText}>Download (Excel)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.confirm, styles.confirmAlt]} onPress={() => downloadSizes("csv")} testID="sizes-download-csv">
+              <Text style={[styles.confirmText, styles.confirmTextAlt]}>Download (CSV)</Text>
+            </TouchableOpacity>
+          </Pressable>
         </Pressable>
       </Modal>
     </SafeAreaView>
@@ -308,10 +414,17 @@ const makeStyles = (c: ThemePalette) => ({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
   tallySheet: { maxHeight: "82%" },
+  modalScroll: { maxHeight: "100%" },
+  reorderHint: { ...typography.caption, color: c.textSecondary, marginBottom: spacing.md },
+  reorderRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
+  reorderRowActive: { borderColor: c.accent, backgroundColor: c.accentSubtle },
+  reorderLabel: { ...typography.bodyMedium, fontWeight: "700", color: c.textPrimary, flex: 1 },
   sheetTitle: { ...typography.h3, color: c.textPrimary, marginBottom: spacing.md },
   input: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 12, ...typography.body, color: c.textPrimary },
   confirm: { backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 14, alignItems: "center", marginTop: spacing.lg },
   confirmText: { color: "white", fontWeight: "800", fontSize: 15 },
+  confirmAlt: { backgroundColor: c.card, borderWidth: 1, borderColor: c.border, marginTop: spacing.sm },
+  confirmTextAlt: { color: c.textPrimary },
   deleteBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: spacing.md, paddingVertical: 12 },
   deleteText: { color: c.danger, fontWeight: "700" },
   tallyHeader: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", marginBottom: spacing.sm },

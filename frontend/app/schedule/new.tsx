@@ -20,6 +20,7 @@ import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/Lin
 import PhotoGallery from "@/src/components/PhotoGallery";
 import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 import AddTypeModal from "@/src/components/AddTypeModal";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 const TYPES = [
   { key: "practice", label: "Practice", icon: "barbell", color: "#EA580C" },
@@ -529,6 +530,7 @@ export default function ScheduleForm() {
       <Modal visible={!!scopeAction} transparent animationType="fade" onRequestClose={() => setScopeAction(null)}>
         <Pressable style={styles.scopeBackdrop} onPress={() => setScopeAction(null)}>
           <Pressable style={styles.scopeSheet} onPress={() => {}}>
+            <SheetScroll>
             <Text style={styles.scopeTitle}>{scopeAction === "delete" ? "Delete recurring event" : "Apply changes to…"}</Text>
             <Text style={styles.scopeSub}>This event is part of a recurring series.</Text>
             <TouchableOpacity style={styles.scopeOpt} onPress={() => runScope("single")} testID="scope-single">
@@ -546,6 +548,7 @@ export default function ScheduleForm() {
             <TouchableOpacity style={styles.scopeCancel} onPress={() => setScopeAction(null)} testID="scope-cancel">
               <Text style={styles.scopeCancelText}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>
@@ -553,6 +556,7 @@ export default function ScheduleForm() {
       <Modal visible={rescheduleConfirm} transparent animationType="fade" onRequestClose={() => setRescheduleConfirm(false)}>
         <Pressable style={styles.scopeBackdrop} onPress={() => setRescheduleConfirm(false)}>
           <Pressable style={styles.scopeSheet} onPress={() => {}}>
+            <SheetScroll>
             <Text style={styles.scopeTitle}>Update recurring series?</Text>
             <Text style={styles.scopeSub}>You changed the repeat settings. This rebuilds the whole series from its start date — any per-day edits (different times/notes on individual days) will be reset.</Text>
             <TouchableOpacity style={[styles.saveBtn, { marginTop: spacing.lg }]} onPress={doReschedule} testID="reschedule-confirm">
@@ -561,6 +565,7 @@ export default function ScheduleForm() {
             <TouchableOpacity style={styles.scopeCancel} onPress={() => setRescheduleConfirm(false)} testID="reschedule-cancel">
               <Text style={styles.scopeCancelText}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

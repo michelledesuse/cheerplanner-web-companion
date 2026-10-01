@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Switch, Alert, Platform, Share, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -148,6 +149,7 @@ export default function ChatAccessScreen() {
       <Modal visible={!!familyFor} transparent animationType="fade" onRequestClose={() => setFamilyFor(null)}>
         <Pressable style={styles.modalWrap} onPress={() => setFamilyFor(null)}>
           <View style={styles.sheet} testID="chat-family-modal">
+            <SheetScroll>
             <Text style={styles.sheetTitle}>Add {familyFor?.name} to chat</Text>
             <Text style={styles.sheetSub}>Choose their existing family-account login:</Text>
             {family.filter((f) => !f.already_in_chat).length === 0 ? (
@@ -165,6 +167,7 @@ export default function ChatAccessScreen() {
             <TouchableOpacity onPress={() => setFamilyFor(null)} style={styles.familyRow}>
               <Text style={[styles.status, { fontWeight: "700" }]}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </View>
         </Pressable>
       </Modal>

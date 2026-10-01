@@ -10,6 +10,7 @@ import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { shareApp } from "@/src/utils/appShare";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", off: "Off" };
 
@@ -297,6 +298,7 @@ export default function SettingsScreen() {
       <Modal visible={deleteOpen} transparent animationType="fade" onRequestClose={() => setDeleteOpen(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+            <SheetScroll>
             <View style={styles.modalHeader}>
               <Ionicons name="warning" size={22} color={colors.danger} />
               <Text style={styles.modalTitle}>Delete account</Text>
@@ -332,6 +334,7 @@ export default function SettingsScreen() {
                 {deletingAccount ? <ActivityIndicator color="white" /> : <Text style={styles.modalDeleteText}>Delete forever</Text>}
               </TouchableOpacity>
             </View>
+            </SheetScroll>
           </View>
         </View>
       </Modal>

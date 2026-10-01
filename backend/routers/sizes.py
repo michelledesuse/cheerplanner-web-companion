@@ -54,6 +54,25 @@ async def add_size_column(payload: SizeColumnCreate, current_user=Depends(get_cu
     return SizeSheet(**doc)
 
 
+@router.patch("/sizes/columns/reorder", response_model=SizeSheet)
+async def reorder_size_columns(payload: dict, current_user=Depends(get_current_user)):
+    """Reorder columns to match a user-provided list of column ids. Any columns
+    not in the list keep their relative order after the provided ones."""
+    order_ids = payload.get("order") or []
+    if not isinstance(order_ids, list):
+        raise HTTPException(status_code=400, detail="order must be a list of column ids")
+    doc = await _get_or_create_sheet(current_user)
+    columns = doc.get("columns") or []
+    rank = {cid: i for i, cid in enumerate(order_ids)}
+    # Columns listed by the user come first (in their chosen order); the rest trail.
+    columns.sort(key=lambda c: (rank.get(c.get("id"), len(order_ids) + 1)))
+    for i, c in enumerate(columns):
+        c["order"] = i
+    await db.size_sheets.update_one({"id": doc["id"]}, {"$set": {"columns": columns}})
+    doc["columns"] = columns
+    return SizeSheet(**doc)
+
+
 @router.patch("/sizes/columns/{col_id}", response_model=SizeSheet)
 async def rename_size_column(col_id: str, payload: SizeColumnUpdate, current_user=Depends(get_current_user)):
     label = (payload.label or "").strip()

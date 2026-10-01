@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl,
@@ -147,6 +148,7 @@ export default function FormsScreen() {
       <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+            <SheetScroll>
             <Text style={styles.modalTitle}>New form</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Form name (e.g. Banquet Meal)" placeholderTextColor={colors.textTertiary} testID="forms-name" />
             <TextInput style={[styles.input, styles.inputMulti]} value={desc} onChangeText={setDesc} placeholder="Description (optional)" placeholderTextColor={colors.textTertiary} multiline testID="forms-desc" />
@@ -156,6 +158,7 @@ export default function FormsScreen() {
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.submitText}>Create</Text>}
               </TouchableOpacity>
             </View>
+            </SheetScroll>
           </View>
         </KeyboardAvoidingView>
       </Modal>

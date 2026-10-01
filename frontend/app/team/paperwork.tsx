@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -113,12 +114,14 @@ export default function PaperworkScreen() {
       <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
         <Pressable style={styles.backdrop} onPress={() => setAddOpen(false)}>
           <Pressable style={styles.sheet} onPress={() => {}}>
+            <SheetScroll>
             <Text style={styles.sheetTitle}>New paperwork sheet</Text>
             <Text style={styles.label}>Name</Text>
             <TextInput style={styles.input} value={name} onChangeText={setName} placeholder="e.g. Nationals forms" placeholderTextColor={colors.textTertiary} testID="paperwork-name-input" autoFocus />
             <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="paperwork-create-btn">
               {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create sheet</Text>}
             </TouchableOpacity>
+            </SheetScroll>
           </Pressable>
         </Pressable>
       </Modal>

@@ -1,3 +1,4 @@
+import { SheetScroll } from "@/src/components/SheetScroll";
 import React, { useCallback, useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Modal, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -324,6 +325,7 @@ export default function PaperworkSheetScreen() {
         <Pressable style={styles.backdrop} onPress={() => setAddItemOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Add an item</Text>
               <TextInput style={styles.input} value={newItemLabel} onChangeText={setNewItemLabel} placeholder="e.g. Medical waiver" placeholderTextColor={colors.textTertiary} testID="paperwork-new-item" autoFocus />
               <Text style={styles.itemLinkLabel}>Links (optional) — e.g. the waiver/form</Text>
@@ -331,6 +333,7 @@ export default function PaperworkSheetScreen() {
               <TouchableOpacity style={[styles.confirm, savingItem && { opacity: 0.6 }]} onPress={addItem} disabled={savingItem} testID="paperwork-new-item-save">
                 {savingItem ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Add item</Text>}
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>
@@ -341,6 +344,7 @@ export default function PaperworkSheetScreen() {
         <Pressable style={styles.backdrop} onPress={() => setItemMenu(null)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Edit item</Text>
               <TextInput style={styles.input} value={renameLabel} onChangeText={setRenameLabel} placeholderTextColor={colors.textTertiary} testID="paperwork-rename-item" />
               <Text style={styles.itemLinkLabel}>Links (optional) — e.g. the waiver/form</Text>
@@ -357,6 +361,7 @@ export default function PaperworkSheetScreen() {
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete item</Text>
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>
@@ -367,6 +372,7 @@ export default function PaperworkSheetScreen() {
         <Pressable style={styles.backdrop} onPress={() => setSheetMenuOpen(false)}>
           <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
             <Pressable style={styles.sheetModal} onPress={() => {}}>
+              <SheetScroll>
               <Text style={styles.sheetTitle}>Edit sheet</Text>
               <TextInput style={styles.input} value={editName} onChangeText={setEditName} placeholderTextColor={colors.textTertiary} testID="paperwork-edit-name" />
               <PhotoGallery photos={editSheetPhotos} onChange={setEditSheetPhotos} testIDPrefix="paperwork-photo" />
@@ -375,6 +381,7 @@ export default function PaperworkSheetScreen() {
                 <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 <Text style={styles.deleteText}>Delete sheet</Text>
               </TouchableOpacity>
+              </SheetScroll>
             </Pressable>
           </KeyboardAvoidingView>
         </Pressable>

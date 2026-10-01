@@ -16,6 +16,7 @@ import TimeField from "@/src/components/TimeField";
 import PhotoGallery from "@/src/components/PhotoGallery";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import { exportAoa } from "@/src/utils/exportFile";
+import { SheetScroll } from "@/src/components/SheetScroll";
 
 type QType = "text" | "paragraph" | "choice" | "multi" | "yesno" | "number";
 type Question = { id?: string; label: string; type: QType; options: string[]; required: boolean };
@@ -281,6 +282,7 @@ export default function FormDetailScreen() {
       <Modal visible={detailsOpen} transparent animationType="slide" onRequestClose={() => setDetailsOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
+            <SheetScroll>
             <Text style={styles.modalTitle}>Edit form</Text>
             <Text style={styles.fieldLabel}>Form name</Text>
             <TextInput style={styles.input} value={nameDraft} onChangeText={setNameDraft} placeholder="e.g. Banquet Meal Order" placeholderTextColor={colors.textTertiary} testID="form-name-input" />
@@ -290,6 +292,7 @@ export default function FormDetailScreen() {
               <TouchableOpacity style={styles.modalCancel} onPress={() => setDetailsOpen(false)} testID="form-details-cancel"><Text style={styles.modalCancelText}>Cancel</Text></TouchableOpacity>
               <TouchableOpacity style={styles.submitBtn} onPress={saveDetails} testID="form-details-save"><Text style={styles.submitText}>Save</Text></TouchableOpacity>
             </View>
+            </SheetScroll>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -522,6 +525,7 @@ export default function FormDetailScreen() {
       <Modal visible={remindOpen} transparent animationType="fade" onRequestClose={() => setRemindOpen(false)}>
         <View style={styles.remindWrap}>
           <View style={styles.remindSheet} testID="form-remind-modal">
+            <SheetScroll>
             <Text style={styles.remindTitle}>Reminder text</Text>
             <Text style={styles.remindHint}>Each parent gets a text starting with their first name. Add any context or due date — the form link is added automatically.</Text>
             <TextInput
@@ -540,6 +544,7 @@ export default function FormDetailScreen() {
             <TouchableOpacity onPress={() => setRemindOpen(false)} style={{ paddingVertical: 10, alignItems: "center" }}>
               <Text style={styles.remindCancel}>Cancel</Text>
             </TouchableOpacity>
+            </SheetScroll>
           </View>
         </View>
       </Modal>
