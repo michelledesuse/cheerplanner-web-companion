@@ -1,0 +1,28 @@
+{
+  "summary": "Iter142 recurring import fully verified end-to-end against preview URL. Backend: 6/6 pytest tests pass — a weekly recurring personal schedule (QA_IT142, Mon+Wed 18:00-20:00 until 2026-12-20, 14 occurrences, shared series_id) is imported into Team Hub as ONE recurring team_event (bulk returns imported:1, already:13); GET /api/team/calendar/events?from_=2026-10-01&to=2027-01-15 expands into many occurrences all sharing one event_id, each recurring:true with start_time 18:00 / end_time 20:00 and recurrence {freq:weekly, interval:1, byweekday:[1,3], until:2026-12-20}; /importable then marks every occurrence already:true; import-to-personal recreates a recurring personal series with shared series_id and recurrence_rule weekly days_of_week=[1,3]. All QA_IT142 schedule_events and team_events were deleted after the run. Frontend: on /team/calendar as demo owner (staff), the Import to TeamHub modal (testID import-personal-modal) renders the QA_IT142 series as a SINGLE row under 'Repeating series' with testID imp-series-<sid> and label 'Repeats · 14 dates · Mon, Nov 2 – Wed, Dec 16' (zero per-date imp-ev rows for the series); selecting the row + tapping Import succeeds and on reopen the same row shows the green 'Added' pill (already state). No React Native deprecated-package or SafeAreaView issues were seen in team_calendar.py / team/calendar.tsx.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter142_recurring_import.py",
+    "/app/test_reports/pytest/pytest_iter142.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "team_calendar.py _to_schedule_rule caps un-set recurrence at today+365d, which could silently truncate a long-running series on round-trip when the Team Hub event has no 'until' set — low priority but worth flagging to main agent as a design limitation.",
+    "frontend/app/team/calendar.tsx is ~780 lines (approaching the 700-line soft limit); the ImportFromPersonalModal + DetailModal could be split into separate files when future features are added."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter142_recurring_import.py (new regression suite)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% (modal series-row + import + Added pill all verified)"},
+  "seed_data_creation": "Each test creates and then DELETES its own QA_IT142 schedule_events + team_events; verified that /api/schedule and /api/team/calendar/events contain zero QA_IT142 rows at the end of both backend and UI runs.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login via UI needs ~6s for the AuthContext to persist token into AsyncStorage/IndexedDB; the demo account also triggers a 'Welcome to CheerPlanner!' tour overlay on first visit per session which must be dismissed by clicking 'Skip' before interactive elements become clickable. Backend returns login as {access_token} not {token}.",
+  "rca_of_issue": "Not applicable — iter142 bug (repeating events flattening on parent-portal → Team Hub import) is confirmed FIXED. Root fix is in routers/team_calendar._import_from_personal_one(): when source=schedule and the row has series_id, it dedupes by team_events.imported_from_series_id and imports the whole series as a single recurring team_event (recurrence mapped via _to_team_recurrence), and the frontend ImportFromPersonalModal groups events by series_id into one imp-series-<sid> row."
+}

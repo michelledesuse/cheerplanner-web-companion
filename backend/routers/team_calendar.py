@@ -319,6 +319,27 @@ def _to_schedule_rule(rec: dict) -> Optional[dict]:
     return None
 
 
+def _to_team_recurrence(rule: Optional[dict]) -> Optional[dict]:
+    """Map a personal-schedule RecurrenceRule dict to a team-calendar recurrence
+    dict (reverse of _to_schedule_rule). Both use Sun=0..Sat=6 for weekdays."""
+    if not rule:
+        return None
+    freq = rule.get("frequency")
+    until = rule.get("until") or ""
+    if freq == "daily":
+        return {"freq": "daily", "interval": 1, "until": until}
+    if freq == "monthly":
+        return {"freq": "monthly", "interval": 1, "until": until}
+    if freq in ("weekly", "biweekly"):
+        return {
+            "freq": "weekly",
+            "interval": 2 if freq == "biweekly" else 1,
+            "byweekday": [int(x) for x in (rule.get("days_of_week") or [])],
+            "until": until,
+        }
+    return None
+
+
 def _ev_sig(ev: dict) -> str:
     """Stable signature of a team event's syncable content, so we can detect
     when a previously-imported event changed on the hub."""
@@ -488,19 +509,22 @@ async def importable(user=Depends(require_team_access)):
     ids = await _household_user_ids(user["id"])
     h, _role = await _hub_and_role(user)
     imported_ids = set()
+    imported_series = set()
     if h:
         async for te in db.team_events.find(
-            {"household_id": h["id"], "imported_from_personal_id": {"$nin": [None, ""]}},
-            {"_id": 0, "imported_from_personal_id": 1},
+            {"household_id": h["id"]},
+            {"_id": 0, "imported_from_personal_id": 1, "imported_from_series_id": 1},
         ):
             if te.get("imported_from_personal_id"):
                 imported_ids.add(te["imported_from_personal_id"])
+            if te.get("imported_from_series_id"):
+                imported_series.add(te["imported_from_series_id"])
     comps = await db.competitions.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "event_date": 1}).sort("event_date", -1).to_list(500)
     today = date.today().isoformat()
     evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1, "series_id": 1}).sort("date", 1).to_list(2000)
     return {
         "competitions": [{"id": c["id"], "name": c.get("name") or "Competition", "date": c.get("event_date"), "already": c["id"] in imported_ids} for c in comps],
-        "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type"), "series_id": e.get("series_id"), "already": e["id"] in imported_ids} for e in evs],
+        "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type"), "series_id": e.get("series_id"), "already": (e["id"] in imported_ids) or (bool(e.get("series_id")) and e.get("series_id") in imported_series)} for e in evs],
     }
 
 
@@ -508,6 +532,9 @@ async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, i
     """Create ONE Team Hub event from a personal competition/schedule item.
 
     Returns {"already": bool} or {"event_id": str} or {"skipped": reason}."""
+    end_time = ""
+    recurrence: Optional[dict] = None
+    series_id: Optional[str] = None
     if source == "competition":
         src = await db.competitions.find_one({"id": sid, "user_id": {"$in": ids}}, {"_id": 0})
         if not src:
@@ -523,13 +550,36 @@ async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, i
         src = await db.schedule_events.find_one({"id": sid, "user_id": {"$in": ids}}, {"_id": 0})
         if not src:
             return {"skipped": "not_found"}
+        series_id = src.get("series_id")
+        if series_id:
+            # Import the whole repeating series as ONE recurring Team Hub event.
+            # Dedupe so selecting any occurrence imports the series only once.
+            existing_series = await db.team_events.find_one(
+                {"household_id": h["id"], "imported_from_series_id": series_id},
+                {"_id": 0, "id": 1},
+            )
+            if existing_series:
+                return {"already": True}
+            # Anchor on the earliest upcoming occurrence (fallback: earliest) so
+            # the repeat pattern lines up and we don't pull in past dates.
+            base = await db.schedule_events.find_one(
+                {"series_id": series_id, "user_id": {"$in": ids}, "date": {"$gte": date.today().isoformat()}},
+                {"_id": 0}, sort=[("date", 1)],
+            ) or await db.schedule_events.find_one(
+                {"series_id": series_id, "user_id": {"$in": ids}},
+                {"_id": 0}, sort=[("date", 1)],
+            )
+            if base:
+                src = base
         title = src.get("title") or "Event"
         event_type = src.get("event_type") or "practice"
         d = str(src.get("date") or "")[:10]
         start_time = src.get("start_time") or ""
+        end_time = src.get("end_time") or ""
         location = src.get("location") or ""
         address = src.get("address") or ""
         base_notes = (src.get("notes") or "").strip()
+        recurrence = _to_team_recurrence(src.get("recurrence_rule"))
     else:
         return {"skipped": "unknown_source"}
     if not d:
@@ -574,9 +624,10 @@ async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, i
 
     ev = {
         "id": str(uuid.uuid4()), "household_id": h["id"], "title": title, "event_type": event_type,
-        "location": location, "address": address, "date": d, "start_time": start_time, "end_time": "",
-        "notes": "\n\n".join(sections).strip(), "recurrence": {"freq": "none"},
-        "imported_from_personal_id": sid, "created_by": created_by, "created_at": _now(),
+        "location": location, "address": address, "date": d, "start_time": start_time, "end_time": end_time,
+        "notes": "\n\n".join(sections).strip(), "recurrence": recurrence or {"freq": "none"},
+        "imported_from_personal_id": sid, "imported_from_series_id": series_id,
+        "created_by": created_by, "created_at": _now(),
     }
     await db.team_events.insert_one(dict(ev))
     return {"event_id": ev["id"]}

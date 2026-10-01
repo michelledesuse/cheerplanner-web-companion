@@ -751,3 +751,13 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - Frontend inbox.tsx: Competition type gains event_date/end_date; added matchAthleteId/matchCompetitionId JS mirrors for instant pre-select; dup-guard on confirm; bulk lede/labels reworded to "fallback"; duplicates surfaced in Add-all result.
 - Backend imports OK; frontend lint clean (only pre-existing _e warnings elsewhere); services restarted.
 - Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 142 — Calendar import keeps recurrence + start/end times (both directions) (main agent)
+- BUG: importing a repeating series (e.g. practices) from the parent portal into the Team Hub flattened it into many non-repeating events (each hardcoded recurrence {freq:none}, end_time ""), so editing meant editing each one.
+- FIX (personal→Team Hub) routers/team_calendar.py _import_from_personal_one: for a schedule source with a series_id, import the WHOLE series as ONE recurring team_events doc — anchors on the earliest upcoming occurrence, maps recurrence_rule→team recurrence via new _to_team_recurrence(), carries end_time, and dedupes by new imported_from_series_id so selecting any/all occurrences imports once. /importable now marks every occurrence of an imported series as already.
+- Team→personal (_import_one) already carried start/end times + recurrence (verified).
+- FRONTEND app/team/calendar.tsx ImportFromPersonalModal: a repeating series now shows as ONE selectable row ("Repeats · N dates · range") instead of per-occurrence sub-rows; selection/Select-all use one representative per series.
+- VERIFIED end-to-end via curl with demo account: weekly Mon/Wed series (14 occ) → importing all 14 ids yields imported:1/already:13, ONE team_events doc, team calendar shows 14 occurrences with 18:00–20:00 + recurrence {weekly,[1,3],until}; importable then marks all already; team→personal import recreates a recurring personal series (series_id + rule + times). Cleaned up after.
+- _to_team_recurrence unit-checked (weekly/biweekly/monthly/none) + round-trips with _to_schedule_rule.
+- Backend import OK; frontend lint clean (pre-existing _e warnings only).
+- Creds: demo@cheerplanner.app / CheerDemo2026!

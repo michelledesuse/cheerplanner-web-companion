@@ -558,8 +558,16 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
   }, [data.events]);
 
   const selectableComp = data.competitions.filter((c) => !c.already);
-  const selectableEvent = data.events.filter((e) => !e.already);
-  const allSelectable = [...selectableComp.map((c) => ({ id: c.id, source: "competition" as const })), ...selectableEvent.map((e) => ({ id: e.id, source: "schedule" as const }))];
+  // A repeating series imports as ONE recurring event — represent it by its first occurrence.
+  const seriesUnits = seriesGroups
+    .filter((g) => !g.items.some((e) => e.already))
+    .map((g) => ({ id: g.items[0].id, source: "schedule" as const }));
+  const selectableSingles = singleEvents.filter((e) => !e.already).map((e) => ({ id: e.id, source: "schedule" as const }));
+  const allSelectable = [
+    ...selectableComp.map((c) => ({ id: c.id, source: "competition" as const })),
+    ...seriesUnits,
+    ...selectableSingles,
+  ];
   const allSelected = allSelectable.length > 0 && allSelectable.every(({ id }) => sel[id]);
 
   const doImport = async () => {
@@ -630,24 +638,32 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
 
             {seriesGroups.length > 0 && <Text style={styles.secLbl}>Repeating series</Text>}
             {seriesGroups.map(({ sid, items }) => {
-              const selectable = items.filter((e) => !e.already);
-              const onCount = selectable.filter((e) => sel[e.id]).length;
-              const seriesOn = selectable.length > 0 && onCount === selectable.length;
-              const first = items[0]; const last = items[items.length - 1];
+              const rep = items[0];
+              const last = items[items.length - 1];
+              const already = items.some((e) => e.already);
+              const on = !!sel[rep.id];
               return (
-                <View key={sid} style={styles.seriesBlock}>
-                  <TouchableOpacity style={styles.impRow} onPress={() => setMany(selectable.map((e) => ({ id: e.id, source: "schedule" as const })), !seriesOn)} disabled={selectable.length === 0} testID={`imp-series-${sid}`}>
-                    <Ionicons name={seriesOn ? "checkbox" : onCount > 0 ? "remove-circle" : "square-outline"} size={22} color={seriesOn || onCount > 0 ? colors.accent : colors.textTertiary} />
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <View style={styles.rowT}><Ionicons name="repeat" size={13} color={colors.textSecondary} /><Text style={styles.impTitle} numberOfLines={1}>{first.title}</Text></View>
-                      <Text style={styles.impMeta}>{items.length} dates · {fmtDate(String(first.date).slice(0, 10))} – {fmtDate(String(last.date).slice(0, 10))}</Text>
+                <TouchableOpacity
+                  key={sid}
+                  style={[styles.impRow, already && { opacity: 0.5 }]}
+                  onPress={() => { if (!already) toggle(rep.id, "schedule"); }}
+                  disabled={already}
+                  testID={`imp-series-${sid}`}
+                >
+                  <Ionicons
+                    name={already ? "checkmark-circle" : on ? "checkbox" : "square-outline"}
+                    size={22}
+                    color={already ? "#10B981" : on ? colors.accent : colors.textTertiary}
+                  />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={styles.rowT}>
+                      <Ionicons name="repeat" size={13} color={colors.textSecondary} />
+                      <Text style={styles.impTitle} numberOfLines={1}>  {rep.title}</Text>
                     </View>
-                    <Text style={styles.seriesCount}>{onCount}/{selectable.length}</Text>
-                  </TouchableOpacity>
-                  {items.map((e) => (
-                    <CheckRow key={e.id} id={e.id} source="schedule" title={fmtDate(String(e.date).slice(0, 10))} icon="calendar" iconColor={colors.textTertiary} already={e.already} indent />
-                  ))}
-                </View>
+                    <Text style={styles.impMeta}>Repeats · {items.length} dates · {fmtDate(String(rep.date).slice(0, 10))} – {fmtDate(String(last.date).slice(0, 10))}</Text>
+                  </View>
+                  {already ? <View style={styles.addedPill}><Text style={styles.addedPillText}>Added</Text></View> : <Ionicons name="repeat" size={16} color={colors.textSecondary} />}
+                </TouchableOpacity>
               );
             })}
 
