@@ -206,10 +206,18 @@ const STEPS: Step[] = [
     tip: "Turn on SMS in Settings → Notifications first. Photos you attach are auto-sharpened and sent as picture messages.",
   },
   {
-    num: 30,
-    title: "Arrange your TeamHub your way",
+    num: 31,
+    title: "Add travel fast with the Smart Inbox",
     body:
-      "On the Team tab, press and drag the ≡ handle on the right of any tile to reorder the TeamHub buttons into the order you like best. Your layout saves automatically to your account and looks the same on every device. Tapping a tile still opens it, and any new features are added at the bottom so nothing gets hidden.",
+      "Tap the sparkles \"Add travel\" button on the Competitions or Expenses tab. Paste a confirmation email, upload a screenshot, or forward the email to your personal CheerPlanner inbox address, and the AI turns it into draft bookings and expenses for you to review. One itinerary splits into separate flight, hotel, and car items — each with its full details.",
+    tip: "On \"Add all,\" receipts auto-attach to the athlete they name and trips to the competition whose dates line up; likely duplicates are flagged so you never add the same booking twice.",
+  },
+  {
+    num: 32,
+    title: "Change or cancel a single practice date",
+    body:
+      "On the TeamHub Calendar, open any date of a repeating event. Choose \"Edit just this date\" to change its time, notes, or set a one-off gym/location for that day only. Choose \"Cancel just this date\" or \"Cancel a range of dates\" (handy for holiday breaks) and add an optional reason — parents see a \"Cancelled\" badge with your note instead of the date just disappearing. Restore any cancelled date later from the event.",
+    tip: "Flip \"Text parents\" when you edit or cancel to send the roster a quick SMS about the change (enable SMS in Settings → Notifications first). When importing a personal calendar, a repeating series now comes in as ONE recurring event, and a From/To filter lets you import just a date range.",
   },
 ];
 

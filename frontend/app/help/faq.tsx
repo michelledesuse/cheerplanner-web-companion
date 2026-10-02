@@ -102,12 +102,47 @@ const FAQ: Section[] = [
     ],
   },
   {
+    title: "Smart Inbox (forward travel & receipts)",
+    items: [
+      {
+        q: "What is the Smart Inbox?",
+        a:
+          "Tap the sparkles \"Add travel\" button on the Competitions or Expenses tab, then paste a confirmation email, snap/upload a screenshot, or forward the email to your personal CheerPlanner inbox address. The app's AI reads it and turns it into ready-to-review draft bookings (flights, hotels, cars) and expenses — you check each draft and tap to add it.",
+      },
+      {
+        q: "One email has my flight, hotel AND rental car — will it get all of them?",
+        a:
+          "Yes. Like TripIt, a single itinerary is split into separate items, each with its full details (airports and times, hotel address and check-in/out, free-cancel date, car pickup/drop-off, costs, and notes). Nothing is flattened into one.",
+      },
+      {
+        q: "Does it know which athlete or competition something belongs to?",
+        a:
+          "It does its best. A receipt that names a person auto-attaches to that athlete, and a trip auto-attaches to the competition whose dates line up (within a few days). When you tap \"Add all,\" anything it can't place uses the fallback you pick, and a booking that already exists on that competition is flagged as a likely duplicate so you don't add it twice.",
+      },
+      {
+        q: "How do I forward emails in?",
+        a:
+          "Open the Smart Inbox to see your personal forwarding address. Forward any confirmation email there and it shows up as drafts the next time you open the inbox. You stay in control — nothing is added to your account until you confirm it.",
+      },
+    ],
+  },
+  {
     title: "Schedule & calendar",
     items: [
       {
         q: "Can I set up a recurring practice?",
         a:
           "Yes. When you add a schedule event, turn on Repeats. Pick the days of the week and a series-end date. The app creates one event per occurrence so you can edit or delete individual days without breaking the whole series.",
+      },
+      {
+        q: "Can I change or cancel just ONE date of a repeating team event?",
+        a:
+          "Yes (TeamHub Calendar, coaches/staff). Open a repeating event's date and choose \"Edit just this date\" to change its time, notes, or set a one-off location/gym for that date only — the rest of the series is untouched. You can also \"Cancel just this date\" or \"Cancel a range of dates\" (great for a holiday break) with an optional reason your parents will see. Cancelled dates don't vanish — they show a \"Cancelled\" badge (with the reason) so families know why, and you can Restore any of them later.",
+      },
+      {
+        q: "Can I let parents know when a date changes?",
+        a:
+          "Yes. When you edit or cancel a single date (or a range), flip the \"Text parents\" toggle and CheerPlanner sends a quick SMS heads-up to the roster with the details. (Requires SMS set up in Settings → Notifications.)",
       },
       {
         q: "How do I export to Apple Calendar or Google Calendar?",
@@ -212,7 +247,7 @@ const FAQ: Section[] = [
       {
         q: "How do Sizes work — and why no Sports bra for coaches?",
         a:
-          "Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) that you can extend with your own. Values are free text (AL, YM, 7…). Personnel don't get a Sports bra size, so that cell shows N/A for them. Tap the chart icon for a size tally by item.",
+          "Sizes is a shared spreadsheet with default columns (Shirt, Tank, Sports bra, Shorts, Shoes, Sweatshirt, Jacket, Ring) that you can extend with your own. Values are free text (AL, YM, 7…). Personnel don't get a Sports bra size, so that cell shows N/A for them. Tap the chart icon for a size tally by item, drag the column titles to reorder them, and tap the download icon to export the whole size sheet to CSV or Excel. Sizes are also included in the Roster download.",
       },
       {
         q: "What's Paperwork / Other for?",
@@ -252,7 +287,7 @@ const FAQ: Section[] = [
       {
         q: "What can I do on the TeamHub Calendar?",
         a:
-          "Open Team → Calendar for the whole team's schedule. Switch between Month, Week, Day, and List views, and tap the type chips (Practice, Competition, etc.) to filter what's shown. Tap an event and choose \"Add to phone calendar\" to drop it into your device's Apple/Google calendar. Coaches can import events from a personal calendar with Select all, whole-series select, and already-added items greyed out.",
+          "Open Team → Calendar for the whole team's schedule. Switch between Month, Week, Day, and List views, and tap the type chips (Practice, Competition, etc.) to filter what's shown. Tap an event and choose \"Add to phone calendar\" to drop it into your device's Apple/Google calendar. Coaches can import events from a personal calendar with Select all, an optional From/To date-range filter, and already-added items greyed out — and a repeating series imports as ONE recurring event (not dozens of copies), so editing it later updates every date at once.",
       },
       {
         q: "How do I sync the TeamHub calendar to my own calendar?",

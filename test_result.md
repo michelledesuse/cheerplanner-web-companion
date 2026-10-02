@@ -788,3 +788,10 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - BULK DATE CANCEL: new POST /api/team/calendar/events/{id}/cancel-range {from,to,reason?} cancels all occurrences in range (holiday breaks). DetailModal (staff, recurring) → "Cancel a range of dates…" opens CancelDatesForm(mode=range) with From/To + reason + notify. Verified: 11-23..12-07 → 3 dates cancelled w/ reason; to<from → 400.
 - Single-cancel flow moved from ConfirmModal to CancelDatesForm (reason + notify). Backend import OK; frontend lint clean (pre-existing _e warnings only).
 - Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 146 — Docs refresh for newest features (main agent)
+- Assistant Coach (backend/routers/assistant.py APP_GUIDE): added Smart Inbox (paste/forward/screenshot → AI drafts, multi-item split, athlete/competition auto-match, duplicate guard, forwarding address), "Add travel" buttons, Sizes export + sizes-in-roster-download, and TeamHub Calendar updates (series imports as one recurring event + From/To range filter; edit/cancel a single date or range with reason; restore; notify parents; cancelled badge).
+- FAQ (app/help/faq.tsx): new "Smart Inbox" section (4 Q&A); new Schedule&calendar Q&A for single-date edit/cancel/range + notify; updated TeamHub Calendar import answer (series-as-one + range filter) and Sizes answer (export + roster sizes).
+- Setup Guide (app/help/setup.tsx): added step 31 (Smart Inbox) and step 32 (change/cancel single date + notify + import range).
+- Privacy Policy (app/privacy.tsx): added §2 "AI Features (Assistant & Smart Inbox)" (content sent to OpenAI/Anthropic/Google via integration provider; not used for training; drafts confirmed by user), Smart Inbox note in §1, renumbered sections sequentially (1–15), bumped Last updated to October 1, 2026.
+- Lint clean; backend imports OK; services restarted. App version is 3.1.1 (build 120).
