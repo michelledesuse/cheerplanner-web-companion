@@ -150,7 +150,7 @@ export default function SettingsScreen() {
         <Text style={styles.sectionHead}>Membership</Text>
         <View style={styles.group}>
           <SettingRow
-            label="CheerPlanner Plan"
+            label={<><BrandName /> Plan</>}
             subtitle={!monetizationActive ? "All features unlocked during launch" : (isPremium ? (status?.plan === "lifetime" ? "Premium · Lifetime Access" : "Premium") : "Free — tap to upgrade")}
             value={isPremium ? (status?.plan === "lifetime" ? "Lifetime" : "Premium") : (!monetizationActive ? "Free" : "Free")}
             onPress={() => router.push("/premium" as any)}
@@ -219,7 +219,7 @@ export default function SettingsScreen() {
         <View style={styles.group}>
           <SettingRow
             icon="share-social-outline"
-            label="Share CheerPlanner"
+            label={<>Share <BrandName /></>}
             subtitle="Text or email the app to another cheer family"
             onPress={() => shareApp()}
             chevron

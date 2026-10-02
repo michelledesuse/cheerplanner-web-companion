@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
+import BrandName from "@/src/components/BrandName";
 
 const LAST_UPDATED = "August 3, 2026";
 const SUPPORT_EMAIL = "info@cheer-planner.com";
@@ -26,7 +27,7 @@ export default function PrivacyPolicyScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} testID="privacy-screen">
-        <Text style={styles.brand}>CheerPlanner</Text>
+        <BrandName style={styles.brand} />
         <Text style={styles.updated}>Last updated: {LAST_UPDATED}</Text>
 
         <Text style={styles.p}>

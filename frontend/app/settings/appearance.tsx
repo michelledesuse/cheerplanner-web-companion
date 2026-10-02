@@ -1,4 +1,5 @@
 import { SheetScroll } from "@/src/components/SheetScroll";
+import BrandName from "@/src/components/BrandName";
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Modal, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -232,7 +233,11 @@ function PresetCard({ preset, selected, onPress }: { preset: ThemePreset; select
         <View style={[styles.swatchBlock, { backgroundColor: preset.tabActive }]} />
       </View>
       <View style={styles.cardFooter}>
-        <Text style={styles.cardName} numberOfLines={1}>{preset.name}</Text>
+        {preset.name === "CheerPlanner" ? (
+          <BrandName style={styles.cardName} />
+        ) : (
+          <Text style={styles.cardName} numberOfLines={1}>{preset.name}</Text>
+        )}
         {selected ? (
           <View style={[styles.checkBadge, { backgroundColor: preset.accent }]}>
             <Ionicons name="checkmark" size={14} color="#fff" />

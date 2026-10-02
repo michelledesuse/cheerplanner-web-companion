@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
+import BrandName from "@/src/components/BrandName";
 
 type Step = {
   num: number;
@@ -236,7 +237,7 @@ export default function SetupGuideScreen() {
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }}>
         <Text style={styles.intro}>
-          A step-by-step walkthrough to get the most out of CheerPlanner. You can tackle these in any order, but
+          A step-by-step walkthrough to get the most out of <BrandName />. You can tackle these in any order, but
           finishing them all gives you the best season at a glance.
         </Text>
 

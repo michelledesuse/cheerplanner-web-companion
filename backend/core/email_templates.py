@@ -11,7 +11,7 @@ from core.email import unsubscribe_link
 from core.config import BACKEND_PUBLIC_URL
 
 BRAND = "CheerPlanner"
-ACCENT = "#007CFF"   # CheerPlanner brand blue (from logo) — brand palette is blue/black/white only
+ACCENT = "#0000FF"   # CheerPlanner brand blue (exact) — brand palette is blue/black/white only
 BG = "#F8FAFC"
 CARD = "#FFFFFF"
 TEXT = "#0F172A"     # black

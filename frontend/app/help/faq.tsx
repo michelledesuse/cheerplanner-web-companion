@@ -6,6 +6,7 @@ import { useRouter } from "expo-router";
 
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
+import BrandName from "@/src/components/BrandName";
 
 type QA = { q: string; a: string };
 type Section = { title: string; items: QA[] };
@@ -473,7 +474,7 @@ export default function FaqScreen() {
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 60 }}>
         <Text style={styles.intro}>
-          Answers to common questions about CheerPlanner. Tap a question to expand it. Still need help? Reach
+          Answers to common questions about <BrandName />. Tap a question to expand it. Still need help? Reach
           out using the Contact us button at the bottom.
         </Text>
 
