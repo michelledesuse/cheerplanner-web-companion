@@ -141,7 +141,7 @@ async def create_event(payload: dict = Body(...), user=Depends(require_team_acce
         "address": (payload.get("address") or "").strip(), "date": str(payload["date"])[:10],
         "start_time": payload.get("start_time") or "", "end_time": payload.get("end_time") or "",
         "notes": (payload.get("notes") or "").strip(), "recurrence": rec,
-        "exdates": [], "overrides": {},
+        "exdates": [], "overrides": {}, "cancel_reasons": {},
         "created_by": user["id"], "created_at": _now(),
     }
     await db.team_events.insert_one(dict(ev))
@@ -183,8 +183,12 @@ async def cancel_occurrence(event_id: str, payload: dict = Body(...), user=Depen
     if not occ:
         raise HTTPException(status_code=400, detail="A valid date is required.")
     occ_iso = occ.isoformat()
+    reason = (payload.get("reason") or "").strip()
+    upd: dict = {"$addToSet": {"exdates": occ_iso}}
+    if reason:
+        upd["$set"] = {f"cancel_reasons.{occ_iso}": reason[:300]}
     r = await db.team_events.update_one(
-        {"id": event_id, "household_id": h["id"]}, {"$addToSet": {"exdates": occ_iso}}
+        {"id": event_id, "household_id": h["id"]}, upd
     )
     if not r.matched_count:
         raise HTTPException(status_code=404, detail="Event not found.")
@@ -192,6 +196,32 @@ async def cancel_occurrence(event_id: str, payload: dict = Body(...), user=Depen
     await db.calendar_rsvps.delete_many({"event_id": event_id, "occ_date": occ_iso})
     await db.calendar_hides.delete_many({"event_id": event_id, "occ_date": occ_iso})
     return {"ok": True}
+
+
+@router.post("/team/calendar/events/{event_id}/cancel-range")
+async def cancel_range(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    """Cancel every occurrence of a repeating event between two dates (inclusive),
+    e.g. a holiday break. Optional shared reason shown to parents."""
+    h = await _resolve_active_household(user["id"])
+    frm = _d(payload.get("from"))
+    to = _d(payload.get("to"))
+    if not frm or not to or to < frm:
+        raise HTTPException(status_code=400, detail="Pick a valid start and end date.")
+    ev = await db.team_events.find_one({"id": event_id, "household_id": h["id"]}, {"_id": 0})
+    if not ev:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    dates = _occurrences(ev, frm, to, skip_ex=True)  # only not-already-cancelled
+    if not dates:
+        return {"ok": True, "cancelled": 0}
+    reason = (payload.get("reason") or "").strip()[:300]
+    set_reasons = {f"cancel_reasons.{d}": reason for d in dates} if reason else {}
+    upd: dict = {"$addToSet": {"exdates": {"$each": dates}}}
+    if set_reasons:
+        upd["$set"] = set_reasons
+    await db.team_events.update_one({"id": event_id, "household_id": h["id"]}, upd)
+    await db.calendar_rsvps.delete_many({"event_id": event_id, "occ_date": {"$in": dates}})
+    await db.calendar_hides.delete_many({"event_id": event_id, "occ_date": {"$in": dates}})
+    return {"ok": True, "cancelled": len(dates), "dates": dates}
 
 
 @router.post("/team/calendar/events/{event_id}/restore-occurrence")
@@ -202,7 +232,8 @@ async def restore_occurrence(event_id: str, payload: dict = Body(...), user=Depe
     if not occ:
         raise HTTPException(status_code=400, detail="A valid date is required.")
     r = await db.team_events.update_one(
-        {"id": event_id, "household_id": h["id"]}, {"$pull": {"exdates": occ.isoformat()}}
+        {"id": event_id, "household_id": h["id"]},
+        {"$pull": {"exdates": occ.isoformat()}, "$unset": {f"cancel_reasons.{occ.isoformat()}": ""}},
     )
     if not r.matched_count:
         raise HTTPException(status_code=404, detail="Event not found.")
@@ -272,6 +303,7 @@ async def list_events(from_: str = None, to: str = None, user=Depends(get_curren
     for ev in evs:
         exset = set(ev.get("exdates") or [])
         overrides = ev.get("overrides") or {}
+        reasons = ev.get("cancel_reasons") or {}
         for occ in _occurrences(ev, win_from, win_to, skip_ex=False):
             if role == "viewer" and (ev["id"], occ) in hidden:
                 continue
@@ -288,7 +320,8 @@ async def list_events(from_: str = None, to: str = None, user=Depends(get_curren
                 "recurring": (ev.get("recurrence") or {}).get("freq", "none") != "none",
                 "recurrence": ev.get("recurrence") or {"freq": "none"}, "event_date": ev.get("date"),
                 "exdates": ev.get("exdates") or [],
-                "cancelled": cancelled, "has_override": bool(ov),
+                "cancelled": cancelled, "cancel_reason": reasons.get(occ) if cancelled else None,
+                "has_override": bool(ov),
                 "can_edit": role == "staff",
             }
             if not cancelled:

@@ -1,0 +1,34 @@
+{
+  "summary": "Iter145 Team Hub calendar (Per-Date Location, Cancel Reason, Notify toggle, Bulk Date Cancel) tested end-to-end on preview. BACKEND 6/6 pytest tests pass against /app/backend/tests/test_iter145_perdate_cancel_reason_bulk.py. On a weekly Monday 'QA145 Practice' recurring event (2026-11-02 → 2026-12-21, 18:00-20:00, 7 Mondays): (a) override-occurrence {occ_date:'2026-11-09', location:'Backup Gym', address:'9 B St'} flips only that row to has_override=true/location='Backup Gym'/address='9 B St'; other dates unchanged with has_override=false. (b) cancel-occurrence {occ_date:'2026-11-16', reason:'Coach travel'} keeps the row (cancelled=true, cancel_reason='Coach travel'). (c) cancel-range {from:'2026-11-23', to:'2026-12-01', reason:'Thanksgiving break'} returns {cancelled:2, dates:['2026-11-23','2026-11-30']} and both rows show cancelled=true + cancel_reason='Thanksgiving break'. (d) restore-occurrence on 2026-11-16 → cancelled=false and cancel_reason null/empty. (e) cancel-range with to('2026-12-01') < from('2026-12-10') → 400. (f) POST /api/team/broadcast/send responded 400 ('SMS isn\u2019t set up' in dev Twilio) — endpoint exists and does not 500/404. FRONTEND verified via mobile-viewport Playwright (390x844) on /team/calendar as demo@cheerplanner.app (team-access staff): (F1 Per-Date Location) tapping a recurring row's testID event-edit-occurrence opens testID occurrence-edit-modal exposing new testIDs occ-location, occ-address, occ-notify (all three visible); filling 'Backup Gym UI' / '9 UI St' and tapping testID occ-save-btn persists; the specific date row now shows 'Backup Gym UI' as its location in the List view. (F2 Cancel + Reason) testID event-cancel-occurrence opens testID cancel-dates-modal with testID cancel-reason input and testID cancel-notify toggle; entering reason 'Coach travel UI' and tapping testID cancel-dates-confirm renders the row with strike-through title, a yellow 'Cancelled' pill AND the reason text ('Coach travel UI') on the card. (F3 Bulk range cancel) testID event-cancel-range on an uncancelled recurring row opens the same CancelDatesForm with mode=range exposing testID cancel-from-date + cancel-to-date pickers; setting 2026-11-23 \u2192 2026-12-07, reason 'Thanksgiving UI', and confirming cancels three Mondays (Nov 23, Nov 30, Dec 7) which all show the Cancelled pill + 'Thanksgiving UI' reason on the List view. Visual verified in /tmp/iter145_result.png. All QA145/QA145UI records cleaned up (verified via API — 0 rows remain). No deprecated expo packages found in team_calendar.py / calendar.tsx; no SafeAreaView issues; no deprecated expo-av/expo-barcode-scanner/expo-background-fetch usage. All four iter145 features fully working on backend + web preview UI.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter145_perdate_cancel_reason_bulk.py",
+    "/app/test_reports/pytest/pytest_iter145.xml"
+  ],
+  "action_items": [
+    "None required for iter145. All four features (Per-Date Location, Cancel Reason, Notify toggle, Bulk Date Cancel) implemented correctly on backend and web preview UI.",
+    "(Carried over, optional) The 'Edit event (all dates)' Edit-All save confirm and (now obsolete) legacy single-date Alert.alert() in app/team/calendar.tsx still rely on Alert.alert() native rendering. Not needed for iter145 features (they now use the in-app CancelDatesForm modal). Address when the screen is next modified.",
+    "(Carried over) app/team/calendar.tsx is >700 LOC — split OccurrenceForm, EventForm, CancelDatesForm, DetailModal and ImportFromPersonalModal into separate files on the next refactor."
+  ],
+  "critical_code_review_comments": [
+    "routers/team_calendar.py cancel_occurrence/cancel_range correctly store cancel_reasons.<occ_date> alongside exdates; restore_occurrence correctly $unsets the matching reason key. list_events merges cancel_reason only when cancelled=true (good).",
+    "override-occurrence now accepts location/address in its editable field whitelist (f in ('start_time','end_time','notes','title','location','address')); list_events _pick() falls back to series default when override lacks a field (good).",
+    "cancel-range validates to < from (returns 400) and uses _occurrences(skip_ex=True) so already-cancelled dates aren't double-counted (good).",
+    "Frontend OccurrenceForm + CancelDatesForm render as in-app <Modal/> sheets with proper testIDs for all new inputs/toggles — testable on Expo web preview."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter145_perdate_cancel_reason_bulk.py (new)"
+  ],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "100% — all iter145 testIDs render and behave as specified across the three UI features"},
+  "seed_data_creation": "Backend pytest fixture creates and deletes its own QA145 team_events. Frontend UI test creates one 'QA145UI Practice' recurring event via API, exercises Features 1\u20133 against it, then deletes via API. Final preview DB verified: 0 QA145* rows remain.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login via UI: use testIDs login-email-input / login-password-input, then click text 'Sign in' (no login-submit testID). Dismiss the 'Welcome to CheerPlanner' tour by clicking 'Skip' up to 4x after login AND after navigating to /team/calendar. To test team-calendar features, create seed data via Python requests (POST /api/auth/login, then POST /api/team/calendar/events with Bearer token) — faster/more reliable than driving the EventForm which has scroll issues. Switch to list view with testID teamcal-view-list. OccurrenceForm / CancelDatesForm sheets exceed viewport height; scroll targets into view with page.evaluate(scrollIntoView) before clicking occ-save-btn or cancel-dates-confirm. Date inputs inside DateField accept fill('YYYY-MM-DD'). New iter145 testIDs confirmed on 2026-10-02: occ-location, occ-address, occ-notify, occ-save-btn, cancel-dates-modal, cancel-reason, cancel-notify, cancel-dates-confirm, cancel-from-date, cancel-to-date, event-cancel-occurrence, event-cancel-range.",
+  "rca_of_issue": "N/A — no bug found. Iter145 features implemented correctly on backend and frontend."
+}

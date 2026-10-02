@@ -780,3 +780,11 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - VERIFIED via curl: override 11-16→17:00+notes+has_override, others unchanged; cancel 11-23→cancelled:true present; clear-override reverts; bad occ→400, unknown id→404.
 - Backend import OK; frontend lint clean (pre-existing _e warnings only); services restarted.
 - Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 145 — Per-date location, cancel reason, notify-parents, bulk range cancel (main agent)
+- PER-DATE LOCATION: OccurrenceForm (Edit just this date) now also edits Location + Address (+existing time/notes); override-occurrence already persists them; list_events merges per occurrence. Verified: 11-09 → "Backup Gym", has_override true, others unchanged.
+- CANCEL REASON: team_events.cancel_reasons{occ:reason}. cancel-occurrence/cancel-range accept optional reason; restore unsets it; list_events returns cancel_reason on cancelled rows. Cancelled cards + detail banner show the reason to parents. Verified single + range reasons, restore clears.
+- NOTIFY ON CHANGE: OccurrenceForm + CancelDatesForm have a "Text parents" toggle that reuses POST /api/team/broadcast/send (recipients mode all, base_url=EXPO_PUBLIC_BACKEND_URL) to send a composed SMS; graceful alert if SMS not configured. (SMS send path is the existing proven broadcast; not exercised in dev where Twilio is mocked.)
+- BULK DATE CANCEL: new POST /api/team/calendar/events/{id}/cancel-range {from,to,reason?} cancels all occurrences in range (holiday breaks). DetailModal (staff, recurring) → "Cancel a range of dates…" opens CancelDatesForm(mode=range) with From/To + reason + notify. Verified: 11-23..12-07 → 3 dates cancelled w/ reason; to<from → 400.
+- Single-cancel flow moved from ConfirmModal to CancelDatesForm (reason + notify). Backend import OK; frontend lint clean (pre-existing _e warnings only).
+- Creds: demo@cheerplanner.app / CheerDemo2026!
