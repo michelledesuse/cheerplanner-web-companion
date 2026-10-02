@@ -240,6 +240,30 @@ async def restore_occurrence(event_id: str, payload: dict = Body(...), user=Depe
     return {"ok": True}
 
 
+@router.post("/team/calendar/events/{event_id}/restore-range")
+async def restore_range(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    """Un-cancel every previously-cancelled date of a repeating event between two
+    dates (inclusive) in one tap — the opposite of cancel-range."""
+    h = await _resolve_active_household(user["id"])
+    frm = _d(payload.get("from"))
+    to = _d(payload.get("to"))
+    if not frm or not to or to < frm:
+        raise HTTPException(status_code=400, detail="Pick a valid start and end date.")
+    ev = await db.team_events.find_one({"id": event_id, "household_id": h["id"]}, {"_id": 0})
+    if not ev:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    frm_iso, to_iso = frm.isoformat(), to.isoformat()
+    in_range = sorted({str(d) for d in (ev.get("exdates") or []) if frm_iso <= str(d)[:10] <= to_iso})
+    if not in_range:
+        return {"ok": True, "restored": 0, "dates": []}
+    unset = {f"cancel_reasons.{d}": "" for d in in_range}
+    await db.team_events.update_one(
+        {"id": event_id, "household_id": h["id"]},
+        {"$pull": {"exdates": {"$in": in_range}}, "$unset": unset},
+    )
+    return {"ok": True, "restored": len(in_range), "dates": in_range}
+
+
 @router.post("/team/calendar/events/{event_id}/override-occurrence")
 async def override_occurrence(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
     """Set a per-date override (time/notes/location/title) for ONE date of a

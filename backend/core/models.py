@@ -683,9 +683,10 @@ class InboxDraft(BaseModel):
 
 
 class InboxConfirmRequest(BaseModel):
-    kind: str                           # expense | booking
+    kind: str                           # expense | booking | payment
     expense: Optional[ExpenseCreate] = None
     booking: Optional[BookingCreate] = None
+    payment: Optional[PaymentCreate] = None
 
 
 class InboxConfirmAllRequest(BaseModel):

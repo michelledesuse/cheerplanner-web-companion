@@ -23,8 +23,10 @@ from core.models import (
     EXPENSE_CATEGORIES,
 )
 from core.security import get_current_user
+from core.helpers import _build_paid_map
 from routers.expenses import create_expense
 from routers.bookings import create_booking
+from routers.payments import create_payment
 
 load_dotenv()
 
@@ -35,10 +37,12 @@ _PROVIDER = "openai"
 _MODEL = "gpt-5.4"
 
 _SYSTEM = (
-    "You extract structured data from travel booking confirmations and expense "
-    "receipts for a cheerleading team planner. Given text and/or an image, pull out "
-    "EVERY distinct travel booking (flight, hotel, rental car) and EVERY expense "
-    "(receipt, charge, invoice) you can find. Think like TripIt: a single itinerary "
+    "You extract structured data from travel booking confirmations, expense "
+    "receipts, and payment confirmations for a cheerleading team planner. Given "
+    "text and/or an image, pull out "
+    "EVERY distinct travel booking (flight, hotel, rental car), EVERY expense "
+    "(receipt, charge, invoice) AND EVERY payment confirmation you can find. Think "
+    "like TripIt: a single itinerary "
     "email often contains MULTIPLE items — e.g. a flight AND a hotel AND a rental car — "
     "and each must become its own item. Capture as much detail as possible; never "
     "leave a field blank if the information is present anywhere in the text or image. "
@@ -47,11 +51,16 @@ _SYSTEM = (
     "{\n"
     '  "items": [\n'
     "    {\n"
-    '      "kind": "expense" | "booking",\n'
+    '      "kind": "expense" | "booking" | "payment",\n'
     '      "summary": "short one-line human summary",\n'
     '      "expense": {"category": string, "amount": number, "vendor": string, '
     '"incurred_on": "YYYY-MM-DD", "due_date": "YYYY-MM-DD or null", '
     '"person": "name of the athlete/person this charge is for, if the receipt names one", '
+    '"note": string} or null,\n'
+    '      "payment": {"amount": number, '
+    '"method": "Venmo"|"Zelle"|"PayPal"|"CashApp"|"Card"|"Cash"|"Check"|"Bank"|"Other", '
+    '"person": "name of the athlete/person this payment is for, if named", '
+    '"paid_on": "YYYY-MM-DD", "payee": "who was paid (gym / team / vendor)", '
     '"note": string} or null,\n'
     '      "booking": {"type": "flight"|"hotel"|"car", "provider": string, '
     '"address": string, "confirmation": string, "cost": number, "amount_paid": number, '
@@ -71,9 +80,17 @@ _SYSTEM = (
     "  ]\n"
     "}\n\n"
     "Rules:\n"
-    "- Create a SEPARATE item for each distinct booking/expense. If an itinerary has a "
+    "- Create a SEPARATE item for each distinct booking/expense/payment. If an "
+    "itinerary has a "
     "flight, a hotel, and a car, return THREE booking items. Never merge a hotel and a "
     "car (or two different hotels) into one item.\n"
+    "- A PAYMENT item is a confirmation that money was SENT or RECEIVED — e.g. a "
+    "Venmo/Zelle/PayPal/CashApp receipt, a credit-card payment receipt, or wording like "
+    "\"you paid\", \"payment received\", \"thanks for your payment\", \"payment successful\". "
+    "Use the \"payment\" object for these and set kind=\"payment\". Put the method "
+    "(Venmo/Zelle/Card/etc.) in \"method\".\n"
+    "- An EXPENSE is a charge, bill, fee, or invoice that is OWED (not yet a record of a "
+    "payment made). Use the \"expense\" object for these.\n"
     "- Combine a round-trip flight (outbound + return legs) into ONE flight item, using "
     "the return_* fields for the return leg. Separate one-way flights are separate items.\n"
     "- Put any extra details that don't have a dedicated field (seat, room type, "
@@ -168,10 +185,12 @@ def _items_from_parsed(parsed: dict) -> List[dict]:
         if not isinstance(it, dict):
             continue
         kind = it.get("kind")
-        if kind not in ("expense", "booking"):
+        if kind not in ("expense", "booking", "payment"):
             # Infer from which payload is present.
             if it.get("booking"):
                 kind = "booking"
+            elif it.get("payment"):
+                kind = "payment"
             elif it.get("expense"):
                 kind = "expense"
             else:
@@ -184,6 +203,7 @@ def _items_from_parsed(parsed: dict) -> List[dict]:
             "summary": it.get("summary") or "",
             "expense": it.get("expense") if kind == "expense" else None,
             "booking": it.get("booking") if kind == "booking" else None,
+            "payment": it.get("payment") if kind == "payment" else None,
         })
     return out
 
@@ -194,6 +214,10 @@ def _summary_fallback(kind: str, parsed: dict) -> str:
     if kind == "expense" and parsed.get("expense"):
         e = parsed["expense"]
         return f"{e.get('vendor') or e.get('category') or 'Expense'} ${e.get('amount') or ''}".strip()
+    if kind == "payment" and parsed.get("payment"):
+        p = parsed["payment"]
+        who = p.get("payee") or p.get("method") or "Payment"
+        return f"Paid ${p.get('amount') or ''} · {who}".strip()
     if kind == "booking" and parsed.get("booking"):
         b = parsed["booking"]
         return f"{b.get('type', 'Booking').title()} — {b.get('provider') or ''}".strip(" —")
@@ -203,8 +227,8 @@ def _summary_fallback(kind: str, parsed: dict) -> str:
 async def _store_drafts(user_id: str, source: str, raw_text: str, items: List[dict]) -> List[InboxDraft]:
     drafts: List[InboxDraft] = []
     for item in items:
-        kind = item.get("kind") if item.get("kind") in ("expense", "booking") else "unknown"
-        data = item.get(kind) if kind in ("expense", "booking") else {}
+        kind = item.get("kind") if item.get("kind") in ("expense", "booking", "payment") else "unknown"
+        data = item.get(kind) if kind in ("expense", "booking", "payment") else {}
         draft = InboxDraft(
             user_id=user_id,
             kind=kind,
@@ -256,6 +280,35 @@ def match_athlete(data: dict, athletes: List[dict]) -> Optional[str]:
         if len(first) >= 3 and re.search(r"\b" + re.escape(first) + r"\b", hay):
             first_hit = first_hit or a["id"]
     return first_hit
+
+
+def match_payment_expense(athlete_id: Optional[str], amount, expenses: List[dict], paid_map: dict) -> Optional[str]:
+    """Pick the open expense a payment should be applied to (and thus auto-mark
+    paid): same athlete, unpaid balance, closest to the payment amount. Prefers
+    an exact balance match, then exact original amount, then the nearest balance."""
+    if not athlete_id:
+        return None
+    try:
+        amt = float(amount)
+    except Exception:
+        return None
+    cands = []
+    for e in expenses:
+        if e.get("athlete_id") != athlete_id:
+            continue
+        bal = round(float(e.get("amount") or 0) - float(paid_map.get(e["id"], 0.0)), 2)
+        if bal > 0.009:
+            cands.append((e, bal))
+    if not cands:
+        return None
+    for e, bal in cands:
+        if abs(bal - amt) < 0.01:
+            return e["id"]
+    for e, bal in cands:
+        if abs(float(e.get("amount") or 0) - amt) < 0.01:
+            return e["id"]
+    cands.sort(key=lambda t: abs(t[1] - amt))
+    return cands[0][0]["id"]
 
 
 def _trip_date(data: dict) -> Optional[date]:
@@ -351,8 +404,12 @@ async def confirm_draft(draft_id: str, payload: InboxConfirmRequest, current_use
         if not payload.booking:
             raise HTTPException(status_code=400, detail="Missing booking details")
         result = await create_booking(payload.booking, current_user)
+    elif payload.kind == "payment":
+        if not payload.payment:
+            raise HTTPException(status_code=400, detail="Missing payment details")
+        result = await create_payment(payload.payment, current_user)
     else:
-        raise HTTPException(status_code=400, detail="Choose expense or booking")
+        raise HTTPException(status_code=400, detail="Choose expense, payment, or booking")
 
     await db.inbox_drafts.update_one({"id": draft_id}, {"$set": {"status": "confirmed"}})
     return {"ok": True, "kind": payload.kind, "created": result}
@@ -384,7 +441,7 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
     chosen competition. Bookings that already exist on their competition are
     skipped as duplicates. Anything still missing what it needs is left behind
     and reported as skipped."""
-    from core.models import ExpenseCreate, BookingCreate
+    from core.models import ExpenseCreate, BookingCreate, PaymentCreate
 
     uid = current_user["id"]
     drafts = await db.inbox_drafts.find(
@@ -395,6 +452,15 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
     comps = await db.competitions.find(
         {"user_id": uid}, {"_id": 0, "id": 1, "event_date": 1, "end_date": 1}
     ).to_list(500)
+    # For auto-mark-paid: match payment drafts to an open expense.
+    has_payment = any(d.get("kind") == "payment" for d in drafts)
+    expenses: list = []
+    paid_map: dict = {}
+    if has_payment:
+        expenses = await db.expenses.find(
+            {"user_id": uid}, {"_id": 0, "id": 1, "athlete_id": 1, "amount": 1}
+        ).to_list(2000)
+        paid_map = await _build_paid_map(uid)
     # Lazy cache of existing bookings per competition (for the duplicate guard).
     existing_cache: dict[str, list] = {}
 
@@ -426,6 +492,25 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
                     note=" — ".join([x for x in [data.get("vendor"), data.get("note")] if x]) or None,
                 )
                 await create_expense(exp, current_user)
+            elif d.get("kind") == "payment":
+                amount = data.get("amount")
+                athlete_id = match_athlete(data, athletes) or payload.athlete_id
+                if not athlete_id or amount in (None, "", 0):
+                    skipped.append(d.get("summary") or "Payment")
+                    continue
+                matched_exp = match_payment_expense(athlete_id, amount, expenses, paid_map)
+                pay = PaymentCreate(
+                    athlete_id=athlete_id,
+                    amount=float(amount),
+                    paid_on=data.get("paid_on") or date.today().isoformat(),
+                    method=data.get("method") or None,
+                    note=" — ".join([x for x in [data.get("payee"), data.get("note")] if x]) or None,
+                    applied_expense_ids=[matched_exp] if matched_exp else [],
+                )
+                await create_payment(pay, current_user)
+                if matched_exp:
+                    # Reflect the new paid amount for subsequent payment matches.
+                    paid_map[matched_exp] = paid_map.get(matched_exp, 0.0) + float(amount)
             elif d.get("kind") == "booking":
                 comp_id = match_competition(data, comps) or payload.competition_id
                 if not comp_id:

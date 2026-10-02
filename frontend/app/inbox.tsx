@@ -15,7 +15,7 @@ import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Draft = {
   id: string;
-  kind: "expense" | "booking" | "unknown";
+  kind: "expense" | "booking" | "payment" | "unknown";
   source: string;
   summary: string;
   raw_excerpt: string;
@@ -25,12 +25,16 @@ type Draft = {
 
 type Athlete = { id: string; name: string };
 type Competition = { id: string; name: string; event_date?: string; end_date?: string };
+type OpenExpense = { id: string; athlete_id: string; category: string; amount: number; balance_due?: number; due_date?: string };
+
+const PAY_METHODS = ["Venmo", "Zelle", "PayPal", "CashApp", "Card", "Cash", "Check", "Bank", "Other"];
 
 const KIND_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   flight: "airplane",
   hotel: "bed",
   car: "car-sport",
   expense: "wallet",
+  payment: "cash",
   unknown: "help-circle",
 };
 
@@ -82,6 +86,19 @@ function matchCompetitionId(data: any, comps: Competition[], windowDays = 3): st
   return best;
 }
 
+/** Pick the open expense a payment should auto-apply to (same athlete, closest balance). */
+function matchExpenseId(athleteId: string, amount: number, expenses: OpenExpense[]): string {
+  if (!athleteId || !(amount > 0)) return "";
+  const cands = expenses.filter((e) => e.athlete_id === athleteId && (e.balance_due ?? 0) > 0.009);
+  if (cands.length === 0) return "";
+  const exactBal = cands.find((e) => Math.abs((e.balance_due ?? 0) - amount) < 0.01);
+  if (exactBal) return exactBal.id;
+  const exactAmt = cands.find((e) => Math.abs((e.amount ?? 0) - amount) < 0.01);
+  if (exactAmt) return exactAmt.id;
+  cands.sort((a, b) => Math.abs((a.balance_due ?? 0) - amount) - Math.abs((b.balance_due ?? 0) - amount));
+  return cands[0].id;
+}
+
 export default function InboxScreen() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
@@ -100,6 +117,7 @@ export default function InboxScreen() {
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [competitions, setCompetitions] = useState<Competition[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [openExpenses, setOpenExpenses] = useState<OpenExpense[]>([]);
 
   // review modal state
   const [review, setReview] = useState<Draft | null>(null);
@@ -107,8 +125,10 @@ export default function InboxScreen() {
   const [form, setForm] = useState<any>({});
   const [athleteId, setAthleteId] = useState<string>("");
   const [competitionId, setCompetitionId] = useState<string>("");
+  const [expenseId, setExpenseId] = useState<string>("");
   const [autoAthlete, setAutoAthlete] = useState(false);
   const [autoComp, setAutoComp] = useState(false);
+  const [autoExpense, setAutoExpense] = useState(false);
 
   // bulk "add all" state
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -136,6 +156,7 @@ export default function InboxScreen() {
     api.get("/athletes").then(({ data }) => setAthletes(data || [])).catch(() => {});
     api.get("/competitions").then(({ data }) => setCompetitions(data || [])).catch(() => {});
     api.get("/expenses/categories").then(({ data }) => setCategories(data?.categories || [])).catch(() => {});
+    api.get("/expenses").then(({ data }) => setOpenExpenses((data || []).filter((e: OpenExpense) => (e.balance_due ?? 0) > 0.009))).catch(() => {});
   }, [loadDrafts]);
 
   const pickScreenshot = async () => {
@@ -219,6 +240,24 @@ export default function InboxScreen() {
       setAutoComp(!!matchedComp);
       setAthleteId("");
       setAutoAthlete(false);
+      setExpenseId("");
+      setAutoExpense(false);
+    } else if (d.kind === "payment") {
+      const amt = data.amount != null ? Number(data.amount) : 0;
+      setForm({
+        amount: data.amount != null ? String(data.amount) : "",
+        method: PAY_METHODS.includes(data.method) ? data.method : (data.method ? "Other" : ""),
+        paid_on: data.paid_on || new Date().toISOString().slice(0, 10),
+        note: [data.payee, data.note].filter(Boolean).join(" — "),
+      });
+      const matchedAthlete = matchAthleteId(data, athletes);
+      setAthleteId(matchedAthlete);
+      setAutoAthlete(!!matchedAthlete);
+      const matchedExp = matchedAthlete ? matchExpenseId(matchedAthlete, amt, openExpenses) : "";
+      setExpenseId(matchedExp);
+      setAutoExpense(!!matchedExp);
+      setCompetitionId("");
+      setAutoComp(false);
     } else {
       setForm({
         category: data.category || "Misc",
@@ -232,6 +271,8 @@ export default function InboxScreen() {
       setAutoAthlete(!!matchedAthlete);
       setCompetitionId("");
       setAutoComp(false);
+      setExpenseId("");
+      setAutoExpense(false);
     }
   };
 
@@ -240,16 +281,21 @@ export default function InboxScreen() {
     setForm({});
     setAthleteId("");
     setCompetitionId("");
+    setExpenseId("");
     setAutoAthlete(false);
     setAutoComp(false);
+    setAutoExpense(false);
   };
 
   const confirm = async () => {
     if (!review) return;
-    const kind = review.kind === "booking" ? "booking" : "expense";
+    const kind = review.kind === "booking" ? "booking" : review.kind === "payment" ? "payment" : "expense";
 
     if (kind === "expense") {
       if (!athleteId) { Alert.alert("Pick an athlete", "Choose who this expense is for."); return; }
+      if (!form.amount || isNaN(Number(form.amount))) { Alert.alert("Amount needed", "Enter a valid amount."); return; }
+    } else if (kind === "payment") {
+      if (!athleteId) { Alert.alert("Pick an athlete", "Choose who this payment is for."); return; }
       if (!form.amount || isNaN(Number(form.amount))) { Alert.alert("Amount needed", "Enter a valid amount."); return; }
     } else {
       if (!competitionId) { Alert.alert("Pick a competition", "Choose which competition this trip is for."); return; }
@@ -289,6 +335,15 @@ export default function InboxScreen() {
           due_date: form.due_date || undefined,
           note: form.note || undefined,
         };
+      } else if (kind === "payment") {
+        body.payment = {
+          athlete_id: athleteId,
+          amount: Number(form.amount),
+          paid_on: form.paid_on || new Date().toISOString().slice(0, 10),
+          method: form.method || undefined,
+          note: form.note || undefined,
+          applied_expense_ids: expenseId ? [expenseId] : [],
+        };
       } else {
         body.booking = {
           ...(review.data || {}),
@@ -302,8 +357,9 @@ export default function InboxScreen() {
       }
       await api.post(`/inbox/drafts/${review.id}/confirm`, body);
       setDrafts((prev) => prev.filter((x) => x.id !== review.id));
+      const didApply = kind === "payment" && !!expenseId;
       closeReview();
-      Alert.alert("Added", kind === "expense" ? "Expense saved." : "Travel booking saved.");
+      Alert.alert("Added", kind === "expense" ? "Expense saved." : kind === "payment" ? (didApply ? "Payment saved and applied to the matched expense." : "Payment saved.") : "Travel booking saved.");
     } catch (e: any) {
       Alert.alert("Couldn't save", e?.response?.data?.detail || "Please try again.");
     } finally {
@@ -350,6 +406,7 @@ export default function InboxScreen() {
   const iconFor = (d: Draft): keyof typeof Ionicons.glyphMap => {
     if (d.kind === "booking") return KIND_ICON[d.data?.type] || "airplane";
     if (d.kind === "expense") return "wallet";
+    if (d.kind === "payment") return "cash";
     return "help-circle";
   };
 
@@ -372,8 +429,9 @@ export default function InboxScreen() {
           }
         >
           <Text style={styles.lede}>
-            Paste a flight/hotel confirmation or a receipt (or drop a screenshot) and I&apos;ll
-            draft it as travel or an expense for you to confirm.
+            Paste a flight/hotel confirmation, a receipt, or a payment confirmation (or drop a
+            screenshot) and I&apos;ll draft it as travel, an expense, or a payment for you to confirm.
+            A payment can auto-mark its matching expense paid.
           </Text>
 
           {/* Composer */}
@@ -462,7 +520,7 @@ export default function InboxScreen() {
                   <View style={styles.badgeRow}>
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>
-                        {d.kind === "booking" ? (d.data?.type || "travel") : d.kind === "expense" ? "expense" : "unknown"}
+                        {d.kind === "booking" ? (d.data?.type || "travel") : d.kind === "expense" ? "expense" : d.kind === "payment" ? "payment" : "unknown"}
                       </Text>
                     </View>
                     {d.source === "email" && <Ionicons name="mail" size={12} color={colors.textTertiary} />}
@@ -490,7 +548,7 @@ export default function InboxScreen() {
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
-                {review?.kind === "booking" ? "Add travel booking" : "Add expense"}
+                {review?.kind === "booking" ? "Add travel booking" : review?.kind === "payment" ? "Add payment" : "Add expense"}
               </Text>
               <TouchableOpacity onPress={closeReview}>
                 <Ionicons name="close" size={22} color={colors.textPrimary} />
@@ -548,6 +606,70 @@ export default function InboxScreen() {
                       {review.data.notes ? <Text style={styles.detailText}>Notes: {review.data.notes}</Text> : null}
                     </View>
                   )}
+                </>
+              ) : review?.kind === "payment" ? (
+                <>
+                  <Text style={styles.label}>Athlete</Text>
+                  {autoAthlete && <Text style={styles.autoHint}>✨ Auto-matched from the payment — tap another to change.</Text>}
+                  <View style={styles.chipWrap}>
+                    {athletes.length === 0 && <Text style={styles.hint}>No athletes yet — add one first.</Text>}
+                    {athletes.map((a) => (
+                      <TouchableOpacity
+                        key={a.id}
+                        style={[styles.chip, athleteId === a.id && styles.chipActive]}
+                        onPress={() => {
+                          setAthleteId(a.id); setAutoAthlete(false);
+                          const m = matchExpenseId(a.id, Number(form.amount) || 0, openExpenses);
+                          setExpenseId(m); setAutoExpense(!!m);
+                        }}
+                      >
+                        <Text style={[styles.chipText, athleteId === a.id && styles.chipTextActive]}>{a.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Field label="Amount" value={form.amount} onChange={(v) => setForm((f: any) => ({ ...f, amount: v }))} keyboardType="decimal-pad" styles={styles} />
+
+                  <Text style={styles.label}>Method</Text>
+                  <View style={styles.chipWrap}>
+                    {PAY_METHODS.map((m) => (
+                      <TouchableOpacity
+                        key={m}
+                        style={[styles.chip, form.method === m && styles.chipActive]}
+                        onPress={() => setForm((f: any) => ({ ...f, method: m }))}
+                      >
+                        <Text style={[styles.chipText, form.method === m && styles.chipTextActive]}>{m}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  <Field label="Paid on (YYYY-MM-DD)" value={form.paid_on} onChange={(v) => setForm((f: any) => ({ ...f, paid_on: v }))} styles={styles} />
+                  <Field label="Note" value={form.note} onChange={(v) => setForm((f: any) => ({ ...f, note: v }))} styles={styles} />
+
+                  <Text style={styles.label}>Apply to an expense (marks it paid)</Text>
+                  {autoExpense && <Text style={styles.autoHint}>✨ Auto-matched to an open expense by amount — tap to change, or “None” to just log the payment.</Text>}
+                  <View style={styles.chipWrap}>
+                    <TouchableOpacity
+                      style={[styles.chip, !expenseId && styles.chipActive]}
+                      onPress={() => { setExpenseId(""); setAutoExpense(false); }}
+                    >
+                      <Text style={[styles.chipText, !expenseId && styles.chipTextActive]}>None</Text>
+                    </TouchableOpacity>
+                    {openExpenses.filter((e) => !athleteId || e.athlete_id === athleteId).length === 0 && (
+                      <Text style={styles.hint}>No open expenses for this athlete.</Text>
+                    )}
+                    {openExpenses.filter((e) => !athleteId || e.athlete_id === athleteId).map((e) => (
+                      <TouchableOpacity
+                        key={e.id}
+                        style={[styles.chip, expenseId === e.id && styles.chipActive]}
+                        onPress={() => { setExpenseId(e.id); setAutoExpense(false); }}
+                      >
+                        <Text style={[styles.chipText, expenseId === e.id && styles.chipTextActive]}>
+                          {e.category} · ${Number(e.balance_due ?? e.amount).toFixed(0)} due
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </>
               ) : (
                 <>
