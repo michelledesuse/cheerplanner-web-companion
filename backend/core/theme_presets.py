@@ -10,12 +10,12 @@ THEME_PRESETS: List[Dict[str, Any]] = [
     {
         "id": "cheerplanner",
         "name": "CheerPlanner",
-        "accent": "#2563EB",
+        "accent": "#0000FF",
         "accentSubtle": "#DBEAFE",
         "bg": "#F8FAFC",
         "card": "#FFFFFF",
         "textPrimary": "#0F172A",
-        "tabActive": "#2563EB",
+        "tabActive": "#0000FF",
     },
     {
         "id": "red_white",

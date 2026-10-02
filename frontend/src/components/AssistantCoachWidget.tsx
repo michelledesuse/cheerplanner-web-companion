@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname } from "expo-router";
@@ -92,7 +93,7 @@ export default function AssistantCoachWidget() {
               <View style={[styles.headIcon, { backgroundColor: c.accentSubtle }]}><Ionicons name="star" size={18} color={c.accent} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.title, { color: c.textPrimary }]}>Assistant Coach</Text>
-                <Text style={[styles.subtitle, { color: c.textSecondary }]}>How to use CheerPlanner</Text>
+                <Text style={[styles.subtitle, { color: c.textSecondary }]}>How to use <BrandName /></Text>
               </View>
               <TouchableOpacity onPress={() => setOpen(false)} hitSlop={10} testID="assistant-coach-close"><Ionicons name="close" size={24} color={c.textSecondary} /></TouchableOpacity>
             </View>
@@ -108,7 +109,7 @@ export default function AssistantCoachWidget() {
                 </View>
                 {messages.length === 0 && (
                   <View style={styles.welcome}>
-                    <Text style={[styles.welcomeText, { color: c.textSecondary }]}>Hi! I can help you find your way around CheerPlanner. Ask me how to do something, or try:</Text>
+                    <Text style={[styles.welcomeText, { color: c.textSecondary }]}>Hi! I can help you find your way around <BrandName />. Ask me how to do something, or try:</Text>
                     {STARTERS.map((s) => (
                       <TouchableOpacity key={s} style={[styles.starter, { backgroundColor: c.card, borderColor: c.border }]} onPress={() => send(s)} testID="assistant-coach-starter">
                         <Text style={[styles.starterText, { color: c.textPrimary }]}>{s}</Text>

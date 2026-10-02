@@ -6,7 +6,7 @@ export const colors = {
   borderSoft: "#F5F5F4",
   primary: "#0F172A",      // slate-900
   primaryText: "#FFFFFF",
-  accent: "#007CFF",       // CheerPlanner blue (from logo)
+  accent: "#0000FF",       // CheerPlanner brand blue
   accentSubtle: "#E6F2FF", // light blue background
   accentBorder: "#BFDCFF", // blue border
   textPrimary: "#0F172A",

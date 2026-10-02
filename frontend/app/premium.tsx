@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert, Linking } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -11,11 +12,11 @@ import { spacing, radius, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
 const PLAN_LABEL: Record<string, string> = {
-  free: "CheerPlanner Free",
-  monthly: "CheerPlanner Premium",
-  annual: "CheerPlanner Premium",
-  lifetime: "CheerPlanner Premium",
-  promo: "CheerPlanner Premium",
+  free: "Free",
+  monthly: "Premium",
+  annual: "Premium",
+  lifetime: "Premium",
+  promo: "Premium",
 };
 const PLAN_SUB: Record<string, string> = {
   monthly: "Monthly Plan",
@@ -112,7 +113,7 @@ export default function PremiumScreen() {
         {/* Current plan card */}
         <View style={[styles.planCard, isPremium && styles.planCardPremium]}>
           <Ionicons name={isPremium ? "star" : "star-outline"} size={30} color={isPremium ? "#F59E0B" : styles._muted.color} />
-          <Text style={styles.planName}>{PLAN_LABEL[plan]}</Text>
+          <Text style={styles.planName}><BrandName /> {PLAN_LABEL[plan]}</Text>
           {isPremium ? <Text style={styles.planSub}>{PLAN_SUB[plan] || "Premium"}</Text> : <Text style={styles.planSub}>Free plan</Text>}
           {isPremium && plan === "lifetime" ? (
             <Text style={styles.planNote}>Lifetime — never expires. No renewal.</Text>
@@ -131,20 +132,20 @@ export default function PremiumScreen() {
               </View>
             ) : null}
 
-            <Text style={styles.sectionTitle}>{monetizationActive ? "Upgrade to Premium" : "CheerPlanner Premium plans"}</Text>
+            <Text style={styles.sectionTitle}>{monetizationActive ? "Upgrade to Premium" : <><BrandName /> Premium plans</>}</Text>
             <Text style={styles.blurb}>Unlock the full TeamHub, advanced roster, sizes, paperwork, team payments, sign-ups, attendance, spreadsheet import/export, parent share links, automated SMS reminders, and up to 6 household members.</Text>
 
             {/* Annual (best value) */}
             <TouchableOpacity style={[styles.priceCard, styles.priceCardBest]} onPress={() => buy("annual")} disabled={buying} testID="upgrade-annual">
               {savingsPct > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>SAVE {savingsPct}%</Text></View> : null}
-              <Text style={styles.priceTitle}>CheerPlanner Premium — Annual</Text>
+              <Text style={styles.priceTitle}><BrandName /> Premium — Annual</Text>
               <Text style={styles.priceValue}>{offerings?.annual?.product?.priceString || `$${annual.toFixed(2)}`}<Text style={styles.pricePer}> / year</Text></Text>
               <Text style={styles.priceHint}>{trialDays > 0 ? `${trialDays}-day free trial · ` : ""}Auto-renews yearly · Best value (${annualMonthEq.toFixed(2)}/mo)</Text>
             </TouchableOpacity>
 
             {/* Monthly */}
             <TouchableOpacity style={styles.priceCard} onPress={() => buy("monthly")} disabled={buying} testID="upgrade-monthly">
-              <Text style={styles.priceTitle}>CheerPlanner Premium — Monthly</Text>
+              <Text style={styles.priceTitle}><BrandName /> Premium — Monthly</Text>
               <Text style={styles.priceValue}>{offerings?.monthly?.product?.priceString || `$${monthly.toFixed(2)}`}<Text style={styles.pricePer}> / month</Text></Text>
               <Text style={styles.priceHint}>{monthlyTrialDays > 0 ? `${monthlyTrialDays}-day free trial · ` : ""}Auto-renews monthly</Text>
             </TouchableOpacity>

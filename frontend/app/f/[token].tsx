@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform, Share } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
@@ -102,7 +103,7 @@ export default function PublicFundraiser() {
               <Ionicons name={copied ? "checkmark" : "link"} size={16} color={colors.accent} />
               <Text style={styles.copyBtnText}>{copied ? "Link copied!" : "Copy link"}</Text>
             </TouchableOpacity>
-            <Text style={styles.brand}>Shared from CheerPlanner</Text>
+            <Text style={styles.brand}>Shared from <BrandName /></Text>
           </View>
         )}
       </View>

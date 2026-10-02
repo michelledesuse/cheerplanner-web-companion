@@ -795,3 +795,10 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - Setup Guide (app/help/setup.tsx): added step 31 (Smart Inbox) and step 32 (change/cancel single date + notify + import range).
 - Privacy Policy (app/privacy.tsx): added §2 "AI Features (Assistant & Smart Inbox)" (content sent to OpenAI/Anthropic/Google via integration provider; not used for training; drafts confirmed by user), Smart Inbox note in §1, renumbered sections sequentially (1–15), bumped Last updated to October 1, 2026.
 - Lint clean; backend imports OK; services restarted. App version is 3.1.1 (build 120).
+
+## Iteration 147 — Two-tone CheerPlanner wordmark + brand-blue theme (main agent)
+- New reusable src/components/BrandName.tsx: renders "Cheer" in brand blue #0000FF + "Planner" in theme textPrimary (black in light theme; follows theme on dark for readability per brand palette blue/black/white). Works standalone or nested inline inside <Text>.
+- Applied BrandName to prominent wordmarks: WebSidebar brand, MarketingHome brand + copyright, Settings footer, RatePrompt title, premium (section title, Annual/Monthly price titles, plan name card via PLAN_LABEL suffix), f/[token] "Shared from", AssistantCoachWidget header + welcome.
+- Appearance "CheerPlanner" theme preset accent + tabActive changed #2563EB → #0000FF (core/theme_presets.py); base fallback accent in src/theme.ts #007CFF → #0000FF. Verified /api/themes/presets returns #0000FF.
+- Lint clean; backend import OK; preset endpoint verified; smoke screenshot shows blue "Cheer" + black "Planner" and blue accent button.
+- Note: long body-text mentions (FAQ/Privacy/Setup paragraphs, seasons/contact intros) left as plain text for readability; brand wordmark surfaces are two-tone.

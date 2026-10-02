@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, ActivityIndicator, Linking } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -291,7 +292,7 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.footer}>CheerPlanner • v{Platform.OS === "android" ? "1.0.0" : "1.1.2"}</Text>
+        <Text style={styles.footer}><BrandName /> • v{Platform.OS === "android" ? "1.0.0" : "1.1.2"}</Text>
       </ScrollView>
 
       {/* Password-confirm modal for account deletion (Apple 5.1.1(v) compliance) */}

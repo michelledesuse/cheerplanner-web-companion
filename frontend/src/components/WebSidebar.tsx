@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView, Image } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, usePathname } from "expo-router";
 
@@ -58,7 +59,7 @@ export default function WebSidebar() {
     <View style={styles.sidebar}>
       <View style={styles.brandRow}>
         <Image source={require("../../assets/images/cheerplanner-mark.png")} style={styles.brandMark} resizeMode="contain" />
-        <Text style={styles.brand}>CheerPlanner</Text>
+        <BrandName style={styles.brand} />
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.lg }}>

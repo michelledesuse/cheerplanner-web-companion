@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, ScrollView, useWindowDimensions, Linking, Image } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -29,7 +30,7 @@ export default function MarketingHome() {
       <View style={styles.nav}>
         <View style={styles.brandRow}>
           <Image source={require("../../assets/images/cheerplanner-mark.png")} style={styles.brandMark} resizeMode="contain" />
-          <Text style={styles.brand}>CheerPlanner</Text>
+          <BrandName style={styles.brand} />
         </View>
         <View style={styles.navRight}>
           <TouchableOpacity onPress={() => router.push("/login" as any)} testID="home-signin"><Text style={styles.navLink}>Sign in</Text></TouchableOpacity>
@@ -82,7 +83,7 @@ export default function MarketingHome() {
           <TouchableOpacity onPress={() => router.push("/text-messaging-opt-in" as any)}><Text style={styles.footerLink}>Text Messaging Opt-In</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => router.push("/contact" as any)}><Text style={styles.footerLink}>Contact Us</Text></TouchableOpacity>
         </View>
-        <Text style={styles.copyright}>© {new Date().getFullYear()} CheerPlanner. All rights reserved.</Text>
+        <Text style={styles.copyright}>© {new Date().getFullYear()} <BrandName />. All rights reserved.</Text>
       </ScrollView>
     </SafeAreaView>
   );

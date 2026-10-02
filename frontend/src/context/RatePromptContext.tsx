@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from "react";
 import { View, Text, TouchableOpacity, Modal, Platform } from "react-native";
+import BrandName from "@/src/components/BrandName";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as StoreReview from "expo-store-review";
 import { Ionicons } from "@expo/vector-icons";
@@ -66,7 +67,7 @@ export function RatePromptProvider({ children }: { children: React.ReactNode }) 
             <View style={styles.iconWrap}>
               <Ionicons name="star" size={26} color="#F59E0B" />
             </View>
-            <Text style={styles.title}>Enjoying CheerPlanner?</Text>
+            <Text style={styles.title}>Enjoying <BrandName />?</Text>
             <Text style={styles.body}>
               A quick rating helps other cheer families discover the app. It only takes a few seconds!
             </Text>
