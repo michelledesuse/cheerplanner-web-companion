@@ -1,0 +1,31 @@
+{
+  "summary": "Iter144 Team Hub calendar (Single-Day Time Tweak + Cancelled Badge + Import Date Range) tested end-to-end on preview. BACKEND 7/7 pytest tests pass against /app/backend/tests/test_iter144_overrides_and_cancel_badge.py. A weekly Monday QA144 Practice (2026-11-02 → 2026-12-10 at 18:00-20:00) expands to 6 occurrences all with has_override=false, cancelled=false. POST /override-occurrence {occ_date:'2026-11-16', start_time:'17:00', end_time:'19:00', notes:'Early start'} flips ONLY that row to 17:00/19:00/'Early start' with has_override=true; the other 5 remain at 18:00/20:00 with has_override=false. POST /clear-override reverts that date to 18:00/20:00 and has_override=false. POST /cancel-occurrence on a different date (2026-11-23) keeps it in the list with cancelled:true (iter144 change: previously removed). Validation: override-occurrence with empty occ_date → 400; override-occurrence with no editable fields → 400; override-occurrence on unknown event id → 404. All QA144 events cleaned up (final list contains 0 QA144*). FRONTEND verified via mobile-viewport Playwright (390x844) on /team/calendar as demo@cheerplanner.app: (a) Single-day tweak — tapping a recurring row opens detail with testID event-edit-occurrence; tapping it opens testID occurrence-edit-modal (5 inputs — title, 2 time pickers, location, notes); testID occ-save-btn persists. Reopening the same date now shows testID event-reset-override and the row renders an override edit-icon badge (verified visually). (b) Cancelled badge — a cancelled Mon Nov 23 row remains in the List view as a dimmed, strike-through card with a yellow 'Cancelled' pill; opening it reveals testID event-restore-occurrence for staff. (c) Import Date Range — the Import to TeamHub modal (testID import-personal-modal) now exposes testID imp-date-range with testID imp-from-date and imp-to-date pickers; setting a narrow Nov 2–Nov 9 range filtered the list from 3 rows to 0 rows ('No items in this date range. Widen the range above.'), and testID imp-range-clear restored the full list back to 3 rows. No deprecated expo-av/barcode-scanner/background-fetch usage; no SafeAreaView issues in team_calendar.py / calendar.tsx. Both features from iter144 are fully working on web + backend. Known reminder from iter143: the two remaining Alert.alert() multi-button confirms ('Save changes to all dates' and 'Cancel just this date') still rely on native rendering — unchanged in iter144 and not needed for the three features under test here.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter144_overrides_and_cancel_badge.py",
+    "/app/test_reports/pytest/pytest_iter144.xml"
+  ],
+  "action_items": [
+    "None required for iter144. Features implemented correctly on backend and web preview UI.",
+    "(Carried over from iter143, optional) Replace the remaining Alert.alert() 2-button confirms in app/team/calendar.tsx (Edit-All save confirm; Cancel just this date confirm) with an in-app <Modal/> sheet so they are testable on the Expo web preview; this does NOT affect iter144 features."
+  ],
+  "critical_code_review_comments": [
+    "routers/team_calendar.py override_occurrence/clear_override correctly use $set / $unset on overrides.<occ_date> and return 400 on empty payload / 404 on unknown event. list_events merges per-occurrence overrides and surfaces has_override + cancelled flags.",
+    "app/team/calendar.tsx is now 989 lines (↑ from 838 last iter) — well above the 700-line soft threshold. OccurrenceForm, EventForm, DetailModal and ImportFromPersonalModal should be split into separate files next time the screen needs changes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter144_overrides_and_cancel_badge.py (new)"
+  ],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% — all iter144 testIDs render and behave as specified (single-day override + reset, cancelled card + restore, import date-range filter + clear)"},
+  "seed_data_creation": "Test fixture creates and DELETES its own QA144 team_events (one shared across backend tests, one shared across UI test). Final preview DB contains 0 QA144* rows (verified via API after cleanup).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login via UI: use testIDs login-email-input / login-password-input then click text 'Sign in' (there is NO login-submit testID — fallback to text). Token is persisted in AsyncStorage web shim (IndexedDB), key 'ct_auth_token', JSON-encoded; setting localStorage directly does NOT work — do UI login. The team calendar needs testID teamcal-view-list to switch to List mode (Month is the default). testIDs confirmed on 2026-10-02: calendar-screen, teamcal-view-list, calendar-import-personal, event-<id>-<occ>, event-edit-occurrence, event-reset-override, event-restore-occurrence, event-cancel-occurrence, occurrence-edit-modal, occ-save-btn, import-personal-modal, imp-date-range, imp-from-date, imp-to-date, imp-range-clear, import-personal-confirm. Date inputs inside DateField render a nested <input> that accepts fill('YYYY-MM-DD').",
+  "rca_of_issue": "N/A — no bug found. Iter144 features implemented correctly."
+}

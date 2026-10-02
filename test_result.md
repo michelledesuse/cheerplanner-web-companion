@@ -772,3 +772,11 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 ## Iteration 143b — Edit-All & Cancel-date confirms converted to in-app ConfirmModal (main agent)
 - Per testing-agent note, Alert.alert multi-button confirms don't render in Expo web preview. Replaced the two NEW confirms with a reusable in-app <ConfirmModal> (testID calendar-confirm-modal / -yes / -no): EventForm "Update every date?" (Edit-All) and DetailModal "Cancel just this date?". Now visible on web + native. Delete/other pre-existing Alerts left as-is.
 - Lint clean (pre-existing _e warnings only); calendar screen renders (smoke screenshot OK); backend cancel/restore unchanged (already 6/6).
+
+## Iteration 144 — Single-day override, cancelled badge, import date-range (main agent)
+- SINGLE-DAY TIME TWEAK: team_events gains overrides{occ_date:{start_time,end_time,notes,title,location,address}}. New POST /api/team/calendar/events/{id}/override-occurrence (set) + /clear-override (reset). list_events applies the override per occurrence and sets has_override. Frontend DetailModal (staff, recurring, not cancelled) → "Edit just this date (time/notes)" opens new OccurrenceForm (TimeField start/end + notes); plus "Reset this date to series default" when has_override. Pencil icon on cards with an override.
+- CANCELLED BADGE: _occurrences gains skip_ex param; list_events now emits cancelled dates (skip_ex=False) with cancelled:true (RSVP paused). Family/parent view shows a dimmed, strike-through card with a "Cancelled" pill + detail banner "Your coach cancelled this date."; staff detail shows "Restore this date". Cancelled dates excluded from month dots.
+- IMPORT DATE RANGE: ImportFromPersonalModal adds optional From/To DateFields (testIDs imp-from-date/imp-to-date, imp-range-clear) filtering competitions/singles/series shown; empty-range hint; dateCount/preview respect the filter. (A repeating series still imports as the whole recurring series by design.)
+- VERIFIED via curl: override 11-16→17:00+notes+has_override, others unchanged; cancel 11-23→cancelled:true present; clear-override reverts; bad occ→400, unknown id→404.
+- Backend import OK; frontend lint clean (pre-existing _e warnings only); services restarted.
+- Creds: demo@cheerplanner.app / CheerDemo2026!

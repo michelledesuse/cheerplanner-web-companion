@@ -58,14 +58,17 @@ async def _hub_and_role(user: dict):
     return None, None
 
 
-def _occurrences(ev: dict, win_from: date, win_to: date) -> list:
-    """Expand an event into occurrence dates (YYYY-MM-DD) within [win_from, win_to]."""
+def _occurrences(ev: dict, win_from: date, win_to: date, skip_ex: bool = True) -> list:
+    """Expand an event into occurrence dates (YYYY-MM-DD) within [win_from, win_to].
+
+    When skip_ex is False, cancelled dates (exdates) are still returned so callers
+    can show them with a "cancelled" badge."""
     start = _d(ev.get("date"))
     if not start:
         return []
     rec = ev.get("recurrence") or {}
     freq = rec.get("freq") or "none"
-    exset = set(ev.get("exdates") or [])
+    exset = set(ev.get("exdates") or []) if skip_ex else set()
     until = _d(rec.get("until")) or win_to
     end = min(win_to, until)
     out = []
@@ -138,7 +141,7 @@ async def create_event(payload: dict = Body(...), user=Depends(require_team_acce
         "address": (payload.get("address") or "").strip(), "date": str(payload["date"])[:10],
         "start_time": payload.get("start_time") or "", "end_time": payload.get("end_time") or "",
         "notes": (payload.get("notes") or "").strip(), "recurrence": rec,
-        "exdates": [],
+        "exdates": [], "overrides": {},
         "created_by": user["id"], "created_at": _now(),
     }
     await db.team_events.insert_one(dict(ev))
@@ -206,6 +209,46 @@ async def restore_occurrence(event_id: str, payload: dict = Body(...), user=Depe
     return {"ok": True}
 
 
+@router.post("/team/calendar/events/{event_id}/override-occurrence")
+async def override_occurrence(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    """Set a per-date override (time/notes/location/title) for ONE date of a
+    repeating event, leaving every other date on the series default."""
+    h = await _resolve_active_household(user["id"])
+    occ = _d(payload.get("occ_date"))
+    if not occ:
+        raise HTTPException(status_code=400, detail="A valid date is required.")
+    ov = {}
+    for f in ("start_time", "end_time", "notes", "title", "location", "address"):
+        if f in payload:
+            v = payload.get(f)
+            ov[f] = (v or "").strip() if isinstance(v, str) else v
+    if not ov:
+        raise HTTPException(status_code=400, detail="Nothing to change for this date.")
+    r = await db.team_events.update_one(
+        {"id": event_id, "household_id": h["id"]},
+        {"$set": {f"overrides.{occ.isoformat()}": ov}},
+    )
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    return {"ok": True}
+
+
+@router.post("/team/calendar/events/{event_id}/clear-override")
+async def clear_override(event_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    """Reset a single date back to the series default (remove its override)."""
+    h = await _resolve_active_household(user["id"])
+    occ = _d(payload.get("occ_date"))
+    if not occ:
+        raise HTTPException(status_code=400, detail="A valid date is required.")
+    r = await db.team_events.update_one(
+        {"id": event_id, "household_id": h["id"]},
+        {"$unset": {f"overrides.{occ.isoformat()}": ""}},
+    )
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Event not found.")
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------
 # Listing (staff + viewers)
 # ---------------------------------------------------------------
@@ -227,28 +270,38 @@ async def list_events(from_: str = None, to: str = None, user=Depends(get_curren
     my_roster_ids = [r["id"] for r in my_rosters]
     out = []
     for ev in evs:
-        for occ in _occurrences(ev, win_from, win_to):
+        exset = set(ev.get("exdates") or [])
+        overrides = ev.get("overrides") or {}
+        for occ in _occurrences(ev, win_from, win_to, skip_ex=False):
             if role == "viewer" and (ev["id"], occ) in hidden:
                 continue
+            cancelled = occ in exset
+            ov = overrides.get(occ) or {}
+            def _pick(field):
+                return ov[field] if field in ov else ev.get(field)
             row = {
-                "event_id": ev["id"], "occ_date": occ, "title": ev["title"], "location": ev.get("location"),
-                "address": ev.get("address"), "event_type": ev.get("event_type") or "practice",
-                "start_time": ev.get("start_time"), "end_time": ev.get("end_time"), "notes": ev.get("notes"),
+                "event_id": ev["id"], "occ_date": occ,
+                "title": ov.get("title") or ev["title"],
+                "location": _pick("location"),
+                "address": _pick("address"), "event_type": ev.get("event_type") or "practice",
+                "start_time": _pick("start_time"), "end_time": _pick("end_time"), "notes": _pick("notes"),
                 "recurring": (ev.get("recurrence") or {}).get("freq", "none") != "none",
                 "recurrence": ev.get("recurrence") or {"freq": "none"}, "event_date": ev.get("date"),
                 "exdates": ev.get("exdates") or [],
+                "cancelled": cancelled, "has_override": bool(ov),
                 "can_edit": role == "staff",
             }
-            if role == "staff":
-                cnt = await db.calendar_rsvps.count_documents({"event_id": ev["id"], "occ_date": occ})
-                row["rsvp_count"] = cnt
-            else:
-                mine = []
-                async for rv in db.calendar_rsvps.find(
-                    {"event_id": ev["id"], "occ_date": occ, "roster_id": {"$in": my_roster_ids}}, {"_id": 0}
-                ):
-                    mine.append({"roster_id": rv["roster_id"], "status": rv["status"]})
-                row["my_rsvps"] = mine
+            if not cancelled:
+                if role == "staff":
+                    cnt = await db.calendar_rsvps.count_documents({"event_id": ev["id"], "occ_date": occ})
+                    row["rsvp_count"] = cnt
+                else:
+                    mine = []
+                    async for rv in db.calendar_rsvps.find(
+                        {"event_id": ev["id"], "occ_date": occ, "roster_id": {"$in": my_roster_ids}}, {"_id": 0}
+                    ):
+                        mine.append({"roster_id": rv["roster_id"], "status": rv["status"]})
+                    row["my_rsvps"] = mine
             out.append(row)
     out.sort(key=lambda r: (r["occ_date"], r.get("start_time") or ""))
     resp = {"role": role, "events": out}

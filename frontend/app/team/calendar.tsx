@@ -14,7 +14,7 @@ import TimeField from "@/src/components/TimeField";
 import AddTypeModal from "@/src/components/AddTypeModal";
 import { formatTime12, todayISO } from "@/src/utils/format";
 
-type Ev = { event_id: string; occ_date: string; event_date?: string; title: string; event_type?: string; location?: string; address?: string; start_time?: string; end_time?: string; notes?: string; recurring?: boolean; recurrence?: any; can_edit?: boolean; rsvp_count?: number; my_rsvps?: { roster_id: string; status: string }[] };
+type Ev = { event_id: string; occ_date: string; event_date?: string; title: string; event_type?: string; location?: string; address?: string; start_time?: string; end_time?: string; notes?: string; recurring?: boolean; recurrence?: any; exdates?: string[]; cancelled?: boolean; has_override?: boolean; can_edit?: boolean; rsvp_count?: number; my_rsvps?: { roster_id: string; status: string }[] };
 type Ath = { roster_id: string; name: string };
 type TypeDef = { key: string; label: string; icon: string; color: string };
 const WD = ["S", "M", "T", "W", "T", "F", "S"];
@@ -105,6 +105,7 @@ export default function TeamCalendar() {
     const map: Record<string, any> = {};
     const seen: Record<string, Set<string>> = {};
     for (const e of filteredEvents) {
+      if (e.cancelled) continue;
       const color = typeOf(e.event_type).color;
       if (!seen[e.occ_date]) seen[e.occ_date] = new Set();
       if (seen[e.occ_date].has(color)) continue;
@@ -121,6 +122,21 @@ export default function TeamCalendar() {
 
   const renderCard = (e: Ev, showDate = true) => {
     const t = typeOf(e.event_type);
+    if (e.cancelled) {
+      return (
+        <TouchableOpacity key={e.event_id + e.occ_date} style={[styles.card, styles.cardCancelled]} onPress={() => setDetail(e)} testID={`event-${e.event_id}-${e.occ_date}`}>
+          {showDate && <View style={styles.dateChip}><Text style={styles.dateChipText}>{fmtDate(e.occ_date)}</Text></View>}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={styles.rowT}>
+              <View style={[styles.typeDot, { backgroundColor: colors.textTertiary }]} />
+              <Text style={[styles.evTitle, styles.cancelledTitle]} numberOfLines={1}>{e.title}</Text>
+            </View>
+            <Text style={styles.evMeta}>{[t.label, fmtTime(e.start_time)].filter(Boolean).join(" · ")}</Text>
+          </View>
+          <View style={styles.cancelledPill}><Text style={styles.cancelledPillText}>Cancelled</Text></View>
+        </TouchableOpacity>
+      );
+    }
     return (
       <TouchableOpacity key={e.event_id + e.occ_date} style={styles.card} onPress={() => setDetail(e)} testID={`event-${e.event_id}-${e.occ_date}`}>
         {showDate && <View style={styles.dateChip}><Text style={styles.dateChipText}>{fmtDate(e.occ_date)}</Text></View>}
@@ -129,6 +145,7 @@ export default function TeamCalendar() {
             <View style={[styles.typeDot, { backgroundColor: t.color }]} />
             <Text style={styles.evTitle} numberOfLines={1}>{e.title}</Text>
             {e.recurring && <Ionicons name="repeat" size={14} color={colors.textTertiary} />}
+            {e.has_override && <Ionicons name="pencil" size={12} color={colors.textTertiary} />}
           </View>
           <Text style={styles.evMeta}>{[t.label, fmtTime(e.start_time), e.location].filter(Boolean).join(" · ") || "All day"}</Text>
           {!isStaff && (e.my_rsvps || []).length > 0 && <Text style={styles.evRsvp}>{e.my_rsvps!.map((m) => athletes.find((a) => a.roster_id === m.roster_id)?.name.split(" ")[0] + ": " + (m.status === "attending" ? "✅" : "❌")).join("  ")}</Text>}
@@ -310,11 +327,53 @@ function ConfirmModal({ visible, title, message, confirmText, cancelText, destru
   );
 }
 
+function OccurrenceForm({ ev, onClose, onSaved, styles }: any) {
+  const [startTime, setStartTime] = useState<string>(ev?.start_time || "");
+  const [endTime, setEndTime] = useState<string>(ev?.end_time || "");
+  const [notes, setNotes] = useState<string>(ev?.notes || "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      await api.post(`/team/calendar/events/${ev.event_id}/override-occurrence`, {
+        occ_date: ev.occ_date, start_time: startTime, end_time: endTime, notes: notes.trim(),
+      });
+      onSaved();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save this date."); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalWrap} onPress={onClose}><Pressable style={styles.sheet} onPress={() => {}} testID="occurrence-edit-modal">
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+          <Text style={styles.sheetTitle}>Edit just this date</Text>
+          <Text style={styles.sheetSub2}>{fmtDate(ev.occ_date)} · changes apply only to this one date, not the rest of the series.</Text>
+
+          <Text style={styles.secLbl}>Start time</Text>
+          <View style={{ marginTop: 8 }}><TimeField value={startTime} onChange={setStartTime} testID="occ-start-time" /></View>
+
+          <Text style={styles.secLbl}>End time</Text>
+          <View style={{ marginTop: 8 }}><TimeField value={endTime} onChange={setEndTime} testID="occ-end-time" /></View>
+
+          <Text style={styles.secLbl}>Notes (optional)</Text>
+          <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Earlier start this week" placeholderTextColor={colors.textTertiary} testID="occ-notes" />
+
+          <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={save} disabled={saving} testID="occ-save-btn">{saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>Save this date</Text>}</TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+        </ScrollView>
+      </Pressable></Pressable>
+    </Modal>
+  );
+}
+
 function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged, styles }: any) {
   const [rsvps, setRsvps] = useState<any[]>([]);
   const [reasonFor, setReasonFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [occEditOpen, setOccEditOpen] = useState(false);
   const t = typeOf(ev.event_type);
   const load = useCallback(async () => {
     if (isStaff) { try { const r = await api.get(`/team/calendar/rsvps?event_id=${ev.event_id}&occ_date=${ev.occ_date}`); setRsvps(r.data.rsvps || []); } catch {} }
@@ -333,6 +392,18 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
       await api.post(`/team/calendar/events/${ev.event_id}/cancel-occurrence`, { occ_date: ev.occ_date });
       onChanged(); onClose();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not cancel this date."); }
+  };
+  const restoreThis = async () => {
+    try {
+      await api.post(`/team/calendar/events/${ev.event_id}/restore-occurrence`, { occ_date: ev.occ_date });
+      onChanged(); onClose();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not restore this date."); }
+  };
+  const resetOverride = async () => {
+    try {
+      await api.post(`/team/calendar/events/${ev.event_id}/clear-override`, { occ_date: ev.occ_date });
+      onChanged(); onClose();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not reset this date."); }
   };
   const hide = async () => { await api.post("/team/calendar/hide", { event_id: ev.event_id, occ_date: ev.occ_date }); onChanged(); onClose(); };
   const addToMine = async () => {
@@ -367,19 +438,25 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
       <Pressable style={styles.modalWrap} onPress={onClose}><Pressable style={styles.sheet} onPress={() => {}} testID="event-detail-modal">
         <View style={styles.rowT}><View style={[styles.typeDot, { backgroundColor: t.color }]} /><Text style={styles.sheetTitle}>{ev.title}</Text></View>
         <Text style={styles.sheetSub2}>{[t.label, fmtDate(ev.occ_date), timeStr, ev.location].filter(Boolean).join(" · ")}</Text>
+        {!!ev.cancelled && <View style={styles.cancelBanner}><Ionicons name="close-circle" size={15} color="#B45309" /><Text style={styles.cancelBannerText}>This date is cancelled.</Text></View>}
         {!!ev.address && <Text style={styles.sheetSub2}>{ev.address}</Text>}
         {!!ev.notes && <Text style={styles.notes}>{ev.notes}</Text>}
         <ScrollView style={{ maxHeight: 360 }}>
           {isStaff ? (
             <>
               <Text style={styles.secLbl}>RSVPs</Text>
-              {rsvps.length === 0 ? <Text style={styles.dim}>No responses yet.</Text> : rsvps.map((r) => (
+              {ev.cancelled ? <Text style={styles.dim}>RSVPs are paused while this date is cancelled.</Text> : rsvps.length === 0 ? <Text style={styles.dim}>No responses yet.</Text> : rsvps.map((r) => (
                 <View key={r.roster_id} style={styles.rsvpRow}><Text style={styles.rsvpName}>{r.athlete_name}</Text><Text style={[styles.rsvpStat, { color: r.status === "attending" ? "#10B981" : "#0F172A" }]}>{r.status === "attending" ? "Attending" : "Not attending"}</Text>{!!r.reason && <Text style={styles.rsvpReason}>“{r.reason}”</Text>}</View>
               ))}
-              <TouchableOpacity style={styles.editBtn} onPress={onEdit} testID="event-edit"><Ionicons name="create-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Edit event</Text></TouchableOpacity>
-              {ev.recurring && <TouchableOpacity style={styles.cancelOccBtn} onPress={cancelOcc} testID="event-cancel-occurrence"><Ionicons name="close-circle-outline" size={16} color="#B45309" /><Text style={styles.cancelOccText}>Cancel just this date</Text></TouchableOpacity>}
+              {!ev.cancelled && <TouchableOpacity style={styles.editBtn} onPress={onEdit} testID="event-edit"><Ionicons name="create-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Edit event{ev.recurring ? " (all dates)" : ""}</Text></TouchableOpacity>}
+              {ev.recurring && !ev.cancelled && <TouchableOpacity style={styles.editBtn} onPress={() => setOccEditOpen(true)} testID="event-edit-occurrence"><Ionicons name="time-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Edit just this date (time / notes)</Text></TouchableOpacity>}
+              {ev.recurring && ev.has_override && !ev.cancelled && <TouchableOpacity style={styles.editBtn} onPress={resetOverride} testID="event-reset-override"><Ionicons name="refresh-outline" size={16} color={colors.textSecondary} /><Text style={[styles.editText, { color: colors.textSecondary }]}>Reset this date to series default</Text></TouchableOpacity>}
+              {ev.recurring && !ev.cancelled && <TouchableOpacity style={styles.cancelOccBtn} onPress={cancelOcc} testID="event-cancel-occurrence"><Ionicons name="close-circle-outline" size={16} color="#B45309" /><Text style={styles.cancelOccText}>Cancel just this date</Text></TouchableOpacity>}
+              {ev.recurring && ev.cancelled && <TouchableOpacity style={styles.editBtn} onPress={restoreThis} testID="event-restore-occurrence"><Ionicons name="refresh-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Restore this date</Text></TouchableOpacity>}
               <TouchableOpacity style={styles.delBtn} onPress={del} testID="event-delete"><Ionicons name="trash-outline" size={16} color="#0F172A" /><Text style={styles.delText}>Delete event{ev.recurring ? " (all dates)" : ""}</Text></TouchableOpacity>
             </>
+          ) : ev.cancelled ? (
+            <Text style={styles.dim}>Your coach cancelled this date. The rest of the series is unchanged.</Text>
           ) : (
             <>
               <Text style={styles.secLbl}>RSVP</Text>
@@ -420,6 +497,7 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
         onCancel={() => setCancelOpen(false)}
         styles={styles}
       />
+      {occEditOpen && <OccurrenceForm ev={ev} onClose={() => setOccEditOpen(false)} onSaved={() => { setOccEditOpen(false); onChanged(); onClose(); }} styles={styles} />}
     </Modal>
   );
 }
@@ -608,6 +686,9 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
   const [sel, setSel] = useState<Record<string, "competition" | "schedule">>({});
   const [inc, setInc] = useState({ travel: true, teams_to_watch: true, packing_list: true, links: true });
   const [saving, setSaving] = useState(false);
+  const [fromDate, setFromDate] = useState<string>("");
+  const [toDate, setToDate] = useState<string>("");
+  const inRange = (d?: string) => { const s = String(d || "").slice(0, 10); if (!s) return false; if (fromDate && s < fromDate) return false; if (toDate && s > toDate) return false; return true; };
 
   useEffect(() => { (async () => {
     try { const r = await api.get<Importable>("/team/calendar/importable"); setData(r.data || { competitions: [], events: [] }); }
@@ -638,12 +719,16 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
     return { singleEvents: singles, seriesGroups: groups };
   }, [data.events]);
 
-  const selectableComp = data.competitions.filter((c) => !c.already);
+  const visibleComps = data.competitions.filter((c) => inRange(c.date));
+  const visibleSingles = singleEvents.filter((e) => inRange(e.date));
+  const visibleSeries = seriesGroups.filter((g) => g.items.some((it) => inRange(it.date)));
+
+  const selectableComp = visibleComps.filter((c) => !c.already);
   // A repeating series imports as ONE recurring event — represent it by its first occurrence.
-  const seriesUnits = seriesGroups
+  const seriesUnits = visibleSeries
     .filter((g) => !g.items.some((e) => e.already))
     .map((g) => ({ id: g.items[0].id, source: "schedule" as const }));
-  const selectableSingles = singleEvents.filter((e) => !e.already).map((e) => ({ id: e.id, source: "schedule" as const }));
+  const selectableSingles = visibleSingles.filter((e) => !e.already).map((e) => ({ id: e.id, source: "schedule" as const }));
   const allSelectable = [
     ...selectableComp.map((c) => ({ id: c.id, source: "competition" as const })),
     ...seriesUnits,
@@ -652,7 +737,7 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
   const allSelected = allSelectable.length > 0 && allSelectable.every(({ id }) => sel[id]);
   // How many actual dates will land on the team calendar (a series counts as its occurrences).
   const seriesRepCount: Record<string, number> = {};
-  seriesGroups.forEach((g) => { seriesRepCount[g.items[0].id] = g.items.length; });
+  visibleSeries.forEach((g) => { seriesRepCount[g.items[0].id] = g.items.length; });
   const dateCount = Object.keys(sel).reduce((acc, id) => acc + (seriesRepCount[id] || 1), 0);
 
   const doImport = async () => {
@@ -716,13 +801,26 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
           <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator>
             {!hasAny && <Text style={[styles.dim, { marginTop: 12 }]}>Nothing to import yet. Add competitions or upcoming schedule events in the parent portal first.</Text>}
 
-            {data.competitions.length > 0 && <Text style={styles.secLbl}>Competitions</Text>}
-            {data.competitions.map((c) => (
+            {hasAny && (
+              <View style={styles.rangeBox} testID="imp-date-range">
+                <Text style={styles.rangeLabel}>Only show dates in this range (optional)</Text>
+                <View style={styles.rangeRow}>
+                  <View style={{ flex: 1 }}><Text style={styles.rangeSub}>From</Text><DateField value={fromDate} onChange={setFromDate} testID="imp-from-date" /></View>
+                  <View style={{ flex: 1 }}><Text style={styles.rangeSub}>To</Text><DateField value={toDate} onChange={setToDate} testID="imp-to-date" /></View>
+                </View>
+                {(!!fromDate || !!toDate) && (
+                  <TouchableOpacity onPress={() => { setFromDate(""); setToDate(""); }} style={styles.rangeClear} testID="imp-range-clear"><Text style={styles.rangeClearText}>Clear range</Text></TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            {visibleComps.length > 0 && <Text style={styles.secLbl}>Competitions</Text>}
+            {visibleComps.map((c) => (
               <CheckRow key={c.id} id={c.id} source="competition" title={c.name} date={c.date} icon="trophy" iconColor="#F59E0B" already={c.already} />
             ))}
 
-            {seriesGroups.length > 0 && <Text style={styles.secLbl}>Repeating series</Text>}
-            {seriesGroups.map(({ sid, items }) => {
+            {visibleSeries.length > 0 && <Text style={styles.secLbl}>Repeating series</Text>}
+            {visibleSeries.map(({ sid, items }) => {
               const rep = items[0];
               const last = items[items.length - 1];
               const already = items.some((e) => e.already);
@@ -752,10 +850,14 @@ function ImportFromPersonalModal({ onClose, onDone, styles }: any) {
               );
             })}
 
-            {singleEvents.length > 0 && <Text style={styles.secLbl}>Upcoming events</Text>}
-            {singleEvents.map((e) => (
+            {visibleSingles.length > 0 && <Text style={styles.secLbl}>Upcoming events</Text>}
+            {visibleSingles.map((e) => (
               <CheckRow key={e.id} id={e.id} source="schedule" title={e.title} date={e.date} icon="calendar" iconColor={colors.textTertiary} already={e.already} />
             ))}
+
+            {hasAny && visibleComps.length === 0 && visibleSeries.length === 0 && visibleSingles.length === 0 && (
+              <Text style={[styles.dim, { marginTop: 12 }]}>No items in this date range. Widen the range above.</Text>
+            )}
 
             {hasAny && (
               <>
@@ -786,6 +888,12 @@ const makeStyles = (c: ThemePalette) => ({
   title: { ...typography.h3, color: c.textPrimary }, subtitle: { ...typography.caption, color: c.textSecondary },
   content: { padding: spacing.md, gap: spacing.sm, paddingBottom: spacing.xxl },
   card: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.card, borderRadius: radius.lg, padding: spacing.md, borderWidth: 1, borderColor: c.border },
+  cardCancelled: { opacity: 0.7, backgroundColor: c.cardSubtle, borderStyle: "dashed" as const },
+  cancelledTitle: { textDecorationLine: "line-through" as const, color: c.textSecondary },
+  cancelledPill: { backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  cancelledPillText: { ...typography.caption, color: "#B45309", fontWeight: "800", fontSize: 11 },
+  cancelBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
+  cancelBannerText: { ...typography.caption, color: "#B45309", fontWeight: "800" },
   dateChip: { backgroundColor: c.accentSubtle, borderRadius: radius.md, paddingHorizontal: 8, paddingVertical: 6, minWidth: 66, alignItems: "center" },
   dateChipText: { ...typography.caption, color: c.accent, fontWeight: "800", fontSize: 11 },
   rowT: { flexDirection: "row", alignItems: "center", gap: 6 },
@@ -830,6 +938,12 @@ const makeStyles = (c: ThemePalette) => ({
   exText: { ...typography.body, color: c.textPrimary },
   exRestore: { ...typography.caption, color: c.accent, fontWeight: "800" },
   impPreview: { ...typography.caption, color: c.textSecondary, fontWeight: "700", textAlign: "center", marginTop: spacing.sm },
+  rangeBox: { backgroundColor: c.bg, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.sm, marginTop: spacing.sm, gap: 6 },
+  rangeLabel: { ...typography.caption, fontWeight: "800", color: c.textTertiary, letterSpacing: 0.5 },
+  rangeRow: { flexDirection: "row", gap: 10 },
+  rangeSub: { ...typography.caption, color: c.textSecondary, marginBottom: 4 },
+  rangeClear: { alignSelf: "flex-start", paddingVertical: 4 },
+  rangeClearText: { ...typography.caption, color: c.accent, fontWeight: "800" },
   confirmWrap: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: spacing.lg },
   confirmCard: { backgroundColor: c.card, borderRadius: radius.xl, padding: spacing.lg, gap: 6 },
   confirmTitle: { ...typography.h3, color: c.textPrimary },
