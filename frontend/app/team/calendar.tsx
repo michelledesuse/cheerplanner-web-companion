@@ -22,6 +22,12 @@ async function notifyParents(message: string) {
   const r = await api.post<{ sent?: number }>("/team/broadcast/send", { message, recipients: { mode: "all" }, base_url: NOTIFY_BASE });
   return r.data?.sent || 0;
 }
+// Dry-run preview: returns the exact text + how many parents would get it.
+type NotifyPreview = { recipient_count?: number; sms_configured?: boolean; preview?: { name: string; phone: string; body: string }[]; no_phone_count?: number };
+async function previewParents(message: string): Promise<NotifyPreview> {
+  const r = await api.post<NotifyPreview>("/team/broadcast/send", { message, recipients: { mode: "all" }, base_url: NOTIFY_BASE, dry_run: true });
+  return r.data || {};
+}
 type Ath = { roster_id: string; name: string };
 type TypeDef = { key: string; label: string; icon: string; color: string };
 const WD = ["S", "M", "T", "W", "T", "F", "S"];
@@ -153,7 +159,7 @@ export default function TeamCalendar() {
             <View style={[styles.typeDot, { backgroundColor: t.color }]} />
             <Text style={styles.evTitle} numberOfLines={1}>{e.title}</Text>
             {e.recurring && <Ionicons name="repeat" size={14} color={colors.textTertiary} />}
-            {e.has_override && <Ionicons name="pencil" size={12} color={colors.textTertiary} />}
+            {e.has_override && <View style={styles.editedPill}><Ionicons name="pencil" size={10} color={colors.accent} /><Text style={styles.editedPillText}>Edited</Text></View>}
           </View>
           <Text style={styles.evMeta}>{[t.label, fmtTime(e.start_time), e.location].filter(Boolean).join(" · ") || "All day"}</Text>
           {!isStaff && (e.my_rsvps || []).length > 0 && <Text style={styles.evRsvp}>{e.my_rsvps!.map((m) => athletes.find((a) => a.roster_id === m.roster_id)?.name.split(" ")[0] + ": " + (m.status === "attending" ? "✅" : "❌")).join("  ")}</Text>}
@@ -335,6 +341,35 @@ function ConfirmModal({ visible, title, message, confirmText, cancelText, destru
   );
 }
 
+function NotifyPreviewModal({ visible, preview, message, sending, onSend, onSkip, styles }: any) {
+  if (!visible) return null;
+  const count = preview?.recipient_count ?? 0;
+  const body = preview?.preview?.[0]?.body || message;
+  const configured = preview?.sms_configured !== false;
+  const canSend = configured && count > 0 && !sending;
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onSkip}>
+      <Pressable style={styles.confirmWrap} onPress={onSkip}>
+        <Pressable style={styles.confirmCard} onPress={() => {}} testID="notify-preview-modal">
+          <Text style={styles.confirmTitle}>Text parents?</Text>
+          <Text style={styles.confirmMsg}>
+            {!configured
+              ? "Texting isn't set up yet, so nothing will send. Here's the message:"
+              : count === 0
+                ? "No parents have a phone number on file yet. Here's the message:"
+                : `This exact text goes to ${count} parent${count === 1 ? "" : "s"}:`}
+          </Text>
+          <View style={styles.previewBox}><Text style={styles.previewBody}>{body}</Text></View>
+          <TouchableOpacity style={[styles.saveBtn, !canSend && { opacity: 0.5 }]} onPress={onSend} disabled={!canSend} testID="notify-preview-send">
+            {sending ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>{count > 0 ? `Send to ${count} parent${count === 1 ? "" : "s"}` : "No one to text"}</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onSkip} style={{ paddingVertical: 10, alignItems: "center" }} testID="notify-preview-skip"><Text style={styles.cancelText}>Don&apos;t text</Text></TouchableOpacity>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 function OccurrenceForm({ ev, onClose, onSaved, styles }: any) {
   const [startTime, setStartTime] = useState<string>(ev?.start_time || "");
   const [endTime, setEndTime] = useState<string>(ev?.end_time || "");
@@ -343,6 +378,9 @@ function OccurrenceForm({ ev, onClose, onSaved, styles }: any) {
   const [notes, setNotes] = useState<string>(ev?.notes || "");
   const [notify, setNotify] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<NotifyPreview | null>(null);
+  const [pendingMsg, setPendingMsg] = useState("");
+  const [sendingText, setSendingText] = useState(false);
 
   const save = async () => {
     setSaving(true);
@@ -353,15 +391,29 @@ function OccurrenceForm({ ev, onClose, onSaved, styles }: any) {
       });
       if (notify) {
         const when = `${fmtDate(ev.occ_date)}${startTime ? ` at ${formatTime12(startTime)}` : ""}`;
+        const msg = `Update: "${ev.title}" on ${when}${loc.trim() ? ` is now at ${loc.trim()}` : " has changed"}. Check the team calendar for details.`;
         try {
-          const sent = await notifyParents(`Update: "${ev.title}" on ${when}${loc.trim() ? ` is now at ${loc.trim()}` : " has changed"}. Check the team calendar for details.`);
-          Alert.alert("Saved", `This date was updated and ${sent} parent${sent === 1 ? "" : "s"} were texted.`);
-        } catch (e: any) { Alert.alert("Saved (not texted)", e?.response?.data?.detail || "The date was updated, but the text couldn't be sent."); }
+          const pv = await previewParents(msg);
+          setPendingMsg(msg); setPreview(pv); setSaving(false);
+          return; // hold for the preview decision
+        } catch {
+          Alert.alert("Saved", "The date was updated. (Couldn't load the text preview.)");
+        }
       }
       onSaved();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save this date."); }
     finally { setSaving(false); }
   };
+
+  const doSendText = async () => {
+    setSendingText(true);
+    try {
+      const sent = await notifyParents(pendingMsg);
+      Alert.alert("Saved & texted", `${sent} parent${sent === 1 ? "" : "s"} were texted.`);
+    } catch (e: any) { Alert.alert("Saved (not texted)", e?.response?.data?.detail || "The date was updated, but the text couldn't be sent."); }
+    finally { setSendingText(false); setPreview(null); onSaved(); }
+  };
+  const skipText = () => { setPreview(null); onSaved(); };
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -394,6 +446,7 @@ function OccurrenceForm({ ev, onClose, onSaved, styles }: any) {
           <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
         </ScrollView>
       </Pressable></Pressable>
+      <NotifyPreviewModal visible={!!preview} preview={preview} message={pendingMsg} sending={sendingText} onSend={doSendText} onSkip={skipText} styles={styles} />
     </Modal>
   );
 }
@@ -405,6 +458,9 @@ function CancelDatesForm({ ev, mode, onClose, onDone, styles }: any) {
   const [to, setTo] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const isRange = mode === "range";
+  const [preview, setPreview] = useState<NotifyPreview | null>(null);
+  const [pendingMsg, setPendingMsg] = useState("");
+  const [sendingText, setSendingText] = useState(false);
 
   const submit = async () => {
     if (isRange && (!from || !to || to < from)) { Alert.alert("Pick dates", "Choose a valid start and end date."); return; }
@@ -419,10 +475,14 @@ function CancelDatesForm({ ev, mode, onClose, onDone, styles }: any) {
       }
       if (notify && count > 0) {
         const span = isRange ? `${fmtDate(from)} – ${fmtDate(to)}` : fmtDate(ev.occ_date);
+        const msg = `Cancelled: "${ev.title}" on ${span}.${reason.trim() ? ` ${reason.trim()}` : ""}`;
         try {
-          const sent = await notifyParents(`Cancelled: "${ev.title}" on ${span}.${reason.trim() ? ` ${reason.trim()}` : ""}`);
-          Alert.alert("Cancelled", `${count} date${count === 1 ? "" : "s"} cancelled and ${sent} parent${sent === 1 ? "" : "s"} were texted.`);
-        } catch (e: any) { Alert.alert("Cancelled (not texted)", e?.response?.data?.detail || "Dates were cancelled, but the text couldn't be sent."); }
+          const pv = await previewParents(msg);
+          setPendingMsg(msg); setPreview(pv); setSaving(false);
+          return; // hold for the preview decision
+        } catch {
+          Alert.alert("Cancelled", `${count} date${count === 1 ? "" : "s"} cancelled. (Couldn't load the text preview.)`);
+        }
       } else if (isRange) {
         Alert.alert("Cancelled", `${count} date${count === 1 ? "" : "s"} cancelled.`);
       }
@@ -430,6 +490,16 @@ function CancelDatesForm({ ev, mode, onClose, onDone, styles }: any) {
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not cancel."); }
     finally { setSaving(false); }
   };
+
+  const doSendText = async () => {
+    setSendingText(true);
+    try {
+      const sent = await notifyParents(pendingMsg);
+      Alert.alert("Cancelled & texted", `${sent} parent${sent === 1 ? "" : "s"} were texted.`);
+    } catch (e: any) { Alert.alert("Cancelled (not texted)", e?.response?.data?.detail || "Dates were cancelled, but the text couldn't be sent."); }
+    finally { setSendingText(false); setPreview(null); onDone(); }
+  };
+  const skipText = () => { setPreview(null); onDone(); };
 
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
@@ -459,6 +529,81 @@ function CancelDatesForm({ ev, mode, onClose, onDone, styles }: any) {
           <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Keep dates</Text></TouchableOpacity>
         </ScrollView>
       </Pressable></Pressable>
+      <NotifyPreviewModal visible={!!preview} preview={preview} message={pendingMsg} sending={sendingText} onSend={doSendText} onSkip={skipText} styles={styles} />
+    </Modal>
+  );
+}
+
+function RestoreDatesForm({ ev, onClose, onDone, styles }: any) {
+  const [from, setFrom] = useState<string>(ev?.occ_date || todayISO());
+  const [to, setTo] = useState<string>("");
+  const [notify, setNotify] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<NotifyPreview | null>(null);
+  const [pendingMsg, setPendingMsg] = useState("");
+  const [sendingText, setSendingText] = useState(false);
+
+  const submit = async () => {
+    if (!from || !to || to < from) { Alert.alert("Pick dates", "Choose a valid start and end date."); return; }
+    setSaving(true);
+    try {
+      const r = await api.post<{ restored: number }>(`/team/calendar/events/${ev.event_id}/restore-range`, { from, to });
+      const count = r.data?.restored || 0;
+      if (count === 0) {
+        Alert.alert("Nothing to restore", "No cancelled dates fall in that range.");
+        setSaving(false);
+        return;
+      }
+      if (notify) {
+        const span = `${fmtDate(from)} – ${fmtDate(to)}`;
+        const msg = `Good news: "${ev.title}" is back ON for ${span}. Check the team calendar for details.`;
+        try {
+          const pv = await previewParents(msg);
+          setPendingMsg(msg); setPreview(pv); setSaving(false);
+          return;
+        } catch {
+          Alert.alert("Restored", `${count} date${count === 1 ? "" : "s"} restored. (Couldn't load the text preview.)`);
+        }
+      } else {
+        Alert.alert("Restored", `${count} date${count === 1 ? "" : "s"} restored.`);
+      }
+      onDone();
+    } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not restore."); }
+    finally { setSaving(false); }
+  };
+
+  const doSendText = async () => {
+    setSendingText(true);
+    try {
+      const sent = await notifyParents(pendingMsg);
+      Alert.alert("Restored & texted", `${sent} parent${sent === 1 ? "" : "s"} were texted.`);
+    } catch (e: any) { Alert.alert("Restored (not texted)", e?.response?.data?.detail || "Dates were restored, but the text couldn't be sent."); }
+    finally { setSendingText(false); setPreview(null); onDone(); }
+  };
+  const skipText = () => { setPreview(null); onDone(); };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalWrap} onPress={onClose}><Pressable style={styles.sheet} onPress={() => {}} testID="restore-dates-modal">
+        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
+          <Text style={styles.sheetTitle}>Restore a range of dates</Text>
+          <Text style={styles.sheetSub2}>Un-cancels every previously-cancelled occurrence of this event between the two dates, in one tap.</Text>
+
+          <Text style={styles.secLbl}>From</Text>
+          <View style={{ marginTop: 8 }}><DateField value={from} onChange={setFrom} testID="restore-from-date" /></View>
+          <Text style={styles.secLbl}>To</Text>
+          <View style={{ marginTop: 8 }}><DateField value={to} onChange={setTo} testID="restore-to-date" /></View>
+
+          <View style={styles.notifyRow}>
+            <View style={{ flex: 1 }}><Text style={styles.notifyTitle}>Text parents it&apos;s back on</Text><Text style={styles.notifyHint}>Sends a quick heads-up to the whole roster.</Text></View>
+            <Switch value={notify} onValueChange={setNotify} trackColor={{ true: colors.accent, false: "#CBD5E1" }} thumbColor={Platform.OS === "android" ? (notify ? "white" : "#F1F5F9") : undefined} testID="restore-notify" />
+          </View>
+
+          <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.6 }]} onPress={submit} disabled={saving} testID="restore-dates-confirm">{saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveText}>Restore these dates</Text>}</TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity>
+        </ScrollView>
+      </Pressable></Pressable>
+      <NotifyPreviewModal visible={!!preview} preview={preview} message={pendingMsg} sending={sendingText} onSend={doSendText} onSkip={skipText} styles={styles} />
     </Modal>
   );
 }
@@ -468,6 +613,7 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
   const [reasonFor, setReasonFor] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [cancelMode, setCancelMode] = useState<null | "single" | "range">(null);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const [occEditOpen, setOccEditOpen] = useState(false);
   const t = typeOf(ev.event_type);
   const load = useCallback(async () => {
@@ -541,6 +687,7 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
               {ev.recurring && ev.has_override && !ev.cancelled && <TouchableOpacity style={styles.editBtn} onPress={resetOverride} testID="event-reset-override"><Ionicons name="refresh-outline" size={16} color={colors.textSecondary} /><Text style={[styles.editText, { color: colors.textSecondary }]}>Reset this date to series default</Text></TouchableOpacity>}
               {ev.recurring && !ev.cancelled && <TouchableOpacity style={styles.cancelOccBtn} onPress={cancelOcc} testID="event-cancel-occurrence"><Ionicons name="close-circle-outline" size={16} color="#B45309" /><Text style={styles.cancelOccText}>Cancel just this date</Text></TouchableOpacity>}
               {ev.recurring && !ev.cancelled && <TouchableOpacity style={styles.cancelOccBtn} onPress={() => setCancelMode("range")} testID="event-cancel-range"><Ionicons name="calendar-clear-outline" size={16} color="#B45309" /><Text style={styles.cancelOccText}>Cancel a range of dates…</Text></TouchableOpacity>}
+              {ev.recurring && <TouchableOpacity style={styles.editBtn} onPress={() => setRestoreOpen(true)} testID="event-restore-range"><Ionicons name="calendar-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Restore a range of dates…</Text></TouchableOpacity>}
               {ev.recurring && ev.cancelled && <TouchableOpacity style={styles.editBtn} onPress={restoreThis} testID="event-restore-occurrence"><Ionicons name="refresh-outline" size={16} color={colors.accent} /><Text style={styles.editText}>Restore this date</Text></TouchableOpacity>}
               <TouchableOpacity style={styles.delBtn} onPress={del} testID="event-delete"><Ionicons name="trash-outline" size={16} color="#0F172A" /><Text style={styles.delText}>Delete event{ev.recurring ? " (all dates)" : ""}</Text></TouchableOpacity>
             </>
@@ -576,6 +723,7 @@ function DetailModal({ ev, isStaff, athletes, typeOf, onEdit, onClose, onChanged
         <TouchableOpacity onPress={onClose} style={{ paddingVertical: 8, alignItems: "center" }}><Text style={styles.cancelText}>Close</Text></TouchableOpacity>
       </Pressable></Pressable>
       {cancelMode && <CancelDatesForm ev={ev} mode={cancelMode} onClose={() => setCancelMode(null)} onDone={() => { setCancelMode(null); onChanged(); onClose(); }} styles={styles} />}
+      {restoreOpen && <RestoreDatesForm ev={ev} onClose={() => setRestoreOpen(false)} onDone={() => { setRestoreOpen(false); onChanged(); onClose(); }} styles={styles} />}
       {occEditOpen && <OccurrenceForm ev={ev} onClose={() => setOccEditOpen(false)} onSaved={() => { setOccEditOpen(false); onChanged(); onClose(); }} styles={styles} />}
     </Modal>
   );
@@ -971,6 +1119,10 @@ const makeStyles = (c: ThemePalette) => ({
   cancelledTitle: { textDecorationLine: "line-through" as const, color: c.textSecondary },
   cancelledPill: { backgroundColor: "#FEF3C7", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
   cancelledPillText: { ...typography.caption, color: "#B45309", fontWeight: "800", fontSize: 11 },
+  editedPill: { flexDirection: "row" as const, alignItems: "center" as const, gap: 3, backgroundColor: c.accentSubtle, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 2 },
+  editedPillText: { ...typography.caption, color: c.accent, fontWeight: "800", fontSize: 10 },
+  previewBox: { backgroundColor: c.bg, borderRadius: radius.md, borderWidth: 1, borderColor: c.border, padding: spacing.md, marginBottom: spacing.md },
+  previewBody: { ...typography.body, color: c.textPrimary },
   cancelBanner: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "#FEF3C7", borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 8, marginTop: 6 },
   cancelBannerText: { ...typography.caption, color: "#B45309", fontWeight: "800" },
   cancelReason: { ...typography.caption, color: "#B45309", fontStyle: "italic", marginTop: 2 },

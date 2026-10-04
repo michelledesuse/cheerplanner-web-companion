@@ -686,3 +686,9 @@ Get exact current paths from user before building W2.
 - IMPORT ALL EVENTS (fix): /team/calendar/importable no longer hides past/non-upcoming events — coaches/reps/staff can import ANY personal event (any date, any type). UI date-range filter remains.
 - ADD TO TEAMHUB CALENDAR TOGGLE (coaches/reps/staff only, user.team_access): on the personal event form (app/schedule/new.tsx, testID schedule-add-to-hub) and competition form (app/competitions/new.tsx, testID comp-add-to-hub). Competition toggle reveals include checkboxes Hotel/Flight/Car/Teams-to-watch/Packing/Links (comp-hub-inc-*). Saving pushes via POST /team/calendar/import-from-personal (schedule imports whole series if recurring; competition pulls booking details into notes and UPSERTS so re-saving refreshes the team event). Backend _fmt_booking + upsert in team_calendar.py.
 - VERIFIED: testing agent backend 8/8 (test_iter146_payment_inbox_and_teamhub.py); frontend toggle + include checkboxes confirmed rendering for logged-in team_access user (screenshot). Known/by-design: competition re-push overwrites the team event's notes/title/date (mirror of the competition).
+
+## Session update — Calendar restore-range, notify preview, push-undo, edit-sync-choice (iter149)
+- Restore a range of cancelled dates in one tap (POST /team/calendar/events/{id}/restore-range; RestoreDatesForm). Overridden dates now show an "Edited" pill.
+- Notify Preview: before any schedule-change SMS (edit/cancel/restore), a modal shows the exact text + recipient count with Send/Don't-text (dry_run).
+- Push Confirmation + Undo: "Added to TeamHub" toast with Undo after sharing an event/competition (Undo deletes the created team event); competition re-push shows "Updated on TeamHub".
+- Edit Sync Choice: "Keep my existing TeamHub notes" checkbox (include.preserve_notes) so re-sharing a competition doesn't overwrite hand-typed team notes.

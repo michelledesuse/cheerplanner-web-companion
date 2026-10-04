@@ -835,9 +835,13 @@ async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, i
 
     if existing:
         # Re-push (competition): refresh its TeamHub event so bookings added
-        # later show up, without touching cancellations/overrides/RSVPs.
+        # later show up, without touching cancellations/overrides/RSVPs. If the
+        # coach chose to keep their hand-typed notes, leave the notes field alone.
+        set_fields = dict(content)
+        if inc.get("preserve_notes"):
+            set_fields.pop("notes", None)
         await db.team_events.update_one(
-            {"id": existing["id"], "household_id": h["id"]}, {"$set": content}
+            {"id": existing["id"], "household_id": h["id"]}, {"$set": set_fields}
         )
         return {"updated": True, "event_id": existing["id"]}
 

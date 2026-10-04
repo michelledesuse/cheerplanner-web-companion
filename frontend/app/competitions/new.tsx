@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -35,6 +35,9 @@ export default function CompetitionForm() {
     hotel: true, flight: true, car: true, teams_to_watch: true, packing_list: true, links: true,
   });
   const toggleInc = (k: keyof typeof hubInc) => setHubInc((p) => ({ ...p, [k]: !p[k] }));
+  const [keepNotes, setKeepNotes] = useState(false);
+  const [hubToast, setHubToast] = useState<{ teamEventId?: string; updated: boolean } | null>(null);
+  const hubTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -117,14 +120,45 @@ export default function CompetitionForm() {
         const res = await api.post("/competitions", { ...payload, season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
         pushId = res.data?.id || undefined;
       }
-      if (addToHub && canHub && pushId) {
-        try { await api.post("/team/calendar/import-from-personal", { source: "competition", id: pushId, include: hubInc }); }
-        catch (_e) { /* non-blocking: the competition still saved */ }
-      }
-      router.back();
+      await finishAfterSave(pushId);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || e?.message || "Could not save");
     } finally { setSaving(false); }
+  };
+
+  // Push the competition to the TeamHub calendar with the chosen details. A
+  // brand-new team event gets an "Added to TeamHub" toast with Undo; a re-push
+  // that refreshed an existing event shows "Updated on TeamHub".
+  const finishAfterSave = async (pushId?: string) => {
+    if (addToHub && canHub && pushId) {
+      try {
+        const r = await api.post<{ event_id?: string; updated?: boolean; already?: boolean }>(
+          "/team/calendar/import-from-personal",
+          { source: "competition", id: pushId, include: { ...hubInc, preserve_notes: keepNotes } },
+        );
+        if (r.data?.updated) {
+          setHubToast({ teamEventId: r.data.event_id, updated: true });
+          hubTimer.current = setTimeout(() => router.back(), 2500);
+          return;
+        }
+        if (r.data?.event_id && !r.data?.already) {
+          setHubToast({ teamEventId: r.data.event_id, updated: false });
+          hubTimer.current = setTimeout(() => router.back(), 3800);
+          return;
+        }
+      } catch (_e) { /* non-blocking: the competition still saved */ }
+    }
+    router.back();
+  };
+
+  const undoHubPush = async () => {
+    if (hubTimer.current) clearTimeout(hubTimer.current);
+    const id = hubToast?.teamEventId;
+    const wasUpdate = hubToast?.updated;
+    setHubToast(null);
+    // Only delete when we created a new team event; an updated one existed before.
+    if (id && !wasUpdate) { try { await api.delete(`/team/calendar/events/${id}`); } catch (_e) { /* ignore */ } }
+    router.back();
   };
 
   if (loading) {
@@ -251,6 +285,10 @@ export default function CompetitionForm() {
                       );
                     })}
                   </View>
+                  <TouchableOpacity onPress={() => setKeepNotes((v) => !v)} style={styles.keepNotesRow} testID="comp-hub-keep-notes">
+                    <Ionicons name={keepNotes ? "checkbox" : "square-outline"} size={18} color={keepNotes ? colors.accent : colors.textSecondary} />
+                    <Text style={styles.keepNotesText}>Keep my existing TeamHub notes (don&apos;t overwrite)</Text>
+                  </TouchableOpacity>
                   <Text style={styles.hubHint}>Hotel, flight &amp; car details come from this competition&apos;s bookings. Added some after saving? Just re-save with this on to refresh the team event.</Text>
                 </>
               ) : (
@@ -264,6 +302,20 @@ export default function CompetitionForm() {
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {hubToast && (
+        <View style={styles.hubToast} testID="comp-hub-toast" pointerEvents="box-none">
+          <View style={styles.hubToastInner}>
+            <Ionicons name="checkmark-circle" size={18} color="#fff" />
+            <Text style={styles.hubToastText}>{hubToast.updated ? "Updated on TeamHub" : "Added to TeamHub"}</Text>
+            {!hubToast.updated && (
+              <TouchableOpacity onPress={undoHubPush} hitSlop={10} testID="comp-hub-toast-undo">
+                <Text style={styles.hubToastUndo}>Undo</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -285,6 +337,12 @@ const makeStyles = () => ({
   incChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   incChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   incChipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "700" },
+  keepNotesRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 12 },
+  keepNotesText: { ...typography.caption, color: colors.textPrimary, flex: 1 },
+  hubToast: { position: "absolute", left: 0, right: 0, bottom: 24, alignItems: "center" },
+  hubToastInner: { flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: "#0F172A", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 999 },
+  hubToastText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  hubToastUndo: { color: "#60A5FA", fontWeight: "800", fontSize: 14, marginLeft: 4 },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.accent, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
 });

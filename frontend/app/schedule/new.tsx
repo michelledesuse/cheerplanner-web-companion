@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, Alert, KeyboardAvoidingView, Platform, ActivityIndicator, Switch, Modal, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -91,6 +91,8 @@ export default function ScheduleForm() {
   // Coaches/reps/staff can push this event straight onto the TeamHub calendar.
   const canHub = !!user?.team_access;
   const [addToHub, setAddToHub] = useState(false);
+  const [hubToast, setHubToast] = useState<{ teamEventId: string } | null>(null);
+  const hubTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const allTypes = useMemo(() => [
     ...TYPES.map((t) => ({ key: t.key as string, label: t.label as string, color: t.color as string })),
@@ -231,18 +233,35 @@ export default function ScheduleForm() {
         const res = await api.post("/schedule", { ...buildPayload(true), season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
         pushId = Array.isArray(res.data) && res.data[0]?.id ? res.data[0].id : undefined;
       }
-      await maybePushToHub(pushId);
-      router.back();
+      await finishAfterSave(pushId);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
     } finally { setSaving(false); }
   };
 
-  // Push the saved personal event to the TeamHub calendar (whole series if recurring).
-  const maybePushToHub = async (id?: string) => {
-    if (!addToHub || !canHub || !id) return;
-    try { await api.post("/team/calendar/import-from-personal", { source: "schedule", id }); }
-    catch (_e) { /* non-blocking: the event still saved to the personal calendar */ }
+  // Push the saved personal event to the TeamHub calendar (whole series if
+  // recurring). On a fresh add, show an "Added to TeamHub" toast with Undo;
+  // otherwise just navigate back.
+  const finishAfterSave = async (pushId?: string) => {
+    if (addToHub && canHub && pushId) {
+      try {
+        const r = await api.post<{ event_id?: string; already?: boolean }>("/team/calendar/import-from-personal", { source: "schedule", id: pushId });
+        if (r.data?.event_id && !r.data?.already) {
+          setHubToast({ teamEventId: r.data.event_id });
+          hubTimer.current = setTimeout(() => router.back(), 3800);
+          return;
+        }
+      } catch (_e) { /* non-blocking: the event still saved to the personal calendar */ }
+    }
+    router.back();
+  };
+
+  const undoHubPush = async () => {
+    if (hubTimer.current) clearTimeout(hubTimer.current);
+    const id = hubToast?.teamEventId;
+    setHubToast(null);
+    if (id) { try { await api.delete(`/team/calendar/events/${id}`); } catch (_e) { /* ignore */ } }
+    router.back();
   };
 
   // Signature of the currently-selected recurrence rule (for change detection).
@@ -259,8 +278,7 @@ export default function ScheduleForm() {
     setSaving(true);
     try {
       await api.post(`/schedule/${params.id}/reschedule-series?anchor=series_start`, { ...buildPayload(true), season_ids: seasonIds });
-      await maybePushToHub(params.id);
-      router.back();
+      await finishAfterSave(params.id);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not update the series");
     } finally { setSaving(false); }
@@ -608,6 +626,18 @@ export default function ScheduleForm() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {hubToast && (
+        <View style={styles.hubToast} testID="hub-toast" pointerEvents="box-none">
+          <View style={styles.hubToastInner}>
+            <Ionicons name="checkmark-circle" size={18} color="#fff" />
+            <Text style={styles.hubToastText}>Added to TeamHub</Text>
+            <TouchableOpacity onPress={undoHubPush} hitSlop={10} testID="hub-toast-undo">
+              <Text style={styles.hubToastUndo}>Undo</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -646,6 +676,10 @@ const makeStyles = () => ({
 
   hubBlock: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSubtle },
   hubHint: { ...typography.caption, color: colors.textSecondary, marginTop: 8 },
+  hubToast: { position: "absolute" as const, left: 0, right: 0, bottom: 24, alignItems: "center" as const },
+  hubToastInner: { flexDirection: "row" as const, alignItems: "center" as const, gap: 10, backgroundColor: "#0F172A", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 999 },
+  hubToastText: { color: "#fff", fontWeight: "700" as const, fontSize: 14 },
+  hubToastUndo: { color: "#60A5FA", fontWeight: "800" as const, fontSize: 14, marginLeft: 4 },
 
   repeatBlock: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   repeatHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
