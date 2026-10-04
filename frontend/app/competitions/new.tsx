@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import { useAuth } from "@/src/context/AuthContext";
 import { useSeason } from "@/src/context/SeasonContext";
 import SeasonPicker from "@/src/components/SeasonPicker";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -20,10 +21,20 @@ import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 export default function CompetitionForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { user } = useAuth();
   const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const editingId = params.id;
   const isEdit = !!editingId;
+
+  // Coaches/reps/staff can push this competition onto the TeamHub calendar,
+  // optionally pulling in its hotel/flight/car bookings and other details.
+  const canHub = !!user?.team_access;
+  const [addToHub, setAddToHub] = useState(false);
+  const [hubInc, setHubInc] = useState({
+    hotel: true, flight: true, car: true, teams_to_watch: true, packing_list: true, links: true,
+  });
+  const toggleInc = (k: keyof typeof hubInc) => setHubInc((p) => ({ ...p, [k]: !p[k] }));
 
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -95,6 +106,7 @@ export default function CompetitionForm() {
         links: cleanLinks(links),
         photos,
       };
+      let pushId: string | undefined = editingId;
       if (isEdit) {
         if (origSeasonIds.length > 1 && scope !== "all") {
           await api.patch(`/competitions/${editingId}`, { ...payload, edit_scope: scope });
@@ -102,7 +114,12 @@ export default function CompetitionForm() {
           await api.patch(`/competitions/${editingId}`, { ...payload, season_ids: seasonIds });
         }
       } else {
-        await api.post("/competitions", { ...payload, season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
+        const res = await api.post("/competitions", { ...payload, season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
+        pushId = res.data?.id || undefined;
+      }
+      if (addToHub && canHub && pushId) {
+        try { await api.post("/team/calendar/import-from-personal", { source: "competition", id: pushId, include: hubInc }); }
+        catch (_e) { /* non-blocking: the competition still saved */ }
       }
       router.back();
     } catch (e: any) {
@@ -202,6 +219,46 @@ export default function CompetitionForm() {
             onScopeChange={setScope}
           />
 
+          {canHub && (
+            <View style={styles.hubBlock}>
+              <View style={styles.hubHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                  <Ionicons name="people" size={18} color={colors.accent} />
+                  <Text style={styles.bodyText}>Add to TeamHub Calendar</Text>
+                </View>
+                <Switch
+                  value={addToHub}
+                  onValueChange={setAddToHub}
+                  trackColor={{ true: colors.accent, false: colors.border }}
+                  thumbColor="white"
+                  testID="comp-add-to-hub"
+                />
+              </View>
+              {addToHub ? (
+                <>
+                  <Text style={styles.hubHint}>Choose what to include on the shared TeamHub event:</Text>
+                  <View style={styles.incWrap}>
+                    {([
+                      ["hotel", "Hotel"], ["flight", "Flight"], ["car", "Car"],
+                      ["teams_to_watch", "Teams to watch"], ["packing_list", "Packing list"], ["links", "Links"],
+                    ] as [keyof typeof hubInc, string][]).map(([k, lbl]) => {
+                      const on = hubInc[k];
+                      return (
+                        <TouchableOpacity key={k} onPress={() => toggleInc(k)} style={[styles.incChip, on && styles.incChipOn]} testID={`comp-hub-inc-${k}`}>
+                          <Ionicons name={on ? "checkbox" : "square-outline"} size={16} color={on ? "white" : colors.textSecondary} />
+                          <Text style={[styles.incChipText, on && { color: "white" }]}>{lbl}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.hubHint}>Hotel, flight &amp; car details come from this competition&apos;s bookings. Added some after saving? Just re-save with this on to refresh the team event.</Text>
+                </>
+              ) : (
+                <Text style={styles.hubHint}>Coaches, reps &amp; staff can share this competition (and its travel) with the team.</Text>
+              )}
+            </View>
+          )}
+
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="comp-save-btn">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : "Save competition"}</Text>}
           </TouchableOpacity>
@@ -221,6 +278,13 @@ const makeStyles = () => ({
   switchRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.card, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, gap: spacing.md },
   bodyText: { ...typography.bodyMedium, color: colors.textPrimary },
   subText: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  hubBlock: { marginTop: spacing.lg, padding: spacing.md, backgroundColor: colors.accentSubtle, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder },
+  hubHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  hubHint: { ...typography.caption, color: colors.textSecondary, marginTop: 8 },
+  incWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 10 },
+  incChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  incChipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+  incChipText: { ...typography.caption, color: colors.textPrimary, fontWeight: "700" },
   saveBtn: { marginTop: spacing.xxl, backgroundColor: colors.accent, paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
   saveBtnText: { color: "white", fontWeight: "700", fontSize: 16 },
 });

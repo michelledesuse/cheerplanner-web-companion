@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import { useAuth } from "@/src/context/AuthContext";
 import { useSeason } from "@/src/context/SeasonContext";
 import SeasonPicker from "@/src/components/SeasonPicker";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -63,6 +64,7 @@ function dowFromISO(iso: string): number {
 export default function ScheduleForm() {
   const styles = useThemedStyles(makeStyles);
   const router = useRouter();
+  const { user } = useAuth();
   const { filterSeasonId } = useSeason();
   const params = useLocalSearchParams<{ id?: string; date?: string }>();
   const isEdit = !!params.id;
@@ -86,6 +88,9 @@ export default function ScheduleForm() {
   const [seasonIds, setSeasonIds] = useState<string[]>([]);
   const [customTypes, setCustomTypes] = useState<{ id: string; label: string; color: string }[]>([]);
   const [addTypeOpen, setAddTypeOpen] = useState(false);
+  // Coaches/reps/staff can push this event straight onto the TeamHub calendar.
+  const canHub = !!user?.team_access;
+  const [addToHub, setAddToHub] = useState(false);
 
   const allTypes = useMemo(() => [
     ...TYPES.map((t) => ({ key: t.key as string, label: t.label as string, color: t.color as string })),
@@ -219,15 +224,25 @@ export default function ScheduleForm() {
   const doSave = async (scope: "single" | "future" | "series") => {
     setSaving(true);
     try {
+      let pushId: string | undefined = params.id;
       if (isEdit) {
         await api.patch(`/schedule/${params.id}?scope=${scope}`, { ...buildPayload(false), season_ids: seasonIds });
       } else {
-        await api.post("/schedule", { ...buildPayload(true), season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
+        const res = await api.post("/schedule", { ...buildPayload(true), season_ids: seasonIds.length ? seasonIds : (filterSeasonId ? [filterSeasonId] : []) });
+        pushId = Array.isArray(res.data) && res.data[0]?.id ? res.data[0].id : undefined;
       }
+      await maybePushToHub(pushId);
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not save");
     } finally { setSaving(false); }
+  };
+
+  // Push the saved personal event to the TeamHub calendar (whole series if recurring).
+  const maybePushToHub = async (id?: string) => {
+    if (!addToHub || !canHub || !id) return;
+    try { await api.post("/team/calendar/import-from-personal", { source: "schedule", id }); }
+    catch (_e) { /* non-blocking: the event still saved to the personal calendar */ }
   };
 
   // Signature of the currently-selected recurrence rule (for change detection).
@@ -244,6 +259,7 @@ export default function ScheduleForm() {
     setSaving(true);
     try {
       await api.post(`/schedule/${params.id}/reschedule-series?anchor=series_start`, { ...buildPayload(true), season_ids: seasonIds });
+      await maybePushToHub(params.id);
       router.back();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not update the series");
@@ -499,6 +515,29 @@ export default function ScheduleForm() {
           <Text style={styles.label}>Notes (optional)</Text>
           <TextInput style={[styles.input, { minHeight: 60, maxHeight: 140, textAlignVertical: "top" }]} value={notes} onChangeText={setNotes} multiline placeholder="e.g. Wear comp shoes" placeholderTextColor={colors.textTertiary} />
 
+          {canHub && (
+            <View style={styles.hubBlock}>
+              <View style={styles.repeatHeader}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
+                  <Ionicons name="people" size={18} color={colors.accent} />
+                  <Text style={styles.repeatTitle}>Add to TeamHub Calendar</Text>
+                </View>
+                <Switch
+                  value={addToHub}
+                  onValueChange={setAddToHub}
+                  trackColor={{ true: colors.accent, false: "#CBD5E1" }}
+                  thumbColor={Platform.OS === "android" ? (addToHub ? "white" : "#F1F5F9") : undefined}
+                  testID="schedule-add-to-hub"
+                />
+              </View>
+              <Text style={styles.hubHint}>
+                {addToHub
+                  ? "This event will also be added to the shared TeamHub calendar for the whole team."
+                  : "Coaches, reps & staff can share this event with the team."}
+              </Text>
+            </View>
+          )}
+
           <TouchableOpacity style={[styles.saveBtn, saving && { opacity: 0.7 }]} onPress={save} disabled={saving} testID="schedule-save">
             {saving ? <ActivityIndicator color="white" /> : <Text style={styles.saveBtnText}>{isEdit ? "Save changes" : (repeat ? "Save series" : "Save event")}</Text>}
           </TouchableOpacity>
@@ -604,6 +643,9 @@ const makeStyles = () => ({
 
   seriesBanner: { flexDirection: "row", alignItems: "center", gap: 6, padding: 10, backgroundColor: colors.accentSubtle, borderRadius: radius.md },
   seriesBannerText: { ...typography.caption, color: colors.accent, fontWeight: "700" },
+
+  hubBlock: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accentBorder, backgroundColor: colors.accentSubtle },
+  hubHint: { ...typography.caption, color: colors.textSecondary, marginTop: 8 },
 
   repeatBlock: { marginTop: spacing.lg, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
   repeatHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

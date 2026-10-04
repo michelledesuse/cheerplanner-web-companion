@@ -652,6 +652,54 @@ def _fmt_list(v):
     return [x for x in out if x]
 
 
+def _fmt_booking(b: dict) -> str:
+    """One readable block for a hotel/car/flight booking, for TeamHub notes."""
+    t = (b.get("type") or "").lower()
+    prov = (b.get("provider") or "").strip()
+    parts: list = []
+    if t == "hotel":
+        head = "🏨 Hotel"
+        if prov:
+            parts.append(prov)
+        if b.get("check_in"):
+            parts.append(f"Check-in {str(b['check_in'])[:10]}" + (f" {b['check_in_time']}" if b.get("check_in_time") else ""))
+        if b.get("check_out"):
+            parts.append(f"Check-out {str(b['check_out'])[:10]}" + (f" {b['check_out_time']}" if b.get("check_out_time") else ""))
+        if b.get("address"):
+            parts.append(str(b["address"]))
+        if b.get("cancel_by"):
+            parts.append(f"Free cancel by {str(b['cancel_by'])[:10]}")
+    elif t == "car":
+        head = "🚗 Rental car"
+        if prov:
+            parts.append(prov)
+        if b.get("pickup_at"):
+            parts.append(f"Pickup {str(b['pickup_at']).replace('T', ' ')}" + (f" @ {b['pickup_location']}" if b.get("pickup_location") else ""))
+        if b.get("dropoff_at"):
+            parts.append(f"Drop-off {str(b['dropoff_at']).replace('T', ' ')}" + (f" @ {b['dropoff_location']}" if b.get("dropoff_location") else ""))
+    elif t == "flight":
+        head = "✈️ Flight"
+        if prov:
+            parts.append(prov)
+        if b.get("flight_number"):
+            parts.append(f"{b['flight_number']}: {b.get('depart_airport') or '?'} → {b.get('arrive_airport') or '?'}")
+        if b.get("depart_time"):
+            parts.append(f"Departs {str(b['depart_time']).replace('T', ' ')}")
+        if b.get("return_flight_number"):
+            parts.append(f"Return {b['return_flight_number']}: {b.get('return_depart_airport') or '?'} → {b.get('return_arrive_airport') or '?'}")
+        if b.get("return_depart_time"):
+            parts.append(f"Returns {str(b['return_depart_time']).replace('T', ' ')}")
+    else:
+        head = (t or "Booking").title()
+        if prov:
+            parts.append(prov)
+    if b.get("confirmation"):
+        parts.append(f"Conf# {b['confirmation']}")
+    if b.get("cost"):
+        parts.append(f"${b['cost']}")
+    return head + (("\n" + "\n".join(f"• {p}" for p in parts)) if parts else "")
+
+
 @router.get("/team/calendar/importable")
 async def importable(user=Depends(require_team_access)):
     ids = await _household_user_ids(user["id"])
@@ -668,8 +716,9 @@ async def importable(user=Depends(require_team_access)):
             if te.get("imported_from_series_id"):
                 imported_series.add(te["imported_from_series_id"])
     comps = await db.competitions.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "name": 1, "event_date": 1}).sort("event_date", -1).to_list(500)
-    today = date.today().isoformat()
-    evs = await db.schedule_events.find({"user_id": {"$in": ids}, "date": {"$gte": today}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1, "series_id": 1}).sort("date", 1).to_list(2000)
+    # Every personal schedule event (any date, any type) is importable — coaches
+    # pick from their whole calendar; the screen's date-range filter narrows it.
+    evs = await db.schedule_events.find({"user_id": {"$in": ids}}, {"_id": 0, "id": 1, "title": 1, "date": 1, "event_type": 1, "series_id": 1}).sort("date", 1).to_list(5000)
     return {
         "competitions": [{"id": c["id"], "name": c.get("name") or "Competition", "date": c.get("event_date"), "already": c["id"] in imported_ids} for c in comps],
         "events": [{"id": e["id"], "title": e.get("title") or "Event", "date": e.get("date"), "event_type": e.get("event_type"), "series_id": e.get("series_id"), "already": (e["id"] in imported_ids) or (bool(e.get("series_id")) and e.get("series_id") in imported_series)} for e in evs],
@@ -734,7 +783,7 @@ async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, i
         return {"skipped": "no_date"}
 
     existing = await db.team_events.find_one({"household_id": h["id"], "imported_from_personal_id": sid}, {"_id": 0, "id": 1})
-    if existing:
+    if existing and source != "competition":
         return {"already": True}
 
     sections = [base_notes] if base_notes else []
@@ -769,11 +818,32 @@ async def _import_from_personal_one(source: str, sid: str, inc: dict, h: dict, i
             preview = labels[:40]
             more = f"\n…and {len(labels) - len(preview)} more" if len(labels) > len(preview) else ""
             sections.append("🎒 Packing list\n" + "\n".join(f"• {t}" for t in preview) + more)
+    # Hotel / flight / car booking details (competition only).
+    if source == "competition":
+        want_types = [t for t in ("hotel", "flight", "car") if inc.get(t)]
+        if want_types:
+            bks = await db.bookings.find({"competition_id": sid, "user_id": {"$in": ids}}, {"_id": 0}).to_list(200)
+            for wt in want_types:
+                for b in [x for x in bks if (x.get("type") or "").lower() == wt]:
+                    sections.append(_fmt_booking(b))
+
+    content = {
+        "title": title, "event_type": event_type, "location": location, "address": address,
+        "date": d, "start_time": start_time, "end_time": end_time,
+        "notes": "\n\n".join(s for s in sections if s).strip(),
+    }
+
+    if existing:
+        # Re-push (competition): refresh its TeamHub event so bookings added
+        # later show up, without touching cancellations/overrides/RSVPs.
+        await db.team_events.update_one(
+            {"id": existing["id"], "household_id": h["id"]}, {"$set": content}
+        )
+        return {"updated": True, "event_id": existing["id"]}
 
     ev = {
-        "id": str(uuid.uuid4()), "household_id": h["id"], "title": title, "event_type": event_type,
-        "location": location, "address": address, "date": d, "start_time": start_time, "end_time": end_time,
-        "notes": "\n\n".join(sections).strip(), "recurrence": recurrence or {"freq": "none"},
+        "id": str(uuid.uuid4()), "household_id": h["id"], **content,
+        "recurrence": recurrence or {"freq": "none"},
         "imported_from_personal_id": sid, "imported_from_series_id": series_id,
         "created_by": created_by, "created_at": _now(),
     }
