@@ -11,11 +11,19 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
 
 type Scheduled = { id: string; message: string; send_at: string; recipient_count: number };
+type DeliveryMsg = { id: string; member_name: string; phone: string; status: string; error_message?: string | null; attempts?: number };
+type StatusData = { counts: { delivered: number; sent: number; undelivered: number }; messages: DeliveryMsg[] };
+
+const maskPhone = (p: string) => {
+  const d = (p || "").replace(/\D/g, "");
+  return d.length >= 4 ? `•••• ${d.slice(-4)}` : p;
+};
+const deliveryLabel = (s: string) => (s === "delivered" ? "Delivered" : s === "failed" || s === "undelivered" ? "Failed" : "Sent");
 
 type Broadcast = {
   id: string; message: string; created_by_name?: string;
-  recipient_count: number; sent: number; failed: number;
-  failed_recipients?: { name: string; phone: string }[]; no_phone?: string[];
+  recipient_count: number; sent: number; failed: number; retried_count?: number;
+  failed_recipients?: { name: string; phone: string; reason?: string }[]; no_phone?: string[];
   track_count?: number; attachment_count?: number; created_at?: string;
 };
 
@@ -32,7 +40,7 @@ export default function BroadcastHistoryScreen() {
   const router = useRouter();
   const [items, setItems] = useState<Broadcast[]>([]);
   const [scheduled, setScheduled] = useState<Scheduled[]>([]);
-  const [statuses, setStatuses] = useState<Record<string, { delivered: number; sent: number; undelivered: number }>>({});
+  const [statuses, setStatuses] = useState<Record<string, StatusData>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -53,10 +61,10 @@ export default function BroadcastHistoryScreen() {
   const onExpand = async (b: Broadcast) => {
     const open = expanded === b.id;
     setExpanded(open ? null : b.id);
-    if (!open && !statuses[b.id]) {
+    if (!open) {
       try {
-        const r = await api.get<{ counts: any }>(`/team/broadcast/${b.id}/statuses`);
-        setStatuses((prev) => ({ ...prev, [b.id]: r.data.counts }));
+        const r = await api.get<StatusData>(`/team/broadcast/${b.id}/statuses`);
+        setStatuses((prev) => ({ ...prev, [b.id]: r.data }));
       } catch { /* ignore */ }
     }
   };
@@ -140,16 +148,44 @@ export default function BroadcastHistoryScreen() {
                 </Text>
                 {open && (
                   <View style={styles.details}>
-                    {!!statuses[b.id] && (
+                    {!!statuses[b.id]?.counts && (
                       <Text style={styles.detailItem}>
-                        📬 {statuses[b.id].delivered} delivered · {statuses[b.id].sent} sent · {statuses[b.id].undelivered} undelivered
+                        📬 {statuses[b.id].counts.delivered} delivered · {statuses[b.id].counts.sent} sent · {statuses[b.id].counts.undelivered} undelivered
                       </Text>
                     )}
-                    {!!b.failed_recipients?.length && (
+                    {!!b.retried_count && (
+                      <Text style={styles.retryNote}>⟳ {b.retried_count} text{b.retried_count === 1 ? "" : "s"} were retried past a slow carrier.</Text>
+                    )}
+                    {statuses[b.id]?.messages?.length ? (
                       <>
-                        <Text style={styles.detailHead}>Failed</Text>
-                        {b.failed_recipients.map((f, i) => <Text key={`f${i}`} style={styles.detailItem}>• {f.name} ({f.phone})</Text>)}
+                        <Text style={styles.detailHead}>Per recipient</Text>
+                        {statuses[b.id].messages
+                          .slice()
+                          .sort((a, c) => {
+                            const rank = (s: string) => (s === "failed" || s === "undelivered" ? 0 : s === "delivered" ? 2 : 1);
+                            return rank(a.status) - rank(c.status);
+                          })
+                          .map((m) => {
+                            const failed = m.status === "failed" || m.status === "undelivered";
+                            const color = failed ? colors.dangerText : m.status === "delivered" ? colors.success : colors.textSecondary;
+                            return (
+                              <View key={m.id} style={styles.recipRow}>
+                                <View style={{ flex: 1 }}>
+                                  <Text style={styles.detailItem}>{m.member_name || "(no name)"} <Text style={styles.recipPhone}>({maskPhone(m.phone)})</Text></Text>
+                                  {failed && !!m.error_message && <Text style={styles.recipReason}>{m.error_message}</Text>}
+                                </View>
+                                <Text style={[styles.statusTag, { color }]}>{deliveryLabel(m.status)}</Text>
+                              </View>
+                            );
+                          })}
                       </>
+                    ) : (
+                      !!b.failed_recipients?.length && (
+                        <>
+                          <Text style={styles.detailHead}>Failed</Text>
+                          {b.failed_recipients.map((f, i) => <Text key={`f${i}`} style={styles.detailItem}>• {f.name} ({f.phone}){f.reason ? ` — ${f.reason}` : ""}</Text>)}
+                        </>
+                      )
                     )}
                     {!!b.no_phone?.length && (
                       <>
@@ -157,7 +193,7 @@ export default function BroadcastHistoryScreen() {
                         {b.no_phone.map((n, i) => <Text key={`n${i}`} style={styles.detailItem}>• {n}</Text>)}
                       </>
                     )}
-                    {!b.failed_recipients?.length && !b.no_phone?.length && (
+                    {!statuses[b.id]?.messages?.length && !b.failed_recipients?.length && !b.no_phone?.length && (
                       <Text style={styles.detailItem}>Delivered to everyone with a phone on file. 🎉</Text>
                     )}
                     {b.failed > 0 && (
@@ -197,6 +233,11 @@ const makeStyles = (c: ThemePalette) => ({
   details: { marginTop: spacing.md, borderTopWidth: 1, borderTopColor: c.border, paddingTop: spacing.sm },
   detailHead: { ...typography.caption, color: c.textSecondary, fontWeight: "800", marginTop: 6, marginBottom: 2 },
   detailItem: { ...typography.body, color: c.textPrimary, paddingVertical: 1 },
+  retryNote: { ...typography.caption, color: c.accent, fontWeight: "700", marginTop: 4 },
+  recipRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: c.border },
+  recipPhone: { ...typography.caption, color: c.textTertiary, fontWeight: "600" },
+  recipReason: { ...typography.caption, color: c.dangerText, marginTop: 1 },
+  statusTag: { ...typography.caption, fontWeight: "800", fontSize: 11 },
   sectionHead: { ...typography.caption, color: c.textSecondary, fontWeight: "800", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 8 },
   schedCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accentBorder, borderRadius: radius.lg, padding: spacing.md, marginBottom: spacing.sm },
   resendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 11, marginTop: spacing.md },

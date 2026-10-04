@@ -126,38 +126,81 @@ def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None, media
     if not dest:
         logger.warning("send_sms: invalid destination number")
         return None
+    return _send_one_detailed(to, body, status_callback, media_urls).get("sid")
+
+
+# ---- human-readable Twilio delivery error messages -------------------------
+_HUMAN_ERRORS = {
+    "invalid": "Not a valid mobile number",
+    21211: "Not a valid phone number",
+    21214: "Not a valid phone number",
+    21217: "Not a valid phone number",
+    21408: "Can't text this region yet",
+    21610: "Unsubscribed — they texted STOP",
+    21612: "This number can't receive our texts",
+    21614: "Not a mobile number (can't get SMS)",
+    30003: "Phone unreachable or turned off",
+    30004: "Blocked by the carrier",
+    30005: "Unknown or inactive number",
+    30006: "Landline or unreachable carrier",
+    30007: "Carrier flagged it as spam",
+    30034: "Number not registered for texting",
+}
+
+
+def human_error(code, fallback: str = "") -> str:
+    """Map a Twilio ErrorCode (int or str) to a short, parent-friendly reason."""
+    if code in _HUMAN_ERRORS:
+        return _HUMAN_ERRORS[code]
+    try:
+        ic = int(code)
+        if ic in _HUMAN_ERRORS:
+            return _HUMAN_ERRORS[ic]
+    except (TypeError, ValueError):
+        pass
+    return (fallback or "").strip() or "Couldn't be delivered"
+
+
+def _send_one_detailed(to: str, body: str, status_callback: Optional[str] = None, media_urls: Optional[list] = None) -> dict:
+    """Send one SMS/MMS; never raises. Returns a dict:
+    {sid, error_code, error_message, attempts}. `sid` is None on failure.
+    Transient errors are retried; `attempts` reflects how many tries it took."""
+    client = _get_client()
+    from_number = os.getenv("TWILIO_PHONE_NUMBER")
+    if not client or not from_number:
+        return {"sid": None, "error_code": None, "error_message": "SMS isn't set up", "attempts": 0}
+    dest = normalize_us_phone(to)
+    if not dest:
+        return {"sid": None, "error_code": "invalid", "error_message": human_error("invalid"), "attempts": 0}
     signed = body if "Sent using CheerPlanner" in (body or "") else f"{body}\n\nSent using CheerPlanner"
     kwargs = {"to": dest, "from_": from_number, "body": signed}
     if status_callback:
         kwargs["status_callback"] = status_callback
     if media_urls:
         kwargs["media_url"] = list(media_urls)[:10]
+    last_code = None
+    last_msg = None
     for attempt in range(_MAX_SEND_ATTEMPTS):
         try:
             msg = client.messages.create(**kwargs)
             sid = getattr(msg, "sid", None)
             logger.info("SMS sent sid=%s to=%s media=%d attempt=%d", sid, dest, len(media_urls or []), attempt + 1)
-            return sid
+            return {"sid": sid, "error_code": None, "error_message": None, "attempts": attempt + 1}
         except Exception as exc:  # noqa: BLE001
+            last_code = getattr(exc, "code", None)
+            last_msg = getattr(exc, "msg", None) or str(exc)
             if attempt < _MAX_SEND_ATTEMPTS - 1 and _is_retryable(exc):
                 delay = 0.6 * (attempt + 1) + random.uniform(0, 0.4)
                 logger.info("send_sms retrying to=%s (attempt %d) after transient error: %s", dest, attempt + 1, exc)
                 time.sleep(delay)
                 continue
             logger.warning("send_sms failed to=%s (attempt %d): %s", dest, attempt + 1, exc)
-            return None
-    return None
+            return {"sid": None, "error_code": last_code, "error_message": human_error(last_code, last_msg), "attempts": attempt + 1}
+    return {"sid": None, "error_code": last_code, "error_message": human_error(last_code, last_msg), "attempts": _MAX_SEND_ATTEMPTS}
 
 
-async def send_bulk(items: list) -> list:
-    """Send many SMS/MMS concurrently WITHOUT blocking the event loop.
-
-    `items`: list of dicts, each {to, body, status_callback?, media_urls?}.
-    Each blocking Twilio call runs in a worker thread with bounded concurrency
-    (`_SEND_CONCURRENCY`). Returns message SIDs (or None on failure) in the SAME
-    order as `items`. Never raises. Mass reminders/broadcasts use this so a long
-    recipient list can't tie up the request enough to trigger a Cloudflare 520.
-    """
+async def _run_bulk(items: list) -> list:
+    """Shared fan-out: returns a list of detail dicts in the same order as items."""
     if not items:
         return []
     sem = asyncio.Semaphore(_SEND_CONCURRENCY)
@@ -165,7 +208,7 @@ async def send_bulk(items: list) -> list:
     async def _one(it: dict):
         async with sem:
             return await asyncio.to_thread(
-                send_sms_ex,
+                _send_one_detailed,
                 it.get("to"),
                 it.get("body") or "",
                 it.get("status_callback"),
@@ -173,6 +216,19 @@ async def send_bulk(items: list) -> list:
             )
 
     return await asyncio.gather(*(_one(it) for it in items))
+
+
+async def send_bulk(items: list) -> list:
+    """Send many SMS/MMS concurrently; returns message SIDs (or None) in order.
+    Backward-compatible helper used across reminder routers."""
+    return [d.get("sid") for d in await _run_bulk(items)]
+
+
+async def send_bulk_detailed(items: list) -> list:
+    """Like send_bulk but returns full {sid, error_code, error_message, attempts}
+    dicts per item — used by broadcasts to show delivery receipts, failure
+    reasons, and auto-retry notices."""
+    return await _run_bulk(items)
 
 
 def join_links(links) -> str:

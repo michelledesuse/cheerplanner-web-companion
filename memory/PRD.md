@@ -692,3 +692,8 @@ Get exact current paths from user before building W2.
 - Notify Preview: before any schedule-change SMS (edit/cancel/restore), a modal shows the exact text + recipient count with Send/Don't-text (dry_run).
 - Push Confirmation + Undo: "Added to TeamHub" toast with Undo after sharing an event/competition (Undo deletes the created team event); competition re-push shows "Updated on TeamHub".
 - Edit Sync Choice: "Keep my existing TeamHub notes" checkbox (include.preserve_notes) so re-sharing a competition doesn't overwrite hand-typed team notes.
+
+## Session update — SMS delivery receipts, failure reasons, retry notice (iter151)
+- Per-recipient delivery status (Delivered/Sent/Failed) in the broadcast Delivery summary (live-polls /statuses) and in Text history drill-down.
+- Human-readable failure reasons beside each failed recipient (e.g. "Not a valid mobile number") — captured from Twilio ErrorCode at send time and via the status webhook.
+- "N texts were retried past a slow carrier" note when transient errors were auto-retried (retried_count on each broadcast).

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
   KeyboardAvoidingView, Platform, Modal, Pressable, Image, Switch,
@@ -21,8 +21,20 @@ type Member = { id: string; name: string; role: string; parent_first_name?: stri
 type Team = { id: string; name: string };
 type Track = { id: string; title: string };
 type Attachment = { token: string; filename: string; uri?: string };
+type DeliveryMsg = { id: string; member_name: string; phone: string; status: string; error_message?: string | null; attempts?: number };
 
 const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "";
+
+const maskPhone = (p: string) => {
+  const d = (p || "").replace(/\D/g, "");
+  return d.length >= 4 ? `•••• ${d.slice(-4)}` : p;
+};
+const PENDING_STATUSES = ["sent", "queued", "sending", "accepted", "scheduled"];
+const deliveryLabel = (s: string) => {
+  if (s === "delivered") return "Delivered";
+  if (s === "failed" || s === "undelivered") return "Failed";
+  return "Sent";
+};
 
 export default function BroadcastScreen() {
   const styles = useThemedStyles(makeStyles);
@@ -52,8 +64,10 @@ export default function BroadcastScreen() {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [templateName, setTemplateName] = useState("");
-  const [result, setResult] = useState<null | { id?: string; sent: number; failed: number; failed_recipients: { name: string; phone: string }[]; no_phone_count: number; no_phone: string[] }>(null);
+  const [result, setResult] = useState<null | { id?: string; sent: number; failed: number; failed_recipients: { name: string; phone: string; reason?: string }[]; no_phone_count: number; no_phone: string[]; retried_count?: number }>(null);
   const [resending, setResending] = useState(false);
+  const [delivery, setDelivery] = useState<null | { counts: { delivered: number; sent: number; undelivered: number }; messages: DeliveryMsg[] }>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [sendLater, setSendLater] = useState(false);
   const [schedDate, setSchedDate] = useState("");
   const [schedTime, setSchedTime] = useState("");
@@ -170,13 +184,40 @@ export default function BroadcastScreen() {
     if (!result?.id) return;
     try {
       setResending(true);
-      const r = await api.post<{ resent: number; still_failed: number }>(`/team/broadcast/${result.id}/resend-failed`, {}, { params: { base_url: BASE }, timeout: 90000 });
+      const r = await api.post<{ resent: number; still_failed: number; retried_count?: number }>(`/team/broadcast/${result.id}/resend-failed`, {}, { params: { base_url: BASE }, timeout: 90000 });
       setResult((prev) => prev ? { ...prev, sent: prev.sent + r.data.resent, failed: r.data.still_failed, failed_recipients: prev.failed_recipients.slice(0, r.data.still_failed) } : prev);
+      try {
+        const s = await api.get<{ counts: { delivered: number; sent: number; undelivered: number }; messages: DeliveryMsg[] }>(`/team/broadcast/${result.id}/statuses`);
+        setDelivery(s.data);
+      } catch { /* ignore */ }
       Alert.alert("Resent", `Retried ${r.data.resent}. ${r.data.still_failed} still failed.`);
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not resend.");
     } finally { setResending(false); }
   };
+
+  // Poll per-recipient delivery receipts for a few seconds after a send so the
+  // summary can flip recipients from "Sent" to "Delivered" (or show failures).
+  useEffect(() => {
+    if (!result?.id) { setDelivery(null); return; }
+    let tries = 0;
+    const stop = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } };
+    const load = async () => {
+      tries += 1;
+      try {
+        const r = await api.get<{ counts: { delivered: number; sent: number; undelivered: number }; messages: DeliveryMsg[] }>(`/team/broadcast/${result.id}/statuses`);
+        setDelivery(r.data);
+        const msgs = r.data?.messages || [];
+        const pending = msgs.some((m) => PENDING_STATUSES.includes(m.status));
+        if (!pending || tries >= 10) stop();
+      } catch { if (tries >= 10) stop(); }
+    };
+    load();
+    pollRef.current = setInterval(load, 4000);
+    return stop;
+  }, [result?.id]);
+
+  const closeSummary = () => { if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; } setResult(null); setDelivery(null); router.back(); };
 
   const applyTemplate = (t: { message: string; links: ExternalLink[] }) => {
     setMessage(t.message || "");
@@ -464,22 +505,61 @@ export default function BroadcastScreen() {
       </Modal>
 
       {/* Delivery summary */}
-      <Modal visible={!!result} transparent animationType="slide" onRequestClose={() => { setResult(null); router.back(); }}>
-        <Pressable style={styles.backdrop} onPress={() => { setResult(null); router.back(); }}>
+      <Modal visible={!!result} transparent animationType="slide" onRequestClose={closeSummary}>
+        <Pressable style={styles.backdrop} onPress={closeSummary}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             <Text style={styles.sheetTitle}>Delivery summary</Text>
             <View style={styles.summaryRow}>
-              <SummaryStat label="Sent" value={result?.sent || 0} color={colors.success} />
+              <SummaryStat label="Delivered" value={delivery?.counts?.delivered || 0} color={colors.success} />
+              <SummaryStat label="Sent" value={Math.max(0, (result?.sent || 0) - (delivery?.counts?.delivered || 0))} color={colors.textSecondary} />
               <SummaryStat label="Failed" value={result?.failed || 0} color={colors.danger} />
               <SummaryStat label="No phone" value={result?.no_phone_count || 0} color={colors.textTertiary} />
             </View>
-            <ScrollView style={{ maxHeight: 300, marginTop: spacing.md }}>
-              {!!result?.failed_recipients?.length && (
+            {!!result?.retried_count && (
+              <View style={styles.retryNote}>
+                <Ionicons name="refresh" size={14} color={colors.accent} />
+                <Text style={styles.retryNoteText}>
+                  {result.retried_count} text{result.retried_count === 1 ? "" : "s"} were retried past a slow carrier before going through.
+                </Text>
+              </View>
+            )}
+            {!delivery && <Text style={styles.deliverHint}>Checking delivery receipts…</Text>}
+            <ScrollView style={{ maxHeight: 320, marginTop: spacing.md }}>
+              {delivery?.messages?.length ? (
+                delivery.messages
+                  .slice()
+                  .sort((a, b) => {
+                    const rank = (s: string) => (s === "failed" || s === "undelivered" ? 0 : s === "delivered" ? 2 : 1);
+                    return rank(a.status) - rank(b.status);
+                  })
+                  .map((m) => {
+                    const failed = m.status === "failed" || m.status === "undelivered";
+                    const label = deliveryLabel(m.status);
+                    const color = failed ? colors.danger : m.status === "delivered" ? colors.success : colors.textSecondary;
+                    return (
+                      <View key={m.id} style={styles.recipRow}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.recipName}>{m.member_name || "(no name)"} <Text style={styles.recipPhone}>({maskPhone(m.phone)})</Text></Text>
+                          {failed && !!m.error_message && <Text style={styles.recipReason}>{m.error_message}</Text>}
+                        </View>
+                        <View style={[styles.statusPill, { backgroundColor: color + "22" }]}>
+                          {m.status === "delivered" && <Ionicons name="checkmark-done" size={12} color={color} />}
+                          {failed && <Ionicons name="alert-circle" size={12} color={color} />}
+                          <Text style={[styles.statusPillText, { color }]}>{label}</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+              ) : (
                 <>
-                  <Text style={styles.summaryHead}>Failed — try again or contact directly</Text>
-                  {result.failed_recipients.map((f, i) => (
-                    <Text key={`f${i}`} style={styles.summaryItem}>• {f.name} ({f.phone})</Text>
-                  ))}
+                  {!!result?.failed_recipients?.length && (
+                    <>
+                      <Text style={styles.summaryHead}>Failed — try again or contact directly</Text>
+                      {result.failed_recipients.map((f, i) => (
+                        <Text key={`f${i}`} style={styles.summaryItem}>• {f.name} ({f.phone}){f.reason ? ` — ${f.reason}` : ""}</Text>
+                      ))}
+                    </>
+                  )}
                 </>
               )}
               {!!result?.no_phone?.length && (
@@ -490,7 +570,7 @@ export default function BroadcastScreen() {
                   ))}
                 </>
               )}
-              {!result?.failed_recipients?.length && !result?.no_phone?.length && (
+              {delivery && !delivery.messages?.length && !result?.no_phone?.length && (
                 <Text style={styles.hint}>Everyone with a phone on file received the text. 🎉</Text>
               )}
             </ScrollView>
@@ -499,7 +579,7 @@ export default function BroadcastScreen() {
                 {resending ? <ActivityIndicator color="white" /> : (<><Ionicons name="refresh" size={16} color="white" /><Text style={styles.doneText}>Resend to {result.failed} failed</Text></>)}
               </TouchableOpacity>
             )}
-            <TouchableOpacity style={styles.done} onPress={() => { setResult(null); router.back(); }} testID="broadcast-summary-done"><Text style={styles.doneText}>Done</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.done} onPress={closeSummary} testID="broadcast-summary-done"><Text style={styles.doneText}>Done</Text></TouchableOpacity>
           </Pressable>
         </Pressable>
       </Modal>
@@ -573,4 +653,13 @@ const makeStyles = (c: ThemePalette) => ({
   summaryItem: { ...typography.body, color: c.textPrimary, paddingVertical: 2 },
   schedRow: { flexDirection: "row", alignItems: "center", marginTop: spacing.lg, marginBottom: spacing.sm },
   resendBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, backgroundColor: c.accent, borderRadius: radius.md, paddingVertical: 13, marginTop: spacing.md },
+  retryNote: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: spacing.md, padding: 10, borderRadius: radius.md, backgroundColor: c.accentSubtle, borderWidth: 1, borderColor: c.accentBorder },
+  retryNoteText: { ...typography.caption, color: c.accent, fontWeight: "700", flex: 1 },
+  deliverHint: { ...typography.caption, color: c.textTertiary, marginTop: spacing.sm },
+  recipRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: c.border },
+  recipName: { ...typography.bodyMedium, color: c.textPrimary, fontWeight: "700" },
+  recipPhone: { ...typography.caption, color: c.textTertiary, fontWeight: "600" },
+  recipReason: { ...typography.caption, color: c.dangerText, marginTop: 2 },
+  statusPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  statusPillText: { ...typography.caption, fontWeight: "800", fontSize: 11 },
 });

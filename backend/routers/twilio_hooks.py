@@ -18,7 +18,7 @@ from fastapi.responses import Response
 
 from core.db import db
 from core.models import utcnow_iso
-from core.sms import normalize_us_phone
+from core.sms import normalize_us_phone, human_error
 from core.twilio_verify import verify_twilio_request
 
 logger = logging.getLogger("routers.twilio_hooks")
@@ -38,7 +38,15 @@ async def twilio_status(request: Request):
     if not doc:
         return Response(status_code=204)
     prev = doc.get("status")
-    await db.sms_messages.update_one({"sid": sid}, {"$set": {"status": status, "updated_at": utcnow_iso()}})
+    set_fields = {"status": status, "updated_at": utcnow_iso()}
+    err_code = form.get("ErrorCode")
+    if status in ("failed", "undelivered") and err_code:
+        set_fields["error_code"] = err_code
+        set_fields["error_message"] = human_error(err_code, form.get("ErrorMessage") or "")
+    elif status == "delivered":
+        set_fields["error_code"] = None
+        set_fields["error_message"] = None
+    await db.sms_messages.update_one({"sid": sid}, {"$set": set_fields})
     # roll up counts on the broadcast when entering a terminal state
     bid = doc.get("broadcast_id")
     if bid and status != prev:

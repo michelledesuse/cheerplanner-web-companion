@@ -24,7 +24,7 @@ from core.db import db
 from core.models import ExternalLink, utcnow_iso
 from core.security import get_current_user, require_team_access
 from core.helpers import _team_hub_scope_user_ids, _hub_owner_id
-from core.sms import send_sms, send_sms_ex, send_bulk, is_configured, normalize_us_phone, join_links
+from core.sms import send_sms, send_sms_ex, send_bulk, send_bulk_detailed, human_error, is_configured, normalize_us_phone, join_links
 
 router = APIRouter(prefix="/api")
 
@@ -244,36 +244,46 @@ async def _perform_send(user_id, base, to_send, no_phone, msg, trailer, creator,
 
     items = [{"to": phone, "body": compose(name), "status_callback": cb, "media_urls": media_urls}
              for phone, name in to_send]
-    results = await send_bulk(items)
-    sent, failed_targets, msg_docs = 0, [], []
-    for (phone, name), sid in zip(to_send, results):
+    results = await send_bulk_detailed(items)
+    sent, failed_targets, msg_docs, retried = 0, [], [], 0
+    now = utcnow_iso()
+    for (phone, name), res in zip(to_send, results):
+        sid = res.get("sid")
+        if (res.get("attempts") or 0) > 1:
+            retried += 1
+        base_doc = {
+            "id": secrets.token_urlsafe(9), "broadcast_id": bid, "user_id": user_id,
+            "member_name": name or "", "phone": phone, "direction": "out",
+            "attempts": res.get("attempts") or 1, "created_at": now, "updated_at": now,
+        }
         if sid:
             sent += 1
-            msg_docs.append({
-                "id": secrets.token_urlsafe(9), "broadcast_id": bid, "user_id": user_id,
-                "member_name": name or "", "phone": phone, "sid": sid, "status": "sent",
-                "direction": "out", "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
-            })
+            msg_docs.append({**base_doc, "sid": sid, "status": "sent", "error_code": None, "error_message": None})
         else:
-            failed_targets.append({"name": name or "(no name)", "phone": phone})
+            reason = res.get("error_message") or "Couldn't be delivered"
+            failed_targets.append({"name": name or "(no name)", "phone": phone, "reason": reason, "error_code": res.get("error_code")})
+            msg_docs.append({**base_doc, "sid": None, "status": "failed", "error_code": res.get("error_code"), "error_message": reason})
 
     if msg_docs:
         await db.sms_messages.insert_many(msg_docs)
 
-    await db.broadcasts.insert_one({
+    broadcast_doc = {
         "id": bid, "user_id": user_id, "created_by_name": creator, "message": msg,
         "body_trailer": trailer, "recipient_count": len(to_send), "sent": sent,
-        "failed": len(failed_targets), "delivered": 0, "undelivered": 0,
-        "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"])} for t in failed_targets],
+        "failed": len(failed_targets), "delivered": 0, "undelivered": len(failed_targets),
+        "retried_count": retried,
+        "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"]), "reason": t.get("reason")} for t in failed_targets],
         "failed_targets": failed_targets, "no_phone": no_phone,
         "track_count": len(payload.track_ids), "attachment_count": len(payload.attachment_tokens),
         "media_urls": list(media_urls or []), "media_count": len(media_urls or []),
         "created_at": utcnow_iso(),
-    })
+    }
+    await db.broadcasts.update_one({"id": bid}, {"$set": broadcast_doc}, upsert=True)
     return {
         "id": bid, "sent": sent, "failed": len(failed_targets),
-        "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"])} for t in failed_targets],
+        "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"]), "reason": t.get("reason")} for t in failed_targets],
         "no_phone_count": len(no_phone), "no_phone": no_phone[:100],
+        "retried_count": retried,
     }
 
 
@@ -293,31 +303,45 @@ async def resend_failed(broadcast_id: str, base_url: str = "", current_user=Depe
     msg, trailer = b.get("message") or "", b.get("body_trailer") or ""
     media_urls = b.get("media_urls") or []
 
-    still_failed, sent, new_docs = [], 0, []
+    still_failed, sent, retried = [], 0, 0
     items = [{
         "to": t["phone"],
         "body": ((f"Hi {t['name']}, " if t.get("name") and t["name"] != "(no name)" else "") + f"{msg}{trailer}").strip(),
         "status_callback": cb, "media_urls": media_urls,
     } for t in targets]
-    results = await send_bulk(items)
-    for t, sid in zip(targets, results):
+    results = await send_bulk_detailed(items)
+    for t, res in zip(targets, results):
+        sid = res.get("sid")
+        attempts = res.get("attempts") or 1
+        if attempts > 1:
+            retried += 1
+        reason = None if sid else (res.get("error_message") or "Couldn't be delivered")
+        set_fields = {
+            "status": "sent" if sid else "failed",
+            "error_code": None if sid else res.get("error_code"),
+            "error_message": reason, "attempts": attempts, "updated_at": utcnow_iso(),
+        }
+        if sid:
+            set_fields["sid"] = sid
+        # Update the recipient's existing message row (or create it for old broadcasts).
+        await db.sms_messages.update_one(
+            {"broadcast_id": broadcast_id, "phone": t["phone"], "direction": "out"},
+            {"$set": set_fields, "$setOnInsert": {
+                "id": secrets.token_urlsafe(9), "broadcast_id": broadcast_id, "user_id": b.get("user_id"),
+                "member_name": t.get("name") or "", "phone": t["phone"], "direction": "out", "created_at": utcnow_iso(),
+            }},
+            upsert=True,
+        )
         if sid:
             sent += 1
-            new_docs.append({
-                "id": secrets.token_urlsafe(9), "broadcast_id": broadcast_id, "user_id": b.get("user_id"),
-                "member_name": t.get("name") or "", "phone": t["phone"], "sid": sid, "status": "sent",
-                "direction": "out", "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
-            })
         else:
-            still_failed.append(t)
-    if new_docs:
-        await db.sms_messages.insert_many(new_docs)
+            still_failed.append({**t, "reason": reason, "error_code": res.get("error_code")})
     await db.broadcasts.update_one({"id": broadcast_id}, {"$set": {
         "failed_targets": still_failed,
-        "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"])} for t in still_failed],
-        "failed": len(still_failed),
+        "failed_recipients": [{"name": t["name"], "phone": _mask(t["phone"]), "reason": t.get("reason")} for t in still_failed],
+        "failed": len(still_failed), "undelivered": len(still_failed),
     }, "$inc": {"sent": sent}})
-    return {"resent": sent, "still_failed": len(still_failed)}
+    return {"resent": sent, "still_failed": len(still_failed), "retried_count": retried}
 
 
 @router.get("/team/broadcast/{broadcast_id}/statuses", dependencies=[Depends(require_team_access)])
