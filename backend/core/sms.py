@@ -12,7 +12,9 @@ blocked by Twilio, so we don't need our own STOP webhook for compliance.
 import asyncio
 import logging
 import os
+import random
 import re
+import time
 from typing import Optional
 
 logger = logging.getLogger("core.sms")
@@ -20,7 +22,14 @@ logger = logging.getLogger("core.sms")
 # How many Twilio sends run at once. The Twilio SDK is synchronous/blocking, so
 # bulk reminders are dispatched via a threadpool with this cap to keep the async
 # event loop responsive and finish fast (avoids request timeouts / Cloudflare 520).
-_SEND_CONCURRENCY = 8
+# Kept modest so a burst doesn't trip a toll-free number's per-second throughput
+# limit (which shows up as transient 429s / spurious "failed" recipients).
+_SEND_CONCURRENCY = 5
+
+# A single send is retried a couple of times on TRANSIENT Twilio errors (rate
+# limits, 5xx, network blips) before being reported as failed — this is what
+# fixes the "1 of 2 failed, but resending the same number works" glitch.
+_MAX_SEND_ATTEMPTS = 3
 
 _client = None
 _client_init = False
@@ -39,7 +48,11 @@ def _get_client():
         return None
     try:
         from twilio.rest import Client
-        _client = Client(sid, token)
+        from twilio.http.http_client import TwilioHttpClient
+        # Bound each Twilio HTTP call so a hung request can't stall a worker
+        # thread (and block the whole broadcast) indefinitely.
+        http = TwilioHttpClient(timeout=20)
+        _client = Client(sid, token, http_client=http)
     except Exception as exc:  # noqa: BLE001
         logger.warning("Twilio client init failed: %s", exc)
         _client = None
@@ -75,12 +88,35 @@ def send_sms(to: str, body: str) -> bool:
     return send_sms_ex(to, body) is not None
 
 
+def _is_retryable(exc) -> bool:
+    """Whether a Twilio send error is worth retrying. Transient failures (rate
+    limits, 5xx, carrier queue overflow, network blips) are retried; permanent
+    ones (invalid number, blocked, unsubscribed) are not."""
+    status = getattr(exc, "status", None)
+    code = getattr(exc, "code", None)
+    # Permanent client errors we must NOT retry (invalid/undeliverable number,
+    # blocked, opted-out, unreachable region, etc.).
+    if code in (21211, 21214, 21408, 21610, 21612, 21614, 30003, 30005, 30006):
+        return False
+    if status in (429, 500, 502, 503, 504):
+        return True
+    if code in (20429, 20503, 30001, 30022, 14107):  # rate limit / queue overflow
+        return True
+    # No HTTP status usually means a network/connection error — retry once.
+    if status is None:
+        return True
+    return False
+
+
 def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None, media_urls: Optional[list] = None) -> Optional[str]:
     """Send an SMS/MMS and return the Twilio message SID (or None on failure). Never raises.
 
     If `media_urls` (list of public HTTPS URLs) is provided, the message is sent as
     an MMS with those attachments inline (Twilio accepts up to 10). Twilio auto-resizes
     images; the content type is inferred from each URL's Content-Type header.
+
+    Transient Twilio errors are retried a few times with a short randomized
+    backoff so a spurious first-attempt failure doesn't get reported as failed.
     """
     client = _get_client()
     from_number = os.getenv("TWILIO_PHONE_NUMBER")
@@ -90,20 +126,27 @@ def send_sms_ex(to: str, body: str, status_callback: Optional[str] = None, media
     if not dest:
         logger.warning("send_sms: invalid destination number")
         return None
-    try:
-        signed = body if "Sent using CheerPlanner" in (body or "") else f"{body}\n\nSent using CheerPlanner"
-        kwargs = {"to": dest, "from_": from_number, "body": signed}
-        if status_callback:
-            kwargs["status_callback"] = status_callback
-        if media_urls:
-            kwargs["media_url"] = list(media_urls)[:10]
-        msg = client.messages.create(**kwargs)
-        sid = getattr(msg, "sid", None)
-        logger.info("SMS sent sid=%s to=%s media=%d", sid, dest, len(media_urls or []))
-        return sid
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("send_sms failed: %s", exc)
-        return None
+    signed = body if "Sent using CheerPlanner" in (body or "") else f"{body}\n\nSent using CheerPlanner"
+    kwargs = {"to": dest, "from_": from_number, "body": signed}
+    if status_callback:
+        kwargs["status_callback"] = status_callback
+    if media_urls:
+        kwargs["media_url"] = list(media_urls)[:10]
+    for attempt in range(_MAX_SEND_ATTEMPTS):
+        try:
+            msg = client.messages.create(**kwargs)
+            sid = getattr(msg, "sid", None)
+            logger.info("SMS sent sid=%s to=%s media=%d attempt=%d", sid, dest, len(media_urls or []), attempt + 1)
+            return sid
+        except Exception as exc:  # noqa: BLE001
+            if attempt < _MAX_SEND_ATTEMPTS - 1 and _is_retryable(exc):
+                delay = 0.6 * (attempt + 1) + random.uniform(0, 0.4)
+                logger.info("send_sms retrying to=%s (attempt %d) after transient error: %s", dest, attempt + 1, exc)
+                time.sleep(delay)
+                continue
+            logger.warning("send_sms failed to=%s (attempt %d): %s", dest, attempt + 1, exc)
+            return None
+    return None
 
 
 async def send_bulk(items: list) -> list:

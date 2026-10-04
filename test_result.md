@@ -821,3 +821,10 @@ Creds: owner demo@cheerplanner.app / CheerDemo2026!. Coach coach.casey@cheerplan
 - EDIT SYNC CHOICE: competition re-push honors include.preserve_notes — when the coach ticks "Keep my existing TeamHub notes (don't overwrite)" (comp-hub-keep-notes), the team event's notes are left untouched on re-push; booking/other content fields still refresh. Verified curl: preserve=true keeps 'COACH HANDTYPED NOTES'; preserve=false clears/overwrites.
 - Lint clean (team/calendar.tsx, schedule/new.tsx, competitions/new.tsx); backend imports OK; TeamHub calendar renders (smoke screenshot); services restarted.
 - Creds: demo@cheerplanner.app / CheerDemo2026!
+
+## Iteration 150 — Fix flaky roster SMS broadcast (main agent)
+- ROOT CAUSE (from user screenshots: 2 recipients → "1 Sent, 1 Failed", resend to the SAME number succeeds): a TRANSIENT Twilio error on first attempt was reported as a hard failure because core/sms.py send_sms_ex had NO retry. Secondary risk: 20s client timeout could race long sends on larger rosters (false "failed"/no-confirm).
+- FIX (core/sms.py): send_sms_ex now retries up to 3 attempts with randomized backoff on TRANSIENT errors only (_is_retryable: HTTP 429/5xx, codes 20429/20503/30001/30022/14107, or network errors with no status); permanent errors (invalid/undeliverable/blocked/opted-out: 21211/21214/21408/21610/21612/21614/30003/30005/30006) fail fast with no retry. Lowered _SEND_CONCURRENCY 8→5 to avoid toll-free per-second throughput 429s. Added per-call Twilio timeout (TwilioHttpClient(timeout=20)) so a hung request can't stall a worker thread.
+- FIX (frontend app/team/broadcast.tsx): real send + resend-failed POSTs now use timeout:90000 (was global 20s) so a larger roster can't falsely time out and lose the confirmation.
+- VERIFIED via unit test w/ fake Twilio client: transient 429 x2 → success on 3rd call; invalid-number 21211 → None after 1 call (no retry); persistent 503 → None after 3 attempts. Backend imports OK (TwilioHttpClient path valid); health 200. NOTE: real Twilio can't be exercised in dev (not configured) — logic verified by unit test.
+- Creds: demo@cheerplanner.app / CheerDemo2026!

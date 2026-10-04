@@ -153,7 +153,7 @@ export default function BroadcastScreen() {
     if (sendLater && !schedISO()) { Alert.alert("Pick a date & time", "Choose when to send, or turn off “Send later”."); return; }
     try {
       setSending(true);
-      const r = await api.post("/team/broadcast/send", buildPayload(false));
+      const r = await api.post("/team/broadcast/send", buildPayload(false), { timeout: 90000 });
       setReview(null);
       if (r.data?.scheduled) {
         const when = new Date(r.data.send_at);
@@ -170,7 +170,7 @@ export default function BroadcastScreen() {
     if (!result?.id) return;
     try {
       setResending(true);
-      const r = await api.post<{ resent: number; still_failed: number }>(`/team/broadcast/${result.id}/resend-failed`, {}, { params: { base_url: BASE } });
+      const r = await api.post<{ resent: number; still_failed: number }>(`/team/broadcast/${result.id}/resend-failed`, {}, { params: { base_url: BASE }, timeout: 90000 });
       setResult((prev) => prev ? { ...prev, sent: prev.sent + r.data.resent, failed: r.data.still_failed, failed_recipients: prev.failed_recipients.slice(0, r.data.still_failed) } : prev);
       Alert.alert("Resent", `Retried ${r.data.resent}. ${r.data.still_failed} still failed.`);
     } catch (e: any) {
