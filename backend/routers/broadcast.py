@@ -65,7 +65,10 @@ def _base(url: str) -> str:
     base = (url or "").rstrip("/")
     if not base.startswith("https://"):
         raise HTTPException(status_code=400, detail="A valid https base_url is required")
-    return base
+    # Never put an Emergent preview/deploy host into links parents receive (SMS
+    # media, music, status callback). Force the branded canonical base.
+    from core.config import sanitize_public_base
+    return sanitize_public_base(base)
 
 
 async def _music_public_url(track: dict, base: str, user_id: str) -> Optional[str]:

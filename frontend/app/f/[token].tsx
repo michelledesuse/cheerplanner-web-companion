@@ -7,6 +7,7 @@ import { useLocalSearchParams } from "expo-router";
 
 import { colors } from "@/src/theme";
 import { formatCurrency, formatDate } from "@/src/utils/format";
+import { APP_WEB_BASE } from "@/src/utils/appShare";
 
 type PublicFundraiser = {
   name: string;
@@ -29,10 +30,8 @@ export default function PublicFundraiser() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const shareUrl =
-    Platform.OS === "web" && typeof window !== "undefined"
-      ? window.location.href
-      : `${(process.env.EXPO_PUBLIC_BACKEND_URL || "").replace(/\/$/, "")}/f/${token}`;
+  // Always share the branded canonical link — never a preview/deploy host.
+  const shareUrl = `${APP_WEB_BASE}/f/${token}`;
 
   const copyLink = async () => {
     try {

@@ -34,7 +34,7 @@ def test_share_links_use_branded_host():
     r = requests.post(f"{B}/team/share", headers=_h(tok), json={"kind": "roster", "ref_id": None})
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["url"].startswith("https://cheer-planner.com/api/public/s/"), body
+    assert body["url"].startswith("https://app.cheer-planner.com/api/public/s/"), body
     assert body["url"].endswith(body["token"])
 
     # Reusing the same link returns the same branded URL.
@@ -47,7 +47,7 @@ def test_share_links_use_branded_host():
     ri = requests.post(f"{B}/team/roster/{m['id']}/request-info",
                        headers=_h(tok), json={"base_url": "https://evil.example.com", "send": False})
     assert ri.status_code == 200, ri.text
-    assert ri.json()["url"].startswith("https://cheer-planner.com/api/public/s/"), ri.json()
+    assert ri.json()["url"].startswith("https://app.cheer-planner.com/api/public/s/"), ri.json()
 
     # cleanup
     _db.entitlements.delete_many({"household_id": {"$in": [uid]}})

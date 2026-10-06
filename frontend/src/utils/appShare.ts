@@ -1,7 +1,9 @@
 import { Share, Platform } from "react-native";
 
-/** Public link we invite people to. Update to the App Store URL once published. */
-export const APP_SHARE_URL = "https://cheer-planner.com";
+/** Canonical branded web base for every generated share/invite/app link. */
+export const APP_WEB_BASE = "https://app.cheer-planner.com";
+/** Public link we invite people to. */
+export const APP_SHARE_URL = APP_WEB_BASE;
 
 const SHARE_MESSAGE =
   "Check out CheerPlanner 📣🎀 — the app that keeps cheer season organized: " +
