@@ -32,15 +32,24 @@ export default function SignupsScreen() {
   const [compId, setCompId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const canManage = useCanManageAccess();
   const { filterSeasonId } = useSeason();
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Sheet[]>("/team/signups", { params: filterSeasonId ? { season_id: filterSeasonId } : {} });
+      const params: any = {};
+      if (filterSeasonId) params.season_id = filterSeasonId;
+      if (showArchived) params.include_archived = true;
+      const r = await api.get<Sheet[]>("/team/signups", { params });
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [filterSeasonId]);
+  }, [filterSeasonId, showArchived]);
+
+  const setArchived = async (id: string, archived: boolean) => {
+    try { await api.patch(`/team/signups/${id}/archive`, { archived }); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Please try again."); }
+  };
 
   useEffect(() => { api.get<Comp[]>("/competitions").then((r) => setComps(r.data)).catch(() => {}); }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -97,6 +106,9 @@ export default function SignupsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sign-Up Sheet</Text>
+        <TouchableOpacity onPress={() => setShowArchived((v) => !v)} style={[styles.iconBtn, showArchived && styles.iconBtnOn]} testID="signups-archived-toggle" hitSlop={8}>
+          <Ionicons name="archive-outline" size={18} color={showArchived ? "white" : colors.textPrimary} />
+        </TouchableOpacity>
         {items.length > 1 && (
           <TouchableOpacity onPress={() => setReorderMode((v) => !v)} style={[styles.iconBtn, reorderMode && styles.iconBtnOn]} testID="signups-reorder-toggle" hitSlop={8}>
             <Ionicons name="swap-vertical" size={18} color={reorderMode ? "white" : colors.textPrimary} />
@@ -143,6 +155,9 @@ export default function SignupsScreen() {
                     ) : (
                       <>
                         <Text style={styles.cardMeta}>{slot_count} {slot_count === 1 ? "slot" : "slots"}</Text>
+                        <TouchableOpacity onPress={() => setArchived(s.id, !(s as any).archived)} hitSlop={8} testID={`signup-archive-${s.id}`}>
+                          <Ionicons name={(s as any).archived ? "arrow-undo-outline" : "archive-outline"} size={18} color={colors.accent} />
+                        </TouchableOpacity>
                         {canManage && <SheetAccessButton resource="signup" resourceId={s.id} />}
                         {canManage && (
                           <TouchableOpacity onPress={() => postToChat(s.id, s.name)} style={styles.chatBtn} hitSlop={8} testID={`signup-postchat-${s.id}`}>

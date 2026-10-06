@@ -32,15 +32,34 @@ export default function FormsScreen() {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Form[]>("/team/forms", { params: filterSeasonId ? { season_id: filterSeasonId } : {} });
+      const params: any = {};
+      if (filterSeasonId) params.season_id = filterSeasonId;
+      if (showArchived) params.include_archived = true;
+      const r = await api.get<Form[]>("/team/forms", { params });
       setForms(r.data || []);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [filterSeasonId]);
+  }, [filterSeasonId, showArchived]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const move = async (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= forms.length) return;
+    const next = [...forms];
+    [next[index], next[target]] = [next[target], next[index]];
+    setForms(next);
+    try { await api.post("/team/forms/reorder", { ids: next.map((f) => f.id) }); } catch { load(); }
+  };
+
+  const setArchived = async (f: Form, archived: boolean) => {
+    try { await api.patch(`/team/forms/${f.id}/archive`, { archived }); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Please try again."); }
+  };
 
   const create = async () => {
     const t = name.trim();
@@ -93,6 +112,14 @@ export default function FormsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Team Forms</Text>
+        <TouchableOpacity onPress={() => setShowArchived((v) => !v)} style={[styles.iconBtn, showArchived && styles.iconBtnOn]} testID="forms-archived-toggle" hitSlop={8}>
+          <Ionicons name="archive-outline" size={18} color={showArchived ? "white" : colors.textPrimary} />
+        </TouchableOpacity>
+        {forms.length > 1 && (
+          <TouchableOpacity onPress={() => setReorderMode((v) => !v)} style={[styles.iconBtn, reorderMode && styles.iconBtnOn]} testID="forms-reorder-toggle" hitSlop={8}>
+            <Ionicons name="swap-vertical" size={18} color={reorderMode ? "white" : colors.textPrimary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={() => setCreateOpen(true)} style={styles.iconBtn} testID="forms-add" hitSlop={8}>
           <Ionicons name="add" size={24} color={colors.accent} />
         </TouchableOpacity>
@@ -120,25 +147,37 @@ export default function FormsScreen() {
           ) : forms.map((f) => {
             const s = f.summary || { response_count: 0, member_total: 0 };
             return (
-              <TouchableOpacity key={f.id} style={styles.card} onPress={() => router.push(`/team/form-detail?id=${f.id}` as any)} testID={`form-${f.id}`}>
+              <TouchableOpacity key={f.id} style={[styles.card, f.archived && { opacity: 0.6 }]} activeOpacity={reorderMode ? 1 : 0.7} onPress={() => { if (!reorderMode) router.push(`/team/form-detail?id=${f.id}` as any); }} testID={`form-${f.id}`}>
                 <View style={{ flex: 1 }}>
                   <View style={styles.cardTop}>
                     <Text style={styles.cardName}>{f.name}</Text>
-                    {f.locked ? (
+                    {f.archived ? <View style={styles.lockPill}><Text style={styles.lockPillText}>Archived</Text></View> : f.locked ? (
                       <View style={styles.lockPill}><Ionicons name="lock-closed" size={11} color={colors.warningText} /><Text style={styles.lockPillText}>Locked</Text></View>
                     ) : null}
                   </View>
                   {f.description ? <Text style={styles.cardDesc} numberOfLines={1}>{f.description}</Text> : null}
                   <Text style={styles.cardMeta}>{s.response_count}/{s.member_total} responded · {(f.questions || []).length} question{(f.questions || []).length === 1 ? "" : "s"}</Text>
                 </View>
-                <TouchableOpacity onPress={() => postToChat(f)} style={styles.chatBtn} hitSlop={8} testID={`form-postchat-${f.id}`}>
-                  <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.accent} />
-                  <Text style={styles.chatBtnText}>Post</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => duplicate(f)} style={styles.dupBtn} hitSlop={8} testID={`form-duplicate-${f.id}`}>
-                  <Ionicons name="copy-outline" size={18} color={colors.accent} />
-                </TouchableOpacity>
-                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                {reorderMode ? (
+                  <>
+                    <TouchableOpacity onPress={() => move(forms.indexOf(f), -1)} disabled={forms.indexOf(f) === 0} hitSlop={8} testID={`form-up-${f.id}`}><Ionicons name="chevron-up" size={22} color={forms.indexOf(f) === 0 ? colors.textTertiary : colors.accent} /></TouchableOpacity>
+                    <TouchableOpacity onPress={() => move(forms.indexOf(f), 1)} disabled={forms.indexOf(f) === forms.length - 1} hitSlop={8} testID={`form-down-${f.id}`}><Ionicons name="chevron-down" size={22} color={forms.indexOf(f) === forms.length - 1 ? colors.textTertiary : colors.accent} /></TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity onPress={() => setArchived(f, !f.archived)} style={styles.dupBtn} hitSlop={8} testID={`form-archive-${f.id}`}>
+                      <Ionicons name={f.archived ? "arrow-undo-outline" : "archive-outline"} size={18} color={colors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => postToChat(f)} style={styles.chatBtn} hitSlop={8} testID={`form-postchat-${f.id}`}>
+                      <Ionicons name="chatbubble-ellipses-outline" size={14} color={colors.accent} />
+                      <Text style={styles.chatBtnText}>Post</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => duplicate(f)} style={styles.dupBtn} hitSlop={8} testID={`form-duplicate-${f.id}`}>
+                      <Ionicons name="copy-outline" size={18} color={colors.accent} />
+                    </TouchableOpacity>
+                    <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
+                  </>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -171,7 +210,8 @@ const makeStyles = (c: ThemePalette) => ({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   headerBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: spacing.lg, borderBottomWidth: 1, borderBottomColor: c.border },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
-  headerTitle: { ...typography.h2, color: c.textPrimary },
+  iconBtnOn: { backgroundColor: c.accent, borderColor: c.accent },
+  headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
   seasonWrap: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
 
   empty: { alignItems: "center", paddingTop: 70, gap: 8 },

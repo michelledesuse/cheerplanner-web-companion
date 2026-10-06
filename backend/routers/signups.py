@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from core.db import db
 from core.models import (
@@ -48,7 +48,7 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 
 
 @router.get("/signups")
-async def list_signups(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_signups(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, include_archived: bool = False, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     query: dict = season_query(member_ids, season_id)
     if event_id:
@@ -57,9 +57,18 @@ async def list_signups(event_id: str | None = None, competition_id: str | None =
         query["competition_ids"] = competition_id
     docs = await db.signup_sheets.find(query, {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "signup")
-    docs = [d for d in docs if d["id"] not in blocked]
+    docs = [d for d in docs if d["id"] not in blocked and (include_archived or not d.get("archived"))]
     docs.sort(key=lambda d: (d.get("order", 0), d.get("created_at") or ""))
     return [{**SignupSheet(**d).model_dump(), "summary": _summary(d)} for d in docs]
+
+
+@router.patch("/signups/{sheet_id}/archive")
+async def archive_signup(sheet_id: str, payload: dict = Body(default={}), current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.signup_sheets.update_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"$set": {"archived": bool(payload.get("archived", True))}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Sign-up sheet not found")
+    return {"ok": True}
 
 
 @router.post("/signups", response_model=SignupSheet)

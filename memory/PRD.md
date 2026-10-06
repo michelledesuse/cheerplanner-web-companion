@@ -697,3 +697,8 @@ Get exact current paths from user before building W2.
 - Per-recipient delivery status (Delivered/Sent/Failed) in the broadcast Delivery summary (live-polls /statuses) and in Text history drill-down.
 - Human-readable failure reasons beside each failed recipient (e.g. "Not a valid mobile number") — captured from Twilio ErrorCode at send time and via the status webhook.
 - "N texts were retried past a slow carrier" note when transient errors were auto-retried (retried_count on each broadcast).
+
+## Update (June 2026) — Archive/Reorder complete + link domain
+- Archive & Reorder UI done on all 6 TeamHub screens (forms, payments, signups, paperwork, attendance, results): header archive toggle (show archived), reorder toggle with up/down chevrons, per-row archive/restore.
+- Canonical public base switched to https://cheer-planner.com (CANONICAL_PUBLIC_BASE in backend/core/config.py, APP_WEB_BASE in frontend/src/utils/appShare.ts). sanitize_public_base maps emergent hosts AND app.cheer-planner.com -> cheer-planner.com. Covers share, invite, password reset, unsubscribe, redemption links.
+- Tested: iteration_147 (all pass).

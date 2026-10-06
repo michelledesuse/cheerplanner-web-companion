@@ -180,7 +180,7 @@ def password_reset_links(token: str, base_url: Optional[str] = None) -> Tuple[st
     deep = f"{APP_URL_SCHEME}://reset?token={token}"
     from core.config import sanitize_public_base
     # Ignore/replace any Emergent preview/deploy host so the emailed reset link
-    # is always on the branded canonical base (app.cheer-planner.com).
+    # is always on the branded canonical base (cheer-planner.com).
     root = sanitize_public_base(base_url or BACKEND_PUBLIC_URL)
     web = f"{root}/api/auth/reset?token={token}"
     return deep, web

@@ -179,7 +179,7 @@ export default function FormDetailScreen() {
   const shareLink = async () => {
     try {
       const r = await api.post<{ token: string; url?: string }>("/team/share", { kind: "form", ref_id: id });
-      const url = r.data.url || `https://app.cheer-planner.com/api/public/s/${r.data.token}`;
+      const url = r.data.url || `https://cheer-planner.com/api/public/s/${r.data.token}`;
       await Share.share({ message: `Please fill out "${data?.name}" for our team (no app needed):\n${url}` });
     } catch (e: any) { Alert.alert("Couldn't create link", e?.response?.data?.detail || ""); }
   };

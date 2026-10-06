@@ -15,7 +15,7 @@ import SeasonBar from "@/src/components/SeasonBar";
 import { useSeason } from "@/src/context/SeasonContext";
 
 type Sheet = {
-  id: string; name: string;
+  id: string; name: string; archived?: boolean;
   summary: { item_count: number; member_total: number; done_cells: number; total_cells: number; pct: number };
 };
 
@@ -28,15 +28,33 @@ export default function PaperworkScreen() {
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const canManage = useCanManageAccess();
   const { filterSeasonId } = useSeason();
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Sheet[]>("/team/paperwork", { params: filterSeasonId ? { season_id: filterSeasonId } : {} });
+      const params: any = {};
+      if (filterSeasonId) params.season_id = filterSeasonId;
+      if (showArchived) params.include_archived = true;
+      const r = await api.get<Sheet[]>("/team/paperwork", { params });
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [filterSeasonId]);
+  }, [filterSeasonId, showArchived]);
+
+  const move = async (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    setItems(next);
+    try { await api.post("/team/paperwork/reorder", { ids: next.map((s) => s.id) }); } catch { load(); }
+  };
+  const setArchived = async (id: string, archived: boolean) => {
+    try { await api.patch(`/team/paperwork/${id}/archive`, { archived }); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Please try again."); }
+  };
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);
@@ -65,6 +83,14 @@ export default function PaperworkScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Paperwork / Other</Text>
+        <TouchableOpacity onPress={() => setShowArchived((v) => !v)} style={[styles.iconBtn, showArchived && styles.iconBtnOn]} testID="paperwork-archived-toggle" hitSlop={8}>
+          <Ionicons name="archive-outline" size={18} color={showArchived ? "white" : colors.textPrimary} />
+        </TouchableOpacity>
+        {items.length > 1 && (
+          <TouchableOpacity onPress={() => setReorderMode((v) => !v)} style={[styles.iconBtn, reorderMode && styles.iconBtnOn]} testID="paperwork-reorder-toggle" hitSlop={8}>
+            <Ionicons name="swap-vertical" size={18} color={reorderMode ? "white" : colors.textPrimary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={() => router.push("/import/team_paperwork" as any)} style={styles.iconBtn} testID="paperwork-import" hitSlop={8}>
           <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -89,18 +115,35 @@ export default function PaperworkScreen() {
               <Text style={styles.emptyTitle}>No paperwork sheets yet</Text>
               <Text style={styles.emptyText}>Create one for waivers, forms or any check-off items &mdash; then track who&apos;s turned things in.</Text>
             </View>
-          ) : items.map((s) => {
+          ) : items.map((s, index) => {
             const { item_count, pct, member_total } = s.summary;
             return (
-              <TouchableOpacity key={s.id} style={styles.card} onPress={() => router.push({ pathname: "/team/paperwork-sheet", params: { id: s.id } })} testID={`paperwork-row-${s.id}`}>
+              <TouchableOpacity key={s.id} style={[styles.card, s.archived && { opacity: 0.6 }]} activeOpacity={reorderMode ? 1 : 0.7} onPress={() => { if (!reorderMode) router.push({ pathname: "/team/paperwork-sheet", params: { id: s.id } }); }} testID={`paperwork-row-${s.id}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={styles.cardName}>{s.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    <Text style={styles.cardMeta}>{item_count} {item_count === 1 ? "item" : "items"}</Text>
-                    {canManage && <SheetAccessButton resource="paperwork" resourceId={s.id} />}
-                    <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`paperwork-duplicate-${s.id}`}>
-                      <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
-                    </TouchableOpacity>
+                    {reorderMode ? (
+                      <>
+                        <TouchableOpacity onPress={() => move(index, -1)} disabled={index === 0} hitSlop={8} testID={`paperwork-up-${s.id}`}>
+                          <Ionicons name="chevron-up" size={22} color={index === 0 ? colors.textTertiary : colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => move(index, 1)} disabled={index === items.length - 1} hitSlop={8} testID={`paperwork-down-${s.id}`}>
+                          <Ionicons name="chevron-down" size={22} color={index === items.length - 1 ? colors.textTertiary : colors.accent} />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        {s.archived && <Text style={styles.archivedTag}>Archived</Text>}
+                        <Text style={styles.cardMeta}>{item_count} {item_count === 1 ? "item" : "items"}</Text>
+                        <TouchableOpacity onPress={() => setArchived(s.id, !s.archived)} hitSlop={8} testID={`paperwork-archive-${s.id}`}>
+                          <Ionicons name={s.archived ? "arrow-undo-outline" : "archive-outline"} size={18} color={colors.accent} />
+                        </TouchableOpacity>
+                        {canManage && <SheetAccessButton resource="paperwork" resourceId={s.id} />}
+                        <TouchableOpacity onPress={() => duplicate(s.id)} hitSlop={8} testID={`paperwork-duplicate-${s.id}`}>
+                          <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 </View>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
@@ -135,6 +178,8 @@ const makeStyles = (c: ThemePalette) => ({
   seasonWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  iconBtnOn: { backgroundColor: c.accent, borderColor: c.accent },
+  archivedTag: { ...typography.micro, color: c.textSecondary, fontWeight: "800", backgroundColor: c.divider, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 6, overflow: "hidden" },
   headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
   card: { backgroundColor: c.card, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: spacing.md },

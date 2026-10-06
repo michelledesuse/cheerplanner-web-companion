@@ -17,7 +17,7 @@ import SeasonBar from "@/src/components/SeasonBar";
 import { useSeason } from "@/src/context/SeasonContext";
 
 type Tracker = {
-  id: string; name: string; amount?: number | null; note?: string | null;
+  id: string; name: string; amount?: number | null; note?: string | null; archived?: boolean;
   summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number };
 };
 
@@ -32,15 +32,33 @@ export default function PaymentsScreen() {
   const [amount, setAmount] = useState("");
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [saving, setSaving] = useState(false);
+  const [reorderMode, setReorderMode] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const canManage = useCanManageAccess();
   const { filterSeasonId } = useSeason();
 
   const load = useCallback(async () => {
     try {
-      const r = await api.get<Tracker[]>("/team/payments", { params: filterSeasonId ? { season_id: filterSeasonId } : {} });
+      const params: any = {};
+      if (filterSeasonId) params.season_id = filterSeasonId;
+      if (showArchived) params.include_archived = true;
+      const r = await api.get<Tracker[]>("/team/payments", { params });
       setItems(r.data);
     } finally { setLoading(false); setRefreshing(false); }
-  }, [filterSeasonId]);
+  }, [filterSeasonId, showArchived]);
+
+  const move = async (index: number, dir: -1 | 1) => {
+    const target = index + dir;
+    if (target < 0 || target >= items.length) return;
+    const next = [...items];
+    [next[index], next[target]] = [next[target], next[index]];
+    setItems(next);
+    try { await api.post("/team/payments/reorder", { ids: next.map((t) => t.id) }); } catch { load(); }
+  };
+  const setArchived = async (id: string, archived: boolean) => {
+    try { await api.patch(`/team/payments/${id}/archive`, { archived }); await load(); }
+    catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Please try again."); }
+  };
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
   useRealtimeRefetch(load);
@@ -69,6 +87,14 @@ export default function PaymentsScreen() {
           <Ionicons name="chevron-back" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Payment Tracking</Text>
+        <TouchableOpacity onPress={() => setShowArchived((v) => !v)} style={[styles.iconBtn, showArchived && styles.iconBtnOn]} testID="payments-archived-toggle" hitSlop={8}>
+          <Ionicons name="archive-outline" size={18} color={showArchived ? "white" : colors.textPrimary} />
+        </TouchableOpacity>
+        {items.length > 1 && (
+          <TouchableOpacity onPress={() => setReorderMode((v) => !v)} style={[styles.iconBtn, reorderMode && styles.iconBtnOn]} testID="payments-reorder-toggle" hitSlop={8}>
+            <Ionicons name="swap-vertical" size={18} color={reorderMode ? "white" : colors.textPrimary} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity onPress={() => router.push("/import/team_payments" as any)} style={styles.iconBtn} testID="payments-import" hitSlop={8}>
           <Ionicons name="cloud-upload-outline" size={18} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -93,19 +119,36 @@ export default function PaymentsScreen() {
               <Text style={styles.emptyTitle}>No payment trackers yet</Text>
               <Text style={styles.emptyText}>Create one for team bonding, gifts, meals or dues — then check off who&apos;s paid.</Text>
             </View>
-          ) : items.map((t) => {
+          ) : items.map((t, index) => {
             const { paid_count, member_total, collected, outstanding, short_count } = t.summary;
             const pct = member_total > 0 ? Math.round((paid_count / member_total) * 100) : 0;
             return (
-              <TouchableOpacity key={t.id} style={styles.card} onPress={() => router.push({ pathname: "/team/payment", params: { id: t.id } })} testID={`payment-row-${t.id}`}>
+              <TouchableOpacity key={t.id} style={[styles.card, t.archived && { opacity: 0.6 }]} activeOpacity={reorderMode ? 1 : 0.7} onPress={() => { if (!reorderMode) router.push({ pathname: "/team/payment", params: { id: t.id } }); }} testID={`payment-row-${t.id}`}>
                 <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                   <Text style={styles.cardName}>{t.name}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                    {t.amount != null && <Text style={styles.cardAmount}>{formatCurrency(t.amount)}/person</Text>}
-                    {canManage && <SheetAccessButton resource="payment" resourceId={t.id} />}
-                    <TouchableOpacity onPress={() => duplicate(t.id)} hitSlop={8} testID={`payment-duplicate-${t.id}`}>
-                      <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
-                    </TouchableOpacity>
+                    {reorderMode ? (
+                      <>
+                        <TouchableOpacity onPress={() => move(index, -1)} disabled={index === 0} hitSlop={8} testID={`payment-up-${t.id}`}>
+                          <Ionicons name="chevron-up" size={22} color={index === 0 ? colors.textTertiary : colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => move(index, 1)} disabled={index === items.length - 1} hitSlop={8} testID={`payment-down-${t.id}`}>
+                          <Ionicons name="chevron-down" size={22} color={index === items.length - 1 ? colors.textTertiary : colors.accent} />
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <>
+                        {t.archived && <Text style={styles.archivedTag}>Archived</Text>}
+                        {t.amount != null && <Text style={styles.cardAmount}>{formatCurrency(t.amount)}/person</Text>}
+                        <TouchableOpacity onPress={() => setArchived(t.id, !t.archived)} hitSlop={8} testID={`payment-archive-${t.id}`}>
+                          <Ionicons name={t.archived ? "arrow-undo-outline" : "archive-outline"} size={18} color={colors.accent} />
+                        </TouchableOpacity>
+                        {canManage && <SheetAccessButton resource="payment" resourceId={t.id} />}
+                        <TouchableOpacity onPress={() => duplicate(t.id)} hitSlop={8} testID={`payment-duplicate-${t.id}`}>
+                          <Ionicons name="copy-outline" size={18} color={colors.textTertiary} />
+                        </TouchableOpacity>
+                      </>
+                    )}
                   </View>
                 </View>
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
@@ -158,6 +201,8 @@ const makeStyles = (c: ThemePalette) => ({
   seasonWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
   iconBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
+  iconBtnOn: { backgroundColor: c.accent, borderColor: c.accent },
+  archivedTag: { ...typography.micro, color: c.textSecondary, fontWeight: "800", backgroundColor: c.divider, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, overflow: "hidden" },
   headerTitle: { ...typography.h2, color: c.textPrimary, flex: 1 },
   addBtn: { width: 38, height: 38, borderRadius: 999, alignItems: "center", justifyContent: "center", backgroundColor: c.accent },
   card: { backgroundColor: c.card, padding: spacing.md, borderRadius: radius.lg, borderWidth: 1, borderColor: c.border, marginBottom: spacing.md },

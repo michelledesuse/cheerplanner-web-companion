@@ -1,7 +1,7 @@
 import { Share, Platform } from "react-native";
 
 /** Canonical branded web base for every generated share/invite/app link. */
-export const APP_WEB_BASE = "https://app.cheer-planner.com";
+export const APP_WEB_BASE = "https://cheer-planner.com";
 /** Public link we invite people to. */
 export const APP_SHARE_URL = APP_WEB_BASE;
 

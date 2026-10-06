@@ -173,12 +173,13 @@ async def _detail(doc: dict, member_ids: List[str]) -> dict:
 
 # ---------- endpoints ----------
 @router.get("/forms")
-async def list_forms(season_id: Optional[str] = None, current_user=Depends(get_current_user)):
+async def list_forms(season_id: Optional[str] = None, include_archived: bool = False, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     docs = await db.team_forms.find(season_query(member_ids, season_id), {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "form")
-    docs = [d for d in docs if d["id"] not in blocked]
+    docs = [d for d in docs if d["id"] not in blocked and (include_archived or not d.get("archived"))]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
+    docs.sort(key=lambda d: d.get("order", 0))
     out = []
     for d in docs:
         await apply_form_autolock(d)
@@ -206,10 +207,28 @@ async def create_form(payload: FormCreate, current_user=Depends(get_current_user
         "links": [l.model_dump() for l in payload.links],
         "competition_ids": payload.competition_ids or [], "event_ids": payload.event_ids or [],
         "season_ids": [sid] if sid else [], "close_at": payload.close_at or None,
+        "order": 0, "archived": False,
         "created_at": utcnow_iso(), "updated_at": utcnow_iso(),
     }
     await db.team_forms.insert_one({**doc})
     return doc
+
+
+@router.post("/forms/reorder")
+async def reorder_forms(payload: dict, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    for idx, fid in enumerate(payload.get("ids") or []):
+        await db.team_forms.update_one({"id": fid, "user_id": {"$in": member_ids}}, {"$set": {"order": idx}})
+    return {"ok": True}
+
+
+@router.patch("/forms/{form_id}/archive")
+async def archive_form(form_id: str, payload: dict, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.team_forms.update_one({"id": form_id, "user_id": {"$in": member_ids}}, {"$set": {"archived": bool(payload.get("archived", True))}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Form not found")
+    return {"ok": True}
 
 
 @router.get("/forms/{form_id}")

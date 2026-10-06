@@ -106,7 +106,7 @@ async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str]) ->
 
 
 @router.get("/payments")
-async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, include_archived: bool = False, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     query: dict = season_query(member_ids, season_id)
     if event_id:
@@ -115,8 +115,9 @@ async def list_payment_trackers(event_id: str | None = None, competition_id: str
         query["competition_ids"] = competition_id
     docs = await db.payment_trackers.find(query, {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "payment")
-    docs = [d for d in docs if d["id"] not in blocked]
+    docs = [d for d in docs if d["id"] not in blocked and (include_archived or not d.get("archived"))]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
+    docs.sort(key=lambda d: d.get("order", 0))
     roster_total = await _roster_total(member_ids, season_id)
     out = []
     for d in docs:
@@ -138,6 +139,23 @@ async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Dep
         tracker.season_ids = [sid]
     await db.payment_trackers.insert_one(tracker.model_dump())
     return tracker
+
+
+@router.post("/payments/reorder")
+async def reorder_payments(payload: dict, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    for idx, tid in enumerate(payload.get("ids") or []):
+        await db.payment_trackers.update_one({"id": tid, "user_id": {"$in": member_ids}}, {"$set": {"order": idx}})
+    return {"ok": True}
+
+
+@router.patch("/payments/{tracker_id}/archive")
+async def archive_payment(tracker_id: str, payload: dict, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.payment_trackers.update_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"$set": {"archived": bool(payload.get("archived", True))}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Tracker not found")
+    return {"ok": True}
 
 
 @router.post("/payments/{tracker_id}/remind")

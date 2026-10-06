@@ -14,7 +14,7 @@ const MESSAGES: Record<ShareKind, string> = {
 export async function shareTeamLink(kind: ShareKind, refId?: string): Promise<void> {
   try {
     const res = await api.post<{ token: string; url?: string }>("/team/share", { kind, ref_id: refId ?? null });
-    // The backend returns a branded public URL (app.cheer-planner.com). Fall back
+    // The backend returns a branded public URL (cheer-planner.com). Fall back
     // to the same branded base — never the preview/deploy host.
     const url = res.data.url || `${APP_WEB_BASE}/api/public/s/${res.data.token}`;
     // Only pass `message` (not `url`) so the link isn't shown twice on iOS.

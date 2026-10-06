@@ -1124,6 +1124,8 @@ class PaymentTracker(BaseModel):
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)
     last_reminded_at: Optional[str] = None
+    order: int = 0
+    archived: bool = False
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -1223,6 +1225,8 @@ class PaperworkSheet(BaseModel):
     items: List[PaperworkItem] = Field(default_factory=list)
     # member_id -> item_id -> {"done": bool, "note": Optional[str]}
     values: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    order: int = 0
+    archived: bool = False
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -1289,6 +1293,7 @@ class SignupSheet(BaseModel):
     order: int = 0  # manual sort order (lower = higher in the list)
     slots: List[SignupSlot] = Field(default_factory=list)
     last_reminded_at: Optional[str] = None
+    archived: bool = False
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -1391,6 +1396,8 @@ class AttendanceSession(BaseModel):
     event_ids: List[str] = Field(default_factory=list)  # links to schedule events
     # member_id -> "present" | "absent" | "excused" | "tardy"
     records: Dict[str, str] = Field(default_factory=dict)
+    order: int = 0
+    archived: bool = False
     created_at: str = Field(default_factory=utcnow_iso)
 
 

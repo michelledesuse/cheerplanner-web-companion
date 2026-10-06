@@ -1,0 +1,28 @@
+{
+  "summary": "Full-stack regression on TeamHub archive/reorder across 6 modules (forms, payments, signups, paperwork, attendance, results) + branded share/password-reset links. Backend: 9/9 pytest cases passed. Frontend (390x844, demo@cheerplanner.app): payments reorder+archive+Show-archived flow verified end-to-end (chevrons, persistence after reload, 'Archived' chip + undo button visible). Results screen toggles appear once a result exists; result-archive-{id} per-row button present. Paperwork and Attendance header toggles verified visible. Branded link verified: /api/team/share returns https://cheer-planner.com/api/public/s/..., /api/auth/forgot-password response leaks no emergent.host / emergentagent.com / app.cheer-planner.com host. No deprecated expo packages introduced in the touched screens.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_archive_reorder_and_branding.py",
+    "/app/backend/tests/test_share_link_branded.py",
+    "/app/test_reports/pytest/pytest_iter147.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "comp_results.reorder_results / archive_result don't raise 404 when the user has no household — _resolve_active_household can return None and the code dereferences h['id']. In practice require_team_access + having created a result guarantees a household, but a defensive None-check is cheap.",
+    "payments / paperwork / attendance / forms / signups reorder endpoints silently ignore ids that don't belong to the household (good), but also don't return which ids were applied — fine for the current UX, flag only as a nice-to-have."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_archive_reorder_and_branding.py (new)"
+  ],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% of flows exercised (payments full cycle incl. reorder persistence + archive hide/show; results toggles after seed; paperwork+attendance header toggles)"},
+  "seed_data_creation": "Created transient trackers/results for the UI test and deleted them after; also cleaned stale ZTest_/T_ prefixed data from previous iterations (payment_trackers x2 removed).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login flow: POST /api/auth/login, token stored in web localStorage under a key containing 'ct_auth_token' as a JSON string (strip surrounding quotes before using in Authorization header). The demo account has an active Welcome Tour on first entry to Team screens — dismiss via get_by_text('Skip'). Reorder toggle only renders when >1 items exist (by design). Results toggles render only when role === 'staff'."
+}

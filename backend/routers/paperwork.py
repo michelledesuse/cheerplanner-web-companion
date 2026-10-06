@@ -57,14 +57,32 @@ async def _get_sheet(sheet_id: str, current_user) -> dict:
 
 
 @router.get("/paperwork")
-async def list_paperwork(season_id: str | None = None, current_user=Depends(get_current_user)):
+async def list_paperwork(season_id: str | None = None, include_archived: bool = False, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     docs = await db.paperwork_sheets.find(season_query(member_ids, season_id), {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "paperwork")
-    docs = [d for d in docs if d["id"] not in blocked]
+    docs = [d for d in docs if d["id"] not in blocked and (include_archived or not d.get("archived"))]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
+    docs.sort(key=lambda d: d.get("order", 0))
     roster_total = await _roster_total(member_ids, season_id)
     return [{**PaperworkSheet(**d).model_dump(), "summary": _summary(d, roster_total)} for d in docs]
+
+
+@router.post("/paperwork/reorder")
+async def reorder_paperwork(payload: dict, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    for idx, sid in enumerate(payload.get("ids") or []):
+        await db.paperwork_sheets.update_one({"id": sid, "user_id": {"$in": member_ids}}, {"$set": {"order": idx}})
+    return {"ok": True}
+
+
+@router.patch("/paperwork/{sheet_id}/archive")
+async def archive_paperwork(sheet_id: str, payload: dict, current_user=Depends(get_current_user)):
+    member_ids = await _household_user_ids(current_user["id"])
+    res = await db.paperwork_sheets.update_one({"id": sheet_id, "user_id": {"$in": member_ids}}, {"$set": {"archived": bool(payload.get("archived", True))}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Sheet not found")
+    return {"ok": True}
 
 
 @router.post("/paperwork", response_model=PaperworkSheet)

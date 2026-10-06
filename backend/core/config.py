@@ -29,25 +29,25 @@ APP_URL_SCHEME = os.environ.get("APP_URL_SCHEME", "cheerplanner")
 # Hardcoded and branded so no generated link can ever leak an internal, preview,
 # or deployment host (e.g. *.emergent.host / *.emergentagent.com) into links or
 # messages sent to parents. This is the single source of truth for link bases.
-CANONICAL_PUBLIC_BASE = "https://app.cheer-planner.com"
+CANONICAL_PUBLIC_BASE = "https://cheer-planner.com"
 
 
 def sanitize_public_base(url: str | None) -> str:
     """Return a safe, branded base URL for a generated public link. Empty values
     or internal/preview/deploy hosts (*.emergent.host / *.emergentagent.com) are
-    replaced with CANONICAL_PUBLIC_BASE so links always use app.cheer-planner.com
+    replaced with CANONICAL_PUBLIC_BASE so links always use cheer-planner.com
     and never point at an Emergent host."""
     u = (url or "").strip().rstrip("/")
     if not u:
         return CANONICAL_PUBLIC_BASE
     low = u.lower()
-    if "emergent.host" in low or "emergentagent.com" in low:
+    if "emergent.host" in low or "emergentagent.com" in low or "app.cheer-planner.com" in low:
         return CANONICAL_PUBLIC_BASE
     return u
 
 
 # Both resolve to the canonical branded base so email fallback links, the logo,
-# unsubscribe, and the redemption portal always use app.cheer-planner.com.
+# unsubscribe, and the redemption portal always use cheer-planner.com.
 WEB_FALLBACK_URL = CANONICAL_PUBLIC_BASE
 # Public URL of THIS backend (used for email fallback links and unsubscribe).
 BACKEND_PUBLIC_URL = CANONICAL_PUBLIC_BASE
@@ -56,7 +56,7 @@ BACKEND_PUBLIC_URL = CANONICAL_PUBLIC_BASE
 def public_share_url(token: str) -> str:
     """The human-shareable link coaches send to parents (no app/login needed).
 
-    Always built on the canonical branded base (https://app.cheer-planner.com)
+    Always built on the canonical branded base (https://cheer-planner.com)
     so links are stable and branded — never the backend's internal cluster host
     or an Emergent preview/deploy host."""
     return f"{CANONICAL_PUBLIC_BASE}/api/public/s/{token}"

@@ -39,9 +39,27 @@ async def create_result(payload: dict = Body(...), user=Depends(require_team_acc
         "division": (payload.get("division") or "").strip(),
         "notes": (payload.get("notes") or "").strip(),
         "visibility": vis, "created_by": user["id"], "created_at": _now(),
+        "order": 0, "archived": False,
     }
     await db.competition_results.insert_one(dict(res))
     return res
+
+
+@router.post("/team/results/reorder")
+async def reorder_results(payload: dict = Body(...), user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    for idx, rid in enumerate(payload.get("ids") or []):
+        await db.competition_results.update_one({"id": rid, "household_id": h["id"]}, {"$set": {"order": idx}})
+    return {"ok": True}
+
+
+@router.patch("/team/results/{result_id}/archive")
+async def archive_result(result_id: str, payload: dict = Body(...), user=Depends(require_team_access)):
+    h = await _resolve_active_household(user["id"])
+    r = await db.competition_results.update_one({"id": result_id, "household_id": h["id"]}, {"$set": {"archived": bool(payload.get("archived", True))}})
+    if not r.matched_count:
+        raise HTTPException(status_code=404, detail="Result not found.")
+    return {"ok": True}
 
 
 @router.patch("/team/results/{result_id}")
@@ -67,14 +85,18 @@ async def delete_result(result_id: str, user=Depends(require_team_access)):
 
 
 @router.get("/team/results")
-async def list_results(user=Depends(get_current_user)):
+async def list_results(include_archived: bool = False, user=Depends(get_current_user)):
     h, role = await _hub_and_role(user)
     if not h:
         return {"role": "viewer", "results": [], "can_edit": False}
     q = {"household_id": h["id"]}
     if role != "staff":
         q["visibility"] = "team"
-    results = await db.competition_results.find(q, {"_id": 0}).sort("date", -1).to_list(500)
+    if not include_archived:
+        q["archived"] = {"$ne": True}
+    results = await db.competition_results.find(q, {"_id": 0}).to_list(500)
+    results.sort(key=lambda d: d.get("date") or "", reverse=True)
+    results.sort(key=lambda d: d.get("order", 0))
     return {"role": role, "can_edit": role == "staff", "results": results}
 
 
