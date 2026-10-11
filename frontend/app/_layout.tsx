@@ -1,3 +1,5 @@
+import { analytics } from "@heycatch/sdk";
+import { HeyCatchRoot } from "@/src/lib/HeyCatchRoot";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
@@ -14,6 +16,14 @@ import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
 import { RatePromptProvider } from "@/src/context/RatePromptContext";
 import AssistantCoachWidget from "@/src/components/AssistantCoachWidget";
 import GuidedTour from "@/src/components/GuidedTour";
+
+analytics.init({
+  projectKey: "hck_pk_szWFgy0D3bXVo21kzS4WymedXcMOFXYw",
+  install: {
+    framework: "react-native",
+    agent: "other",
+  },
+});
 
 // Keep the native splash visible from cold start until icon fonts register.
 SplashScreen.preventAutoHideAsync();
@@ -44,6 +54,7 @@ export default function RootLayout() {
   if (!loaded && !error) return null;
 
   return (
+    <HeyCatchRoot>
     <GestureHandlerRootView style={{ flex: 1 }}>
       <KeyboardProvider>
         <AuthProvider>
@@ -61,5 +72,6 @@ export default function RootLayout() {
         </AuthProvider>
       </KeyboardProvider>
     </GestureHandlerRootView>
+    </HeyCatchRoot>
   );
 }

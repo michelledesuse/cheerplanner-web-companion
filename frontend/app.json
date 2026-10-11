@@ -63,7 +63,8 @@
         {
           "calendarPermission": "Add team events to your calendar"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

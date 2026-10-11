@@ -702,3 +702,9 @@ Get exact current paths from user before building W2.
 - Archive & Reorder UI done on all 6 TeamHub screens (forms, payments, signups, paperwork, attendance, results): header archive toggle (show archived), reorder toggle with up/down chevrons, per-row archive/restore.
 - Canonical public base switched to https://cheer-planner.com (CANONICAL_PUBLIC_BASE in backend/core/config.py, APP_WEB_BASE in frontend/src/utils/appShare.ts). sanitize_public_base maps emergent hosts AND app.cheer-planner.com -> cheer-planner.com. Covers share, invite, password reset, unsubscribe, redemption links.
 - Tested: iteration_147 (all pass).
+
+## HeyCatch analytics (June 2026)
+- @heycatch/sdk 0.8.3 (+ expo-application, expo-device, expo-localization, expo-file-system). analytics.init at module scope in app/_layout.tsx (project key inlined, framework react-native).
+- Root wrapped in src/lib/HeyCatchRoot (native = HeyCatchProvider; .web = passthrough because the browser build ships no provider).
+- AuthContext: setIdentity(id,{email,name},{signup_date}) on login / session restore / signup; trackEvent('signup_completed') on signup; resetIdentity on sign-out.
+- No server events: SDK is JS-only and backend is Python FastAPI.
