@@ -13,8 +13,17 @@ reminders, "last reminded" timestamps, sign-up Excel/CSV export, roster native t
 - **Username:** applereview@cheerplanner.app
 - **Password:** Review2026!
 
-This account is pre-loaded with sample athletes, competitions, expenses, payments,
-paperwork, and sign-ups, and has Team Hub (coach/staff) features unlocked.
+This account is the single App Review + App Store screenshot account. It has Lifetime
+Premium (all paywalled features unlocked) and is pre-loaded with: 2 athletes, 2 upcoming
+competitions with hotel/flight/car, expenses + a payment, a fundraiser, weekly practices,
+3 Smart Inbox drafts, an 8-person TeamHub roster, 3 payment trackers, 2 sign-up sheets,
+2 paperwork sheets, 3 attendance sessions, team sizes, 3 competition results, 2 Team Forms,
+TeamChat (main thread + "Parents & Coach" channel + a flyer), AI Designer flyers + brand kit,
+an SMS broadcast with delivery receipts (no real texts sent), and Community Reviews.
+
+Reset any time: Admin → Testing → "Reset demo data" (or `python scripts/seed_marketing_demo.py`).
+Extra logins for chat/ParentGuard demos (password CheerDemo2026!): coach.casey@, parent.taylor@,
+mia.athlete@ (pending approval), sophia.athlete@ (approved) — all @cheerplanner.app.
 
 > ⚠️ The reviewer tests the **deployed/production** build. Confirm this account
 > exists, logs in, and has data in **production** — not just the builder — before submitting.
@@ -29,7 +38,10 @@ CheerPlanner helps cheerleading families and coaches organize expenses, competit
 HOW TO REVIEW KEY FEATURES
 1. Sign in with the demo account above.
 2. Family tools: Explore the bottom tabs — Home (dashboard), Athletes, Expenses, Competitions, Schedule/Calendar, and Reminders.
-3. Team Hub (coach/staff tools): Open the Team tab. From here you can view the Roster, Payments, Paperwork, Sign-ups, Attendance, and Sizes. Sheets and items can have links attached, and you can export sign-up lists as Excel/CSV.
+3. Team Hub (coach/staff tools): Open the Team tab. From here you can view the Roster, Payments, Paperwork, Sign-ups, Attendance, Sizes, Team Forms, and Competition Results. Lists can be archived and reordered. Sheets and items can have links attached, and you can export sign-up lists as Excel/CSV.
+3a. Team Chat: supervised group chat with Community Guidelines, report and block. Minors only join with parent approval (ParentGuard).
+3b. Smart Inbox: Home → Smart Inbox shows confirmations that were read into draft bookings/expenses/payments; tap one to review and confirm.
+3c. Community Reviews: public reviews of places (restaurants, hotels, etc.) with report/block.
 4. Live sync: Shared data updates in real time across sessions; a "Live" indicator shows the connection status.
 
 TEXT MESSAGING (IMPORTANT)
@@ -39,7 +51,7 @@ TEXT MESSAGING (IMPORTANT)
 
 SUBSCRIPTIONS / IN-APP PURCHASE
 - Some premium features are available via auto-renewable subscription through Apple In-App Purchase (managed via RevenueCat).
-- During the current pre-launch period, features are open to all users, so the app is fully reviewable without purchasing.
+- The demo account has Premium unlocked, so every feature is reviewable without purchasing.
 
 PRIVACY
 - Data is only shared with household members or team staff the user explicitly invites. A full Privacy Policy and the SMS/Text Messaging Opt-In page are linked in the app.

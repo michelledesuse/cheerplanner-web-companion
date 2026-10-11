@@ -52,8 +52,9 @@ def _gen_image(prompt: str, transparent: bool = False) -> bytes:
     resp = client.images.generate(**kwargs)
     return _b64.b64decode(resp.data[0].b64_json)
 
-DEMO_EMAIL = "demo@cheerplanner.app"
-DEMO_PASSWORD = "CheerDemo2026!"
+# The ONE account used for Apple App Review AND App Store screenshots.
+DEMO_EMAIL = "applereview@cheerplanner.app"
+DEMO_PASSWORD = "Review2026!"
 DEMO_NAME = "Jordan"
 
 # ParentGuard demo — minor athletes' OWN logins (separate accounts, NOT personnel)
@@ -112,6 +113,8 @@ async def run(purge: bool = True) -> None:
         "teams", "roster", "team_forms", "team_form_responses", "seasons",
         "size_sheets", "signups", "paperwork", "attendance_sessions",
         "sheet_blocks", "broadcast_history", "broadcast_templates",
+        "payment_trackers", "signup_sheets", "paperwork_sheets", "inbox_drafts",
+        "broadcasts", "sms_messages", "place_reviews",
     ]
     if purge:
         for c in purge_collections:
@@ -138,6 +141,7 @@ async def run(purge: bool = True) -> None:
         await db.ai_designs.delete_many({"household_id": household_id})
         await db.brand_presets.delete_many({"household_id": household_id})
         await db.chat_media.delete_many({"household_id": household_id})
+        await db.competition_results.delete_many({"household_id": household_id})
         await db.households.update_one(
             {"id": household_id},
             {"$set": {"member_user_ids": [user_id], "team_hub_member_user_ids": [], "chat_athlete_user_ids": []}},
@@ -156,11 +160,11 @@ async def run(purge: bool = True) -> None:
     # ---- Athletes (household view: 2 athletes)
     ava_id = await _insert(db, "athletes", server.Athlete(
         user_id=user_id, name="Ava Johnson", role="athlete", team="Senior Elite Coed 5",
-        gym="California Allstars", avatar_color="#2563EB", team_ids=[team_ids["Senior Elite Coed 5"]],
+        gym="Elite Stars Allstars", avatar_color="#2563EB", team_ids=[team_ids["Senior Elite Coed 5"]],
     ))
     mia_id = await _insert(db, "athletes", server.Athlete(
         user_id=user_id, name="Mia Johnson", role="athlete", team="Youth Level 2",
-        gym="California Allstars", avatar_color="#0EA5E9", team_ids=[team_ids["Youth Level 2"]],
+        gym="Elite Stars Allstars", avatar_color="#0EA5E9", team_ids=[team_ids["Youth Level 2"]],
     ))
 
     # ---- Competitions (2 upcoming so the dashboard shows a "next competition")
@@ -250,7 +254,7 @@ async def run(purge: bool = True) -> None:
         d = next_tue + timedelta(weeks=i)
         await _insert(db, "schedule_events", server.ScheduleEvent(
             user_id=user_id, athlete_ids=[ava_id], event_type="practice", title="Team practice",
-            location="California Allstars - Mira Mesa", address="9750 Miramar Rd, San Diego, CA 92126",
+            location="Elite Stars Allstars Gym", address="9750 Miramar Rd, San Diego, CA 92126",
             date=str(d), start_time="18:00", end_time="20:00",
             series_id=practice_series_id, recurrence_rule=practice_rule,
         ))
@@ -425,9 +429,9 @@ async def run(purge: bool = True) -> None:
     if household_id:
         today = datetime.now(timezone.utc)
         cal = [
-            ("practice", "Full-Out Practice", "Champion Gym", "18:00", "20:00", 3),
+            ("practice", "Full-Out Practice", "Elite Stars Allstars Gym", "18:00", "20:00", 3),
             ("competition", "Spirit Cup Regional", "Orlando Convention Center", "08:00", "17:00", 12),
-            ("fundraiser", "Car Wash Fundraiser", "Champion Gym Parking Lot", "10:00", "14:00", 20),
+            ("fundraiser", "Car Wash Fundraiser", "Elite Stars Gym Parking Lot", "10:00", "14:00", 20),
         ]
         for etype, title, loc, st, et, days in cal:
             await db.team_events.insert_one({
@@ -477,7 +481,7 @@ async def run(purge: bool = True) -> None:
                 brand_logo = "data:image/png;base64," + _b64.b64encode(bo.getvalue()).decode("utf-8")
             await db.brand_presets.insert_one({
                 "id": secrets.token_urlsafe(9), "household_id": household_id, "owner_id": user_id,
-                "name": "Champion Elite Allstars", "colors": ["#0A1F44", "#FFD700"],
+                "name": "Elite Stars Allstars", "colors": ["#0A1F44", "#FFD700"],
                 "logo": brand_logo, "created_at": now_iso(), "updated_at": now_iso(),
             })
             # Saved designs → My Designs library
@@ -518,6 +522,9 @@ async def run(purge: bool = True) -> None:
     else:
         print("⚠️  Skipped Design-a-Flyer seeding (no OPENAI_API_KEY).")
 
+    await _seed_review_extras(db, user_id, household_id, roster_ids, comp1_id,
+                              coach_id if household_id else None, coparent_id if household_id else None)
+
     # ---- Set the household theme to Blue & White (brand palette)
     await db.households.update_one(
         {"member_user_ids": user_id},
@@ -530,6 +537,165 @@ async def run(purge: bool = True) -> None:
     print(f"  Email:    {DEMO_EMAIL}")
     print(f"  Password: {DEMO_PASSWORD}")
     print("=================================================")
+
+
+async def _seed_review_extras(db, user_id, household_id, roster_ids, comp1_id, coach_id, coparent_id) -> None:
+    """TeamHub tools, Smart Inbox, SMS history and Community Reviews so every
+    screen a reviewer (or a screenshot) lands on has realistic data."""
+    today = datetime.now(timezone.utc).date()
+    athletes = [(rid, name) for rid, name, role in roster_ids if role == "athlete"]
+    aids = [rid for rid, _ in athletes]
+
+    # ---- Payment trackers (mix of fully paid, partial, unpaid)
+    def _entries(paid_n, amount, partial=None):
+        out = []
+        for i, rid in enumerate(aids):
+            if i < paid_n:
+                out.append(server.TeamPaymentEntry(member_id=rid, paid=True, amount_paid=amount, method="Venmo",
+                                                   paid_at=iso(datetime.now(timezone.utc) - timedelta(days=6 - i))))
+            elif partial is not None and i == paid_n:
+                out.append(server.TeamPaymentEntry(member_id=rid, paid=False, amount_paid=partial, method="Cash"))
+        return out
+    for order, (name, amt, paid_n, partial, note) in enumerate([
+        ("Summit Team Bonding Dinner", 45.0, 4, 20.0, "Pizza + bowling the night before finals."),
+        ("Coach Appreciation Gift", 20.0, 5, None, "Group gift for Coach Maria."),
+        ("Banquet Tickets", 35.0, 2, None, "Covers dinner + awards."),
+    ]):
+        await _insert(db, "payment_trackers", server.PaymentTracker(
+            user_id=user_id, name=name, amount=amt, note=note, order=order,
+            links=[server.ExternalLink(label="Venmo", url="https://venmo.com/u/EliteStarsBooster")],
+            entries=_entries(paid_n, amt, partial),
+            competition_ids=[comp1_id] if order == 0 else [],
+        ))
+
+    # ---- Sign-up sheets
+    def _claims(ids, qty=1):
+        return [server.SignupClaim(member_id=r, qty=qty) for r in ids]
+    await _insert(db, "signup_sheets", server.SignupSheet(user_id=user_id, name="Summit Snack & Hydration Crew", order=0,
+        competition_ids=[comp1_id], slots=[
+            server.SignupSlot(label="Water bottles (case)", kind="item", qty_needed=3, order=0, claims=_claims(aids[:2])),
+            server.SignupSlot(label="Fruit trays", kind="item", qty_needed=2, order=1, claims=_claims(aids[2:4])),
+            server.SignupSlot(label="Granola bars", kind="item", qty_needed=2, order=2, claims=_claims(aids[4:5])),
+            server.SignupSlot(label="Bow & hair station helper", kind="duty", qty_needed=2, order=3, claims=_claims(aids[1:2])),
+        ]))
+    await _insert(db, "signup_sheets", server.SignupSheet(user_id=user_id, name="Spring Car Wash Shifts", order=1, slots=[
+        server.SignupSlot(label="Morning shift", kind="time", time_label="10:00–12:00", qty_needed=4, order=0, claims=_claims(aids[:3])),
+        server.SignupSlot(label="Afternoon shift", kind="time", time_label="12:00–2:00", qty_needed=4, order=1, claims=_claims(aids[3:5])),
+    ]))
+
+    # ---- Paperwork
+    items = [server.PaperworkItem(label=l, order=i) for i, l in enumerate(
+        ["Liability waiver", "Medical release", "Photo consent", "Travel permission"])]
+    values = {}
+    for i, rid in enumerate(aids):
+        done_n = [4, 4, 3, 4, 2, 1][i % 6]
+        values[rid] = {it.id: {"done": True, "note": None} for it in items[:done_n]}
+    await _insert(db, "paperwork_sheets", server.PaperworkSheet(user_id=user_id, name="2025–26 Season Forms", items=items, values=values, order=0))
+    hotel_items = [server.PaperworkItem(label=l, order=i) for i, l in enumerate(["Rooming list", "Emergency contact card"])]
+    await _insert(db, "paperwork_sheets", server.PaperworkSheet(user_id=user_id, name="Summit Travel Packet", items=hotel_items, order=1,
+        values={rid: {hotel_items[0].id: {"done": True, "note": None}} for rid in aids[:4]}))
+
+    # ---- Attendance (last 3 practices)
+    patterns = [
+        ["present"] * 6,
+        ["present", "present", "tardy", "present", "excused", "present"],
+        ["present", "absent", "present", "present", "present", "tardy"],
+    ]
+    for order, (days_ago, pat) in enumerate(zip([2, 5, 9], patterns)):
+        await _insert(db, "attendance_sessions", server.AttendanceSession(
+            user_id=user_id, title="Team practice", date=str(today - timedelta(days=days_ago)), order=order,
+            records={rid: st for rid, st in zip(aids, pat)}))
+
+    # ---- Sizes
+    cols = [server.SizeColumn(label=l, is_default=True, order=i) for i, l in enumerate(server.DEFAULT_SIZE_COLUMNS)]
+    sizes = [("YM", "YM", "YS", "Y4"), ("YL", "YL", "YM", "Y5"), ("AS", "AS", "XS", "W6"),
+             ("AM", "AM", "S", "W7"), ("YM", "YM", "YS", "Y3"), ("AS", "AXS", "XS", "W6.5")]
+    sv = {rid: {cols[0].id: s[0], cols[1].id: s[1], cols[3].id: s[2], cols[4].id: s[3]} for rid, s in zip(aids, sizes)}
+    await db.size_sheets.delete_many({"user_id": user_id})
+    await _insert(db, "size_sheets", server.SizeSheet(user_id=user_id, columns=cols, values=sv))
+
+    # ---- Competition results (shared with the team)
+    if household_id:
+        for order, (title, d, place, score, div) in enumerate([
+            ("Winter Classic", 24, "1st", "96.4", "Senior Coed 5"),
+            ("Battle at the Capitol", 52, "2nd", "94.1", "Senior Coed 5"),
+            ("Fall Kickoff Showcase", 80, "1st", "92.8", "Senior Coed 5"),
+        ]):
+            await db.competition_results.insert_one({
+                "id": str(uuid.uuid4()), "household_id": household_id, "competition_id": None, "title": title,
+                "date": str(today - timedelta(days=d)), "placement": place, "score": score, "division": div,
+                "notes": "Zero deductions — hit zero!" if order == 0 else "", "visibility": "team",
+                "created_by": user_id, "created_at": now_iso(), "order": order, "archived": False,
+            })
+
+    # ---- Smart Inbox: drafts waiting for review
+    for kind, source, summary, data in [
+        ("booking", "email", "Hotel · Hyatt Regency Orlando · Conf HY55120",
+         {"type": "hotel", "provider": "Hyatt Regency Orlando", "address": "9801 International Dr, Orlando, FL 32819",
+          "confirmation": "HY55120", "cost": 489.0, "amount_paid": 0, "check_in": str(today + timedelta(days=37)),
+          "check_out": str(today + timedelta(days=39)), "check_in_time": "16:00", "check_out_time": "11:00"}),
+        ("expense", "screenshot", "Choreography · $275 due " + str(today + timedelta(days=12)),
+         {"category": "Choreography", "amount": 275.0, "vendor": "Elite Stars Allstars", "due_date": str(today + timedelta(days=12)),
+          "person": "Ava Johnson", "note": "Spring choreo camp"}),
+        ("payment", "email", "Payment · $150 to Elite Stars Allstars",
+         {"amount": 150.0, "method": "card", "person": "Mia Johnson", "paid_on": str(today - timedelta(days=1)),
+          "payee": "Elite Stars Allstars", "note": "October tuition"}),
+    ]:
+        await _insert(db, "inbox_drafts", server.InboxDraft(user_id=user_id, kind=kind, source=source, summary=summary, data=data))
+
+    # ---- SMS broadcast history with delivery receipts (no real texts are sent)
+    bid = str(uuid.uuid4())
+    sent_at = iso(datetime.now(timezone.utc) - timedelta(hours=20))
+    msg = "Reminder: Summit rooming list + travel forms are due Friday. Thank you! 💙"
+    await db.broadcasts.insert_one({
+        "id": bid, "user_id": user_id, "created_by_name": DEMO_NAME, "message": msg, "body_trailer": "",
+        "recipient_count": len(athletes), "sent": len(athletes), "failed": 0, "delivered": len(athletes),
+        "undelivered": 0, "retried_count": 0, "failed_recipients": [], "failed_targets": [], "no_phone": [],
+        "track_count": 0, "attachment_count": 0, "media_urls": [], "media_count": 0, "created_at": sent_at,
+    })
+    for i, (rid, name) in enumerate(athletes):
+        await db.sms_messages.insert_one({
+            "id": str(uuid.uuid4()), "broadcast_id": bid, "user_id": user_id, "member_name": f"{name} (Parent)",
+            "phone": f"+1555010{i:04d}"[:12], "direction": "out", "attempts": 1, "sid": f"SMDEMO{i}",
+            "status": "delivered", "error_code": None, "error_message": None, "created_at": sent_at, "updated_at": sent_at,
+        })
+
+    # ---- Community Reviews (global directory) — reviewers = owner, co-parent, coach
+    places = [
+        ("Gatorland Grill", "Orlando, FL", "Restaurants/Eateries",
+         [(5, "Big tables for the whole team and they had our order out in 20 minutes. Kids loved it!"),
+          (4, "Great wings, a little loud but perfect after awards.")]),
+        ("Wyndham Lake Buena Vista", "Orlando, FL", "Hotels/Lodging",
+         [(5, "Shuttle to the ESPN complex every 30 min — total lifesaver on comp weekend."),
+          (4, "Clean rooms, pool was a hit. Ask for a high floor.")]),
+        ("Glam Squad Cheer Hair & Makeup", "Kissimmee, FL", "Hair & Makeup Artists",
+         [(5, "Competition makeup lasted all day under the arena lights. Booking again!")]),
+        ("Bean There Coffee", "Kissimmee, FL", "Coffee Shops",
+         [(5, "Opens at 5:30am — perfect for early call times. Great hot chocolate for the athletes.")]),
+    ]
+    authors = [(user_id, "Jordan J."), (coparent_id, "Taylor M."), (coach_id, "Casey R.")]
+    for name, city, cat, revs in places:
+        place = await db.review_places.find_one({"name_norm": name.lower(), "city_norm": city.lower()})
+        pid = place["id"] if place else str(uuid.uuid4())
+        if not place:
+            await db.review_places.insert_one({
+                "id": pid, "name": name, "name_norm": name.lower(), "city": city, "city_norm": city.lower(),
+                "category": cat, "avg_rating": 0.0, "review_count": 0, "created_by": user_id,
+                "created_at": now_iso(), "updated_at": now_iso(),
+            })
+        for (rating, body), (uid, author) in zip(revs, authors):
+            if not uid:
+                continue
+            await db.place_reviews.delete_many({"place_id": pid, "user_id": uid})
+            await db.place_reviews.insert_one({
+                "id": str(uuid.uuid4()), "place_id": pid, "user_id": uid, "rating": rating, "body": body,
+                "display_mode": "name", "author_name": author, "photos": [],
+                "created_at": now_iso(), "updated_at": now_iso(),
+            })
+        rows = await db.place_reviews.find({"place_id": pid}, {"_id": 0, "rating": 1}).to_list(1000)
+        await db.review_places.update_one({"id": pid}, {"$set": {
+            "avg_rating": round(sum(r["rating"] for r in rows) / len(rows), 2), "review_count": len(rows)}})
+    print("Seeded payments, sign-ups, paperwork, attendance, sizes, results, Smart Inbox, SMS history, reviews.")
 
 
 if __name__ == "__main__":

@@ -223,3 +223,33 @@ async def self_premium_toggle(payload: AdminSelfPremiumPayload, admin=Depends(re
     for e in ents:
         await revoke_entitlement(e["id"], admin_id=admin["id"], reason="Admin test toggle off")
     return {"enabled": False, "revoked": len(ents)}
+
+
+# ---------- App Review / screenshot account (re)seed ----------
+_seed_state = {"status": "idle", "started_at": None, "finished_at": None, "error": None}
+
+
+async def _run_review_seed():
+    from scripts.seed_marketing_demo import run as seed_run
+    _seed_state.update(status="running", started_at=utcnow_iso(), finished_at=None, error=None)
+    try:
+        await seed_run()
+        _seed_state.update(status="done", finished_at=utcnow_iso())
+    except Exception as e:  # noqa: BLE001
+        _seed_state.update(status="error", finished_at=utcnow_iso(), error=f"{type(e).__name__}: {str(e)[:300]}")
+
+
+@router.post("/seed-review-account")
+async def seed_review_account():
+    """Reset applereview@cheerplanner.app to the polished review/screenshot dataset.
+    Runs in the background (flyer images take ~1 min); poll GET for status."""
+    import asyncio
+    if _seed_state["status"] == "running":
+        return _seed_state
+    asyncio.create_task(_run_review_seed())
+    return {**_seed_state, "status": "running"}
+
+
+@router.get("/seed-review-account")
+async def seed_review_account_status():
+    return _seed_state

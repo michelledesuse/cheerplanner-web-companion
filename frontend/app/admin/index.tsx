@@ -37,6 +37,7 @@ export default function AdminScreen() {
   const [summary, setSummary] = useState<any>(null);
   const [lifetime, setLifetime] = useState<any[]>([]);
   const [flags, setFlags] = useState<{ reviews: number; chat: number; total: number } | null>(null);
+  const [seedStatus, setSeedStatus] = useState<string | null>(null);
 
   const loadFlags = useCallback(async () => {
     try { const r = await api.get("/admin/flags/count"); setFlags(r.data); } catch {}
@@ -113,6 +114,27 @@ export default function AdminScreen() {
     try { await api.post(`/admin/codes/${id}/disable`); loadCodes(); } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Failed"); }
   };
 
+  const pollSeed = async () => {
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const r = await api.get<{ status: string; error?: string }>("/admin/seed-review-account");
+        setSeedStatus(r.data.status);
+        if (r.data.status === "error") { Alert.alert("Reset failed", r.data.error || "Please try again."); return; }
+        if (r.data.status === "done") { Alert.alert("Ready", "applereview@cheerplanner.app now has fresh demo data."); return; }
+      } catch { /* keep polling */ }
+    }
+  };
+  const resetReviewAccount = () => {
+    Alert.alert("Reset App Review account?", "Wipes and re-creates all sample data for applereview@cheerplanner.app (takes about a minute).", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Reset", style: "destructive", onPress: async () => {
+        try { await api.post("/admin/seed-review-account"); setSeedStatus("running"); pollSeed(); }
+        catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Failed"); }
+      } },
+    ]);
+  };
+
   const toggleSelf = async () => {
     try {
       await api.post("/admin/self-premium-toggle", { enabled: !selfPremium });
@@ -181,6 +203,14 @@ export default function AdminScreen() {
             <Text style={styles.body}>My household Premium: <Text style={styles.bold}>{selfPremium == null ? "…" : selfPremium ? "ON" : "OFF"}</Text></Text>
             <TouchableOpacity style={styles.smallBtn} onPress={toggleSelf} testID="admin-self-toggle">
               <Text style={styles.smallBtnText}>{selfPremium ? "Turn off" : "Turn on"}</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.rowBetween, { marginTop: spacing.md }]}>
+            <Text style={[styles.body, { flex: 1, paddingRight: spacing.sm }]}>
+              App Review account: <Text style={styles.bold}>{seedStatus === "running" ? "Resetting…" : seedStatus === "done" ? "Ready" : seedStatus === "error" ? "Failed" : "applereview@"}</Text>
+            </Text>
+            <TouchableOpacity style={styles.smallBtn} onPress={resetReviewAccount} disabled={seedStatus === "running"} testID="admin-seed-review">
+              {seedStatus === "running" ? <ActivityIndicator color="white" /> : <Text style={styles.smallBtnText}>Reset demo data</Text>}
             </TouchableOpacity>
           </View>
         </View>

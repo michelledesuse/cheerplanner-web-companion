@@ -1,0 +1,31 @@
+{
+  "summary": "App Review / screenshot account verified end-to-end on preview. Backend: 19/19 pytest cases passed in /app/backend/tests/test_iter148_review_account.py (login + Premium, exact data counts across every reviewer screen: 2 athletes, Summit + Spirit comps + hotel/flight/car bookings, 8 roster, 3 payment trackers, 2 signups, 2 paperwork, 3 attendance, 3 inbox drafts, 3 competition results, 1 broadcast history, AI designs + 'Elite Stars Allstars' brand kit, 'Banquet Meal Order' team form, 4+ Community Review places; admin reseed endpoint: unauth=401/403, non-admin=403, admin POST returns running then GET returns done; after reseed every data count matched the pre-reseed snapshot EXACTLY — proving idempotency with no duplicates. Frontend (390x844): applereview@ logs in, lands on populated dashboard showing 'Hi Jordan', Live badge, $180 Paid YTD, 2 Athletes, $340 Raised, next competition 'Summit Championship · ESPN Wide World of Sports · In 16 days', correct Upcoming reminders, Outstanding $1,080, Expenses due $1,300, Travel −$220 — no empty states or error text. Admin UI (reviewsadmin@) renders /admin with Testing card and 'Reset demo data' button carrying testID admin-seed-review. No deprecated expo packages touched. No red-screen errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/admin · Lifetime access list", "issues": ["Several rows render with an empty name header (e.g. ' · Apple Review · admin_grant') because historical admin_grant entitlements never had a user_id joined back to a current users row — cosmetic, but makes the list look messy. Consider either backfilling name or hiding orphaned rows."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter148_review_account.py",
+    "/app/test_reports/pytest/pytest_iter148.xml",
+    "/app/test_reports/pytest/pytest_iter148_reseed.xml"
+  ],
+  "action_items": [
+    "(Optional, nice-to-have) grant_lifetime() in core/entitlements inserts a NEW active lifetime row on every seed_marketing_demo run; the applereview household already has multiple Apple Review admin_grant entries. The reseed data is idempotent (verified) but the entitlement table grows by 1 per reseed. Consider upserting on (user_id, household_id, source, label) or revoking prior admin_grant rows before granting a new one so Admin → Lifetime access doesn't accumulate duplicates over time."
+  ],
+  "critical_code_review_comments": [
+    "admin.py seed_review_account endpoint: _seed_state is a module-level dict so concurrent admin reseeds race. Current guard (status == 'running') is enough for a single-admin flow, but under multi-admin this could lose state. Low priority.",
+    "seed_marketing_demo.run() always calls grant_lifetime on each run — this creates a new entitlement document each time (see action item). Idempotency of ownership data is good; entitlement bookkeeping is not."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter148_review_account.py (new)"],
+  "success_rate": {"backend": "100% (19/19)", "frontend": "Dashboard, login, Admin Testing card verified; data counts cross-checked via API"},
+  "seed_data_creation": "No new seed data created. The reseed admin endpoint was triggered once as part of the idempotency test and completed successfully (status=done); the applereview account was restored to the pristine screenshot dataset at test end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Login response payload: {access_token, token_type:'bearer', user:{...}} — NO 'token' key, use access_token. Reviewer URLs: /api/team/payments, /api/team/signups, /api/team/paperwork, /api/team/attendance, /api/team/results, /api/team/forms, /api/team/broadcast/history, /api/inbox/drafts, /api/ai-designer/designs|brands, /api/reviews/places. Admin reseed endpoint: POST /api/admin/seed-review-account (returns {status, started_at, finished_at, error}); GET for status; non-admin returns 403, unauth 401 (returns 403 via require_admin ordering). Reseed takes ~25-35s on preview (image gen often cached).",
+  "rca_of_issue": "N/A — all requested behaviours verified working on the preview environment."
+}
