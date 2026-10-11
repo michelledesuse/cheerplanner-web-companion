@@ -8,7 +8,7 @@ import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 import BrandName from "@/src/components/BrandName";
 
-const LAST_UPDATED = "August 3, 2026";
+const LAST_UPDATED = "October 11, 2026";
 const SUPPORT_EMAIL = "info@cheer-planner.com";
 const WEBSITE = "https://cheer-planner.com/privacy";
 
@@ -94,6 +94,15 @@ export default function PrivacyPolicyScreen() {
           you have enabled (email and, if you opt in, SMS).
         </Text>
 
+        <Text style={styles.h}>Usage analytics</Text>
+        <Text style={styles.p}>
+          To understand how the app is used and improve it, we collect usage information — such as
+          screens viewed, buttons tapped, device type, app version, and a random device identifier —
+          through our analytics provider, HeyCatch. This information is linked to your account (your
+          user ID, name, and email). We do not sell it, use it for advertising, or share it with data
+          brokers, and we do not track you across other companies&apos; apps or websites.
+        </Text>
+
         <Text style={styles.h}>SMS / text message reminders</Text>
         <Text style={styles.p}>
           If you opt in, we use your mobile number solely to send you account-related reminder text
@@ -115,7 +124,7 @@ export default function PrivacyPolicyScreen() {
         <Text style={styles.h}>How we share information</Text>
         <Text style={styles.p}>
           We do not sell your personal information. We share data only with service providers that
-          help us operate the Service (such as cloud hosting, email delivery, and SMS delivery),
+          help us operate the Service (such as cloud hosting, email delivery, SMS delivery, and usage analytics),
           with household members you explicitly invite or people you grant TeamHub access, or when
           required by law.
         </Text>

@@ -708,3 +708,4 @@ Get exact current paths from user before building W2.
 - Root wrapped in src/lib/HeyCatchRoot (native = HeyCatchProvider; .web = passthrough because the browser build ships no provider).
 - AuthContext: setIdentity(id,{email,name},{signup_date}) on login / session restore / signup; trackEvent('signup_completed') on signup; resetIdentity on sign-out.
 - No server events: SDK is JS-only and backend is Python FastAPI.
+- Privacy: "Usage analytics" (HeyCatch) section added to app/privacy.tsx (§1) and app/settings/privacy.tsx; Last updated Oct 11, 2026. app.json expo.ios.privacyManifests added (tracking false; ProductInteraction, UserID, DeviceID, Name, Email linked; required-reason APIs UserDefaults CA92.1, FileTimestamp C617.1, SystemBootTime 35F9.1, DiskSpace E174.1).
