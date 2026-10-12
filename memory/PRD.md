@@ -709,3 +709,9 @@ Get exact current paths from user before building W2.
 - AuthContext: setIdentity(id,{email,name},{signup_date}) on login / session restore / signup; trackEvent('signup_completed') on signup; resetIdentity on sign-out.
 - No server events: SDK is JS-only and backend is Python FastAPI.
 - Privacy: "Usage analytics" (HeyCatch) section added to app/privacy.tsx (§1) and app/settings/privacy.tsx; Last updated Oct 11, 2026. app.json expo.ios.privacyManifests added (tracking false; ProductInteraction, UserID, DeviceID, Name, Email linked; required-reason APIs UserDefaults CA92.1, FileTimestamp C617.1, SystemBootTime 35F9.1, DiskSpace E174.1).
+
+## Smart Inbox: competition-day extraction (Oct 2026)
+- New draft kind "competition" (routers/inbox.py): LLM extracts name, event_date, performance_time (-> event_time), meet_time, meeting_location, what_to_wear, spectator_fee, parking_fee, teams_to_watch[], day_details. Prompt includes today's date for relative dates.
+- match_competition_info: name-token overlap + date window; stored as data.matched_competition_id. apply_competition_details updates existing comp (never overwrites location/address; appends day_details; merges teams) or creates new (needs name+date). Works in confirm + confirm-all.
+- Competition model: meet_time, meeting_location, what_to_wear, day_details, spectator_fee, parking_fee. Form inputs in competitions/new.tsx; "Competition day" card + fees in Trip total on competitions/[id].tsx. Competitions tab header button renamed "Smart Inbox".
+- Review account seed: Summit has day details/fees; pending competition draft for Spirit Nationals. Tested iteration_149.

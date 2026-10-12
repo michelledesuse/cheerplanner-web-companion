@@ -51,6 +51,12 @@ export default function CompetitionForm() {
   const [smsOffsets, setSmsOffsets] = useState<number[]>([]);
   const [eventOffsets, setEventOffsets] = useState<number[]>([]);
   const [notes, setNotes] = useState("");
+  const [meetTime, setMeetTime] = useState("");
+  const [meetingLocation, setMeetingLocation] = useState("");
+  const [whatToWear, setWhatToWear] = useState("");
+  const [dayDetails, setDayDetails] = useState("");
+  const [spectatorFee, setSpectatorFee] = useState("");
+  const [parkingFee, setParkingFee] = useState("");
   const [links, setLinks] = useState<ExternalLink[]>([]);
   const [photos, setPhotos] = useState<string[]>([]);
   const [seasonIds, setSeasonIds] = useState<string[]>([]);
@@ -77,6 +83,12 @@ export default function CompetitionForm() {
         setSmsOffsets(Array.isArray(c.sms_reminder_offsets) ? c.sms_reminder_offsets : []);
         setEventOffsets(Array.isArray(c.event_reminder_offsets) ? c.event_reminder_offsets : []);
         setNotes(c.notes || "");
+        setMeetTime(c.meet_time || "");
+        setMeetingLocation(c.meeting_location || "");
+        setWhatToWear(c.what_to_wear || "");
+        setDayDetails(c.day_details || "");
+        setSpectatorFee(c.spectator_fee != null ? String(c.spectator_fee) : "");
+        setParkingFee(c.parking_fee != null ? String(c.parking_fee) : "");
         setLinks(Array.isArray(c.links) ? c.links : []);
         setPhotos(Array.isArray(c.photos) ? c.photos : []);
         setSeasonIds(Array.isArray(c.season_ids) ? c.season_ids : []);
@@ -106,6 +118,12 @@ export default function CompetitionForm() {
         sms_reminder_offsets: bookingReleaseAt ? smsOffsets : [],
         event_reminder_offsets: eventOffsets,
         notes: notes.trim() || null,
+        meet_time: meetTime.trim() || null,
+        meeting_location: meetingLocation.trim() || null,
+        what_to_wear: whatToWear.trim() || null,
+        day_details: dayDetails.trim() || null,
+        spectator_fee: spectatorFee.trim() && !isNaN(Number(spectatorFee)) ? Number(spectatorFee) : null,
+        parking_fee: parkingFee.trim() && !isNaN(Number(parkingFee)) ? Number(parkingFee) : null,
         links: cleanLinks(links),
         photos,
       };
@@ -205,6 +223,30 @@ export default function CompetitionForm() {
 
           <Text style={styles.label}>Team performance time (optional)</Text>
           <TimeField value={eventTime} onChange={setEventTime} testID="comp-time-input" />
+
+          <Text style={styles.label}>Meet / check-in time (optional)</Text>
+          <TimeField value={meetTime} onChange={setMeetTime} testID="comp-meet-time-input" />
+
+          <Text style={styles.label}>Meeting location (optional)</Text>
+          <TextInput style={styles.input} value={meetingLocation} onChangeText={setMeetingLocation} placeholder="e.g. Hall B entrance" placeholderTextColor={colors.textTertiary} testID="comp-meeting-location-input" />
+
+          <Text style={styles.label}>What to wear (optional)</Text>
+          <TextInput style={[styles.input, { minHeight: 50, maxHeight: 120, textAlignVertical: "top" }]} value={whatToWear} onChangeText={setWhatToWear} multiline placeholder="e.g. Full uniform, hair in high pony, game-day bow" placeholderTextColor={colors.textTertiary} testID="comp-what-to-wear-input" />
+
+          <View style={{ flexDirection: "row", gap: spacing.md }}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Spectator fee ($)</Text>
+              <TextInput style={styles.input} value={spectatorFee} onChangeText={setSpectatorFee} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.textTertiary} testID="comp-spectator-fee-input" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Parking ($)</Text>
+              <TextInput style={styles.input} value={parkingFee} onChangeText={setParkingFee} keyboardType="decimal-pad" placeholder="0" placeholderTextColor={colors.textTertiary} testID="comp-parking-fee-input" />
+            </View>
+          </View>
+          <Text style={styles.subText}>Added to this competition&apos;s trip total.</Text>
+
+          <Text style={styles.label}>Competition day details (optional)</Text>
+          <TextInput style={[styles.input, { minHeight: 60, maxHeight: 160, textAlignVertical: "top" }]} value={dayDetails} onChangeText={setDayDetails} multiline placeholder="Warm-up time, awards, wristbands, parking tips…" placeholderTextColor={colors.textTertiary} testID="comp-day-details-input" />
 
           <SmsReminderPicker
             value={eventOffsets}

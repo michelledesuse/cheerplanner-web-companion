@@ -23,7 +23,7 @@ from core.models import (
     EXPENSE_CATEGORIES,
 )
 from core.security import get_current_user
-from core.helpers import _build_paid_map
+from core.helpers import _build_paid_map, _household_user_ids
 from routers.expenses import create_expense
 from routers.bookings import create_booking
 from routers.payments import create_payment
@@ -38,10 +38,13 @@ _MODEL = "gpt-5.4"
 
 _SYSTEM = (
     "You extract structured data from travel booking confirmations, expense "
-    "receipts, and payment confirmations for a cheerleading team planner. Given "
+    "receipts, payment confirmations, and COMPETITION INFO emails (event packets, "
+    "schedules, \"what you need to know\" emails from the gym or event producer) for a "
+    "cheerleading team planner. Given "
     "text and/or an image, pull out "
     "EVERY distinct travel booking (flight, hotel, rental car), EVERY expense "
-    "(receipt, charge, invoice) AND EVERY payment confirmation you can find. Think "
+    "(receipt, charge, invoice), EVERY payment confirmation AND EVERY competition's "
+    "day-of details you can find. Think "
     "like TripIt: a single itinerary "
     "email often contains MULTIPLE items — e.g. a flight AND a hotel AND a rental car — "
     "and each must become its own item. Capture as much detail as possible; never "
@@ -51,7 +54,7 @@ _SYSTEM = (
     "{\n"
     '  "items": [\n'
     "    {\n"
-    '      "kind": "expense" | "booking" | "payment",\n'
+    '      "kind": "expense" | "booking" | "payment" | "competition",\n'
     '      "summary": "short one-line human summary",\n'
     '      "expense": {"category": string, "amount": number, "vendor": string, '
     '"incurred_on": "YYYY-MM-DD", "due_date": "YYYY-MM-DD or null", '
@@ -75,7 +78,18 @@ _SYSTEM = (
     '"return_flight_number": string, '
     '"return_depart_airport": "IATA", "return_arrive_airport": "IATA", '
     '"return_depart_time": "YYYY-MM-DDTHH:MM", "return_arrive_time": "YYYY-MM-DDTHH:MM", '
-    '"return_cost": number, "notes": string} or null\n'
+    '"return_cost": number, "notes": string} or null,\n'
+    '      "competition": {"name": "event name", "event_date": "YYYY-MM-DD", '
+    '"end_date": "YYYY-MM-DD or null", "location": "venue name", "address": string, '
+    '"performance_time": "HH:MM 24h - when OUR team performs / takes the mat", '
+    '"meet_time": "HH:MM 24h - meet / check-in / report time", '
+    '"meeting_location": "where the team meets (e.g. Hall B entrance)", '
+    '"what_to_wear": "uniform / dress code / hair / makeup / bow instructions", '
+    '"spectator_fee": number, "parking_fee": number, '
+    '"teams_to_watch": [{"name": string, "date": "YYYY-MM-DD", "performance_time": "HH:MM", "location": string}], '
+    '"day_details": "every OTHER competition-specific detail as short bullet lines: warm-up '
+    'time, awards time, wristbands/passes, spectator rules, parking instructions, schedule, '
+    'what to bring, coach contact"} or null\n'
     "    }\n"
     "  ]\n"
     "}\n\n"
@@ -96,6 +110,13 @@ _SYSTEM = (
     "- Put any extra details that don't have a dedicated field (seat, room type, "
     "guest/passenger names, loyalty number, number of nights, taxes/fees breakdown) into "
     "the item's \"notes\" so nothing is lost.\n"
+    "- A COMPETITION item is an informational email/screenshot about an upcoming "
+    "competition day (schedule, performance/warm-up times, where to meet, what to wear, "
+    "spectator admission, parking, teams to watch). Return ONE competition item per event, "
+    "using the \"competition\" object, kind=\"competition\". Spectator admission and "
+    "parking costs go in spectator_fee / parking_fee (per person / per car amounts) - do NOT "
+    "also create expense items for them. Times are 24h HH:MM. Put anything without a "
+    "dedicated field into day_details as bullet lines starting with \"• \".\n"
     "- Use null for any field you truly cannot find. Dates in ISO format. Amounts are "
     "plain numbers without currency symbols.\n"
     "- For an expense, choose the closest category from this list, defaulting to "
@@ -154,7 +175,11 @@ async def _parse_with_llm(text: Optional[str], image_base64: Optional[str]) -> L
         system_message=_SYSTEM,
     ).with_model(_PROVIDER, _MODEL)
 
-    prompt = "Extract every booking and expense from the following."
+    prompt = (
+        "Extract every booking, expense, payment and competition detail from the following. "
+        f"Today is {date.today().isoformat()} ({date.today().strftime('%A')}) - use it to resolve "
+        "relative dates like 'next Saturday'."
+    )
     if text:
         prompt += "\n\n---\n" + text[:16000]
 
@@ -185,9 +210,11 @@ def _items_from_parsed(parsed: dict) -> List[dict]:
         if not isinstance(it, dict):
             continue
         kind = it.get("kind")
-        if kind not in ("expense", "booking", "payment"):
+        if kind not in ("expense", "booking", "payment", "competition"):
             # Infer from which payload is present.
-            if it.get("booking"):
+            if it.get("competition"):
+                kind = "competition"
+            elif it.get("booking"):
                 kind = "booking"
             elif it.get("payment"):
                 kind = "payment"
@@ -204,6 +231,7 @@ def _items_from_parsed(parsed: dict) -> List[dict]:
             "expense": it.get("expense") if kind == "expense" else None,
             "booking": it.get("booking") if kind == "booking" else None,
             "payment": it.get("payment") if kind == "payment" else None,
+            "competition": it.get("competition") if kind == "competition" else None,
         })
     return out
 
@@ -218,17 +246,31 @@ def _summary_fallback(kind: str, parsed: dict) -> str:
         p = parsed["payment"]
         who = p.get("payee") or p.get("method") or "Payment"
         return f"Paid ${p.get('amount') or ''} · {who}".strip()
+    if kind == "competition" and parsed.get("competition"):
+        c = parsed["competition"]
+        return f"Competition day · {c.get('name') or 'details'}".strip()
     if kind == "booking" and parsed.get("booking"):
         b = parsed["booking"]
         return f"{b.get('type', 'Booking').title()} — {b.get('provider') or ''}".strip(" —")
     return "Couldn't read this one"
 
 
+_KINDS = ("expense", "booking", "payment", "competition")
+
+
 async def _store_drafts(user_id: str, source: str, raw_text: str, items: List[dict]) -> List[InboxDraft]:
     drafts: List[InboxDraft] = []
+    comps = None
     for item in items:
-        kind = item.get("kind") if item.get("kind") in ("expense", "booking", "payment") else "unknown"
-        data = item.get(kind) if kind in ("expense", "booking", "payment") else {}
+        kind = item.get("kind") if item.get("kind") in _KINDS else "unknown"
+        data = dict(item.get(kind) or {}) if kind in _KINDS else {}
+        if kind == "competition":
+            if comps is None:
+                comps = await db.competitions.find(
+                    {"user_id": {"$in": await _household_user_ids(user_id)}},
+                    {"_id": 0, "id": 1, "name": 1, "event_date": 1, "end_date": 1},
+                ).to_list(500)
+            data["matched_competition_id"] = match_competition_info(data, comps)
         draft = InboxDraft(
             user_id=user_id,
             kind=kind,
@@ -346,6 +388,97 @@ def match_competition(data: dict, comps: List[dict], window_days: int = 3) -> Op
     return best
 
 
+_STOP = {"the", "a", "of", "at", "and", "cheer", "dance", "championship", "championships",
+         "competition", "classic", "invitational", "2024", "2025", "2026", "2027"}
+
+
+def match_competition_info(data: dict, comps: List[dict], window_days: int = 3) -> Optional[str]:
+    """Match a competition-info email to an existing competition by NAME and DATE.
+    Date within the window + any name overlap wins; a strong name match
+    (>= 60% of tokens) with no date also counts."""
+    words = set(_norm(data.get("name")).split()) - _STOP
+    try:
+        ev = date.fromisoformat(str(data.get("event_date") or "")[:10])
+    except Exception:
+        ev = None
+    best, best_score = None, 0.0
+    for c in comps:
+        cw = set(_norm(c.get("name")).split()) - _STOP
+        overlap = (len(words & cw) / max(len(words | cw), 1)) if words and cw else 0.0
+        date_ok = False
+        if ev and c.get("event_date"):
+            try:
+                start = date.fromisoformat(str(c["event_date"])[:10])
+                end = date.fromisoformat(str(c.get("end_date") or c["event_date"])[:10])
+                date_ok = start - timedelta(days=window_days) <= ev <= end + timedelta(days=window_days)
+            except Exception:
+                pass
+        if date_ok and (overlap > 0 or not words):
+            score = 1.0 + overlap
+        elif overlap >= 0.6 and not ev:
+            score = overlap
+        else:
+            continue
+        if score > best_score:
+            best, best_score = c["id"], score
+    return best
+
+
+_COMP_SCALARS = ("event_time", "meet_time", "meeting_location", "what_to_wear",
+                 "spectator_fee", "parking_fee", "location", "address")
+
+
+def _merge_teams(existing: list, incoming: list) -> list:
+    out = list(existing or [])
+    seen = {_norm(t.get("name")) for t in out}
+    for t in incoming or []:
+        if isinstance(t, dict) and t.get("name") and _norm(t["name"]) not in seen:
+            out.append({k: t.get(k) for k in ("name", "date", "location", "performance_time")})
+            seen.add(_norm(t["name"]))
+    return out
+
+
+async def apply_competition_details(data: dict, competition_id: Optional[str], current_user) -> dict:
+    """Write reviewed competition-day details onto an existing competition (only
+    the fields the email provided), or create a new competition from them."""
+    from core.models import CompetitionCreate
+    from routers.competitions import create_competition
+    data = dict(data or {})
+    if data.get("performance_time") and not data.get("event_time"):
+        data["event_time"] = data["performance_time"]
+    for k in ("spectator_fee", "parking_fee"):
+        try:
+            data[k] = float(data[k]) if data.get(k) not in (None, "") else None
+        except Exception:
+            data[k] = None
+    teams = [t for t in (data.get("teams_to_watch") or []) if isinstance(t, dict) and t.get("name")]
+    if competition_id:
+        member_ids = await _household_user_ids(current_user["id"])
+        comp = await db.competitions.find_one({"id": competition_id, "user_id": {"$in": member_ids}}, {"_id": 0})
+        if not comp:
+            raise HTTPException(status_code=404, detail="Competition not found")
+        updates = {k: data[k] for k in _COMP_SCALARS if data.get(k) not in (None, "")}
+        # Never overwrite a venue/address the user already set (emails often name a hall).
+        for k in ("location", "address"):
+            if comp.get(k):
+                updates.pop(k, None)
+        details = (data.get("day_details") or "").strip()
+        if details:
+            old = (comp.get("day_details") or "").strip()
+            updates["day_details"] = details if not old or details in old else f"{old}\n{details}"
+        if teams:
+            updates["teams_to_watch"] = _merge_teams(comp.get("teams_to_watch") or [], teams)
+        if updates:
+            await db.competitions.update_one({"id": competition_id}, {"$set": updates})
+        return {"id": competition_id, "created": False, "updated_fields": list(updates.keys())}
+    if not data.get("name") or not data.get("event_date"):
+        raise HTTPException(status_code=400, detail="A new competition needs a name and date")
+    fields = {k: v for k, v in data.items() if k in CompetitionCreate.model_fields and v not in (None, "")}
+    fields["teams_to_watch"] = [{k: t.get(k) for k in ("name", "date", "location", "performance_time")} for t in teams]
+    comp = await create_competition(CompetitionCreate(**fields), current_user)
+    return {"id": comp.id, "created": True}
+
+
 def is_duplicate_booking(data: dict, existing: List[dict]) -> bool:
     """True if `data` looks like a booking already on the competition:
     same type AND (same confirmation, or same provider on the same primary date)."""
@@ -408,8 +541,11 @@ async def confirm_draft(draft_id: str, payload: InboxConfirmRequest, current_use
         if not payload.payment:
             raise HTTPException(status_code=400, detail="Missing payment details")
         result = await create_payment(payload.payment, current_user)
+    elif payload.kind == "competition":
+        result = await apply_competition_details(
+            payload.competition or draft.get("data") or {}, payload.competition_id, current_user)
     else:
-        raise HTTPException(status_code=400, detail="Choose expense, payment, or booking")
+        raise HTTPException(status_code=400, detail="Choose expense, payment, booking, or competition")
 
     await db.inbox_drafts.update_one({"id": draft_id}, {"$set": {"status": "confirmed"}})
     return {"ok": True, "kind": payload.kind, "created": result}
@@ -450,7 +586,7 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
 
     athletes = await db.athletes.find({"user_id": uid}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
     comps = await db.competitions.find(
-        {"user_id": uid}, {"_id": 0, "id": 1, "event_date": 1, "end_date": 1}
+        {"user_id": uid}, {"_id": 0, "id": 1, "name": 1, "event_date": 1, "end_date": 1}
     ).to_list(500)
     # For auto-mark-paid: match payment drafts to an open expense.
     has_payment = any(d.get("kind") == "payment" for d in drafts)
@@ -511,6 +647,12 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
                 if matched_exp:
                     # Reflect the new paid amount for subsequent payment matches.
                     paid_map[matched_exp] = paid_map.get(matched_exp, 0.0) + float(amount)
+            elif d.get("kind") == "competition":
+                comp_id = data.get("matched_competition_id") or match_competition_info(data, comps)
+                if not comp_id and not (data.get("name") and data.get("event_date")):
+                    skipped.append(d.get("summary") or "Competition")
+                    continue
+                await apply_competition_details(data, comp_id, current_user)
             elif d.get("kind") == "booking":
                 comp_id = match_competition(data, comps) or payload.competition_id
                 if not comp_id:

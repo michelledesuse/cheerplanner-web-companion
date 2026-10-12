@@ -169,7 +169,7 @@ export default function CompetitionsScreen() {
                 accessibilityLabel="Smart Inbox"
               >
                 <Ionicons name="sparkles" size={16} color={colors.accent} />
-                <Text style={styles.selectBtnText}>Add travel</Text>
+                <Text style={styles.selectBtnText}>Smart Inbox</Text>
               </TouchableOpacity>
               {items.length > 0 && (
                 <TouchableOpacity onPress={enterSelectMode} style={styles.selectBtn} testID="comp-enter-select">

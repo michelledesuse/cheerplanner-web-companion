@@ -174,6 +174,10 @@ async def run(purge: bool = True) -> None:
         address="700 S Victory Way, Kissimmee, FL 34747", event_date=str(up1), event_time="14:00",
         end_date=str(up1 + timedelta(days=2)), housing_required=True,
         booking_link="https://summit.varsity.com", notes="Bring two practice uniforms.",
+        meet_time="12:30", meeting_location="Gate C entrance (HP Field House)",
+        what_to_wear="Full competition uniform, white cheer shoes, high pony with the black game-day bow, competition makeup",
+        day_details="• Warm-ups start at 1:15 PM\n• Awards at 6:00 PM in the Arena\n• Spectator wristbands at Gate A\n• Parking in Lot B — arrive early\n• No glass bottles allowed",
+        spectator_fee=35.0, parking_fee=25.0,
         team_ids=[team_ids["Senior Elite Coed 5"]],
         team_meet_times=[
             server.TeamMeetTime(team_id=team_ids["Senior Elite Coed 5"], date=str(up1),
@@ -642,6 +646,18 @@ async def _seed_review_extras(db, user_id, household_id, roster_ids, comp1_id, c
           "payee": "Elite Stars Allstars", "note": "October tuition"}),
     ]:
         await _insert(db, "inbox_drafts", server.InboxDraft(user_id=user_id, kind=kind, source=source, summary=summary, data=data))
+    nat = await db.competitions.find_one({"user_id": user_id, "name": "Spirit Nationals"}, {"_id": 0, "id": 1, "event_date": 1})
+    if nat:
+        await _insert(db, "inbox_drafts", server.InboxDraft(
+            user_id=user_id, kind="competition", source="email", summary="Competition day · Spirit Nationals",
+            data={"name": "Spirit Nationals", "event_date": nat.get("event_date"), "performance_time": "10:45",
+                  "meet_time": "09:00", "meeting_location": "Hall D lobby, by the team banner",
+                  "what_to_wear": "Black warm-ups over full uniform; hair in curled high pony with red bow",
+                  "spectator_fee": 30.0, "parking_fee": 20.0,
+                  "teams_to_watch": [{"name": "Stingray Allstars Orange", "performance_time": "11:20"},
+                                     {"name": "Cheer Extreme Senior Elite", "performance_time": "12:05"}],
+                  "day_details": "• Warm-up check-in at 9:45 AM\n• Awards at 4:30 PM\n• Athletes enter through the athlete entrance only",
+                  "matched_competition_id": nat["id"]}))
 
     # ---- SMS broadcast history with delivery receipts (no real texts are sent)
     bid = str(uuid.uuid4())

@@ -10,7 +10,7 @@ import { useRealtimeRefetch } from "@/src/context/RealtimeContext";
 import { useRatePrompt } from "@/src/context/RatePromptContext";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles } from "@/src/hooks/useThemedStyles";
-import { formatCurrency, formatDate, formatDateLong, formatDateTime12, daysBetween } from "@/src/utils/format";
+import { formatCurrency, formatDate, formatDateLong, formatDateTime12, formatTime12, daysBetween } from "@/src/utils/format";
 import { Stars } from "@/src/components/Stars";
 import WeatherBadge from "@/src/components/WeatherBadge";
 import MapLink from "@/src/components/MapLink";
@@ -35,6 +35,13 @@ type Competition = {
   team_meet_times?: TeamMeetTime[];
   teams_to_watch?: TeamToWatch[];
   links?: { label: string; url: string }[];
+  event_time?: string;
+  meet_time?: string;
+  meeting_location?: string;
+  what_to_wear?: string;
+  day_details?: string;
+  spectator_fee?: number | null;
+  parking_fee?: number | null;
 };
 
 type Athlete = { id: string; name: string; avatar_color?: string; competition_ids?: string[] };
@@ -148,9 +155,12 @@ export default function CompetitionDetail() {
   }
 
   const days = daysBetween(comp.event_date);
-  const totalCost = bookings.reduce((s, b) => s + Number(b.cost || 0), 0);
+  const spectatorFee = Number(comp.spectator_fee || 0);
+  const parkingFee = Number(comp.parking_fee || 0);
+  const totalCost = bookings.reduce((s, b) => s + Number(b.cost || 0), 0) + spectatorFee + parkingFee;
   const totalPaid = bookings.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
   const balance = totalCost - totalPaid;
+  const hasDayInfo = !!(comp.event_time || comp.meet_time || comp.meeting_location || comp.what_to_wear || comp.day_details);
 
   // Trip summary: combine flight/hotel/car for this competition into one card.
   const tripDates = bookings
@@ -233,7 +243,21 @@ export default function CompetitionDetail() {
           <WeatherBadge location={comp.address || comp.location} date={comp.event_date} style={styles.weatherBadge} testID="comp-weather" />
         )}
 
-        {canTravel && bookings.length > 0 && (
+        {hasDayInfo && (
+          <View style={styles.tripCard} testID="comp-day-details">
+            <View style={styles.tripHeadRow}>
+              <View style={styles.tripIcon}><Ionicons name="megaphone" size={16} color={colors.accent} /></View>
+              <Text style={styles.tripTitle}>Competition day</Text>
+            </View>
+            {!!comp.event_time && <DayRow icon="time-outline" label="Performance" value={formatTime12(comp.event_time)} styles={styles} />}
+            {!!comp.meet_time && <DayRow icon="alarm-outline" label="Meet / check-in" value={formatTime12(comp.meet_time)} styles={styles} />}
+            {!!comp.meeting_location && <DayRow icon="flag-outline" label="Meet at" value={comp.meeting_location} styles={styles} />}
+            {!!comp.what_to_wear && <DayRow icon="shirt-outline" label="What to wear" value={comp.what_to_wear} styles={styles} />}
+            {!!comp.day_details && <Text style={[styles.tripRowText, { marginTop: 4 }]} testID="comp-day-details-text">{comp.day_details}</Text>}
+          </View>
+        )}
+
+        {canTravel && (bookings.length > 0 || spectatorFee + parkingFee > 0) && (
           <View style={styles.tripCard} testID="trip-summary">
             <View style={styles.tripHeadRow}>
               <View style={styles.tripIcon}><Ionicons name="briefcase" size={16} color={colors.accent} /></View>
@@ -252,6 +276,18 @@ export default function CompetitionDetail() {
               <View style={styles.tripRow}>
                 <Ionicons name="people-outline" size={15} color={colors.textSecondary} />
                 <Text style={styles.tripRowText} numberOfLines={2}>{attending.map((a) => a.name).join(", ")}</Text>
+              </View>
+            )}
+            {canExpenses && spectatorFee > 0 && (
+              <View style={styles.tripRow}>
+                <Ionicons name="ticket-outline" size={15} color={colors.textSecondary} />
+                <Text style={styles.tripRowText}>Spectator fee · {formatCurrency(spectatorFee)}</Text>
+              </View>
+            )}
+            {canExpenses && parkingFee > 0 && (
+              <View style={styles.tripRow}>
+                <Ionicons name="car-outline" size={15} color={colors.textSecondary} />
+                <Text style={styles.tripRowText}>Parking · {formatCurrency(parkingFee)}</Text>
               </View>
             )}
             {canExpenses && (
@@ -525,6 +561,15 @@ function Field({ label, value }: { label: string; value: string }) {
     <View style={styles.field}>
       <Text style={styles.smallLabel}>{label.toUpperCase()}</Text>
       <Text style={styles.fieldValue}>{value}</Text>
+    </View>
+  );
+}
+
+function DayRow({ icon, label, value, styles }: { icon: keyof typeof Ionicons.glyphMap; label: string; value: string; styles: any }) {
+  return (
+    <View style={[styles.tripRow, { alignItems: "flex-start" }]}>
+      <Ionicons name={icon} size={15} color={colors.textSecondary} style={{ marginTop: 2 }} />
+      <Text style={styles.tripRowText}><Text style={{ fontWeight: "700", color: colors.textPrimary }}>{label}: </Text>{value}</Text>
     </View>
   );
 }

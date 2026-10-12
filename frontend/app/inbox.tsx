@@ -15,7 +15,7 @@ import { useThemedStyles } from "@/src/hooks/useThemedStyles";
 
 type Draft = {
   id: string;
-  kind: "expense" | "booking" | "payment" | "unknown";
+  kind: "expense" | "booking" | "payment" | "competition" | "unknown";
   source: string;
   summary: string;
   raw_excerpt: string;
@@ -228,6 +228,26 @@ export default function InboxScreen() {
   const openReview = (d: Draft) => {
     setReview(d);
     const data = d.data || {};
+    if (d.kind === "competition") {
+      setForm({
+        name: data.name || "",
+        event_date: data.event_date || "",
+        location: data.location || "",
+        performance_time: data.performance_time || "",
+        meet_time: data.meet_time || "",
+        meeting_location: data.meeting_location || "",
+        what_to_wear: data.what_to_wear || "",
+        spectator_fee: data.spectator_fee != null ? String(data.spectator_fee) : "",
+        parking_fee: data.parking_fee != null ? String(data.parking_fee) : "",
+        day_details: data.day_details || "",
+        teams_to_watch: Array.isArray(data.teams_to_watch) ? data.teams_to_watch.filter((t: any) => t?.name) : [],
+      });
+      const matched = data.matched_competition_id && competitions.some((c) => c.id === data.matched_competition_id) ? data.matched_competition_id : "";
+      setCompetitionId(matched);
+      setAutoComp(!!matched);
+      setAthleteId(""); setAutoAthlete(false); setExpenseId(""); setAutoExpense(false);
+      return;
+    }
     if (d.kind === "booking") {
       setForm({
         type: data.type || "flight",
@@ -287,8 +307,45 @@ export default function InboxScreen() {
     setAutoExpense(false);
   };
 
+  const confirmCompetition = async () => {
+    if (!review) return;
+    if (!competitionId && (!form.name?.trim() || !form.event_date)) {
+      Alert.alert("Name and date needed", "Add the competition name and date to create a new one, or pick an existing competition.");
+      return;
+    }
+    const num = (v: string) => (v && !isNaN(Number(v)) ? Number(v) : null);
+    setSaving(true);
+    try {
+      const { data } = await api.post(`/inbox/drafts/${review.id}/confirm`, {
+        kind: "competition",
+        competition_id: competitionId || null,
+        competition: {
+          ...form,
+          name: form.name?.trim() || null,
+          event_time: form.performance_time || null,
+          spectator_fee: num(form.spectator_fee),
+          parking_fee: num(form.parking_fee),
+        },
+      });
+      setDrafts((prev) => prev.filter((x) => x.id !== review.id));
+      closeReview();
+      const newId = data?.created?.id;
+      Alert.alert(
+        data?.created?.created ? "Competition created" : "Added to competition",
+        data?.created?.created ? "A new competition was created with these details." : "Competition day details saved.",
+        newId ? [{ text: "OK", style: "cancel" }, { text: "View", onPress: () => router.push(`/competitions/${newId}` as any) }] : undefined,
+      );
+      api.get("/competitions").then(({ data: c }) => setCompetitions(c || [])).catch(() => {});
+    } catch (e: any) {
+      Alert.alert("Couldn't save", e?.response?.data?.detail || "Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const confirm = async () => {
     if (!review) return;
+    if (review.kind === "competition") { confirmCompetition(); return; }
     const kind = review.kind === "booking" ? "booking" : review.kind === "payment" ? "payment" : "expense";
 
     if (kind === "expense") {
@@ -407,6 +464,7 @@ export default function InboxScreen() {
     if (d.kind === "booking") return KIND_ICON[d.data?.type] || "airplane";
     if (d.kind === "expense") return "wallet";
     if (d.kind === "payment") return "cash";
+    if (d.kind === "competition") return "trophy";
     return "help-circle";
   };
 
@@ -429,9 +487,10 @@ export default function InboxScreen() {
           }
         >
           <Text style={styles.lede}>
-            Paste a flight/hotel confirmation, a receipt, or a payment confirmation (or drop a
-            screenshot) and I&apos;ll draft it as travel, an expense, or a payment for you to confirm.
-            A payment can auto-mark its matching expense paid.
+            Paste a flight/hotel confirmation, a receipt, a payment confirmation, or a competition
+            info email (or drop a screenshot) and I&apos;ll draft it as travel, an expense, a payment,
+            or competition-day details (performance time, where to meet, what to wear, teams to
+            watch) for you to confirm.
           </Text>
 
           {/* Composer */}
@@ -488,7 +547,7 @@ export default function InboxScreen() {
                 </TouchableOpacity>
               </View>
               <Text style={styles.emailHint}>
-                Forward any flight, hotel, or receipt email here and it&apos;ll land below as a draft to confirm.
+                Forward any flight, hotel, receipt, or competition info email here and it&apos;ll land below as a draft to confirm.
               </Text>
             </View>
           )}
@@ -520,7 +579,7 @@ export default function InboxScreen() {
                   <View style={styles.badgeRow}>
                     <View style={styles.badge}>
                       <Text style={styles.badgeText}>
-                        {d.kind === "booking" ? (d.data?.type || "travel") : d.kind === "expense" ? "expense" : d.kind === "payment" ? "payment" : "unknown"}
+                        {d.kind === "booking" ? (d.data?.type || "travel") : d.kind === "unknown" ? "unknown" : d.kind}
                       </Text>
                     </View>
                     {d.source === "email" && <Ionicons name="mail" size={12} color={colors.textTertiary} />}
@@ -548,14 +607,73 @@ export default function InboxScreen() {
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>
-                {review?.kind === "booking" ? "Add travel booking" : review?.kind === "payment" ? "Add payment" : "Add expense"}
+                {review?.kind === "competition" ? "Add to competition" : review?.kind === "booking" ? "Add travel booking" : review?.kind === "payment" ? "Add payment" : "Add expense"}
               </Text>
               <TouchableOpacity onPress={closeReview}>
                 <Ionicons name="close" size={22} color={colors.textPrimary} />
               </TouchableOpacity>
             </View>
             <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
-              {review?.kind === "booking" ? (
+              {review?.kind === "competition" ? (
+                <>
+                  <Text style={styles.label}>Competition</Text>
+                  {autoComp
+                    ? <Text style={styles.autoHint}>✨ Matched by name and date — tap another to change.</Text>
+                    : !competitionId && <Text style={styles.autoHint}>No match found — this will create a new competition.</Text>}
+                  <View style={styles.chipWrap}>
+                    <TouchableOpacity
+                      style={[styles.chip, !competitionId && styles.chipActive]}
+                      onPress={() => { setCompetitionId(""); setAutoComp(false); }}
+                      testID="inbox-comp-new"
+                    >
+                      <Text style={[styles.chipText, !competitionId && styles.chipTextActive]}>+ New competition</Text>
+                    </TouchableOpacity>
+                    {competitions.map((c) => (
+                      <TouchableOpacity
+                        key={c.id}
+                        style={[styles.chip, competitionId === c.id && styles.chipActive]}
+                        onPress={() => { setCompetitionId(c.id); setAutoComp(false); }}
+                        testID={`inbox-comp-${c.id}`}
+                      >
+                        <Text style={[styles.chipText, competitionId === c.id && styles.chipTextActive]}>{c.name}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {!competitionId && (
+                    <>
+                      <Field label="Competition name" value={form.name} onChange={(v) => setForm((f: any) => ({ ...f, name: v }))} styles={styles} />
+                      <Field label="Date (YYYY-MM-DD)" value={form.event_date} onChange={(v) => setForm((f: any) => ({ ...f, event_date: v }))} styles={styles} />
+                      <Field label="Venue" value={form.location} onChange={(v) => setForm((f: any) => ({ ...f, location: v }))} styles={styles} />
+                    </>
+                  )}
+                  <Field label="Performance time (HH:MM, 24h)" value={form.performance_time} onChange={(v) => setForm((f: any) => ({ ...f, performance_time: v }))} styles={styles} />
+                  <Field label="Meet / check-in time (HH:MM, 24h)" value={form.meet_time} onChange={(v) => setForm((f: any) => ({ ...f, meet_time: v }))} styles={styles} />
+                  <Field label="Meeting location" value={form.meeting_location} onChange={(v) => setForm((f: any) => ({ ...f, meeting_location: v }))} styles={styles} />
+                  <Field label="What to wear" value={form.what_to_wear} onChange={(v) => setForm((f: any) => ({ ...f, what_to_wear: v }))} multiline styles={styles} />
+                  <Field label="Spectator fee ($)" value={form.spectator_fee} onChange={(v) => setForm((f: any) => ({ ...f, spectator_fee: v }))} keyboardType="decimal-pad" styles={styles} />
+                  <Field label="Parking ($)" value={form.parking_fee} onChange={(v) => setForm((f: any) => ({ ...f, parking_fee: v }))} keyboardType="decimal-pad" styles={styles} />
+                  <Field label="Competition day details" value={form.day_details} onChange={(v) => setForm((f: any) => ({ ...f, day_details: v }))} multiline styles={styles} />
+
+                  <Text style={styles.label}>Teams to watch</Text>
+                  {(form.teams_to_watch || []).length === 0 ? (
+                    <Text style={styles.hint}>None found in this email.</Text>
+                  ) : (
+                    <View style={styles.chipWrap}>
+                      {(form.teams_to_watch || []).map((t: any, i: number) => (
+                        <TouchableOpacity
+                          key={`${t.name}-${i}`}
+                          style={styles.chip}
+                          onPress={() => setForm((f: any) => ({ ...f, teams_to_watch: f.teams_to_watch.filter((_: any, j: number) => j !== i) }))}
+                          testID={`inbox-team-watch-${i}`}
+                        >
+                          <Text style={styles.chipText}>{t.name}{t.performance_time ? ` · ${t.performance_time}` : ""}  ✕</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </>
+              ) : review?.kind === "booking" ? (
                 <>
                   <Text style={styles.label}>Competition</Text>
                   {autoComp && <Text style={styles.autoHint}>✨ Auto-matched by the trip dates — tap another to change.</Text>}
@@ -709,7 +827,7 @@ export default function InboxScreen() {
               )}
 
               <TouchableOpacity onPress={confirm} style={[styles.primaryBtn, styles.saveBtn, saving && { opacity: 0.6 }]} disabled={saving} testID="inbox-confirm">
-                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save</Text>}
+                {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>{review?.kind === "competition" ? (competitionId ? "Add to competition" : "Create competition") : "Save"}</Text>}
               </TouchableOpacity>
             </ScrollView>
           </View>
@@ -778,17 +896,18 @@ export default function InboxScreen() {
   );
 }
 
-function Field({ label, value, onChange, keyboardType, styles }: {
-  label: string; value: string; onChange: (v: string) => void; keyboardType?: any; styles: any;
+function Field({ label, value, onChange, keyboardType, multiline, styles }: {
+  label: string; value: string; onChange: (v: string) => void; keyboardType?: any; multiline?: boolean; styles: any;
 }) {
   return (
     <>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        style={styles.fieldInput}
+        style={[styles.fieldInput, multiline && { minHeight: 70, textAlignVertical: "top" }]}
         value={value}
         onChangeText={onChange}
         keyboardType={keyboardType}
+        multiline={multiline}
         placeholderTextColor={colors.textTertiary}
       />
     </>

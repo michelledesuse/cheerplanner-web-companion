@@ -486,6 +486,13 @@ class Competition(BaseModel):
     sms_reminder_offsets: List[int] = Field(default_factory=list)
     # Minutes-before offsets for SMS reminders on the competition event date/time.
     event_reminder_offsets: List[int] = Field(default_factory=list)
+    # Competition-day details (Smart Inbox can fill these from an info email)
+    meet_time: Optional[str] = None          # "HH:MM" meet / check-in time
+    meeting_location: Optional[str] = None
+    what_to_wear: Optional[str] = None
+    day_details: Optional[str] = None        # warm-ups, wristbands, schedule, etc.
+    spectator_fee: Optional[float] = None    # added to the trip total
+    parking_fee: Optional[float] = None      # added to the trip total
     created_at: str = Field(default_factory=utcnow_iso)
 
 
@@ -507,6 +514,13 @@ class CompetitionCreate(BaseModel):
     links: Optional[List[ExternalLink]] = None
     sms_reminder_offsets: Optional[List[int]] = None
     event_reminder_offsets: Optional[List[int]] = None
+    # Competition-day details (Smart Inbox can fill these from an info email)
+    meet_time: Optional[str] = None          # "HH:MM" meet / check-in time
+    meeting_location: Optional[str] = None
+    what_to_wear: Optional[str] = None
+    day_details: Optional[str] = None        # warm-ups, wristbands, schedule, etc.
+    spectator_fee: Optional[float] = None    # added to the trip total
+    parking_fee: Optional[float] = None      # added to the trip total
 
 
 class CompetitionUpdate(BaseModel):
@@ -527,6 +541,13 @@ class CompetitionUpdate(BaseModel):
     links: Optional[List[ExternalLink]] = None
     sms_reminder_offsets: Optional[List[int]] = None
     event_reminder_offsets: Optional[List[int]] = None
+    # Competition-day details (Smart Inbox can fill these from an info email)
+    meet_time: Optional[str] = None          # "HH:MM" meet / check-in time
+    meeting_location: Optional[str] = None
+    what_to_wear: Optional[str] = None
+    day_details: Optional[str] = None        # warm-ups, wristbands, schedule, etc.
+    spectator_fee: Optional[float] = None    # added to the trip total
+    parking_fee: Optional[float] = None      # added to the trip total
     season_ids: Optional[List[str]] = None
     edit_scope: Optional[Literal["this", "forward", "all"]] = None
 
@@ -674,7 +695,7 @@ class InboxDraft(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     user_id: str
     status: str = "pending"             # pending | confirmed | dismissed
-    kind: str = "unknown"               # expense | booking | unknown
+    kind: str = "unknown"               # expense | booking | payment | competition | unknown
     source: str = "paste"               # paste | screenshot | email
     summary: str = ""
     raw_excerpt: str = ""
@@ -687,6 +708,8 @@ class InboxConfirmRequest(BaseModel):
     expense: Optional[ExpenseCreate] = None
     booking: Optional[BookingCreate] = None
     payment: Optional[PaymentCreate] = None
+    competition: Optional[dict] = None      # competition-day fields (kind=competition)
+    competition_id: Optional[str] = None    # existing competition to update; None = create new
 
 
 class InboxConfirmAllRequest(BaseModel):
