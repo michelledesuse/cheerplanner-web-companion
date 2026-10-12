@@ -715,3 +715,9 @@ Get exact current paths from user before building W2.
 - match_competition_info: name-token overlap + date window; stored as data.matched_competition_id. apply_competition_details updates existing comp (never overwrites location/address; appends day_details; merges teams) or creates new (needs name+date). Works in confirm + confirm-all.
 - Competition model: meet_time, meeting_location, what_to_wear, day_details, spectator_fee, parking_fee. Form inputs in competitions/new.tsx; "Competition day" card + fees in Trip total on competitions/[id].tsx. Competitions tab header button renamed "Smart Inbox".
 - Review account seed: Summit has day details/fees; pending competition draft for Spirit Nationals. Tested iteration_149.
+
+## TeamChat: pinned items + quick-add (Oct 2026)
+- routers/chat_extras.py (core chat untouched): chat_pins collection; GET/POST/DELETE /api/team/chat/pin-items, GET /api/team/chat/pin-options?kind= (staff only). Pins = snapshot of competition/event/booking or custom detail, per channel; can_open when viewer's household owns the item.
+- POST /api/team/chat/messages/{id}/quick-add -> Claude Haiku 4.5 suggestions (calendar/expense/fundraiser/competition/packing/watch), cached in chat_quickadd.
+- Frontend: src/components/chat/ChatPinnedItems.tsx (strip under pinned bar, 📌 Pin picker, detail modal) and ChatQuickAdd.tsx ("Add to…" in long-press sheet; saves via existing endpoints into the reader's own planner).
+- Seed: 2 pins (Summit + "Uniform pickup") in review account. Tested iteration_150 (backend 14/14) + manual UI screenshots.

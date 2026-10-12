@@ -1,0 +1,34 @@
+{
+  "summary": "Backend fully verified for CheerPlanner TeamChat extras (pin items + AI quick-add). 14/14 pytest cases pass against the live preview. Code review of chat_extras.py, ChatPinnedItems.tsx, ChatQuickAdd.tsx, and team/chat.tsx integration confirms correct wiring (testIDs match spec, Add-to… row placed ABOVE pin/report/block in actions modal, pins mounted above KeyboardAvoidingView). Frontend UI could not be exercised interactively — Playwright login flow repeatedly failed to establish a session on the Expo web preview (login submit did not fire, and injecting the token directly into localStorage / @AsyncStorage:ct_auth_token also did not authenticate the SPA). This is a known Playwright/Expo-web limitation that has blocked UI runs across several recent iterations; recommend main agent self-verify the mobile UI (or run via real Expo Go).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Playwright web preview login", "issue": "Unable to establish an authenticated session via Playwright (login submit no-op; direct localStorage token injection does not hydrate AuthContext). Blocks automated UI verification but is NOT a product bug — curl + fetch against /api work. Main agent should self-test the UI on device or Expo Go.", "affected_testIDs": ["login-submit"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_chat_extras.py",
+    "/app/test_reports/pytest/pytest_iter150_chat_extras.xml"
+  ],
+  "action_items": [
+    "Main agent to self-verify the mobile UI flows (pin strip visibility, pin picker → event → option, custom-detail modal, long-press → Add to… order, quickadd AI prefill + save) via Expo Go or physical device, as Playwright web-preview auth is unreliable here.",
+    "No code changes required for backend — all pin + quick-add endpoints pass."
+  ],
+  "critical_code_review_comments": [
+    "chat_extras.py line 83: can_open correctly set False for custom pins and non-household owners.",
+    "chat_extras.py line 142: pin creation reads owner_id from the source doc — safe because snapshot already validated membership via owners list.",
+    "chat_extras.py line 198: non-hub (/404) path uses team_messages collection scoped to the household — matches spec.",
+    "team/chat.tsx line 679: chat-action-quickadd is rendered BEFORE pin/report/block/delete rows (as required).",
+    "ChatQuickAdd save paths all use existing /api/schedule, /api/expenses, /api/fundraisers, /api/competitions endpoints — no new endpoints invoked incorrectly."
+  ],
+  "updated_files": ["/app/backend/tests/test_chat_extras.py"],
+  "success_rate": {"backend": "100% (14/14)", "frontend": "not executed — Playwright auth blocked"},
+  "seed_data_creation": "Transient test pins (TEST_pin_custom / TEST_del_perm / TEST_parent) are created and deleted inside tests; no persistent seed changes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_chat_extras.py covers: list pins (staff/parent), pin-options (staff ok, parent 403, bad kind 400), create+delete custom, create competition + duplicate 409, parent cannot create/delete, quick-add 404 on bad id, quick-add rich packing/watch/expense message, parent-can-use quick-add. Run with EXPO_PUBLIC_BACKEND_URL set.",
+  "rca_of_issue": "No bugs found. Playwright blockage traced to Expo web auth guard not hydrating from manually seeded localStorage; applies to multiple iterations and is a tooling limitation, not a product defect."
+}

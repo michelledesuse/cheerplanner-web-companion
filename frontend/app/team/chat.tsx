@@ -18,6 +18,8 @@ import { uploadChatMedia, getAuthToken } from "@/src/utils/chatMedia";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 import { SheetScroll } from "@/src/components/SheetScroll";
+import ChatPinnedItems from "@/src/components/chat/ChatPinnedItems";
+import ChatQuickAdd from "@/src/components/chat/ChatQuickAdd";
 
 type Media = { id: string; kind: "image" | "video" | "audio"; content_type: string; name?: string };
 
@@ -92,6 +94,7 @@ export default function TeamChatScreen() {
   const [guidelinesOk, setGuidelinesOk] = useState(true);
   const [showGuidelines, setShowGuidelines] = useState(false);
   const [actionMsg, setActionMsg] = useState<Message | null>(null);
+  const [quickAddId, setQuickAddId] = useState<string | null>(null);
   const [pinned, setPinned] = useState<Message[]>([]);
   const [pinnedOpen, setPinnedOpen] = useState(false);
   const [token, setToken] = useState("");
@@ -494,6 +497,8 @@ export default function TeamChatScreen() {
         </TouchableOpacity>
       )}
 
+      <ChatPinnedItems channelId={activeChannel?.id || null} />
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "translate-with-padding"}
@@ -670,6 +675,12 @@ export default function TeamChatScreen() {
                 ))}
               </View>
             )}
+            {actionMsg && !!actionMsg.text?.trim() && (
+              <TouchableOpacity style={styles.actionRow} onPress={() => { const id = actionMsg.id; setActionMsg(null); setQuickAddId(id); }} testID="chat-action-quickadd">
+                <Ionicons name="add-circle-outline" size={18} color={colors.accent} />
+                <Text style={[styles.actionText, { color: colors.accent }]}>Add to…</Text>
+              </TouchableOpacity>
+            )}
             {actionMsg && canModerate && (
               <TouchableOpacity style={styles.actionRow} onPress={() => pinMsg(actionMsg, !actionMsg.pinned)} testID="chat-action-pin">
                 <Ionicons name={actionMsg.pinned ? "pin" : "pin-outline"} size={18} color={colors.accent} />
@@ -706,6 +717,8 @@ export default function TeamChatScreen() {
           </View>
         </Pressable>
       </Modal>
+
+      <ChatQuickAdd messageId={quickAddId} onClose={() => setQuickAddId(null)} />
 
       {/* Channel switcher */}
       <Modal visible={showChannels} transparent animationType="fade" onRequestClose={() => setShowChannels(false)}>

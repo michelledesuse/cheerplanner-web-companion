@@ -142,6 +142,7 @@ async def run(purge: bool = True) -> None:
         await db.brand_presets.delete_many({"household_id": household_id})
         await db.chat_media.delete_many({"household_id": household_id})
         await db.competition_results.delete_many({"household_id": household_id})
+        await db.chat_pins.delete_many({"household_id": household_id})
         await db.households.update_one(
             {"id": household_id},
             {"$set": {"member_user_ids": [user_id], "team_hub_member_user_ids": [], "chat_athlete_user_ids": []}},
@@ -630,6 +631,23 @@ async def _seed_review_extras(db, user_id, household_id, roster_ids, comp1_id, c
                 "date": str(today - timedelta(days=d)), "placement": place, "score": score, "division": div,
                 "notes": "Zero deductions — hit zero!" if order == 0 else "", "visibility": "team",
                 "created_by": user_id, "created_at": now_iso(), "order": order, "archived": False,
+            })
+
+    # ---- Pinned items at the top of TeamChat
+    if household_id:
+        comp = await db.competitions.find_one({"id": comp1_id}, {"_id": 0})
+        for kind, ref_id, snap in [
+            ("competition", comp1_id, {"title": comp["name"], "date": comp.get("event_date"), "end_date": comp.get("end_date"),
+                                       "time": comp.get("event_time"), "location": comp.get("location"),
+                                       "body": f"Meet: {comp.get('meet_time')}\nMeet at: {comp.get('meeting_location')}\nWear: {comp.get('what_to_wear')}"}),
+            ("custom", None, {"title": "Uniform pickup", "date": str(today + timedelta(days=4)), "time": "18:00",
+                              "location": "Elite Stars Allstars Gym",
+                              "body": "Pick up competition uniforms after practice. Bring your sizing receipt — any exchanges must be done by Friday."}),
+        ]:
+            await db.chat_pins.insert_one({
+                "id": str(uuid.uuid4()), "household_id": household_id, "channel_id": None, "kind": kind,
+                "ref_id": ref_id, "owner_id": user_id, **snap, "pinned_by": coach_id or user_id,
+                "pinned_by_name": "Coach Casey" if coach_id else DEMO_NAME, "created_at": now_iso(),
             })
 
     # ---- Smart Inbox: drafts waiting for review
