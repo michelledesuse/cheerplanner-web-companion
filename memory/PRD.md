@@ -703,12 +703,8 @@ Get exact current paths from user before building W2.
 - Canonical public base switched to https://cheer-planner.com (CANONICAL_PUBLIC_BASE in backend/core/config.py, APP_WEB_BASE in frontend/src/utils/appShare.ts). sanitize_public_base maps emergent hosts AND app.cheer-planner.com -> cheer-planner.com. Covers share, invite, password reset, unsubscribe, redemption links.
 - Tested: iteration_147 (all pass).
 
-## HeyCatch analytics (June 2026)
-- @heycatch/sdk 0.8.3 (+ expo-application, expo-device, expo-localization, expo-file-system). analytics.init at module scope in app/_layout.tsx (project key inlined, framework react-native).
-- Root wrapped in src/lib/HeyCatchRoot (native = HeyCatchProvider; .web = passthrough because the browser build ships no provider).
-- AuthContext: setIdentity(id,{email,name},{signup_date}) on login / session restore / signup; trackEvent('signup_completed') on signup; resetIdentity on sign-out.
-- No server events: SDK is JS-only and backend is Python FastAPI.
-- Privacy: "Usage analytics" (HeyCatch) section added to app/privacy.tsx (§1) and app/settings/privacy.tsx; Last updated Oct 11, 2026. app.json expo.ios.privacyManifests added (tracking false; ProductInteraction, UserID, DeviceID, Name, Email linked; required-reason APIs UserDefaults CA92.1, FileTimestamp C617.1, SystemBootTime 35F9.1, DiskSpace E174.1).
+## HeyCatch analytics — REMOVED (Oct 2026)
+- User requested full removal: SDK, init, provider wrapper, identity/event calls, privacy-policy paragraph, privacy-manifest analytics entries, and expo-application/expo-device/expo-localization (added only for HeyCatch) are all gone. First-party /api/analytics (Premium stats) is unrelated and kept.
 
 ## Smart Inbox: competition-day extraction (Oct 2026)
 - New draft kind "competition" (routers/inbox.py): LLM extracts name, event_date, performance_time (-> event_time), meet_time, meeting_location, what_to_wear, spectator_fee, parking_fee, teams_to_watch[], day_details. Prompt includes today's date for relative dates.
@@ -721,3 +717,10 @@ Get exact current paths from user before building W2.
 - POST /api/team/chat/messages/{id}/quick-add -> Claude Haiku 4.5 suggestions (calendar/expense/fundraiser/competition/packing/watch), cached in chat_quickadd.
 - Frontend: src/components/chat/ChatPinnedItems.tsx (strip under pinned bar, 📌 Pin picker, detail modal) and ChatQuickAdd.tsx ("Add to…" in long-press sheet; saves via existing endpoints into the reader's own planner).
 - Seed: 2 pins (Summit + "Uniform pickup") in review account. Tested iteration_150 (backend 14/14) + manual UI screenshots.
+
+## Deployment fixes (Oct 2026)
+- Deleted stray 0-byte non-ASCII-named file in /app/frontend that broke EAS tarball upload.
+- Removed weather TTL index creation (destructive); soft expiry in routers/weather.py; startup drops old expiresAt_1 index.
+- Root .gitignore no longer ignores .env files. Added READ_MEDIA_VIDEO to Android permissions.
+- Startup auto-seed now targets applereview@ (marker: "Summit Championship" competition), purge scoped to that account; seed unlinks shared demo logins from other households.
+- Added /health and /api/health.

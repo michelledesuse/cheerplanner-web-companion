@@ -84,7 +84,9 @@ async def _geocode(location: str) -> Optional[dict]:
     norm = re.sub(r"\s+", " ", location.strip().lower())
     if len(norm) < 2:
         return None
-    cached = await db.weather_geocache.find_one({"_id": norm}, {"_id": 0, "value": 1})
+    # Soft expiry: stale entries are ignored and overwritten (no TTL deletes).
+    cached = await db.weather_geocache.find_one(
+        {"_id": norm, "expiresAt": {"$gt": datetime.now(timezone.utc)}}, {"_id": 0, "value": 1})
     if cached is not None:
         return cached.get("value")  # may be None (negative cache)
 
@@ -117,7 +119,8 @@ async def _geocode(location: str) -> Optional[dict]:
 
 async def _forecast(lat: float, lon: float, tz: str) -> Optional[dict]:
     key = f"{round(lat,4)},{round(lon,4)},{tz}"
-    cached = await db.weather_forecastcache.find_one({"_id": key}, {"_id": 0, "value": 1})
+    cached = await db.weather_forecastcache.find_one(
+        {"_id": key, "expiresAt": {"$gt": datetime.now(timezone.utc)}}, {"_id": 0, "value": 1})
     if cached is not None:
         return cached.get("value")
     try:

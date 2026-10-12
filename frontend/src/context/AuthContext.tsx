@@ -2,11 +2,6 @@ import React, { createContext, useContext, useEffect, useState, ReactNode, useCa
 import { api, TOKEN_KEY } from "@/src/api/client";
 import { storage } from "@/src/utils/storage";
 import { loginRevenueCat, logoutRevenueCat } from "@/src/lib/revenuecat";
-import { analytics } from "@heycatch/sdk";
-
-function identify(u: UserPublic) {
-  analytics.setIdentity(u.id, { email: u.email, name: u.name ?? undefined }, { signup_date: u.created_at });
-}
 
 export type UserPublic = {
   id: string;
@@ -60,7 +55,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await api.get("/auth/me");
       setUser(res.data as UserPublic);
       loginRevenueCat((res.data as UserPublic).id);
-      identify(res.data as UserPublic);
       syncDeviceTimezone();
     } catch (e: any) {
       // Only sign the user out when the token is genuinely rejected (401).
@@ -85,7 +79,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storage.secureSet(TOKEN_KEY, res.data.access_token);
     setUser(res.data.user as UserPublic);
     loginRevenueCat(res.data.user.id);
-    identify(res.data.user as UserPublic);
     syncDeviceTimezone();
   };
 
@@ -94,8 +87,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storage.secureSet(TOKEN_KEY, res.data.access_token);
     setUser(res.data.user as UserPublic);
     loginRevenueCat(res.data.user.id);
-    identify(res.data.user as UserPublic);
-    analytics.trackEvent("signup_completed");
     syncDeviceTimezone();
   };
 
@@ -103,7 +94,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await storage.secureRemove(TOKEN_KEY);
     setUser(null);
     logoutRevenueCat();
-    analytics.resetIdentity();
   };
 
   return (

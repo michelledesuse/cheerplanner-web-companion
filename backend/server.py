@@ -84,6 +84,13 @@ logger = logging.getLogger(__name__)
 
 # ---------- App ----------
 app = FastAPI(title="CheerPlanner API")
+
+
+@app.get("/health")
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
+
 app.state.limiter = limiter
 
 
@@ -213,16 +220,18 @@ async def startup_db_client():
 
     async def _ensure_demo_seed():
         try:
-            existing = await db.users.find_one({"email": "demo@cheerplanner.app"}, {"_id": 0, "id": 1})
-            if existing:
+            from scripts.seed_marketing_demo import DEMO_EMAIL, run as _seed_run
+            u = await db.users.find_one({"email": DEMO_EMAIL}, {"_id": 0, "id": 1})
+            # Marker: the seeded review account always has "Summit Championship".
+            if u and await db.competitions.find_one({"user_id": u["id"], "name": "Summit Championship"}, {"_id": 1}):
                 return
             _log = logging.getLogger("startup")
-            _log.info("Reviewer demo account missing — running one-time demo seed in-process…")
+            _log.info("Review account not seeded yet — running one-time demo seed in-process…")
             # Import and await the seed coroutine directly in the running loop.
             # Running it as a subprocess from inside uvicorn's loop proved
             # unreliable (child-watcher/loop issues); in-process is deterministic.
-            from scripts.seed_marketing_demo import run as _seed_run
-            await _seed_run(purge=False)
+            # purge=True only clears the review account's own data, so a re-run never duplicates.
+            await _seed_run(purge=True)
             _log.info("One-time demo seed finished successfully.")
         except Exception as exc:  # noqa: BLE001
             logging.getLogger("startup").warning("Demo auto-seed skipped: %s", exc, exc_info=True)
@@ -305,12 +314,13 @@ async def startup_db_client():
     except Exception as exc:
         logger.warning(f"Could not create review indexes: {exc}")
 
-    # Weather caches — auto-expire via TTL so they stay fresh + bounded.
-    try:
-        await db.weather_geocache.create_index("expiresAt", expireAfterSeconds=0)
-        await db.weather_forecastcache.create_index("expiresAt", expireAfterSeconds=0)
-    except Exception as exc:
-        logger.warning(f"Could not create weather indexes: {exc}")
+    # Weather caches use soft expiry. Drop any TTL index left by older builds
+    # (dropping an index never deletes documents).
+    for coll in (db.weather_geocache, db.weather_forecastcache):
+        try:
+            await coll.drop_index("expiresAt_1")
+        except Exception:
+            pass
 
     # Phase 1 — seed admin accounts from ADMIN_EMAILS (idempotent).
     try:

@@ -530,6 +530,17 @@ async def run(purge: bool = True) -> None:
     await _seed_review_extras(db, user_id, household_id, roster_ids, comp1_id,
                               coach_id if household_id else None, coparent_id if household_id else None)
 
+    # The shared demo logins (coach / co-parent / athletes) belong ONLY to this
+    # account's hub — unlink them from any older demo household.
+    if household_id:
+        extra_ids = [u["id"] async for u in db.users.find(
+            {"email": {"$in": [COACH_EMAIL, COPARENT_EMAIL, MIA_ATHLETE_EMAIL, SOPHIA_ATHLETE_EMAIL]}}, {"_id": 0, "id": 1})]
+        await db.households.update_many({"id": {"$ne": household_id}}, {"$pull": {
+            "member_user_ids": {"$in": extra_ids}, "team_hub_member_user_ids": {"$in": extra_ids},
+            "chat_athlete_user_ids": {"$in": extra_ids}}})
+        await db.athlete_chat_links.delete_many({"household_id": {"$ne": household_id}, "athlete_user_id": {"$in": extra_ids}})
+        await db.team_members.delete_many({"household_id": {"$ne": household_id}, "user_id": {"$in": extra_ids}})
+
     # ---- Set the household theme to Blue & White (brand palette)
     await db.households.update_one(
         {"member_user_ids": user_id},
