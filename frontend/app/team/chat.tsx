@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   ActivityIndicator, Platform, Modal, Pressable, ScrollView, Alert,
 } from "react-native";
+import { formatLocalDate, formatLocalDateTime, formatLocalTime } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
@@ -43,7 +44,7 @@ const QUICK_EMOJIS = ["👍", "❤️", "😂", "🎉", "🔥", "👏"];
 function fmtWhen(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return formatLocalDateTime(d);
   } catch { return iso; }
 }
 
@@ -64,7 +65,7 @@ function MessageText({ text, mine, styles }: { text: string; mine?: boolean; sty
 function fmtTime(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return formatLocalTime(d);
   } catch { return ""; }
 }
 
@@ -75,7 +76,7 @@ function dayLabel(iso: string): string {
     const y = new Date(); y.setDate(today.getDate() - 1);
     if (d.toDateString() === today.toDateString()) return "Today";
     if (d.toDateString() === y.toDateString()) return "Yesterday";
-    return d.toLocaleDateString([], { month: "short", day: "numeric" });
+    return formatLocalDate(d);
   } catch { return ""; }
 }
 
@@ -828,11 +829,11 @@ export default function TeamChatScreen() {
               <View style={{ flexDirection: "row", gap: 8 }}>
                 <TouchableOpacity style={styles.whenBtn} onPress={() => setPickMode("date")} testID="chat-schedule-date">
                   <Ionicons name="calendar-outline" size={16} color={colors.accent} />
-                  <Text style={styles.whenText}>{schedWhen.toLocaleDateString()}</Text>
+                  <Text style={styles.whenText}>{formatLocalDate(schedWhen)}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.whenBtn} onPress={() => setPickMode("time")} testID="chat-schedule-time">
                   <Ionicons name="time-outline" size={16} color={colors.accent} />
-                  <Text style={styles.whenText}>{schedWhen.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
+                  <Text style={styles.whenText}>{formatLocalTime(schedWhen)}</Text>
                 </TouchableOpacity>
               </View>
             )}

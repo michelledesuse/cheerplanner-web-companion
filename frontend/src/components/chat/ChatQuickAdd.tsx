@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, Modal, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
+import { formatTime12 } from "@/src/utils/format";
+import DateField from "@/src/components/DateField";
+import TimeField from "@/src/components/TimeField";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
@@ -53,7 +56,7 @@ export default function ChatQuickAdd({ messageId, onClose }: { messageId: string
     if (k === "fundraiser") setForm({ name: str(s.name), goal_amount: str(s.goal_amount), amount_raised: str(s.amount_raised), date: str(s.date) || today(), link_url: str(s.link_url), note: str(s.note) });
     if (k === "competition") setForm({ name: str(s.name), event_date: str(s.event_date), end_date: str(s.end_date), location: str(s.location), event_time: str(s.event_time) });
     if (k === "packing") setForm({ items: (s.items || []).join("\n") });
-    if (k === "watch") setForm({ teams: (s.teams || []).map((t: any) => (t.performance_time ? `${t.name} @ ${t.performance_time}` : t.name)).join("\n") });
+    if (k === "watch") setForm({ teams: (s.teams || []).map((t: any) => (t.performance_time ? `${t.name} @ ${formatTime12(t.performance_time)}` : t.name)).join("\n") });
     if (k === "expense" || k === "fundraiser") {
       try { const r = await api.get("/athletes"); setAthletes(r.data || []); if ((r.data || []).length === 1) setPickId(r.data[0].id); } catch { setAthletes([]); }
     }
@@ -103,7 +106,16 @@ export default function ChatQuickAdd({ messageId, onClose }: { messageId: string
         if (!pickId) throw new Error("Choose a competition.");
         const add = lines(form.teams).map((l) => {
           const [name, time] = l.split("@").map((x) => x.trim());
-          return { name, performance_time: /^\d{1,2}:\d{2}$/.test(time || "") ? time : null };
+          const m = /^(\d{1,2}):(\d{2})\s*([AaPp][Mm])?$/.exec(time || "");
+          let hhmm: string | null = null;
+          if (m) {
+            let h = Number(m[1]);
+            const ap = m[3]?.toUpperCase();
+            if (ap === "PM" && h < 12) h += 12;
+            if (ap === "AM" && h === 12) h = 0;
+            hhmm = `${String(h).padStart(2, "0")}:${m[2]}`;
+          }
+          return { name, performance_time: hhmm };
         });
         if (!add.length) throw new Error("Add at least one team.");
         const c = (await api.get(`/competitions/${pickId}`)).data;
@@ -127,6 +139,18 @@ export default function ChatQuickAdd({ messageId, onClose }: { messageId: string
         value={form[k] || ""} onChangeText={set(k)} multiline={opts.multiline} keyboardType={opts.keyboard}
         placeholder={opts.placeholder} placeholderTextColor={colors.textTertiary} testID={`quickadd-field-${k}`}
       />
+    </View>
+  );
+  const D = (k: string, label: string) => (
+    <View key={k}>
+      <Text style={styles.label}>{label}</Text>
+      <DateField value={form[k] || ""} onChange={set(k)} testID={`quickadd-field-${k}`} />
+    </View>
+  );
+  const T = (k: string, label: string) => (
+    <View key={k}>
+      <Text style={styles.label}>{label}</Text>
+      <TimeField value={form[k] || ""} onChange={set(k)} testID={`quickadd-field-${k}`} />
     </View>
   );
   const Chips = ({ list }: { list: { id: string; name: string }[] }) => (
@@ -158,23 +182,23 @@ export default function ChatQuickAdd({ messageId, onClose }: { messageId: string
             ))
           ) : (
             <ScrollView style={{ maxHeight: 420 }} keyboardShouldPersistTaps="handled">
-              {kind === "calendar" && [F("title", "Title"), F("date", "Date (YYYY-MM-DD)"), F("start_time", "Start time (HH:MM, 24h)"), F("end_time", "End time (HH:MM, 24h)"), F("location", "Location"), F("notes", "Notes", { multiline: true })]}
+              {kind === "calendar" && [F("title", "Title"), D("date", "Date"), T("start_time", "Start time"), T("end_time", "End time"), F("location", "Location"), F("notes", "Notes", { multiline: true })]}
               {kind === "expense" && (<>
                 <Text style={styles.label}>Athlete</Text><Chips list={athletes} />
-                {[F("category", "Category"), F("amount", "Amount ($)", { keyboard: "decimal-pad" }), F("due_date", "Due date (YYYY-MM-DD)"), F("note", "Note")]}
+                {[F("category", "Category"), F("amount", "Amount ($)", { keyboard: "decimal-pad" }), D("due_date", "Due date"), F("note", "Note")]}
               </>)}
               {kind === "fundraiser" && (<>
                 {F("name", "Fundraiser name")}
                 {athletes.length > 0 && (<><Text style={styles.label}>Athlete (optional)</Text><Chips list={athletes} /></>)}
-                {[F("goal_amount", "Goal ($)", { keyboard: "decimal-pad" }), F("amount_raised", "Raised so far ($)", { keyboard: "decimal-pad" }), F("date", "Date (YYYY-MM-DD)"), F("link_url", "Link"), F("note", "Note")]}
+                {[F("goal_amount", "Goal ($)", { keyboard: "decimal-pad" }), F("amount_raised", "Raised so far ($)", { keyboard: "decimal-pad" }), D("date", "Date"), F("link_url", "Link"), F("note", "Note")]}
               </>)}
-              {kind === "competition" && [F("name", "Competition name"), F("event_date", "Start date (YYYY-MM-DD)"), F("end_date", "End date (YYYY-MM-DD)"), F("location", "Venue"), F("event_time", "Performance time (HH:MM, 24h)")]}
+              {kind === "competition" && [F("name", "Competition name"), D("event_date", "Start date"), D("end_date", "End date"), F("location", "Venue"), T("event_time", "Performance time")]}
               {(kind === "packing" || kind === "watch") && (<>
                 <Text style={styles.label}>Competition</Text>
                 {comps.length === 0 ? <Text style={styles.meta}>Add a competition first.</Text> : <Chips list={comps} />}
                 {kind === "packing"
                   ? F("items", "Items (one per line)", { multiline: true })
-                  : F("teams", "Teams (one per line, optional “@ 14:30”)", { multiline: true })}
+                  : F("teams", "Teams (one per line, optional “@ 2:30 PM”)", { multiline: true })}
               </>)}
               <TouchableOpacity style={[styles.primary, saving && { opacity: 0.6 }]} onPress={save} disabled={saving} testID="quickadd-save">
                 {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Save</Text>}

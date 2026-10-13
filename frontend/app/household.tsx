@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   TextInput, Alert, Share, KeyboardAvoidingView, Platform, Switch,
 } from "react-native";
+import { formatLocalDate } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -219,7 +220,7 @@ export default function HouseholdScreen() {
             <View style={styles.card}>
               <Text style={styles.label}>Your invite code</Text>
               <Text style={styles.codeText} selectable testID="invite-code">{invite.code}</Text>
-              <Text style={styles.codeMeta}>Expires {new Date(invite.expires_at).toLocaleDateString()}</Text>
+              <Text style={styles.codeMeta}>Expires {formatLocalDate(invite.expires_at)}</Text>
               <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
                 <TouchableOpacity onPress={shareInvite} style={[styles.primaryBtn, { flex: 1 }]}>
                   <Ionicons name="share-outline" size={16} color="white" />

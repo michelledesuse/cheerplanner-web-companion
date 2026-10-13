@@ -195,3 +195,25 @@ function pickDatePart(input: string): DateParts | null {
   if (!isNaN(dt.getTime())) return { y: dt.getFullYear(), m: dt.getMonth() + 1, d: dt.getDate() };
   return null;
 }
+
+/** Timestamps (Date or full ISO with zone) shown in the device's local time. */
+function toLocalDate(v: string | Date | null | undefined): Date | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+/** "MM-DD-YYYY" in local time. */
+export function formatLocalDate(v: string | Date | null | undefined): string {
+  const d = toLocalDate(v);
+  return d ? `${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${d.getFullYear()}` : "";
+}
+/** "h:mm AM/PM" in local time. */
+export function formatLocalTime(v: string | Date | null | undefined): string {
+  const d = toLocalDate(v);
+  return d ? formatTime12(`${pad(d.getHours())}:${pad(d.getMinutes())}`) : "";
+}
+/** "MM-DD-YYYY h:mm AM/PM" in local time. */
+export function formatLocalDateTime(v: string | Date | null | undefined): string {
+  const d = toLocalDate(v);
+  return d ? `${formatLocalDate(d)} ${formatLocalTime(d)}` : "";
+}

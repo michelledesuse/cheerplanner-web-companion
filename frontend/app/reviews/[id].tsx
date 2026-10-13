@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl,
   TextInput, Alert, Modal, KeyboardAvoidingView, Platform, Image, Pressable,
 } from "react-native";
+import { formatLocalDate } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +21,7 @@ type Place = { id: string; name: string; city?: string; category: string; avg_ra
 
 function fmtDate(s?: string) {
   if (!s) return "";
-  try { return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); } catch { return ""; }
+  return formatLocalDate(s);
 }
 
 export default function PlaceDetail() {

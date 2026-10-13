@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "react-native";
+import { formatLocalDateTime } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -20,7 +21,7 @@ type Msg = {
 function fmtTime(iso: string): string {
   try {
     const d = new Date(iso);
-    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    return formatLocalDateTime(d);
   } catch {
     return "";
   }

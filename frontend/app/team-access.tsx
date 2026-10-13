@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator,
   TextInput, Alert, Share, Switch, KeyboardAvoidingView, Platform,
 } from "react-native";
+import { formatLocalDate } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -246,7 +247,7 @@ export default function TeamAccessScreen() {
                     <View key={inv.id} style={[styles.memberRow, i > 0 && styles.memberDivider]}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.memberName}>{inv.email || "Invite"}</Text>
-                        <Text style={styles.memberMeta}>Code {inv.code} · expires {new Date(inv.expires_at).toLocaleDateString()}</Text>
+                        <Text style={styles.memberMeta}>Code {inv.code} · expires {formatLocalDate(inv.expires_at)}</Text>
                       </View>
                       <TouchableOpacity onPress={() => shareInvite(inv)} style={styles.smallBtn} testID={`team-access-invite-share-${inv.id}`}>
                         <Ionicons name="share-outline" size={18} color={colors.accent} />

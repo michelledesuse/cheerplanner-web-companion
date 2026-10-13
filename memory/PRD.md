@@ -728,3 +728,8 @@ Get exact current paths from user before building W2.
 ## Calendar: competitions as all-day cards (Oct 2026)
 - routers/calendar.py: competition items are all_day with `details` [{type meet|performance|watch|travel, icon, label, name, time_label, confirmation, location}]. Team meet/performance/teams-to-watch and booking items (hotel/flight/car/travel_day) whose date is a day of their linked competition are folded into that card; ones on other days stay separate. Comp-level meet_time/event_time added when no per-team entries. No cost fields. Car items now dated by pickup_at.
 - Frontend (tabs)/calendar.tsx renders "All day" + detail lines.
+
+## Date/time display standard (Oct 2026)
+- All UI dates MM-DD-YYYY, times 12h AM/PM. New helpers in src/utils/format.ts: formatLocalDate/formatLocalTime/formatLocalDateTime (for UTC timestamps -> device local). Replaced toLocale* usages in chat, child-chat, broadcast(+history), replies, team calendar, attendance, reviews, premium, household, team-access, admin, PackingList, AttachSection, results, CompetitionTeamsSection, inbox (booking details + summary ISO->MM-DD-YYYY).
+- Typed "YYYY-MM-DD"/"HH:MM 24h" inputs in inbox competition/payment/expense forms, ChatQuickAdd, results replaced by DateField/TimeField (storage unchanged). Quick-add watch teams accept "@ 2:30 PM".
+- Backend reminder labels (_when_label) now "%a %m-%d-%Y". Tested iteration_151 + manual checks.

@@ -12,7 +12,7 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
 import AddTypeModal from "@/src/components/AddTypeModal";
-import { formatTime12, todayISO } from "@/src/utils/format";
+import { formatTime12, todayISO, formatDateLong } from "@/src/utils/format";
 
 type Ev = { event_id: string; occ_date: string; event_date?: string; title: string; event_type?: string; location?: string; address?: string; start_time?: string; end_time?: string; notes?: string; recurring?: boolean; recurrence?: any; exdates?: string[]; cancelled?: boolean; cancel_reason?: string; has_override?: boolean; can_edit?: boolean; rsvp_count?: number; my_rsvps?: { roster_id: string; status: string }[] };
 
@@ -43,13 +43,13 @@ const BUILTIN_TYPES: TypeDef[] = [
   { key: "other", label: "Other", icon: "calendar", color: "#64748B" },
 ];
 
-function fmtDate(s: string) { try { return new Date(s + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); } catch { return s; } }
+function fmtDate(s: string) { return formatDateLong(s) || s; }
 function fmtTime(s?: string) { return s ? formatTime12(s) : ""; }
 
 type CalView = "month" | "week" | "day" | "list";
 function isoAddDays(iso: string, n: number): string { const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
 function isoStartOfWeek(iso: string): string { const d = new Date(iso + "T00:00:00"); return isoAddDays(iso, -d.getDay()); }
-function fmtDayLong(s: string) { try { return new Date(s + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); } catch { return s; } }
+function fmtDayLong(s: string) { return formatDateLong(s) || s; }
 
 export default function TeamCalendar() {
   const styles = useThemedStyles(makeStyles);

@@ -298,7 +298,7 @@ export default function CompetitionTeamsSection({
             <View style={{ flex: 1 }}>
               <Text style={styles.watchName}>{w.name}</Text>
               <Text style={styles.watchMeta}>
-                {[w.date, fmt12(w.performance_time || ""), w.location].filter(Boolean).join(" • ") || "Tap to add details"}
+                {[w.date ? formatDate(w.date) : "", fmt12(w.performance_time || ""), w.location].filter(Boolean).join(" • ") || "Tap to add details"}
               </Text>
             </View>
             <TouchableOpacity onPress={(ev) => { ev.stopPropagation?.(); deleteWatch(i); }} hitSlop={10}>

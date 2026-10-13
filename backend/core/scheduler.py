@@ -596,8 +596,8 @@ async def _build_digest_sections(
         if delta == 1:
             return "Tomorrow"
         if delta < 7:
-            return f"In {delta} days \u2014 {d.strftime('%a %b %-d')}"
-        return d.strftime("%a %b %-d")
+            return f"In {delta} days \u2014 {d.strftime('%a %m-%d-%Y')}"
+        return d.strftime("%a %m-%d-%Y")
 
     sections: List[Dict[str, Any]] = []
 

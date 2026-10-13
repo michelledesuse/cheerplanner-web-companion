@@ -1,0 +1,40 @@
+{
+  "summary": "CheerPlanner date/time display review (MM-DD-YYYY, 12h AM/PM). Playwright-driven mobile (390x844) smoke tests on applereview@cheerplanner.app. Preview was initially down (HTTP 500) because the main-agent edit mangled imports in 7 files; T1 repaired the syntax to unblock Metro, then verified formats on 13 screens. 11/13 screens are compliant. TWO formatting regressions found: (A) /competitions/{id} TEAMS TO WATCH chip renders ISO date 'YYYY-MM-DD • h:mm AM/PM' (should be MM-DD-YYYY), and (B) /inbox list summary for expense drafts shows ISO 'due 2026-10-24' (should be MM-DD-YYYY). All other targets verified: chat timestamps are 12h and day dividers use Today/Yesterday only; broadcast-history, team/calendar, team/attendance, calendar tab, competitions detail (dates + 12h times), results, premium, household, Spirit Nationals draft (12h pickers), hotel draft 'also-captured' line all pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "/competitions/[id] Teams-to-watch chip", "issue": "Renders ISO date — observed 'Cheer Athletics Cheetahs | 2026-10-29 • 4:00 PM • Arena A'. Must be MM-DD-YYYY, e.g. '10-29-2026 · 4:00 PM · Arena A'. Reference: /app/frontend/app/competitions/[id].tsx (teams-to-watch chip renderer).", "testID": "comp-watch-chip", "priority": "HIGH"},
+      {"component": "/inbox draft list summary (expense)", "issue": "Expense draft summary line renders ISO date — observed 'Choreography · $275 due 2026-10-24'. Must be 'due 10-24-2026'. The draft list `summary` field needs the ISO → formatDate(...) pass before display. Reference: /app/frontend/app/inbox.tsx (summary row rendering).", "testID": "", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/test_reports/iteration_151.json"],
+  "action_items": [
+    "Fix Teams-to-watch chip in /app/frontend/app/competitions/[id].tsx so the date passes through formatDate() (currently shows YYYY-MM-DD). The time half (12h) is already correct.",
+    "Fix /app/frontend/app/inbox.tsx draft list summary — the inbox draft's `summary` string carries the raw ISO 'YYYY-MM-DD' from the backend; either reformat before display with formatDate(), or have the server return the MM-DD-YYYY form. (Open-draft modal is already correct — only the collapsed summary is wrong.)",
+    "Scan every other summary/caption line that interpolates ISO date strings from backend draft/notification payloads — same risk pattern.",
+    "Re-run the full MM-DD / 12h sweep after the two fixes."
+  ],
+  "critical_code_review_comments": [
+    "MAJOR: Main-agent commit introduced a repeatable syntax bug — 'import { formatXXX } from \"@/src/utils/format\"' was inserted BETWEEN the opening `import {` and the specifier list of the react-native import in 6 files (inbox.tsx, household.tsx, team-access.tsx, team/broadcast.tsx, team/chat.tsx, reviews/[id].tsx), plus a mis-merged JSX block in /app/frontend/app/team/results.tsx (DateField injected inside a .map() TextInput). Preview returned HTTP 500 until T1 repaired these. Suggests the format-rewrite was done by a script that mis-anchored on `import {\\n` lines — audit any remaining ts/tsx files that still have the same pattern.",
+    "GOOD: /app/frontend/src/utils/format.ts helpers (formatDate, formatTime12, formatDateTime12, formatLocalDate/Time) are consistent and defensively parse ISO/legacy strings — the two bugs above are MISSED call sites, not helper defects.",
+    "formatLocalDate/formatLocalTime correctly use device-local time — good for timestamps rendered from server Date strings."
+  ],
+  "updated_files": [
+    "/app/frontend/app/inbox.tsx (fixed mangled import block)",
+    "/app/frontend/app/household.tsx (fixed mangled import block)",
+    "/app/frontend/app/team-access.tsx (fixed mangled import block)",
+    "/app/frontend/app/team/broadcast.tsx (fixed mangled import block)",
+    "/app/frontend/app/team/chat.tsx (fixed mangled import block)",
+    "/app/frontend/app/reviews/[id].tsx (fixed mangled import block)",
+    "/app/frontend/app/team/results.tsx (repaired mis-merged DateField JSX inside .map() so modal compiles; preserved intended title TextInput + DateField + remaining fields map)"
+  ],
+  "success_rate": {"backend": "n/a (frontend-only review)", "frontend": "11/13 screens compliant (~85%)"},
+  "seed_data_creation": "None.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After main agent fixes the two ISO leaks (comp detail Teams-to-watch chip + inbox list expense summary), re-sweep: /competitions/{id}, /inbox (list AND opening each draft), /team/chat (ensure day-dividers never surface MM-DD-YYYY when 'Today/Yesterday' applies), and scan draft Hotel/Flight ‘Also captured’ lines for ISO strings. Login: applereview@cheerplanner.app / Review2026! (login testID is login-submit-button, NOT login-submit).",
+  "rca_of_issue": "ROOT CAUSE for the two format regressions: both ISO strings are RAW backend values interpolated into display strings without passing through formatDate/formatDateTime12. (1) competitions/[id] teams-to-watch chip concatenates `${watch.date} • ${formatTime12(watch.time)}` — the date half was not wrapped. (2) /inbox renders draft.summary directly from the API; the server composes the summary with ISO dates. ROOT CAUSE for the preview 500: a script-based rewrite that inserted new 'import … from \"@/src/utils/format\"' lines using the regex of `^import {$` as an anchor matched the OPENING of the react-native multi-line import block, injecting the new imports in the middle of it and leaving dangling specifier lines → Metro SyntaxError. Mitigation: T1 reordered the imports so the react-native block is intact and the new format/DateField/TimeField imports follow it; also rebuilt the broken JSX block in results.tsx."
+}

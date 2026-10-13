@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl, Alert } from "react-native";
+import { formatDateLong } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -20,7 +21,7 @@ const fmtDate = (iso?: string | null) => {
   if (!iso) return null;
   const d = new Date(iso + "T00:00:00");
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  return formatDateLong(iso);
 };
 
 export default function AttendanceScreen() {

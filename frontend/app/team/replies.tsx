@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, RefreshControl, Platform, Linking, Alert } from "react-native";
+import { formatLocalDateTime } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -14,8 +15,7 @@ function fmt(iso?: string) {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " · " +
-    d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return formatLocalDateTime(d);
 }
 
 export default function RepliesScreen() {

@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert } from "react-native";
+import { formatLocalDate } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
@@ -283,7 +284,7 @@ export default function AdminScreen() {
                 <Text style={styles.muted}>
                   {l.email}{l.label ? ` · ${l.label}` : ""}{l.source ? ` · ${l.source}` : ""}
                 </Text>
-                <Text style={styles.muted}>Granted {l.granted_at ? new Date(l.granted_at).toLocaleDateString() : "—"}</Text>
+                <Text style={styles.muted}>Granted {l.granted_at ? formatLocalDate(l.granted_at) : "—"}</Text>
               </View>
               <TouchableOpacity style={styles.revokeBtn} onPress={() => revokeLifetime(l)} testID={`lifetime-revoke-${l.user_id}`}>
                 <Text style={styles.revokeText}>Remove</Text>

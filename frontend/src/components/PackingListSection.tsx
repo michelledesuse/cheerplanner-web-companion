@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, Alert, ActivityIndicator, Modal, ScrollView, Pressable, Platform } from "react-native";
+import { todayDisplay } from "@/src/utils/format";
 import { Ionicons } from "@expo/vector-icons";
 
 import { api } from "@/src/api/client";
@@ -191,7 +192,7 @@ export default function PackingListSection({ competitionId, athletes, onAllPacke
       }
     }) || (async () => {
       // Android fallback (Alert.prompt is iOS only) — save with a default name.
-      const name = `My list ${new Date().toLocaleDateString()}`;
+      const name = `My list ${todayDisplay()}`;
       await patchList({}, { saveAs: name });
       Alert.alert("Saved", `Template \"${name}\" added.`);
     })();

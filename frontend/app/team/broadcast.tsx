@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert,
   KeyboardAvoidingView, Platform, Modal, Pressable, Image, Switch,
 } from "react-native";
+import { formatLocalDateTime } from "@/src/utils/format";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -171,7 +172,7 @@ export default function BroadcastScreen() {
       setReview(null);
       if (r.data?.scheduled) {
         const when = new Date(r.data.send_at);
-        Alert.alert("Scheduled", `Your text will go out on ${when.toLocaleString()}.`, [{ text: "OK", onPress: () => router.back() }]);
+        Alert.alert("Scheduled", `Your text will go out on ${formatLocalDateTime(when)}.`, [{ text: "OK", onPress: () => router.back() }]);
         return;
       }
       setResult(r.data);

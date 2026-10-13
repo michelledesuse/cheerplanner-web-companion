@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, Alert, Linking } from "react-native";
+import { formatLocalDate } from "@/src/utils/format";
 import BrandName from "@/src/components/BrandName";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -27,7 +28,7 @@ const PLAN_SUB: Record<string, string> = {
 
 function fmtDate(iso?: string | null) {
   if (!iso) return "";
-  try { return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" }); } catch { return ""; }
+  return formatLocalDate(iso);
 }
 
 export default function PremiumScreen() {

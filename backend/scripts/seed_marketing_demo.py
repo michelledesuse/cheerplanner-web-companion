@@ -667,7 +667,7 @@ async def _seed_review_extras(db, user_id, household_id, roster_ids, comp1_id, c
          {"type": "hotel", "provider": "Hyatt Regency Orlando", "address": "9801 International Dr, Orlando, FL 32819",
           "confirmation": "HY55120", "cost": 489.0, "amount_paid": 0, "check_in": str(today + timedelta(days=37)),
           "check_out": str(today + timedelta(days=39)), "check_in_time": "16:00", "check_out_time": "11:00"}),
-        ("expense", "screenshot", "Choreography · $275 due " + str(today + timedelta(days=12)),
+        ("expense", "screenshot", "Choreography · $275 due " + (today + timedelta(days=12)).strftime("%m-%d-%Y"),
          {"category": "Choreography", "amount": 275.0, "vendor": "Elite Stars Allstars", "due_date": str(today + timedelta(days=12)),
           "person": "Ava Johnson", "note": "Spring choreo camp"}),
         ("payment", "email", "Payment · $150 to Elite Stars Allstars",

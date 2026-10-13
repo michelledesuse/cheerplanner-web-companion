@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { formatDate } from "@/src/utils/format";
 
 import { api } from "@/src/api/client";
 import FilterChipRow from "@/src/components/FilterChipRow";
@@ -29,7 +30,7 @@ export default function AttachSection({ endpoint, competitionIds, eventIds, onCh
   }, []);
 
   const evLabel = (e: Ev) => e.date
-    ? `${e.title} · ${new Date(e.date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+    ? `${e.title} · ${formatDate(e.date)}`
     : e.title;
 
   const patchC = async (next: string[]) => {

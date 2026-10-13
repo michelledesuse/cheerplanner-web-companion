@@ -3,6 +3,9 @@ import {
   View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator,
   KeyboardAvoidingView, Platform, Alert, Modal, Image, RefreshControl,
 } from "react-native";
+import { formatDate, formatDateTime12, formatTime12 } from "@/src/utils/format";
+import DateField from "@/src/components/DateField";
+import TimeField from "@/src/components/TimeField";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -585,7 +588,7 @@ export default function InboxScreen() {
                     {d.source === "email" && <Ionicons name="mail" size={12} color={colors.textTertiary} />}
                     {d.source === "screenshot" && <Ionicons name="image" size={12} color={colors.textTertiary} />}
                   </View>
-                  <Text style={styles.draftSummary} numberOfLines={2}>{d.summary || "Untitled"}</Text>
+                  <Text style={styles.draftSummary} numberOfLines={2}>{(d.summary || "Untitled").replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, "$2-$3-$1")}</Text>
                   <View style={styles.draftActions}>
                     <TouchableOpacity onPress={() => openReview(d)} style={styles.reviewBtn} testID={`review-${d.id}`}>
                       <Text style={styles.reviewBtnText}>Review &amp; add</Text>
@@ -643,12 +646,15 @@ export default function InboxScreen() {
                   {!competitionId && (
                     <>
                       <Field label="Competition name" value={form.name} onChange={(v) => setForm((f: any) => ({ ...f, name: v }))} styles={styles} />
-                      <Field label="Date (YYYY-MM-DD)" value={form.event_date} onChange={(v) => setForm((f: any) => ({ ...f, event_date: v }))} styles={styles} />
+                      <Text style={styles.label}>Date</Text>
+                      <DateField value={form.event_date || ""} onChange={(v) => setForm((f: any) => ({ ...f, event_date: v }))} testID="inbox-comp-date" />
                       <Field label="Venue" value={form.location} onChange={(v) => setForm((f: any) => ({ ...f, location: v }))} styles={styles} />
                     </>
                   )}
-                  <Field label="Performance time (HH:MM, 24h)" value={form.performance_time} onChange={(v) => setForm((f: any) => ({ ...f, performance_time: v }))} styles={styles} />
-                  <Field label="Meet / check-in time (HH:MM, 24h)" value={form.meet_time} onChange={(v) => setForm((f: any) => ({ ...f, meet_time: v }))} styles={styles} />
+                  <Text style={styles.label}>Performance time</Text>
+                  <TimeField value={form.performance_time || ""} onChange={(v) => setForm((f: any) => ({ ...f, performance_time: v }))} testID="inbox-comp-perf-time" />
+                  <Text style={styles.label}>Meet / check-in time</Text>
+                  <TimeField value={form.meet_time || ""} onChange={(v) => setForm((f: any) => ({ ...f, meet_time: v }))} testID="inbox-comp-meet-time" />
                   <Field label="Meeting location" value={form.meeting_location} onChange={(v) => setForm((f: any) => ({ ...f, meeting_location: v }))} styles={styles} />
                   <Field label="What to wear" value={form.what_to_wear} onChange={(v) => setForm((f: any) => ({ ...f, what_to_wear: v }))} multiline styles={styles} />
                   <Field label="Spectator fee ($)" value={form.spectator_fee} onChange={(v) => setForm((f: any) => ({ ...f, spectator_fee: v }))} keyboardType="decimal-pad" styles={styles} />
@@ -667,7 +673,7 @@ export default function InboxScreen() {
                           onPress={() => setForm((f: any) => ({ ...f, teams_to_watch: f.teams_to_watch.filter((_: any, j: number) => j !== i) }))}
                           testID={`inbox-team-watch-${i}`}
                         >
-                          <Text style={styles.chipText}>{t.name}{t.performance_time ? ` · ${t.performance_time}` : ""}  ✕</Text>
+                          <Text style={styles.chipText}>{t.name}{t.performance_time ? ` · ${formatTime12(t.performance_time)}` : ""}  ✕</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -711,16 +717,16 @@ export default function InboxScreen() {
                     <View style={styles.detailBox}>
                       <Text style={styles.detailTitle}>Also captured (saved with this booking)</Text>
                       {review.data.flight_number ? <Text style={styles.detailText}>Flight {review.data.flight_number}: {review.data.depart_airport || "?"} → {review.data.arrive_airport || "?"}</Text> : null}
-                      {review.data.depart_time ? <Text style={styles.detailText}>Departs {review.data.depart_time}{review.data.arrive_time ? ` · Arrives ${review.data.arrive_time}` : ""}</Text> : null}
+                      {review.data.depart_time ? <Text style={styles.detailText}>Departs {formatDateTime12(review.data.depart_time)}{review.data.arrive_time ? ` · Arrives ${formatDateTime12(review.data.arrive_time)}` : ""}</Text> : null}
                       {review.data.return_flight_number ? <Text style={styles.detailText}>Return {review.data.return_flight_number}: {review.data.return_depart_airport || "?"} → {review.data.return_arrive_airport || "?"}</Text> : null}
-                      {review.data.return_depart_time ? <Text style={styles.detailText}>Returns {review.data.return_depart_time}{review.data.return_arrive_time ? ` · Arrives ${review.data.return_arrive_time}` : ""}</Text> : null}
+                      {review.data.return_depart_time ? <Text style={styles.detailText}>Returns {formatDateTime12(review.data.return_depart_time)}{review.data.return_arrive_time ? ` · Arrives ${formatDateTime12(review.data.return_arrive_time)}` : ""}</Text> : null}
                       {review.data.address ? <Text style={styles.detailText}>Address: {review.data.address}</Text> : null}
-                      {review.data.check_in ? <Text style={styles.detailText}>Check-in {review.data.check_in}{review.data.check_in_time ? ` ${review.data.check_in_time}` : ""} · Check-out {review.data.check_out || "?"}{review.data.check_out_time ? ` ${review.data.check_out_time}` : ""}</Text> : null}
+                      {review.data.check_in ? <Text style={styles.detailText}>Check-in {formatDate(review.data.check_in)}{review.data.check_in_time ? ` ${formatTime12(review.data.check_in_time)}` : ""} · Check-out {review.data.check_out ? formatDate(review.data.check_out) : "?"}{review.data.check_out_time ? ` ${formatTime12(review.data.check_out_time)}` : ""}</Text> : null}
                       {review.data.cancel_by ? <Text style={styles.detailText}>Free cancel by {review.data.cancel_by}</Text> : null}
-                      {review.data.pickup_at ? <Text style={styles.detailText}>Pickup {review.data.pickup_at} @ {review.data.pickup_location || "?"}</Text> : null}
-                      {review.data.dropoff_at ? <Text style={styles.detailText}>Drop-off {review.data.dropoff_at} @ {review.data.dropoff_location || "?"}</Text> : null}
+                      {review.data.pickup_at ? <Text style={styles.detailText}>Pickup {formatDateTime12(review.data.pickup_at)} @ {review.data.pickup_location || "?"}</Text> : null}
+                      {review.data.dropoff_at ? <Text style={styles.detailText}>Drop-off {formatDateTime12(review.data.dropoff_at)} @ {review.data.dropoff_location || "?"}</Text> : null}
                       {review.data.outbound_cost != null ? <Text style={styles.detailText}>Outbound cost ${review.data.outbound_cost}{review.data.return_cost != null ? ` · Return $${review.data.return_cost}` : ""}</Text> : null}
-                      {review.data.amount_paid ? <Text style={styles.detailText}>Paid ${review.data.amount_paid}{review.data.balance_due_date ? ` · Balance due ${review.data.balance_due_date}` : ""}</Text> : null}
+                      {review.data.amount_paid ? <Text style={styles.detailText}>Paid ${review.data.amount_paid}{review.data.balance_due_date ? ` · Balance due ${formatDate(review.data.balance_due_date)}` : ""}</Text> : null}
                       {review.data.notes ? <Text style={styles.detailText}>Notes: {review.data.notes}</Text> : null}
                     </View>
                   )}
@@ -761,7 +767,8 @@ export default function InboxScreen() {
                     ))}
                   </View>
 
-                  <Field label="Paid on (YYYY-MM-DD)" value={form.paid_on} onChange={(v) => setForm((f: any) => ({ ...f, paid_on: v }))} styles={styles} />
+                  <Text style={styles.label}>Paid on</Text>
+                  <DateField value={form.paid_on || ""} onChange={(v) => setForm((f: any) => ({ ...f, paid_on: v }))} testID="inbox-paid_on" />
                   <Field label="Note" value={form.note} onChange={(v) => setForm((f: any) => ({ ...f, note: v }))} styles={styles} />
 
                   <Text style={styles.label}>Apply to an expense (marks it paid)</Text>
@@ -820,7 +827,8 @@ export default function InboxScreen() {
                   </View>
 
                   <Field label="Amount" value={form.amount} onChange={(v) => setForm((f: any) => ({ ...f, amount: v }))} keyboardType="decimal-pad" styles={styles} />
-                  <Field label="Date (YYYY-MM-DD)" value={form.incurred_on} onChange={(v) => setForm((f: any) => ({ ...f, incurred_on: v }))} styles={styles} />
+                  <Text style={styles.label}>Date</Text>
+                  <DateField value={form.incurred_on || ""} onChange={(v) => setForm((f: any) => ({ ...f, incurred_on: v }))} testID="inbox-incurred_on" />
                   <Field label="Due date (optional)" value={form.due_date} onChange={(v) => setForm((f: any) => ({ ...f, due_date: v }))} styles={styles} />
                   <Field label="Note" value={form.note} onChange={(v) => setForm((f: any) => ({ ...f, note: v }))} styles={styles} />
                 </>

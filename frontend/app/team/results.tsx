@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { api } from "@/src/api/client";
+import DateField from "@/src/components/DateField";
+import { formatDate } from "@/src/utils/format";
 import { colors, radius, spacing, typography } from "@/src/theme";
 import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles";
 
@@ -89,7 +91,7 @@ export default function TeamResults() {
                     </>
                   ) : r.placement ? <View style={styles.place}><Text style={styles.placeText}>{r.placement}</Text></View> : null}
                 </View>
-                <Text style={styles.rMeta}>{[r.date, r.division, r.score ? `Score ${r.score}` : ""].filter(Boolean).join(" · ")}</Text>
+                <Text style={styles.rMeta}>{[r.date ? formatDate(r.date) : "", r.division, r.score ? `Score ${r.score}` : ""].filter(Boolean).join(" · ")}</Text>
                 {!!r.notes && <Text style={styles.rNotes}>{r.notes}</Text>}
                 {canEdit && !reorderMode && (
                   <View style={styles.actions}>
@@ -110,7 +112,9 @@ export default function TeamResults() {
         <Pressable style={styles.modalWrap} onPress={() => setEdit(null)}><Pressable style={styles.sheet} onPress={() => {}} testID="result-edit-modal">
           <ScrollView style={{ maxHeight: 500 }} keyboardShouldPersistTaps="handled">
             <Text style={styles.sheetTitle}>{edit?.id ? "Edit result" : "New result"}</Text>
-            {([["title", "Competition name"], ["date", "Date  YYYY-MM-DD"], ["placement", "Placement (e.g. 1st)"], ["score", "Score (e.g. 96.5)"], ["division", "Division"], ["notes", "Notes"]] as const).map(([k, ph]) => (
+            <TextInput style={styles.input} value={(edit as any)?.title || ""} onChangeText={(t) => setEdit((p) => ({ ...(p || {}), title: t }))} placeholder="Competition name" placeholderTextColor={colors.textTertiary} testID="result-title-input" />
+            <DateField value={(edit as any)?.date || ""} onChange={(v) => setEdit((p) => ({ ...(p || {}), date: v }))} placeholder="Date (MM-DD-YYYY)" testID="result-date-input" />
+            {([["placement", "Placement (e.g. 1st)"], ["score", "Score (e.g. 96.5)"], ["division", "Division"], ["notes", "Notes"]] as const).map(([k, ph]) => (
               <TextInput key={k} style={styles.input} value={(edit as any)?.[k] || ""} onChangeText={(t) => setEdit((p) => ({ ...(p || {}), [k]: t }))} placeholder={ph} placeholderTextColor={colors.textTertiary} testID={`result-${k}-input`} multiline={k === "notes"} />
             ))}
             <View style={styles.visRow2}><Text style={styles.visLbl}>Share with team (athletes & parents)</Text><Switch value={edit?.visibility === "team"} onValueChange={(v) => setEdit((p) => ({ ...(p || {}), visibility: v ? "team" : "private" }))} trackColor={{ true: colors.accent }} testID="result-visibility-toggle" /></View>
