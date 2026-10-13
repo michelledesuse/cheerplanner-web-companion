@@ -172,12 +172,10 @@ async def calendar_feed(
                 "kind": "competition",
                 "date": day,
                 "title": title,
-                "time": c.get("event_time") if day == ev else None,
-                "subtitle": (
-                    f"{_fmt_time_12h(c.get('event_time'))}" + (f" \u00b7 {c.get('location')}" if c.get("location") else "")
-                    if c.get("event_time") and day == ev
-                    else c.get("location") or ""
-                ),
+                "all_day": True,
+                "subtitle": c.get("location") or "",
+                "details": [],
+                "_comp": c["id"],
                 "color": "#007CFF",
                 "has_music": c["id"] in music_comp_ids,
                 "location": c.get("address") or c.get("location") or "",
@@ -247,6 +245,11 @@ async def calendar_feed(
                         "subtitle": " \u00b7 ".join(sub_parts) if sub_parts else conf,
                         "color": "#7C3AED",
                         "link": comp_link,
+                        "_comp": b.get("competition_id"),
+                        "_detail": {"type": "travel", "icon": "bed",
+                                    "label": {"hotel_checkin": "Hotel check-in", "hotel_checkout": "Hotel check-out"}.get(kind, "Hotel stay"),
+                                    "name": vendor, "time": item_time, "confirmation": conf or None,
+                                    "location": b.get("address") or None},
                     })
         elif btype == "flight":
             dep = _normalize_date(b.get("depart_time"))
@@ -266,6 +269,11 @@ async def calendar_feed(
                     "subtitle": sub,
                     "color": "#7C3AED",
                     "link": comp_link,
+                    "_comp": b.get("competition_id"),
+                    "_detail": {"type": "travel", "icon": "airplane", "label": "Flight departs",
+                                "name": f"{vendor} {b.get('flight_number') or ''}".strip(),
+                                "time": _extract_hhmm(b.get("depart_time")), "confirmation": conf or None,
+                                "location": " → ".join(x for x in [b.get("depart_airport"), b.get("arrive_airport")] if x) or None},
                 })
             if ret and in_range(ret):
                 base_sub = f"{b.get('return_airline') or vendor} {b.get('return_flight_number') or ''}".strip()
@@ -280,6 +288,12 @@ async def calendar_feed(
                     "subtitle": sub,
                     "color": "#7C3AED",
                     "link": comp_link,
+                    "_comp": b.get("competition_id"),
+                    "_detail": {"type": "travel", "icon": "airplane", "label": "Return flight departs",
+                                "name": f"{b.get('return_airline') or vendor} {b.get('return_flight_number') or ''}".strip(),
+                                "time": _extract_hhmm(b.get("return_depart_time")),
+                                "confirmation": b.get("return_confirmation") or conf or None,
+                                "location": " → ".join(x for x in [b.get("return_depart_airport"), b.get("return_arrive_airport")] if x) or None},
                 })
             if dep and ret:
                 for day, offset, delta in iter_days(dep, ret):
@@ -294,9 +308,10 @@ async def calendar_feed(
                             "subtitle": vendor,
                             "color": "#7C3AED",
                             "link": comp_link,
+                            "_comp": b.get("competition_id"),
                         })
         else:  # ground / other
-            d = b.get("check_in") or (b.get("depart_time") or "")[:10] or None
+            d = _normalize_date(b.get("pickup_at")) or b.get("check_in") or (b.get("depart_time") or "")[:10] or None
             if in_range(d):
                 items.append({
                     "id": f"trans-{b['id']}",
@@ -306,6 +321,10 @@ async def calendar_feed(
                     "subtitle": btype,
                     "color": "#7C3AED",
                     "link": comp_link,
+                    "_comp": b.get("competition_id"),
+                    "_detail": {"type": "travel", "icon": "car", "label": "Car pickup" if btype == "car" else btype.capitalize(),
+                                "name": vendor, "time": _extract_hhmm(b.get("pickup_at")), "confirmation": conf or None,
+                                "location": b.get("pickup_location") or b.get("address") or None},
                 })
 
     # Fundraisers — raised_on
@@ -427,6 +446,9 @@ async def calendar_feed(
                     "color": team_color,
                     "logo_image": (t or {}).get("logo_image"),
                     "link": comp_link,
+                    "_comp": comp_id,
+                    "_detail": {"type": "meet", "icon": "alarm", "label": "Meet", "name": team_name,
+                                "time": mt_time, "location": c.get("meeting_location") or perf_loc or None},
                 })
             perf_time = mt.get("performance_time")
             if perf_time:
@@ -443,6 +465,9 @@ async def calendar_feed(
                     "color": team_color,
                     "logo_image": (t or {}).get("logo_image"),
                     "link": comp_link,
+                    "_comp": comp_id,
+                    "_detail": {"type": "performance", "icon": "star", "label": "Performance", "name": team_name,
+                                "time": perf_time, "location": perf_loc or None},
                 })
             if not mt_time and not perf_time and mt.get("date"):
                 items.append({
@@ -454,6 +479,9 @@ async def calendar_feed(
                     "color": team_color,
                     "logo_image": (t or {}).get("logo_image"),
                     "link": comp_link,
+                    "_comp": comp_id,
+                    "_detail": {"type": "performance", "icon": "star", "label": "Performance day", "name": team_name,
+                                "time": None, "location": perf_loc or None},
                 })
 
         # Teams to Watch (external teams the user is spectating)
@@ -477,7 +505,42 @@ async def calendar_feed(
                 "subtitle": " · ".join(subtitle_bits),
                 "color": "#0EA5E9",
                 "link": comp_link,
+                "_comp": comp_id,
+                "_detail": {"type": "watch", "icon": "eye", "label": "Team to watch", "name": w.get("name") or "Team",
+                            "time": wt_time, "location": w.get("location") or None},
             })
+
+    # Fold competition-day details into the all-day competition card. Items on
+    # days with no competition card (e.g. a flight the day before) stay as-is.
+    comps_by_id = {c["id"]: c async for c in db.competitions.find({"user_id": hh}, {"_id": 0})}
+    cards = {(i["_comp"], i["date"]): i for i in items if i.get("kind") == "competition"}
+    kept = []
+    for i in items:
+        card = cards.get((i.get("_comp"), i.get("date"))) if i.get("kind") != "competition" else None
+        if card is not None:
+            if i.get("_detail"):
+                card["details"].append(i["_detail"])
+            continue
+        kept.append(i)
+    items = kept
+    _order = {"meet": 0, "performance": 1, "watch": 2, "travel": 3}
+    for (cid, day), card in cards.items():
+        c = comps_by_id.get(cid) or {}
+        types = {d["type"] for d in card["details"]}
+        if day == c.get("event_date"):
+            ours = ", ".join(teams_by_id[t]["name"] for t in (c.get("team_ids") or []) if t in teams_by_id) or "Our team"
+            if c.get("meet_time") and "meet" not in types:
+                card["details"].append({"type": "meet", "icon": "alarm", "label": "Meet", "name": ours,
+                                        "time": c["meet_time"], "location": c.get("meeting_location") or c.get("location") or None})
+            if c.get("event_time") and "performance" not in types:
+                card["details"].append({"type": "performance", "icon": "star", "label": "Performance", "name": ours,
+                                        "time": c["event_time"], "location": c.get("location") or None})
+        for d in card["details"]:
+            d["time_label"] = _fmt_time_12h(d["time"]) if d.get("time") else None
+        card["details"].sort(key=lambda d: (_order.get(d["type"], 9), _extract_hhmm(d.get("time")) or "99:99"))
+    for i in items:
+        i.pop("_comp", None)
+        i.pop("_detail", None)
 
     def _sort_key(x: dict):
         # Chronological within a day: all-day items (no time) first, then by 24h time.

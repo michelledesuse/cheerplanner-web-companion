@@ -724,3 +724,7 @@ Get exact current paths from user before building W2.
 - Root .gitignore no longer ignores .env files. Added READ_MEDIA_VIDEO to Android permissions.
 - Startup auto-seed now targets applereview@ (marker: "Summit Championship" competition), purge scoped to that account; seed unlinks shared demo logins from other households.
 - Added /health and /api/health.
+
+## Calendar: competitions as all-day cards (Oct 2026)
+- routers/calendar.py: competition items are all_day with `details` [{type meet|performance|watch|travel, icon, label, name, time_label, confirmation, location}]. Team meet/performance/teams-to-watch and booking items (hotel/flight/car/travel_day) whose date is a day of their linked competition are folded into that card; ones on other days stay separate. Comp-level meet_time/event_time added when no per-team entries. No cost fields. Car items now dated by pickup_at.
+- Frontend (tabs)/calendar.tsx renders "All day" + detail lines.

@@ -37,6 +37,18 @@ type CalEvent = {
   has_music?: boolean;
   location?: string;
   weather_date?: string;
+  all_day?: boolean;
+  details?: CompDetail[];
+};
+
+type CompDetail = {
+  type: "meet" | "performance" | "watch" | "travel";
+  icon: string;
+  label: string;
+  name?: string | null;
+  time_label?: string | null;
+  confirmation?: string | null;
+  location?: string | null;
 };
 
 const MUSIC_DOT = "#F59E0B";
@@ -204,6 +216,20 @@ export default function CalendarTab() {
             )}
           </View>
           {!!e.subtitle && <Text style={styles.eventMeta}>{e.subtitle}</Text>}
+          {e.all_day && <Text style={styles.allDay}>All day</Text>}
+          {Array.isArray(e.details) && e.details.length > 0 && (
+            <View style={styles.details} testID={`event-details-${e.id}`}>
+              {e.details.map((d, i) => (
+                <View key={i} style={styles.detailRow}>
+                  <Ionicons name={(d.icon || "ellipse") as any} size={13} color={e.color} style={{ marginTop: 2 }} />
+                  <Text style={styles.detailText}>
+                    <Text style={styles.detailLabel}>{d.label}: </Text>
+                    {[d.name, d.time_label, d.confirmation ? `Conf ${d.confirmation}` : null, d.location].filter(Boolean).join(" · ")}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
           {!!e.location && !!e.weather_date && (
             <WeatherBadge location={e.location} date={e.weather_date} compact style={{ marginTop: 3 }} />
           )}
@@ -444,5 +470,10 @@ const makeStyles = (c: ThemePalette) => ({
   titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   musicBadge: { width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: MUSIC_DOT + "22" },
   eventMeta: { ...typography.caption, color: c.textSecondary, marginTop: 2 },
+  allDay: { ...typography.micro, color: c.textTertiary, fontWeight: "700", marginTop: 2 },
+  details: { marginTop: 6, gap: 4 },
+  detailRow: { flexDirection: "row", gap: 6, alignItems: "flex-start" },
+  detailText: { ...typography.caption, color: c.textSecondary, flex: 1 },
+  detailLabel: { fontWeight: "700", color: c.textPrimary },
   eventAmount: { ...typography.h3, fontWeight: "800" },
 });
