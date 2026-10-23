@@ -206,17 +206,17 @@ export default function CompetitionDetail() {
           <Text style={styles.heroDays}>{days !== null && days >= 0 ? days : "—"}</Text>
           <Text style={styles.heroDaysLabel}>{days !== null && days >= 0 ? "days to go" : "Past event"}</Text>
           <Text style={styles.heroDate}>{formatDateLong(comp.event_date)}</Text>
-          {!!comp.location && (
+          {!!(comp.location || comp.address) && (
             <View style={styles.row}>
               <MapLink
-                address={comp.address || comp.location}
-                hint={comp.address && comp.location ? comp.location : undefined}
+                address={comp.location || comp.address}
+                hint={comp.location && comp.address ? comp.address : undefined}
                 variant="hero"
                 testID="comp-hero-map"
               />
             </View>
           )}
-          {!!(comp.address && comp.location) && (
+          {!!(comp.address && comp.location) && comp.address.trim() !== comp.location.trim() && (
             <View style={[styles.row, { marginTop: -2 }]}>
               <Text style={[styles.heroMeta, { fontSize: 12, opacity: 0.8 }]} numberOfLines={2}>{comp.address}</Text>
             </View>
@@ -581,7 +581,7 @@ const makeStyles = () => ({
   iconBtn: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
   headerTitle: { ...typography.h3, color: colors.textPrimary, flex: 1, textAlign: "center", marginHorizontal: spacing.md },
   heroCard: { backgroundColor: colors.accent, borderRadius: radius.xl, padding: spacing.xl, alignItems: "flex-start" },
-  heroDays: { color: colors.accent, fontSize: 64, fontWeight: "800", letterSpacing: -2, lineHeight: 64 },
+  heroDays: { color: "#FFFFFF", fontSize: 64, fontWeight: "800", letterSpacing: -2, lineHeight: 64 },
   heroDaysLabel: { color: "rgba(255,255,255,0.65)", ...typography.caption, marginTop: 2, marginBottom: spacing.md },
   heroDate: { color: "white", ...typography.h3 },
   row: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
