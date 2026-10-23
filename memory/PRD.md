@@ -733,3 +733,10 @@ Get exact current paths from user before building W2.
 - All UI dates MM-DD-YYYY, times 12h AM/PM. New helpers in src/utils/format.ts: formatLocalDate/formatLocalTime/formatLocalDateTime (for UTC timestamps -> device local). Replaced toLocale* usages in chat, child-chat, broadcast(+history), replies, team calendar, attendance, reviews, premium, household, team-access, admin, PackingList, AttachSection, results, CompetitionTeamsSection, inbox (booking details + summary ISO->MM-DD-YYYY).
 - Typed "YYYY-MM-DD"/"HH:MM 24h" inputs in inbox competition/payment/expense forms, ChatQuickAdd, results replaced by DateField/TimeField (storage unchanged). Quick-add watch teams accept "@ 2:30 PM".
 - Backend reminder labels (_when_label) now "%a %m-%d-%Y". Tested iteration_151 + manual checks.
+
+## Weather fix (Oct 2026)
+- Live app lost weather: geocoder errors/429s (shared prod egress) were cached as "not found" for 7 days. routers/weather.py now: no caching when provider unreachable/429; confirmed not-found cached 1 day with negative_v2 flag; legacy negative entries ignored (refetched). Needs redeploy to take effect in prod.
+
+## Weather fix (live app)
+- Root cause: live server's Open-Meteo forecast calls fail (shared-IP free-tier limit) -> 'unavailable'. Geocoding still worked.
+- Fix: routers/weather.py now falls back to MET Norway (api.met.no, free, ~10 days) when Open-Meteo fails; failures logged. Requires redeploy.
