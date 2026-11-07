@@ -6,6 +6,7 @@ import {
 import { formatDate, formatDateTime12, formatTime12 } from "@/src/utils/format";
 import DateField from "@/src/components/DateField";
 import TimeField from "@/src/components/TimeField";
+import FlightMergePicker, { type FlightChoice } from "@/src/components/FlightMergePicker";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -125,6 +126,7 @@ export default function InboxScreen() {
   // review modal state
   const [review, setReview] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [mergeAsk, setMergeAsk] = useState<{ flights: FlightChoice[]; resolve: (c: string) => void } | null>(null);
   const [form, setForm] = useState<any>({});
   const [athleteId, setAthleteId] = useState<string>("");
   const [competitionId, setCompetitionId] = useState<string>("");
@@ -363,13 +365,21 @@ export default function InboxScreen() {
 
     setSaving(true);
     try {
+      let mergeId: string | null = null;
       if (kind === "booking") {
-        // Duplicate guard — warn if this looks like a booking already on the comp.
+        // Existing flight card on this trip? Ask: fill it in, or add a new card.
+        // Other types keep the duplicate guard.
         try {
           const { data: dc } = await api.get(`/inbox/drafts/${review.id}/dup-check`, {
             params: { competition_id: competitionId },
           });
-          if (dc?.duplicate) {
+          const flights: { id: string; label: string; match: boolean }[] = form.type === "flight" ? (dc?.flights || []) : [];
+          if (flights.length) {
+            const choice = await new Promise<string>((resolve) => setMergeAsk({ flights, resolve }));
+            setMergeAsk(null);
+            if (choice === "cancel") { setSaving(false); return; }
+            if (choice !== "new") mergeId = choice;
+          } else if (dc?.duplicate) {
             const proceed = await new Promise<boolean>((resolve) => {
               Alert.alert(
                 "Looks like a duplicate",
@@ -386,6 +396,7 @@ export default function InboxScreen() {
       }
 
       const body: any = { kind };
+      if (mergeId) body.merge_booking_id = mergeId;
       if (kind === "expense") {
         body.expense = {
           athlete_id: athleteId,
@@ -419,7 +430,7 @@ export default function InboxScreen() {
       setDrafts((prev) => prev.filter((x) => x.id !== review.id));
       const didApply = kind === "payment" && !!expenseId;
       closeReview();
-      Alert.alert("Added", kind === "expense" ? "Expense saved." : kind === "payment" ? (didApply ? "Payment saved and applied to the matched expense." : "Payment saved.") : "Travel booking saved.");
+      Alert.alert("Added", kind === "expense" ? "Expense saved." : kind === "payment" ? (didApply ? "Payment saved and applied to the matched expense." : "Payment saved.") : mergeId ? "Flight card updated — airfare, total paid and total due refreshed." : "Travel booking saved.");
     } catch (e: any) {
       Alert.alert("Couldn't save", e?.response?.data?.detail || "Please try again.");
     } finally {
@@ -690,6 +701,7 @@ export default function InboxScreen() {
                         key={c.id}
                         style={[styles.chip, competitionId === c.id && styles.chipActive]}
                         onPress={() => { setCompetitionId(c.id); setAutoComp(false); }}
+                        testID={`inbox-booking-comp-${c.id}`}
                       >
                         <Text style={[styles.chipText, competitionId === c.id && styles.chipTextActive]}>{c.name}</Text>
                       </TouchableOpacity>
@@ -840,6 +852,8 @@ export default function InboxScreen() {
             </ScrollView>
           </View>
         </View>
+        {/* Nested inside the review modal so it can stack on iOS */}
+        <FlightMergePicker flights={mergeAsk?.flights || null} onChoose={(c) => mergeAsk?.resolve(c)} />
       </Modal>
 
       {/* Add all modal */}

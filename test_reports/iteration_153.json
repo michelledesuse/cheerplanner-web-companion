@@ -1,0 +1,38 @@
+{
+  "summary": "RETEST of iteration_152 fixes. Backend: test_flight_itinerary_merge.py 9/9 pass (same-direction merge replaces leg 600->600, PATCH segments=[] clears legacy fields, confirm-all auto-merge). Frontend web (390x844), tested end to end with a TEST comp holding 2 flight cards plus 3 injected flight drafts: FlightMergePicker opens on web, lists both cards, puts 'Best match' on the matching Delta card, and has a new-card option and Cancel. Fill -> Delta card went from $320 (300+20 tax) to $450 cost / $450 paid / $0 balance, with no stale taxes, shown on competition detail. Trip total $980 / due $530 is correct. 'Add as a new flight card' -> separate American card ($380). Cancel -> picker closes, spinner stops, draft stays pending. Flight editor functional updates: fast fills in the app keep airline + flight #. Fare total $255 and save are correct. Trash target is 44x44. Money tab: 'More filters' toggle hides/shows competition/travel-type/date filters, All/Expenses/Travel chips stay visible, '(whole family)' label shows with athlete filter, kind=travel/expenses filter the rows correctly.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/inbox/drafts/confirm-all (household)", "issue": "Fix to use household ids is present in code (inbox.py L656-660) but was not exercised live: the demo user's household has only 1 member. Verified by code review only."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "inbox.tsx confirm() non-flight duplicate path (L383-392)", "issue": "Hotel/car 'Looks like a duplicate' still uses a multi-button Alert.alert in a Promise. That is a no-op on web, so Save spins forever there (same root cause as the old flight bug). Not hit in this run, found by code review.", "testID": "inbox-confirm", "priority": "LOW"},
+      {"component": "inbox.tsx success feedback (L433)", "issue": "The 'Added' / 'Flight card updated…' Alert is a no-op on web. The draft quietly disappears with no confirmation.", "testID": "inbox-confirm", "priority": "LOW"},
+      {"component": "bookings/new cold deep link", "issue": "Text typed into the first field within ~1s of a full page load (direct URL) is wiped, probably by a screen remount during auth/root hydration. In-app navigation and typing after the app settles both work. Web automation edge case only.", "testID": "seg-airline-outbound-0", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Money tab", "issues": ["The travel subtotal strip still shows with the kind=Expenses filter. Probably intended, but it may confuse users.", "Floating star FAB still overlaps the right edge of the bottom-most card / Save flight button (booking-save-btn)"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_flight_itinerary_merge.py", "/app/backend/tests/ui_setup_flight_merge.py", "/app/test_reports/pytest/pytest_flight_itinerary_153.xml"],
+  "action_items": [
+    "Optional: add a web fallback (in-app modal or window.confirm) for the hotel/car duplicate Alert in inbox.tsx confirm()",
+    "Optional: show success feedback on web after inbox confirm (toast/banner)",
+    "Optional: offset the star FAB so it doesn't overlap Save buttons"
+  ],
+  "critical_code_review_comments": [
+    "FlightMergePicker is nested inside the review Modal. On web its slide animation takes about 0.5s; automation must wait before tapping options (no user-facing issue).",
+    "inbox.tsx (~1000 lines) and inbox.py (~830 lines) still exceed 700 lines: split them"
+  ],
+  "updated_files": ["/app/backend/tests/ui_setup_flight_merge.py (new: setup/show/teardown helper for the picker UI test)"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% of the retested fixed items (picker fill/new/cancel, editor fast entry, trash target, Money more-filters, whole-family label)"},
+  "seed_data_creation": "Created TEST_MergePickerComp, 2 flight cards, 3 TEST_ flight drafts (inserted into db.inbox_drafts), plus bookings created through the UI. All deleted by id afterwards. Demo pending-draft count is back to 3.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login demo@cheerplanner.app / CheerDemo2026! (skip guided-tour-skip). Run: EXPO_PUBLIC_BACKEND_URL=<url> python backend/tests/ui_setup_flight_merge.py setup|show|teardown (state in /tmp/flight_merge_ui_state.json). Inbox: click review-<draftId>, inbox-booking-comp-<cid>, inbox-confirm, wait for flight-merge-picker plus ~1.2s for the slide animation, then flight-merge-<bookingId> / flight-merge-new / flight-merge-cancel.",
+  "rca_of_issue": "No new major issues. The earlier 'airline lost' symptom still reproduces only when filling within ~1s of a cold page load. That is a remount, not the stale closure (functional updates now in FlightItineraryEditor L68/L79)."
+}

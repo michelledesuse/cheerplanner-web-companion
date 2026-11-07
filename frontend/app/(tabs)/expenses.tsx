@@ -21,6 +21,16 @@ import SeasonReadOnlyBanner from "@/src/components/SeasonReadOnlyBanner";
 import ActiveFiltersBar from "@/src/components/ActiveFiltersBar";
 import { toggleId } from "@/src/utils/filters";
 import HomeButton from "@/src/components/HomeButton";
+import DateField from "@/src/components/DateField";
+import TravelExpenseRow, { type TravelBooking, travelDate, travelBalance } from "@/src/components/TravelExpenseRow";
+
+type Comp = { id: string; name: string; event_date?: string };
+const inDateRange = (d: string | undefined | null, from: string, to: string) => {
+  if (!from && !to) return true;
+  const day = String(d || "").slice(0, 10);
+  if (!day) return false;
+  return (!from || day >= from) && (!to || day <= to);
+};
 
 type Athlete = { id: string; name: string; avatar_color?: string; team_ids?: string[] };
 type Team = { id: string; name: string; color?: string; logo_image?: string | null };
@@ -38,6 +48,15 @@ export default function ExpensesTab() {
   const [athleteFilter, setAthleteFilter] = useState<string[]>([]);  // empty = all athletes
   const [teamFilter, setTeamFilter] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
+  // Travel (flight / hotel / car bookings) shown as its own subtotal + rows.
+  const [kindFilter, setKindFilter] = useState<"all" | "expenses" | "travel">("all");
+  const [compFilter, setCompFilter] = useState<string[]>([]);
+  const [travelTypeFilter, setTravelTypeFilter] = useState<string[]>([]);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [moreFilters, setMoreFilters] = useState(false);
+  const [bookings, setBookings] = useState<TravelBooking[]>([]);
+  const [comps, setComps] = useState<Comp[]>([]);
   const [athletes, setAthletes] = useState<Athlete[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -104,6 +123,13 @@ export default function ExpensesTab() {
       ]);
       setAthletes(a.data); setExpenses(e.data); setPayments(p.data); setFundraisers(f.data);
       try { const tr = await api.get<Team[]>("/teams"); setTeams(tr.data); } catch (_) { /* teams optional */ }
+      try {
+        const [cr, br] = await Promise.all([
+          api.get<Comp[]>("/competitions", sp),
+          api.get<TravelBooking[]>("/bookings"),
+        ]);
+        setComps(cr.data || []); setBookings(br.data || []);
+      } catch (_) { setBookings([]); /* travel hidden for this member */ }
     } finally { setLoading(false); setRefreshing(false); }
   }, [filterSeasonId]);
 
@@ -121,6 +147,8 @@ export default function ExpensesTab() {
     let list = athleteFilter.length ? expenses.filter((e) => athleteFilter.includes(e.athlete_id)) : expenses;
     if (teamFilter.length) list = list.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).some((t) => teamFilter.includes(t)));
     if (categoryFilter.length) list = list.filter((e) => categoryFilter.includes(e.category));
+    if (kindFilter === "travel" || compFilter.length || travelTypeFilter.length) list = [];
+    list = list.filter((e) => inDateRange(e.incurred_on, dateFrom, dateTo));
     if (filter === "open") list = list.filter((e) => !e.paid && Number(e.balance_due || 0) > 0);
     else if (filter === "paid") list = list.filter((e) => e.paid || Number(e.balance_due || 0) <= 0.001);
     if (sortMode === "due") {
@@ -144,7 +172,30 @@ export default function ExpensesTab() {
       });
     }
     return list;
-  }, [expenses, filter, athleteFilter, teamFilter, categoryFilter, athletes, sortMode]);
+  }, [expenses, filter, athleteFilter, teamFilter, categoryFilter, athletes, sortMode, kindFilter, compFilter, travelTypeFilter, dateFrom, dateTo]);
+
+  // Travel in scope (ignores the all/open/paid toggle, like expense totals).
+  const compById = useMemo(() => new Map(comps.map((c) => [c.id, c])), [comps]);
+  const travelScope = useMemo(() => {
+    if (kindFilter === "expenses") return [];
+    return bookings.filter((b) =>
+      compById.has(b.competition_id)
+      && (!compFilter.length || compFilter.includes(b.competition_id))
+      && (!travelTypeFilter.length || travelTypeFilter.includes(b.type))
+      && inDateRange(travelDate(b) || compById.get(b.competition_id)?.event_date, dateFrom, dateTo));
+  }, [bookings, compById, kindFilter, compFilter, travelTypeFilter, dateFrom, dateTo]);
+  const filteredTravel = useMemo(() => {
+    let list = travelScope;
+    if (filter === "open") list = list.filter((b) => travelBalance(b) > 0.001);
+    else if (filter === "paid") list = list.filter((b) => travelBalance(b) <= 0.001);
+    const key = (b: TravelBooking) => (sortMode === "due" ? b.balance_due_date : travelDate(b)) || "9999";
+    return [...list].sort((a, b) => key(a).localeCompare(key(b)));
+  }, [travelScope, filter, sortMode]);
+  const travelTotals = useMemo(() => ({
+    due: travelScope.reduce((s, b) => s + travelBalance(b), 0),
+    paid: travelScope.reduce((s, b) => s + Number(b.amount_paid || 0), 0),
+  }), [travelScope]);
+  const travelFilterCount = compFilter.length + travelTypeFilter.length + (kindFilter !== "all" ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
 
   const filteredPayments = useMemo(() => {
     return athleteFilter.length ? payments.filter((p) => athleteFilter.includes(p.athlete_id)) : payments;
@@ -168,12 +219,14 @@ export default function ExpensesTab() {
     if (tab === "expenses") {
       if (teamFilter.length) scope = scope.filter((e) => (athById.get(e.athlete_id)?.team_ids || []).some((t) => teamFilter.includes(t)));
       if (categoryFilter.length) scope = scope.filter((e) => categoryFilter.includes(e.category));
+      if (kindFilter === "travel" || compFilter.length || travelTypeFilter.length) scope = [];
+      scope = scope.filter((e) => inDateRange(e.incurred_on, dateFrom, dateTo));
     }
     const totalDue = scope.reduce((s, e) => s + Number(e.balance_due ?? Math.max(0, Number(e.amount) - Number(e.paid_amount || 0))), 0);
     const totalPaid = scope.reduce((s, e) => s + Number(e.paid_amount || 0), 0);
-    const scopeFiltered = athleteFilter.length > 0 || (tab === "expenses" && (teamFilter.length > 0 || categoryFilter.length > 0));
+    const scopeFiltered = athleteFilter.length > 0 || (tab === "expenses" && (teamFilter.length > 0 || categoryFilter.length > 0 || travelFilterCount > 0));
     return { totalDue, totalPaid, scopeFiltered };
-  }, [expenses, athletes, athleteFilter, teamFilter, categoryFilter, tab]);
+  }, [expenses, athletes, athleteFilter, teamFilter, categoryFilter, tab, kindFilter, compFilter, travelTypeFilter, dateFrom, dateTo, travelFilterCount]);
 
   // Items currently visible in the active tab — used for "Select all"
   const visibleIds = useMemo(() => {
@@ -320,6 +373,20 @@ export default function ExpensesTab() {
           </>
         )}
       </View>
+      {tab === "expenses" && bookings.length > 0 && (
+        <View style={styles.travelStrip} testID="travel-subtotal">
+          <View style={styles.travelStripRow}>
+            <Ionicons name="airplane" size={13} color={colors.accent} />
+            <Text style={styles.travelStripLabel}>{athleteFilter.length || teamFilter.length || categoryFilter.length ? "Travel subtotal (whole family)" : "Travel subtotal"}</Text>
+            <Text style={styles.travelStripValue}>{formatCurrency(travelTotals.due)} due · <Text style={{ color: colors.successText }}>{formatCurrency(travelTotals.paid)} paid</Text></Text>
+          </View>
+          <View style={styles.travelStripRow}>
+            <Ionicons name="calculator-outline" size={13} color={colors.textSecondary} />
+            <Text style={styles.travelStripLabel}>Grand total</Text>
+            <Text style={styles.travelStripValue} testID="grand-total">{formatCurrency(totals.totalDue + travelTotals.due)} due · <Text style={{ color: colors.successText }}>{formatCurrency(totals.totalPaid + travelTotals.paid)} paid</Text></Text>
+          </View>
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }}
@@ -344,9 +411,55 @@ export default function ExpensesTab() {
         {tab !== "fundraisers" && (
           <ActiveFiltersBar
             testIDPrefix="exp-filters"
-            count={athleteFilter.length + (tab === "expenses" ? teamFilter.length + categoryFilter.length : 0)}
-            onClear={() => { setAthleteFilter([]); setTeamFilter([]); setCategoryFilter([]); }}
+            count={athleteFilter.length + (tab === "expenses" ? teamFilter.length + categoryFilter.length + travelFilterCount : 0)}
+            onClear={() => { setAthleteFilter([]); setTeamFilter([]); setCategoryFilter([]); setKindFilter("all"); setCompFilter([]); setTravelTypeFilter([]); setDateFrom(""); setDateTo(""); }}
           />
+        )}
+        {tab === "expenses" && (
+          <>
+            <View style={styles.filterRow}>
+              {([["all", "All"], ["expenses", "Expenses"], ["travel", "Travel"]] as const).map(([k, lbl]) => (
+                <TouchableOpacity key={k} onPress={() => setKindFilter(k)} style={[styles.filterChip, kindFilter === k && styles.filterChipOn]} testID={`kind-filter-${k}`}>
+                  <Text style={[styles.filterText, kindFilter === k && styles.filterTextOn]}>{lbl.toUpperCase()}</Text>
+                </TouchableOpacity>
+              ))}
+              <View style={{ flex: 1 }} />
+              <TouchableOpacity onPress={() => setMoreFilters((v) => !v)} style={[styles.sortChip, (moreFilters || compFilter.length + travelTypeFilter.length > 0 || dateFrom || dateTo) && styles.sortChipOn]} testID="more-filters-toggle">
+                <Ionicons name="options-outline" size={13} color={colors.accent} />
+                <Text style={[styles.sortText, styles.sortTextOn]}>{moreFilters ? "Fewer filters" : "More filters"}</Text>
+              </TouchableOpacity>
+            </View>
+            {moreFilters && kindFilter !== "expenses" && comps.some((c) => bookings.some((b) => b.competition_id === c.id)) && (
+              <FilterChipRow
+                label="Competition / trip"
+                testIDPrefix="exp-filter-comp"
+                selectedIds={compFilter}
+                onToggle={(id) => setCompFilter((p) => toggleId(p, id))}
+                onClear={() => setCompFilter([])}
+                options={comps.filter((c) => bookings.some((b) => b.competition_id === c.id)).map((c) => ({ id: c.id, label: c.name }))}
+              />
+            )}
+            {moreFilters && kindFilter !== "expenses" && bookings.length > 0 && (
+              <FilterChipRow
+                label="Travel type"
+                testIDPrefix="exp-filter-ttype"
+                selectedIds={travelTypeFilter}
+                onToggle={(id) => setTravelTypeFilter((p) => toggleId(p, id))}
+                onClear={() => setTravelTypeFilter([])}
+                options={[{ id: "flight", label: "Flight" }, { id: "hotel", label: "Hotel" }, { id: "car", label: "Car" }]}
+              />
+            )}
+            {moreFilters && <View style={styles.dateRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dateLabel}>From</Text>
+                <DateField value={dateFrom} onChange={setDateFrom} testID="exp-date-from" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.dateLabel}>To</Text>
+                <DateField value={dateTo} onChange={setDateTo} testID="exp-date-to" />
+              </View>
+            </View>}
+          </>
         )}
         {tab === "expenses" && (
           <>
@@ -391,7 +504,7 @@ export default function ExpensesTab() {
                 </Text>
               </TouchableOpacity>
             </View>
-            {filteredExpenses.length === 0 ? (
+            {filteredExpenses.length === 0 && filteredTravel.length === 0 ? (
               <Text style={styles.empty}>No expenses to show.</Text>
             ) : filteredExpenses.map((e) => {
               const paid = Number(e.paid_amount || 0);
@@ -453,6 +566,19 @@ export default function ExpensesTab() {
                 </TouchableOpacity>
               );
             })}
+            {filteredTravel.length > 0 && (
+              <>
+                <Text style={styles.sectionHead}>Travel</Text>
+                {filteredTravel.map((b) => (
+                  <TravelExpenseRow
+                    key={b.id}
+                    booking={b}
+                    compName={compById.get(b.competition_id)?.name}
+                    onPress={() => router.push({ pathname: "/bookings/new", params: { id: b.id } })}
+                  />
+                ))}
+              </>
+            )}
           </>
         )}
 
@@ -596,6 +722,13 @@ const makeStyles = (c: ThemePalette) => ({
   sumLabel: { ...typography.micro, color: c.textSecondary, marginBottom: 4 },
   sumValue: { ...typography.h3, fontWeight: "800" },
   divider: { width: 1, height: 32, backgroundColor: c.border },
+  travelStrip: { marginHorizontal: spacing.lg, marginTop: 8, paddingHorizontal: spacing.md, paddingVertical: 8, borderRadius: radius.md, backgroundColor: c.accentSubtle, gap: 4 },
+  travelStripRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  travelStripLabel: { ...typography.caption, fontWeight: "700", color: c.textSecondary, flex: 1 },
+  travelStripValue: { ...typography.caption, fontWeight: "800", color: c.textPrimary },
+  dateRow: { flexDirection: "row", gap: spacing.md, marginBottom: spacing.md },
+  dateLabel: { ...typography.micro, color: c.textSecondary, marginBottom: 4 },
+  sectionHead: { ...typography.micro, color: c.textSecondary, fontWeight: "800", letterSpacing: 0.6, marginTop: spacing.md, marginBottom: 8 },
   filterRow: { flexDirection: "row", gap: 8, marginBottom: spacing.md },
   filterChip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: c.card, borderWidth: 1, borderColor: c.border },
   filterChipOn: { backgroundColor: c.accent, borderColor: c.accent },

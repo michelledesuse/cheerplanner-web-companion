@@ -1,0 +1,48 @@
+{
+  "summary": "Tested flight itinerary (segments + fare breakdown), PATCH rollups, legacy segment derivation, calendar per-segment items + competition-day fold with passengers, inbox dup-check / merge (single + confirm-all), and the UI: Flight itinerary editor (create + edit), competition flight card, Money tab travel subtotal / grand total / all filters, and inbox flight-draft confirm. Backend 7/9 pytest pass (2 real bugs). Frontend: editor, card, Money tab totals & filters all correct and match API numbers; inbox 'already has a flight' Alert hangs on web (RN-web Alert is a no-op), merge path verified via API instead.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/inbox/drafts/{id}/confirm (merge_booking_id) & confirm-all auto-merge (core/flights.py merge_flight L172-179)", "issue": "Merging an import into a direction that already has a detailed fare leaves stale breakdown values. Existing outbound {pax 2, base 200, tax 30, bags 70, seats 40} + imported flat cost 600/paid 600 -> merged leg becomes {passengers 1, base_fare 600, taxes_fees 30, bag_fees 70, seat_fees 40} => cost 740 instead of 600 (stale paid_on also kept). Also passengers is overwritten to 1. Fix: when the incoming leg came from a flat cost (_fare_of derived), REPLACE the leg (or zero taxes/bags/seats) instead of dict.update; consider adding amount_paid when it's a separate family-member ticket on the same direction.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "PATCH /api/bookings/{id} with segments=[]", "issue": "apply_flight_rollups only runs segment sync when segments is truthy, so clearing all segments keeps legacy flight_number/depart_* fields and GET re-derives a segment ('out') from them — the deleted flight reappears. Clear legacy fields when segments is an explicit empty list (core/flights.py L90)."},
+      {"endpoint": "POST /api/inbox/drafts/confirm-all", "issue": "_existing() queries bookings by user_id only (not household ids), so a co-parent's existing flight card on the same trip is not matched for auto-merge (dup-check uses household ids — inconsistent)."},
+      {"endpoint": "PATCH /api/bookings/{id}", "issue": "Fare with all zeros (user clears airfare) is ignored by rollups so old cost/amount_paid persist."},
+      {"endpoint": "core/scheduler.py check-in reminders", "issue": "Sent-keys use segment id; legacy cards ('out'/'ret') get new uuids after first edit/merge, so a check-in SMS already sent under checkin_out may be re-sent once under seg_<uuid>."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "inbox.tsx confirm flight draft (L377-387)", "issue": "On web preview Alert.alert with buttons is a no-op, so the Promise never resolves and the Save button spins forever after dup-check (verified: GET dup-check fired, no confirm POST). Add Platform.OS==='web' fallback (window.confirm) for 'This trip already has a flight'.", "testID": "inbox-confirm", "priority": "MEDIUM"},
+      {"component": "inbox.tsx flight merge choice", "issue": "Only flights[0] is offered; with several flight cards per trip (multiple family members) the user can't pick which card to fill, and when no card matches (match=false) 'Fill in existing' fills an arbitrary first card.", "testID": "inbox-confirm", "priority": "MEDIUM"},
+      {"component": "FlightItineraryEditor update() (L67)", "issue": "update/setLeg use the `segments`/`fare` props (stale closure) instead of functional updaters; in automation a fast fill of airline followed by flight # lost the airline (airline saved as null). Slow typing persisted fine. Use setState(prev => ...) via onSegments callback form.", "testID": "seg-airline-outbound-0", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "bookings/new (Edit Flight)", "issues": ["Floating star FAB overlaps right edge of 'Save changes' button (booking-save-btn)", "Segment trash icon is 16px with hitSlop 10 (~36px) < 44px touch target"]},
+      {"screen": "Money tab (expenses)", "issues": ["Filter stack (athlete, kind, competition, travel type, date range, team, category, status) fills the whole first viewport on 390x844 — no expense rows visible without scrolling; consider a collapsible filter panel", "Athlete filter does not apply to travel rows, so 'Grand total' mixes athlete-filtered expenses with unfiltered travel"]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_flight_itinerary_merge.py", "/app/test_reports/pytest/pytest_flight_itinerary.xml"],
+  "action_items": [
+    "Fix merge_flight fare merge: replace (not dict.update) a leg when the import supplies a flat cost so stale taxes/bags/seats/passengers don't inflate cost (expected 600, got 740)",
+    "apply_flight_rollups: when segments == [] explicitly, null legacy flight fields so deleted flights don't reappear",
+    "inbox.tsx: add web fallback for the multi-button 'This trip already has a flight' Alert (currently hangs on web); let user choose which flight card when several exist, and don't default-merge into a non-matching card",
+    "FlightItineraryEditor: use functional state updates for segment/fare edits",
+    "confirm-all: use household ids when loading existing bookings",
+    "Move/offset FAB so it doesn't overlap the booking save button"
+  ],
+  "critical_code_review_comments": [
+    "inbox.tsx is 1000 lines and calendar.py/inbox.py >550/800 lines — split",
+    "bookings PATCH: segments sent on a non-flight booking are stored as-is (no type check)",
+    "Pre-existing seed flight 0be06e45 on Summit Championship has cost 0 / amount_paid 640 (not created by me) — shows $0 due in travel subtotal"
+  ],
+  "updated_files": ["/app/frontend/app/inbox.tsx (added testID inbox-booking-comp-<id> to booking competition chips)", "/app/backend/tests/test_flight_itinerary_merge.py (new)"],
+  "success_rate": {"backend": "78% (7/9)", "frontend": "90% (editor, flight card, edit mode, Money totals/filters/date range/row nav pass; inbox merge Alert not exercisable on web)"},
+  "seed_data_creation": "Created TEST_FlightComp / TEST_UIFlightComp competitions, TEST bookings and TEST drafts — all deleted by id after tests.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login demo@cheerplanner.app works (token at /api/auth/login access_token). Run EXPO_PUBLIC_BACKEND_URL=<url> pytest backend/tests/test_flight_itinerary_merge.py. Two tests intentionally assert the bugs above (remove-all-segments, stale-breakdown merge). Web DateField: fill '[data-testid=exp-date-from] input[type=date]'. Pending-draft count for demo user was 3 before tests (confirm-all test pauses others with status TEST_paused and restores).",
+  "rca_of_issue": "Stale fare: merge_flight does merged=dict(existing_leg); merged.update(incoming_leg) where incoming leg from flat cost only has passengers=1/base_fare/amount_paid, so existing taxes_fees/bag_fees/seat_fees survive and get re-added by leg_total. Segment reappearance: apply_flight_rollups guards on truthy segments, list_bookings derives segments from untouched legacy fields."
+}

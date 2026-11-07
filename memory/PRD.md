@@ -740,3 +740,9 @@ Get exact current paths from user before building W2.
 ## Weather fix (live app)
 - Root cause: live server's Open-Meteo forecast calls fail (shared-IP free-tier limit) -> 'unavailable'. Geocoding still worked.
 - Fix: routers/weather.py now falls back to MET Norway (api.met.no, free, ~10 days) when Open-Meteo fails; failures logged. Requires redeploy.
+
+## Travel in Expenses + Flight itineraries (Nov 2026)
+- Expenses tab: Travel subtotal + Grand total strip; filters All/Expenses/Travel, Competition/trip, Travel type, Date range (From/To); travel rows (TravelExpenseRow) open booking edit.
+- Flights: multi-segment itinerary (core/flights.py; Booking.segments + Booking.fare per direction: passengers, base_fare & taxes_fees per pax, bag_fees, seat_fees, amount_paid, paid_on). Legacy flat fields synced server-side. Editor: src/components/FlightItineraryEditor.tsx; card: FlightCardBody.tsx.
+- Calendar: one item per segment, chronological, with passengers. SMS check-in reminder per segment (scheduler).
+- Smart Inbox: flight import asks 'Fill in existing' vs 'Add new card' (merge_booking_id); bulk confirm auto-fills matching flight card. dup-check returns flights list.

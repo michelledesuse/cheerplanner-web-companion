@@ -26,6 +26,7 @@ from core.security import get_current_user
 from core.helpers import _build_paid_map, _household_user_ids
 from routers.expenses import create_expense
 from routers.bookings import create_booking
+from core.flights import flight_segments, sorted_segments, merge_flight
 from routers.payments import create_payment
 
 load_dotenv()
@@ -78,7 +79,14 @@ _SYSTEM = (
     '"return_flight_number": string, '
     '"return_depart_airport": "IATA", "return_arrive_airport": "IATA", '
     '"return_depart_time": "YYYY-MM-DDTHH:MM", "return_arrive_time": "YYYY-MM-DDTHH:MM", '
-    '"return_cost": number, "notes": string} or null,\n'
+    '"return_cost": number, '
+    '"segments": [{"direction": "outbound"|"return", "airline": string, "confirmation": string, '
+    '"flight_number": string, "depart_airport": "IATA", "depart_time": "YYYY-MM-DDTHH:MM", '
+    '"arrive_airport": "IATA", "arrive_time": "YYYY-MM-DDTHH:MM", "passengers": [string]}], '
+    '"fare": {"outbound": {"passengers": number, "base_fare": number, "taxes_fees": number, '
+    '"bag_fees": number, "seat_fees": number, "amount_paid": number, "paid_on": "YYYY-MM-DD"}, '
+    '"return": {same keys}}, '
+    '"notes": string} or null,\n'
     '      "competition": {"name": "event name", "event_date": "YYYY-MM-DD", '
     '"end_date": "YYYY-MM-DD or null", "location": "venue name", "address": string, '
     '"performance_time": "HH:MM 24h - when OUR team performs / takes the mat", '
@@ -107,6 +115,11 @@ _SYSTEM = (
     "payment made). Use the \"expense\" object for these.\n"
     "- Combine a round-trip flight (outbound + return legs) into ONE flight item, using "
     "the return_* fields for the return leg. Separate one-way flights are separate items.\n"
+    "- For FLIGHTS also fill \"segments\": one entry per individual flight (every connection, "
+    "outbound and return) in time order, each with its passengers' names. Fill \"fare\" per "
+    "direction: base_fare and taxes_fees are PER PASSENGER, bag_fees and seat_fees are totals, "
+    "amount_paid is what was charged. If only a single total price is shown, put it in the "
+    "outbound base_fare with passengers=1 (or split per direction if the email splits it).\n"
     "- Put any extra details that don't have a dedicated field (seat, room type, "
     "guest/passenger names, loyalty number, number of nights, taxes/fees breakdown) into "
     "the item's \"notes\" so nothing is lost.\n"
@@ -498,8 +511,33 @@ def is_duplicate_booking(data: dict, existing: List[dict]) -> bool:
     return False
 
 
-# --------------------------------------------------------------------------- #
-# In-app: paste text / drop a screenshot                                       #
+def _duplicate_flight_id(data: dict, existing: List[dict]) -> Optional[str]:
+    """Id of the existing flight card this import matches (same confirmation,
+    a shared flight number + date, or same airline on the same date)."""
+    flights = [b for b in existing if b.get("type") == "flight"]
+    confs = {(s.get("confirmation") or "").strip().lower() for s in flight_segments(data)} | {(data.get("confirmation") or "").strip().lower()}
+    confs.discard("")
+    keys = {((s.get("flight_number") or "").replace(" ", "").upper(), str(s.get("depart_time") or "")[:10])
+            for s in flight_segments(data) if s.get("flight_number")}
+    for b in flights:
+        bconfs = {(s.get("confirmation") or "").strip().lower() for s in flight_segments(b)} | {(b.get("confirmation") or "").strip().lower()}
+        if confs & (bconfs - {""}):
+            return b["id"]
+        bkeys = {((s.get("flight_number") or "").replace(" ", "").upper(), str(s.get("depart_time") or "")[:10])
+                 for s in flight_segments(b) if s.get("flight_number")}
+        if keys & bkeys:
+            return b["id"]
+    return next((b["id"] for b in flights if is_duplicate_booking(data, [b])), None)
+
+
+async def _merge_into_flight(booking_id: str, incoming: dict, current_user) -> dict:
+    existing = await db.bookings.find_one(
+        {"id": booking_id, "user_id": {"$in": await _household_user_ids(current_user["id"])}}, {"_id": 0})
+    if not existing or existing.get("type") != "flight":
+        raise HTTPException(status_code=404, detail="Flight card not found")
+    updates = merge_flight(existing, incoming)
+    await db.bookings.update_one({"id": booking_id}, {"$set": updates})
+    return {**existing, **updates, "merged": True}                                     #
 # --------------------------------------------------------------------------- #
 @router.post("/inbox/parse", response_model=List[InboxDraft])
 async def parse_inbox(payload: InboxParseRequest, current_user=Depends(get_current_user)):
@@ -536,7 +574,10 @@ async def confirm_draft(draft_id: str, payload: InboxConfirmRequest, current_use
     elif payload.kind == "booking":
         if not payload.booking:
             raise HTTPException(status_code=400, detail="Missing booking details")
-        result = await create_booking(payload.booking, current_user)
+        if payload.merge_booking_id:
+            result = await _merge_into_flight(payload.merge_booking_id, payload.booking.model_dump(), current_user)
+        else:
+            result = await create_booking(payload.booking, current_user)
     elif payload.kind == "payment":
         if not payload.payment:
             raise HTTPException(status_code=400, detail="Missing payment details")
@@ -560,11 +601,23 @@ async def dup_check(draft_id: str, competition_id: str, current_user=Depends(get
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     if draft.get("kind") != "booking":
-        return {"duplicate": False}
+        return {"duplicate": False, "flights": []}
     existing = await db.bookings.find(
-        {"user_id": current_user["id"], "competition_id": competition_id}, {"_id": 0}
+        {"user_id": {"$in": await _household_user_ids(current_user["id"])}, "competition_id": competition_id}, {"_id": 0}
     ).to_list(500)
-    return {"duplicate": is_duplicate_booking(draft.get("data") or {}, existing)}
+    data = draft.get("data") or {}
+    flights = []
+    if (data.get("type") or "flight") == "flight":
+        dup_id = _duplicate_flight_id(data, existing)
+        for b in existing:
+            if b.get("type") != "flight":
+                continue
+            segs = sorted_segments(b)
+            route = " → ".join(x for x in [segs[0].get("depart_airport"), segs[0].get("arrive_airport")] if x) if segs else ""
+            flights.append({"id": b["id"], "label": " · ".join(x for x in [b.get("provider") or "Flight", route] if x),
+                            "match": b["id"] == dup_id})
+        flights.sort(key=lambda f: not f["match"])
+    return {"duplicate": is_duplicate_booking(data, existing), "flights": flights}
 
 
 @router.post("/inbox/drafts/confirm-all")
@@ -603,7 +656,7 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
     async def _existing(comp_id: str) -> list:
         if comp_id not in existing_cache:
             existing_cache[comp_id] = await db.bookings.find(
-                {"user_id": uid, "competition_id": comp_id}, {"_id": 0}
+                {"user_id": {"$in": await _household_user_ids(uid)}, "competition_id": comp_id}, {"_id": 0}
             ).to_list(500)
         return existing_cache[comp_id]
 
@@ -658,6 +711,16 @@ async def confirm_all_drafts(payload: InboxConfirmAllRequest, current_user=Depen
                 if not comp_id:
                     skipped.append(d.get("summary") or "Travel")
                     continue
+                if (data.get("type") or "flight") == "flight":
+                    dup_id = _duplicate_flight_id(data, await _existing(comp_id))
+                    if dup_id:
+                        # Same trip already has this flight card — fill it in
+                        # (airfare, paid, missing legs) instead of skipping.
+                        merged = await _merge_into_flight(dup_id, data, current_user)
+                        existing_cache[comp_id] = [merged if b.get("id") == dup_id else b for b in existing_cache[comp_id]]
+                        await db.inbox_drafts.update_one({"id": d["id"]}, {"$set": {"status": "confirmed"}})
+                        created += 1
+                        continue
                 if is_duplicate_booking(data, await _existing(comp_id)):
                     duplicates.append(d.get("summary") or "Travel")
                     await db.inbox_drafts.update_one({"id": d["id"]}, {"$set": {"status": "dismissed"}})

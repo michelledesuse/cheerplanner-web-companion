@@ -49,6 +49,7 @@ type CompDetail = {
   time_label?: string | null;
   confirmation?: string | null;
   location?: string | null;
+  passengers?: string[] | null;
 };
 
 const MUSIC_DOT = "#F59E0B";
@@ -224,7 +225,8 @@ export default function CalendarTab() {
                   <Ionicons name={(d.icon || "ellipse") as any} size={13} color={e.color} style={{ marginTop: 2 }} />
                   <Text style={styles.detailText}>
                     <Text style={styles.detailLabel}>{d.label}: </Text>
-                    {[d.name, d.time_label, d.confirmation ? `Conf ${d.confirmation}` : null, d.location].filter(Boolean).join(" · ")}
+                    {[d.name, d.time_label, d.confirmation ? `Conf ${d.confirmation}` : null, d.location,
+                      d.passengers && d.passengers.length ? `Passengers: ${d.passengers.join(", ")}` : null].filter(Boolean).join(" · ")}
                   </Text>
                 </View>
               ))}

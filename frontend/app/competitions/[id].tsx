@@ -14,6 +14,7 @@ import { formatCurrency, formatDate, formatDateLong, formatDateTime12, formatTim
 import { Stars } from "@/src/components/Stars";
 import WeatherBadge from "@/src/components/WeatherBadge";
 import MapLink from "@/src/components/MapLink";
+import FlightCardBody from "@/src/components/FlightCardBody";
 import PackingListSection from "@/src/components/PackingListSection";
 import TodoList from "@/src/components/TodoList";
 import LinkedTools from "@/src/components/LinkedTools";
@@ -76,6 +77,8 @@ type Booking = {
   return_depart_time?: string;
   return_arrive_time?: string;
   return_cost?: number;
+  segments?: { id?: string; direction: string; airline?: string; confirmation?: string; flight_number?: string; depart_airport?: string; depart_time?: string; arrive_airport?: string; arrive_time?: string; passengers?: string[] }[];
+  fare?: Record<string, { passengers?: number; base_fare?: number; taxes_fees?: number; bag_fees?: number; seat_fees?: number; amount_paid?: number; paid_on?: string }> | null;
   notes?: string;
 };
 
@@ -164,7 +167,7 @@ export default function CompetitionDetail() {
 
   // Trip summary: combine flight/hotel/car for this competition into one card.
   const tripDates = bookings
-    .flatMap((b) => [b.check_in, b.check_out, b.depart_time, b.arrive_time, b.return_depart_time, b.return_arrive_time, b.pickup_at, b.dropoff_at])
+    .flatMap((b) => [b.check_in, b.check_out, b.depart_time, b.arrive_time, b.return_depart_time, b.return_arrive_time, b.pickup_at, b.dropoff_at, ...(b.segments || []).flatMap((s) => [s.depart_time, s.arrive_time])])
     .filter(Boolean)
     .map((d) => String(d).slice(0, 10))
     .sort();
@@ -504,29 +507,7 @@ function BookingCard({ booking, onDelete, onEdit, showCosts = true }: { booking:
           )}
         </View>
       )}
-      {booking.type === "flight" && (
-        <View style={styles.bookingGrid}>
-          {(booking.depart_airport || booking.arrive_airport) && (
-            <Field label="Outbound route" value={`${booking.depart_airport || "—"} → ${booking.arrive_airport || "—"}`} />
-          )}
-          {booking.flight_number && <Field label="Outbound flight #" value={booking.flight_number} />}
-          {booking.depart_time && <Field label="Depart" value={formatDateTime12(booking.depart_time)} />}
-          {booking.arrive_time && <Field label="Arrive" value={formatDateTime12(booking.arrive_time)} />}
-          {booking.outbound_cost != null && <Field label="Outbound cost" value={formatCurrency(booking.outbound_cost)} />}
-          {(booking.return_depart_airport || booking.return_arrive_airport || booking.return_airline || booking.return_confirmation || booking.return_flight_number || booking.return_depart_time || booking.return_arrive_time || booking.return_cost != null) && (
-            <Field label="—" value="Return" />
-          )}
-          {booking.return_airline && <Field label="Return airline" value={booking.return_airline} />}
-          {booking.return_confirmation && <Field label="Return conf #" value={booking.return_confirmation} />}
-          {(booking.return_depart_airport || booking.return_arrive_airport) && (
-            <Field label="Return route" value={`${booking.return_depart_airport || "—"} → ${booking.return_arrive_airport || "—"}`} />
-          )}
-          {booking.return_flight_number && <Field label="Return flight #" value={booking.return_flight_number} />}
-          {booking.return_depart_time && <Field label="Return depart" value={formatDateTime12(booking.return_depart_time)} />}
-          {booking.return_arrive_time && <Field label="Return arrive" value={formatDateTime12(booking.return_arrive_time)} />}
-          {booking.return_cost != null && <Field label="Return cost" value={formatCurrency(booking.return_cost)} />}
-        </View>
-      )}
+      {booking.type === "flight" && <FlightCardBody booking={booking} showCosts={showCosts} />}
 
       {showCosts && (
       <View style={styles.bookingFinances}>

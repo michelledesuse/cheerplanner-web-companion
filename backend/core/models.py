@@ -601,6 +601,9 @@ class Booking(BaseModel):
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
+    # Multi-segment itinerary + per-direction fare breakdown (see core/flights.py)
+    segments: List[dict] = Field(default_factory=list)
+    fare: Optional[dict] = None
 
     # S1: minutes-before offsets for SMS check-in reminders (fires relative to
     # the check-in-open time, which is 24h before each flight leg's departure).
@@ -643,6 +646,8 @@ class BookingCreate(BaseModel):
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
+    segments: Optional[List[dict]] = None
+    fare: Optional[dict] = None
     sms_reminder_offsets: Optional[List[int]] = None
 
 
@@ -678,6 +683,8 @@ class BookingUpdate(BaseModel):
     return_depart_time: Optional[str] = None
     return_arrive_time: Optional[str] = None
     return_cost: Optional[float] = None
+    segments: Optional[List[dict]] = None
+    fare: Optional[dict] = None
     sms_reminder_offsets: Optional[List[int]] = None
 
 
@@ -710,6 +717,7 @@ class InboxConfirmRequest(BaseModel):
     payment: Optional[PaymentCreate] = None
     competition: Optional[dict] = None      # competition-day fields (kind=competition)
     competition_id: Optional[str] = None    # existing competition to update; None = create new
+    merge_booking_id: Optional[str] = None  # flight: fill in this existing card instead of adding one
 
 
 class InboxConfirmAllRequest(BaseModel):

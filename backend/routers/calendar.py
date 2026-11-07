@@ -9,6 +9,7 @@ from core.helpers import (
     _team_hub_scope_user_ids, _member_visibility,
 )
 
+from core.flights import sorted_segments
 router = APIRouter(prefix="/api")
 
 
@@ -252,64 +253,65 @@ async def calendar_feed(
                                     "location": b.get("address") or None},
                     })
         elif btype == "flight":
-            dep = _normalize_date(b.get("depart_time"))
-            ret = _normalize_date(b.get("return_depart_time"))
-            dep_t = _fmt_time_12h(b.get("depart_time"))
-            ret_t = _fmt_time_12h(b.get("return_depart_time"))
-            if dep and in_range(dep):
-                base_sub = f"{vendor} {b.get('flight_number') or ''}".strip()
-                sub = f"Depart {dep_t} \u00b7 {base_sub}".strip(" \u00b7 ") if dep_t else base_sub
+            # One calendar item per flight segment, in chronological order,
+            # with the passengers on each flight.
+            segs = sorted_segments(b)
+            seg_dates = []
+            for i, sg in enumerate(segs):
+                d = _normalize_date(sg.get("depart_time"))
+                if not d:
+                    continue
+                seg_dates.append(d)
+                if not in_range(d):
+                    continue
+                is_ret = sg.get("direction") == "return"
+                airline = sg.get("airline") or (b.get("return_airline") if is_ret else None) or vendor
+                fno = sg.get("flight_number") or ""
+                base_sub = f"{airline} {fno}".strip()
+                dep_t = _fmt_time_12h(sg.get("depart_time"))
+                arr_t = _fmt_time_12h(sg.get("arrive_time"))
+                pax = [p for p in (sg.get("passengers") or []) if p]
+                parts = [f"Depart {dep_t}" if dep_t else None, f"Arrive {arr_t}" if arr_t else None, base_sub or None,
+                         ("Passengers: " + ", ".join(pax)) if pax else None]
+                route = " → ".join(x for x in [sg.get("depart_airport"), sg.get("arrive_airport")] if x)
+                sid = sg.get("id") or str(i)
+                legacy_id = {"out": f"flight-dep-{b['id']}", "ret": f"flight-ret-{b['id']}"}.get(sid)
+                seg_conf = sg.get("confirmation") or (b.get("return_confirmation") if is_ret else None) or conf
                 items.append({
-                    "id": f"flight-dep-{b['id']}",
-                    "kind": "flight_depart",
-                    "date": dep,
-                    "title": f"Flight {b.get('depart_airport') or ''} → {b.get('arrive_airport') or ''}".strip(),
-                    "time": _extract_hhmm(b.get("depart_time")),
-                    "end_time": _extract_hhmm(b.get("arrive_time")),
-                    "subtitle": sub,
+                    "id": legacy_id or f"flight-seg-{b['id']}-{sid}",
+                    "kind": "flight_return" if is_ret else "flight_depart",
+                    "date": d,
+                    "title": f"{'Return' if is_ret else 'Flight'} {route}".strip(),
+                    "time": _extract_hhmm(sg.get("depart_time")),
+                    "end_time": _extract_hhmm(sg.get("arrive_time")),
+                    "subtitle": " \u00b7 ".join(x for x in parts if x),
+                    "passengers": pax,
                     "color": "#7C3AED",
                     "link": comp_link,
                     "_comp": b.get("competition_id"),
-                    "_detail": {"type": "travel", "icon": "airplane", "label": "Flight departs",
-                                "name": f"{vendor} {b.get('flight_number') or ''}".strip(),
-                                "time": _extract_hhmm(b.get("depart_time")), "confirmation": conf or None,
-                                "location": " → ".join(x for x in [b.get("depart_airport"), b.get("arrive_airport")] if x) or None},
+                    "_detail": {"type": "travel", "icon": "airplane",
+                                "label": "Return flight departs" if is_ret else "Flight departs",
+                                "name": base_sub, "time": _extract_hhmm(sg.get("depart_time")),
+                                "confirmation": seg_conf or None,
+                                "passengers": pax or None,
+                                "location": route or None},
                 })
-            if ret and in_range(ret):
-                base_sub = f"{b.get('return_airline') or vendor} {b.get('return_flight_number') or ''}".strip()
-                sub = f"Depart {ret_t} \u00b7 {base_sub}".strip(" \u00b7 ") if ret_t else base_sub
-                items.append({
-                    "id": f"flight-ret-{b['id']}",
-                    "kind": "flight_return",
-                    "date": ret,
-                    "title": f"Return {b.get('return_depart_airport') or ''} → {b.get('return_arrive_airport') or ''}".strip(),
-                    "time": _extract_hhmm(b.get("return_depart_time")),
-                    "end_time": _extract_hhmm(b.get("return_arrive_time")),
-                    "subtitle": sub,
-                    "color": "#7C3AED",
-                    "link": comp_link,
-                    "_comp": b.get("competition_id"),
-                    "_detail": {"type": "travel", "icon": "airplane", "label": "Return flight departs",
-                                "name": f"{b.get('return_airline') or vendor} {b.get('return_flight_number') or ''}".strip(),
-                                "time": _extract_hhmm(b.get("return_depart_time")),
-                                "confirmation": b.get("return_confirmation") or conf or None,
-                                "location": " → ".join(x for x in [b.get("return_depart_airport"), b.get("return_arrive_airport")] if x) or None},
-                })
-            if dep and ret:
-                for day, offset, delta in iter_days(dep, ret):
-                    if offset == 0 or offset == delta:
+            if len(seg_dates) >= 2:
+                first, last = min(seg_dates), max(seg_dates)
+                busy = set(seg_dates)
+                for day, offset, delta in iter_days(first, last):
+                    if day in busy or not in_range(day):
                         continue
-                    if in_range(day):
-                        items.append({
-                            "id": f"flight-trip-{b['id']}-{day}",
-                            "kind": "travel_day",
-                            "date": day,
-                            "title": "Travel day",
-                            "subtitle": vendor,
-                            "color": "#7C3AED",
-                            "link": comp_link,
-                            "_comp": b.get("competition_id"),
-                        })
+                    items.append({
+                        "id": f"flight-trip-{b['id']}-{day}",
+                        "kind": "travel_day",
+                        "date": day,
+                        "title": "Travel day",
+                        "subtitle": vendor,
+                        "color": "#7C3AED",
+                        "link": comp_link,
+                        "_comp": b.get("competition_id"),
+                    })
         else:  # ground / other
             d = _normalize_date(b.get("pickup_at")) or b.get("check_in") or (b.get("depart_time") or "")[:10] or None
             if in_range(d):

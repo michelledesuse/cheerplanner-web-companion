@@ -308,11 +308,15 @@ async def send_timed_sms_tick() -> None:
                 offsets = _valid_offsets(b.get("sms_reminder_offsets"))
                 if not offsets:
                     continue
-                legs = [
-                    ("out", b.get("depart_time"), b.get("depart_airport"), b.get("arrive_airport")),
-                    ("ret", b.get("return_depart_time"), b.get("return_depart_airport"), b.get("return_arrive_airport")),
-                ]
-                for leg_id, dep_raw, dep_ap, arr_ap in legs:
+                # One check-in reminder per flight segment (legacy cards map to "out"/"ret").
+                from core.flights import flight_segments
+                legs = []
+                for s in flight_segments(b):
+                    sid = s.get("id")
+                    lid = sid if sid in ("out", "ret") else f"seg_{sid}"
+                    legs.append((lid, s.get("depart_time"), s.get("depart_airport"), s.get("arrive_airport"),
+                                 "ret" if s.get("direction") == "return" else "out"))
+                for leg_id, dep_raw, dep_ap, arr_ap, direction in legs:
                     dep_dt = parse_local_datetime(dep_raw)
                     if not dep_dt:
                         continue
@@ -323,7 +327,7 @@ async def send_timed_sms_tick() -> None:
                         key = f"{user_id}:booking:{b['id']}:checkin_{leg_id}:{off}"
                         if await _already_sent(key):
                             continue
-                        if send_sms(phone, _checkin_sms(leg_id, dep_ap, arr_ap, off)):
+                        if send_sms(phone, _checkin_sms(direction, dep_ap, arr_ap, off)):
                             await _record_sent(key, user_id, "sms_checkin")
                             sent += 1
 

@@ -11,6 +11,7 @@ import DateField from "@/src/components/DateField";
 import DateTimeField from "@/src/components/DateTimeField";
 import SmsReminderPicker from "@/src/components/SmsReminderPicker";
 import TimeField from "@/src/components/TimeField";
+import FlightItineraryEditor, { type FlightSegment, type Fare, fareFromBooking, farePayload, segmentsPayload, legTotal } from "@/src/components/FlightItineraryEditor";
 
 export default function BookingForm() {
   const styles = useThemedStyles(makeStyles);
@@ -58,6 +59,14 @@ export default function BookingForm() {
   const [returnArriveTime, setReturnArriveTime] = useState("");
   const [returnCost, setReturnCost] = useState("");
   const [smsOffsets, setSmsOffsets] = useState<number[]>([]);
+  // flight itinerary (multi-segment) + airfare breakdown
+  const [segments, setSegments] = useState<FlightSegment[]>([{ direction: "outbound", passengers: [] }]);
+  const [fare, setFare] = useState<Fare>({ outbound: {}, return: {} });
+  const [people, setPeople] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.get("/athletes").then((r) => setPeople((r.data || []).map((a: any) => a.name).filter(Boolean))).catch(() => {});
+  }, []);
 
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(isEdit);
@@ -111,6 +120,11 @@ export default function BookingForm() {
         setReturnArriveTime(b.return_arrive_time || "");
         setReturnCost(b.return_cost != null ? String(b.return_cost) : "");
         setSmsOffsets(Array.isArray(b.sms_reminder_offsets) ? b.sms_reminder_offsets : []);
+        if (b.type === "flight") {
+          const segs = (b.segments || []).map((x: any) => ({ ...x, passengers: x.passengers || [] }));
+          setSegments(segs.length ? segs : [{ direction: "outbound", passengers: [] }]);
+          setFare(fareFromBooking(b));
+        }
       } catch (_e) {
         Alert.alert("Error", "Could not load booking");
       } finally {
@@ -129,6 +143,10 @@ export default function BookingForm() {
       const flightRt = parseFloat(returnCost) || 0;
       const flightTotal = flightOb + flightRt;
 
+      const fp = type === "flight" ? farePayload(fare) : null;
+      const segs = type === "flight" ? segmentsPayload(segments) : [];
+      const fareTotal = (fp?.outbound && Object.keys(fp.outbound).length ? legTotal(fare.outbound) : 0)
+        + (fp?.return && Object.keys(fp.return).length ? legTotal(fare.return) : 0);
       const payload: any = {
         provider: provider.trim() || null,
         address: address.trim() || null,
@@ -163,6 +181,22 @@ export default function BookingForm() {
         return_cost: type === "flight" ? (returnCost === "" ? null : flightRt) : null,
         sms_reminder_offsets: type === "flight" ? smsOffsets : [],
       };
+      if (type === "flight") {
+        // Legacy flat fields are derived on the server from the segments.
+        for (const k of Object.keys(payload)) {
+          if (k.startsWith("return_") || ["flight_number", "depart_airport", "arrive_airport", "depart_time", "arrive_time"].includes(k)) delete payload[k];
+        }
+        Object.assign(payload, {
+          provider: segs[0]?.airline?.trim() || provider.trim() || null,
+          confirmation: segs[0]?.confirmation?.trim() || confirmation.trim() || null,
+          segments: segs,
+          fare: fp,
+          cost: Math.round(fareTotal * 100) / 100,
+          amount_paid: (parseFloat(fare.outbound.amount_paid || "") || 0) + (parseFloat(fare.return.amount_paid || "") || 0),
+          outbound_cost: null,
+          return_cost: null,
+        });
+      }
 
       if (isEdit) {
         await api.patch(`/bookings/${editingId}`, payload);
@@ -197,8 +231,12 @@ export default function BookingForm() {
         </View>
 
         <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 80 }} keyboardShouldPersistTaps="handled">
-          <Text style={styles.label}>{PROVIDER_LABEL[type]}</Text>
-          <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder={type === "hotel" ? "e.g. Hyatt Regency" : type === "car" ? "e.g. Enterprise" : "e.g. Southwest"} placeholderTextColor={colors.textTertiary} testID="booking-provider-input" />
+          {type !== "flight" && (
+            <>
+              <Text style={styles.label}>{PROVIDER_LABEL[type]}</Text>
+              <TextInput style={styles.input} value={provider} onChangeText={setProvider} placeholder={type === "hotel" ? "e.g. Hyatt Regency" : "e.g. Enterprise"} placeholderTextColor={colors.textTertiary} testID="booking-provider-input" />
+            </>
+          )}
 
           {type !== "car" && (
             <>
@@ -215,8 +253,12 @@ export default function BookingForm() {
             </>
           )}
 
-          <Text style={styles.label}>{type === "flight" ? "Outbound confirmation #" : "Confirmation #"}</Text>
-          <TextInput style={styles.input} value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" placeholderTextColor={colors.textTertiary} testID="booking-conf-input" />
+          {type !== "flight" && (
+            <>
+              <Text style={styles.label}>Confirmation #</Text>
+              <TextInput style={styles.input} value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" placeholderTextColor={colors.textTertiary} testID="booking-conf-input" />
+            </>
+          )}
 
           {type === "hotel" && (
             <>
@@ -270,55 +312,7 @@ export default function BookingForm() {
           )}
 
           {type === "flight" && (
-            <>
-              <Text style={styles.section}>Outbound</Text>
-              <Text style={styles.label}>Flight #</Text>
-              <TextInput style={styles.input} value={flightNumber} onChangeText={setFlightNumber} placeholder="WN1234" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" />
-
-              <View style={styles.row2}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Departure airport</Text>
-                  <TextInput style={styles.input} value={departAirport} onChangeText={setDepartAirport} placeholder="LAX" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" maxLength={5} testID="depart-airport-input" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Arrival airport</Text>
-                  <TextInput style={styles.input} value={arriveAirport} onChangeText={setArriveAirport} placeholder="HOU" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" maxLength={5} testID="arrive-airport-input" />
-                </View>
-              </View>
-
-              <Text style={styles.label}>Depart</Text>
-              <DateTimeField value={departTime} onChange={setDepartTime} testID="depart-time-input" />
-              <Text style={styles.label}>Arrive</Text>
-              <DateTimeField value={arriveTime} onChange={setArriveTime} testID="arrive-time-input" />
-              <Text style={styles.label}>Outbound cost (USD)</Text>
-              <TextInput style={styles.input} value={outboundCost} onChangeText={setOutboundCost} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="outbound-cost-input" />
-
-              <Text style={styles.section}>Return (optional)</Text>
-              <Text style={styles.label}>Return airline (if different)</Text>
-              <TextInput style={styles.input} value={returnAirline} onChangeText={setReturnAirline} placeholder="e.g. Delta" placeholderTextColor={colors.textTertiary} testID="return-airline-input" />
-              <Text style={styles.label}>Return confirmation #</Text>
-              <TextInput style={styles.input} value={returnConfirmation} onChangeText={setReturnConfirmation} autoCapitalize="characters" placeholderTextColor={colors.textTertiary} testID="return-conf-input" />
-              <Text style={styles.label}>Flight #</Text>
-              <TextInput style={styles.input} value={returnFlightNumber} onChangeText={setReturnFlightNumber} placeholder="WN5678" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" />
-
-              <View style={styles.row2}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Departure airport</Text>
-                  <TextInput style={styles.input} value={returnDepartAirport} onChangeText={setReturnDepartAirport} placeholder="HOU" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" maxLength={5} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Arrival airport</Text>
-                  <TextInput style={styles.input} value={returnArriveAirport} onChangeText={setReturnArriveAirport} placeholder="LAX" placeholderTextColor={colors.textTertiary} autoCapitalize="characters" maxLength={5} />
-                </View>
-              </View>
-
-              <Text style={styles.label}>Depart</Text>
-              <DateTimeField value={returnDepartTime} onChange={setReturnDepartTime} testID="return-depart-time-input" />
-              <Text style={styles.label}>Arrive</Text>
-              <DateTimeField value={returnArriveTime} onChange={setReturnArriveTime} testID="return-arrive-time-input" />
-              <Text style={styles.label}>Return cost (USD)</Text>
-              <TextInput style={styles.input} value={returnCost} onChangeText={setReturnCost} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="return-cost-input" />
-            </>
+            <FlightItineraryEditor segments={segments} onSegments={setSegments} fare={fare} onFare={setFare} peopleSuggestions={people} />
           )}
 
           <Text style={styles.section}>Finances</Text>
@@ -329,7 +323,7 @@ export default function BookingForm() {
             </>
           )}
           {type === "flight" && (
-            <Text style={styles.helperText}>Total flight cost is calculated from the outbound + return amounts above.</Text>
+            <Text style={styles.helperText}>Total airfare, paid and due are calculated from the airfare sections above.</Text>
           )}
           {type === "flight" && (
             <SmsReminderPicker
@@ -340,8 +334,12 @@ export default function BookingForm() {
               testIDPrefix="flight-sms-offset"
             />
           )}
-          <Text style={styles.label}>Amount already paid (USD)</Text>
-          <TextInput style={styles.input} value={amountPaid} onChangeText={setAmountPaid} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-paid-input" />
+          {type !== "flight" && (
+            <>
+              <Text style={styles.label}>Amount already paid (USD)</Text>
+              <TextInput style={styles.input} value={amountPaid} onChangeText={setAmountPaid} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.textTertiary} testID="booking-paid-input" />
+            </>
+          )}
           <Text style={styles.label}>Balance due date (optional)</Text>
           <DateField value={balanceDueDate} onChange={setBalanceDueDate} testID="booking-due-input" />
 
