@@ -413,7 +413,9 @@ const makeStyles = (c: ThemePalette) => ({
   emptyText: { ...typography.caption, color: c.textSecondary, textAlign: "center" },
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "flex-end" },
   sheet: { backgroundColor: c.bg, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.lg, paddingBottom: spacing.xl },
-  tallySheet: { maxHeight: "82%" },
+  // Fixed height (not maxHeight): on native, a flex:1 list inside a
+  // maxHeight-only parent collapses to 0 and the sheet looks empty.
+  tallySheet: { height: "82%" },
   modalScroll: { maxHeight: "100%" },
   reorderHint: { ...typography.caption, color: c.textSecondary, marginBottom: spacing.md },
   reorderRow: { flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, borderRadius: radius.md, paddingHorizontal: 14, paddingVertical: 14, marginBottom: 8 },
