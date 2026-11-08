@@ -746,3 +746,6 @@ Get exact current paths from user before building W2.
 - Flights: multi-segment itinerary (core/flights.py; Booking.segments + Booking.fare per direction: passengers, base_fare & taxes_fees per pax, bag_fees, seat_fees, amount_paid, paid_on). Legacy flat fields synced server-side. Editor: src/components/FlightItineraryEditor.tsx; card: FlightCardBody.tsx.
 - Calendar: one item per segment, chronological, with passengers. SMS check-in reminder per segment (scheduler).
 - Smart Inbox: flight import asks 'Fill in existing' vs 'Add new card' (merge_booking_id); bulk confirm auto-fills matching flight card. dup-check returns flights list.
+
+## SMS first-send failure fix
+- Root cause (prod RCA): core/sms.py _get_client set _client_init=True before the client existed; concurrent broadcast threads got None -> recipients silently 'Failed' on first send after pod start. Fixed with threading.Lock double-checked init; failed/missing config not cached.

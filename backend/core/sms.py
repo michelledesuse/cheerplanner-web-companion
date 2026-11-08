@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import re
+import threading
 import time
 from typing import Optional
 
@@ -32,31 +33,36 @@ _SEND_CONCURRENCY = 5
 _MAX_SEND_ATTEMPTS = 3
 
 _client = None
-_client_init = False
+_client_lock = threading.Lock()
 
 
 def _get_client():
-    global _client, _client_init
-    if _client_init:
+    """Thread-safe lazy Twilio client. Broadcasts send from several worker
+    threads at once, so the first send after a restart must not let other
+    threads see a half-initialised (None) client — that silently marked most
+    recipients "Failed" on the first send. A missing config / failed init is
+    not cached, so a later send can try again."""
+    global _client
+    if _client is not None:
         return _client
-    _client_init = True
-    sid = os.getenv("TWILIO_ACCOUNT_SID")
-    token = os.getenv("TWILIO_AUTH_TOKEN")
-    if not sid or not token:
-        logger.info("Twilio not configured — SMS disabled")
-        _client = None
-        return None
-    try:
-        from twilio.rest import Client
-        from twilio.http.http_client import TwilioHttpClient
-        # Bound each Twilio HTTP call so a hung request can't stall a worker
-        # thread (and block the whole broadcast) indefinitely.
-        http = TwilioHttpClient(timeout=20)
-        _client = Client(sid, token, http_client=http)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Twilio client init failed: %s", exc)
-        _client = None
-    return _client
+    with _client_lock:
+        if _client is not None:
+            return _client
+        sid = os.getenv("TWILIO_ACCOUNT_SID")
+        token = os.getenv("TWILIO_AUTH_TOKEN")
+        if not sid or not token:
+            logger.info("Twilio not configured — SMS disabled")
+            return None
+        try:
+            from twilio.rest import Client
+            from twilio.http.http_client import TwilioHttpClient
+            # Bound each Twilio HTTP call so a hung request can't stall a worker
+            # thread (and block the whole broadcast) indefinitely.
+            _client = Client(sid, token, http_client=TwilioHttpClient(timeout=20))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Twilio client init failed: %s", exc)
+            return None
+        return _client
 
 
 def is_configured() -> bool:
