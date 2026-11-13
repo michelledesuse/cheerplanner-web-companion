@@ -206,10 +206,23 @@ async def run(purge: bool = True) -> None:
     ))
     await _insert(db, "bookings", server.Booking(
         user_id=user_id, competition_id=comp1_id, type="flight", provider="Southwest",
-        confirmation="SW8H29K", outbound_cost=320.00, return_cost=320.00, amount_paid=640.00,
-        depart_at=iso(datetime.combine(up1 - timedelta(days=1), datetime.min.time().replace(hour=9))),
-        return_depart_at=iso(datetime.combine(up1 + timedelta(days=2), datetime.min.time().replace(hour=17))),
-        outbound_flight_number="WN1402", return_flight_number="WN3187",
+        confirmation="SW8H29K", cost=640.00, outbound_cost=320.00, return_cost=320.00, amount_paid=640.00,
+        flight_number="WN1402", depart_airport="LAX", arrive_airport="MCO",
+        depart_time=iso(datetime.combine(up1 - timedelta(days=1), datetime.min.time().replace(hour=9))),
+        return_flight_number="WN3187", return_depart_airport="MCO", return_arrive_airport="LAX",
+        return_depart_time=iso(datetime.combine(up1 + timedelta(days=2), datetime.min.time().replace(hour=17))),
+        segments=[
+            {"id": "out", "direction": "outbound", "airline": "Southwest", "confirmation": "SW8H29K",
+             "flight_number": "WN1402", "depart_airport": "LAX", "arrive_airport": "MCO",
+             "depart_time": iso(datetime.combine(up1 - timedelta(days=1), datetime.min.time().replace(hour=9))),
+             "passengers": []},
+            {"id": "ret", "direction": "return", "airline": "Southwest", "confirmation": "SW8H29K",
+             "flight_number": "WN3187", "depart_airport": "MCO", "arrive_airport": "LAX",
+             "depart_time": iso(datetime.combine(up1 + timedelta(days=2), datetime.min.time().replace(hour=17))),
+             "passengers": []},
+        ],
+        fare={"outbound": {"passengers": 2, "base_fare": 140.0, "taxes_fees": 20.0, "amount_paid": 320.0},
+              "return": {"passengers": 2, "base_fare": 140.0, "taxes_fees": 20.0, "amount_paid": 320.0}},
     ))
     await _insert(db, "bookings", server.Booking(
         user_id=user_id, competition_id=comp1_id, type="car", provider="Enterprise",

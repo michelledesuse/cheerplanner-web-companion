@@ -15,6 +15,7 @@ import { Stars } from "@/src/components/Stars";
 import WeatherBadge from "@/src/components/WeatherBadge";
 import MapLink from "@/src/components/MapLink";
 import FlightCardBody from "@/src/components/FlightCardBody";
+import { travelBalance, travelCost, type TravelBooking } from "@/src/components/TravelExpenseRow";
 import PackingListSection from "@/src/components/PackingListSection";
 import TodoList from "@/src/components/TodoList";
 import LinkedTools from "@/src/components/LinkedTools";
@@ -160,9 +161,10 @@ export default function CompetitionDetail() {
   const days = daysBetween(comp.event_date);
   const spectatorFee = Number(comp.spectator_fee || 0);
   const parkingFee = Number(comp.parking_fee || 0);
-  const totalCost = bookings.reduce((s, b) => s + Number(b.cost || 0), 0) + spectatorFee + parkingFee;
-  const totalPaid = bookings.reduce((s, b) => s + Number(b.amount_paid || 0), 0);
-  const balance = totalCost - totalPaid;
+  // Balance = each booking's own balance (never below zero) + fees, so an
+  // overpaid booking can't hide money still owed on another.
+  const totalCost = bookings.reduce((s, b) => s + travelCost(b as TravelBooking), 0) + spectatorFee + parkingFee;
+  const balance = bookings.reduce((s, b) => s + travelBalance(b as TravelBooking), 0) + spectatorFee + parkingFee;
   const hasDayInfo = !!(comp.event_time || comp.meet_time || comp.meeting_location || comp.what_to_wear || comp.day_details);
 
   // Trip summary: combine flight/hotel/car for this competition into one card.
@@ -450,7 +452,8 @@ function AddTypeBtn({ icon, label, onPress, testID }: any) {
 
 function BookingCard({ booking, onDelete, onEdit, showCosts = true }: { booking: Booking; onDelete: () => void; onEdit: () => void; showCosts?: boolean }) {
   const styles = useThemedStyles(makeStyles);
-  const balance = Number(booking.cost || 0) - Number(booking.amount_paid || 0);
+  const cost = travelCost(booking as TravelBooking);
+  const balance = cost - Number(booking.amount_paid || 0);
   const icon = booking.type === "hotel" ? "bed" : booking.type === "car" ? "car" : "airplane";
   return (
     <View style={styles.bookingCard} testID={`booking-card-${booking.id}`}>
@@ -513,7 +516,7 @@ function BookingCard({ booking, onDelete, onEdit, showCosts = true }: { booking:
       <View style={styles.bookingFinances}>
         <View style={{ flex: 1 }}>
           <Text style={styles.smallLabel}>COST</Text>
-          <Text style={styles.bookingAmount}>{formatCurrency(booking.cost || 0)}</Text>
+          <Text style={styles.bookingAmount}>{formatCurrency(cost)}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.smallLabel}>PAID</Text>

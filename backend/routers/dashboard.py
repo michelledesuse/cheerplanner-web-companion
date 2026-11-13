@@ -31,10 +31,13 @@ async def dashboard(current_user=Depends(get_current_user)):
     due_today_bookings = 0.0
     due_today_expenses = 0.0
 
-    # Booking balances
+    # Booking balances — each booking's own balance, never below zero, so an
+    # overpaid booking can't hide money still owed on another.
+    from core.flights import booking_balance as _booking_bal
     booking_balance = 0.0
-    async for d in db.bookings.find({"user_id": hh}, {"_id": 0, "cost": 1, "amount_paid": 1, "balance_due_date": 1}).limit(5000):
-        bal = float(d.get("cost") or 0) - float(d.get("amount_paid") or 0)
+    async for d in db.bookings.find({"user_id": hh}, {"_id": 0, "type": 1, "cost": 1, "amount_paid": 1, "fare": 1,
+                                                       "outbound_cost": 1, "return_cost": 1, "balance_due_date": 1}).limit(5000):
+        bal = _booking_bal(d)
         booking_balance += bal
         _bdd = str(d.get("balance_due_date") or "")[:10]
         if bal > 0 and _bdd and _bdd <= today_iso:

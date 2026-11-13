@@ -36,6 +36,24 @@ def _leg_has_values(leg: Optional[dict]) -> bool:
     return bool(leg) and any(_num(leg.get(k)) for k in _MONEY)
 
 
+def effective_cost(b: dict) -> float:
+    """A booking's cost; for flights saved with cost 0/empty, derive it from
+    the fare legs, else from the legacy outbound/return costs."""
+    cost = _num(b.get("cost"))
+    if cost > 0 or b.get("type") != "flight":
+        return cost
+    fare = b.get("fare") if isinstance(b.get("fare"), dict) else {}
+    legs = [fare.get(d) for d in ("outbound", "return") if _leg_has_values(fare.get(d))]
+    if legs:
+        return round(sum(leg_total(l) for l in legs), 2)
+    return round(_num(b.get("outbound_cost")) + _num(b.get("return_cost")), 2)
+
+
+def booking_balance(b: dict) -> float:
+    """What's still owed on one booking — never below zero."""
+    return max(0.0, round(effective_cost(b) - _num(b.get("amount_paid")), 2))
+
+
 def flight_segments(b: dict) -> list:
     """Segments for a flight booking (legacy flat fields become 1–2 segments)."""
     segs = [s for s in (b.get("segments") or []) if isinstance(s, dict)]
@@ -124,6 +142,9 @@ def apply_flight_rollups(data: dict) -> dict:
         total = _num(data.get("outbound_cost")) + _num(data.get("return_cost"))
         if total > 0 and not data.get("cost"):
             data["cost"] = total
+    # No top-level date (e.g. only return flights): use the first flight's departure.
+    if not data.get("depart_time") and data.get("segments"):
+        data["depart_time"] = next((s.get("depart_time") for s in data["segments"] if s.get("depart_time")), None)
     return data
 
 
