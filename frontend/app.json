@@ -19,7 +19,8 @@
         "NSCalendarsUsageDescription": "Add team events to your calendar",
         "NSCalendarsWriteOnlyAccessUsageDescription": "Add team events to your calendar",
         "NSMicrophoneUsageDescription": "Record video clips to share in team chat",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSFaceIDUsageDescription": "Unlock CheerPlanner quickly with Face ID"
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -92,7 +93,9 @@
         "READ_MEDIA_VIDEO",
         "WRITE_EXTERNAL_STORAGE",
         "READ_CALENDAR",
-        "WRITE_CALENDAR"
+        "WRITE_CALENDAR",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -119,6 +122,12 @@
         "expo-calendar",
         {
           "calendarPermission": "Add team events to your calendar"
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Unlock CheerPlanner quickly with Face ID"
         }
       ]
     ],

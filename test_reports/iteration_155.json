@@ -1,0 +1,26 @@
+{
+  "summary": "RETEST of App Lock fixes from iteration_154 on web preview (375x667, demo@cheerplanner.app, PIN 482916). All requested flows PASS. While locked on web, the page shows only the lock screen (74 DOM nodes). It contains no app data: no balances, athlete names or comp names. The only /api call while locked is GET /api/auth/me, and none of the data endpoints are called until unlock. After unlocking, the same route comes back: /expenses showing $1,338.42, and the deep link /competitions/<id> showing Summit Championship. Forgot passcode signs out to /login. After signing back in, App Lock is Off, it stays off after reload, and the data is intact. The Security footer now reads 'CheerPlanner. Forgot it?'. Regression checks pass: enable (pinflow-new/confirm), reload shows the lock pad, a wrong PIN shows the error, the correct PIN unlocks, a wrong current PIN is rejected on disable, and disabling with the current PIN plus reload means no lock. Dashboard, Team Hub, Athletes and Money load fine. App Lock was left OFF.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "LOW (optional): On web the navigator unmounts while locked. The URL is kept, but the in-app back stack and screen state (scroll position, unsaved form input) are lost after unlock. This is acceptable for security. Consider warning users with unsaved forms, or accept as is.",
+    "LOW (optional): Web idle-reset listeners (wheel/touchstart/pointerdown/scroll) were checked by code review only. A runtime check needs 1+ min of idle time and was not run."
+  ],
+  "critical_code_review_comments": [
+    "AppLockContext.tsx:164 – on web, children render as null when hidden (showLock || showCover || !ready). This correctly prevents data in the DOM and data fetches while locked.",
+    "AppLockContext.tsx:134 – forgot() runs router.replace('/login') after 50ms. Verified it lands on /login.",
+    "Only GET /api/auth/me runs while locked (from the AuthProvider, which sits above the AppLockProvider). It returns the user's own profile and no app data. Acceptable."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "None. App Lock is device-local and was turned OFF at the end (Forgot passcode in run 2 cleared it).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Each browser_automation call is a fresh context, so IndexedDB does not persist between calls. After enabling, page.goto counts as a cold start and shows the lock pad. lock-pad, lock-key-N, lock-error, lock-forgot, pinflow-{new|confirm|current}-key-N and applock-toggle all work with force clicks. Wait about 1.5s after opening the PinFlow modal before tapping keys."
+}

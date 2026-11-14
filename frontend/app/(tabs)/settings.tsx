@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 
 import { useAuth } from "@/src/context/AuthContext";
+import { useAppLock } from "@/src/context/AppLockContext";
 import { usePremium } from "@/src/context/PremiumContext";
 import { api } from "@/src/api/client";
 import { colors, radius, spacing, typography } from "@/src/theme";
@@ -17,6 +18,7 @@ const FREQ_LABEL: Record<string, string> = { daily: "Daily", weekly: "Weekly", o
 
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
+  const appLock = useAppLock();
   const { isPremium, status, monetizationActive } = usePremium();
   const router = useRouter();
   const styles = useThemedStyles(makeStyles);
@@ -191,6 +193,18 @@ export default function SettingsScreen() {
             testID="settings-appearance"
           />
           <SettingRow label="Currency" value="USD ($)" />
+        </View>
+
+        <Text style={styles.sectionHead}>Security</Text>
+        <View style={styles.group}>
+          <SettingRow
+            label="App Lock"
+            subtitle="Require a 6-digit passcode or Face ID to open the app"
+            value={appLock.config ? "On" : "Off"}
+            onPress={() => router.push("/settings/security" as any)}
+            chevron
+            testID="settings-applock"
+          />
         </View>
 
         <Text style={styles.sectionHead}>Sharing</Text>

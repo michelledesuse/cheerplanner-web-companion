@@ -1,0 +1,35 @@
+{
+  "summary": "Tested App Lock on the web preview at 390x844 with demo@cheerplanner.app. All 11 requested flows passed. Settings→Security row shows Off/On. Enable flow rejects weak PINs (111111/123456) and handles a mismatched confirm. A web alert with the browser-clear notice appears and the timeout options show with Immediately checked. Reload and deep links (/competitions, /(tabs)/expenses) show the branded lock screen. Wrong PIN shows an error and clears the dots. Warnings at 2 and 1 tries left work. The 5th wrong try gives a 30s wait with the keypad disabled; the wait survives a reload, keyboard input is ignored during it, and the 6th wrong try gives 60s. Keyboard digits work on the lock screen and in the PIN flow. Simulated visibilitychange (hidden→visible) locks with Immediately. Change passcode works: wrong current is rejected, the old PIN fails after reload and the new one unlocks. Disable needs the current PIN and the app no longer locks after reload. Forgot→confirm signs out to /login; dismissing the dialog keeps the lock. Re-login shows App Lock Off and data is intact (Ava, Summit, balances). No /api request carried the PIN (39 requests checked). Tab focus stays inside the lock screen. Regression of dashboard, Athletes, Comps, Money, Team Hub and Settings passed. One medium web privacy issue: the full app is rendered in the DOM under the lock modal.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Security screen footer note", "issue": "Missing space between sentences: 'never sent to CheerPlanner.Forgot it?'. The JSX text and the following {\"Forgot it?...\"} string are joined without a space. Reference: /app/frontend/app/settings/security.tsx:115-116", "testID": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [
+      {"flow": "Locked state on web (privacy)", "issue": "While locked, the whole navigator stays mounted and rendered under the RN-web Modal. document.body.innerText on the lock screen contained full competition and Money data (e.g. 'Open balance $1,338.42 ... Uniform $289'), and API calls keep running. The lock covers it visually and Tab focus is trapped, but the content can be read via DevTools, Ctrl+F, text selection or print. Same on native: screens mount and fetch behind the Modal.", "affected_testIDs": ["lock-pad"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": ["browser_automation scripts (inline), screenshots in .screenshots/"],
+  "action_items": [
+    "MEDIUM: In AppLockProvider, don't render the content while showLock is true, at least on web: render {showLock ? null : children}, or render children only after the first unlock. Then no data sits in the DOM and the locked screens don't fetch. Check that navigation state and deep links still come back after unlock.",
+    "LOW: Add a space/newline between the two sentences in the security.tsx footer note (line 115-116).",
+    "LOW (optional): Web inactivity tracking only listens to keydown/mousemove. Add 'wheel'/'touchstart'/'pointerdown' so scrolling on touch web counts as activity for the 1/5/15 min timeouts.",
+    "LOW (optional): setPasscode/updateOptions in PinFlow have try/finally but no catch. If IndexedDB/WebCrypto fails (e.g. some private modes), the modal stays open with no error message. Show an error."
+  ],
+  "critical_code_review_comments": [
+    "AppLockContext.tsx:148-161: children always mount under the lock Modal (see integration issue).",
+    "PinPad.tsx:62-70: each PinPad adds a global window keydown listener. If the lock screen comes up while the Security PinFlow modal is open (e.g. tab hidden during setup), typed digits go to both pads. Edge case.",
+    "secureStore.web.ts getItem swallows errors and returns null, so App Lock is silently off if IndexedDB is unavailable. This matches the 'clear data = off' design but is worth knowing.",
+    "Native kdf.ts uses 30k PBKDF2 iterations. With a 6-digit keyspace, the Keychain/Keystore is the real protection, not the KDF. Acceptable.",
+    "No deprecated Expo packages found (no expo-av, expo-barcode-scanner or expo-background-fetch)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (frontend-only)", "frontend": "100% of requested flows (11/11); 1 medium privacy issue, 1 low copy bug"},
+  "seed_data_creation": "None. App Lock is browser-local; it was disabled at the end of each run and every browser context was fresh. No account data was modified.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login demo@cheerplanner.app / CheerDemo2026!. Skip guided-tour-skip if shown. After opening the PinFlow modal (slide animation), wait about 1.5s before tapping pinflow-*-key-*, otherwise you get 'outside of viewport'. Accept dialogs via page.on('dialog'). Simulate visibility by redefining document.visibilityState/hidden and dispatching 'visibilitychange'; this triggers RN-web AppState background→active. Each browser_automation call is a fresh context, so IndexedDB state does not carry over between calls.",
+  "rca_of_issue": "Content in DOM while locked: AppLockProvider always renders {children} and only puts a Modal on top (showLock). RN-web Modal is a portal overlay, so the screens below stay mounted and visible in the DOM. Reproduce: enable App Lock, reload on /expenses, run document.body.innerText in the console and the balances appear. Fix: stop rendering children while locked."
+}

@@ -12,6 +12,7 @@ import { RealtimeProvider } from "@/src/context/RealtimeContext";
 import { SeasonProvider } from "@/src/context/SeasonContext";
 import { ThemeProvider, useTheme } from "@/src/context/ThemeContext";
 import { RatePromptProvider } from "@/src/context/RatePromptContext";
+import { AppLockProvider } from "@/src/context/AppLockContext";
 import AssistantCoachWidget from "@/src/components/AssistantCoachWidget";
 import GuidedTour from "@/src/components/GuidedTour";
 
@@ -48,6 +49,7 @@ export default function RootLayout() {
       <KeyboardProvider>
         <AuthProvider>
           <ThemeProvider>
+            <AppLockProvider>
             <PremiumProvider>
               <RealtimeProvider>
                 <SeasonProvider>
@@ -57,6 +59,7 @@ export default function RootLayout() {
                 </SeasonProvider>
               </RealtimeProvider>
             </PremiumProvider>
+            </AppLockProvider>
           </ThemeProvider>
         </AuthProvider>
       </KeyboardProvider>

@@ -749,3 +749,8 @@ Get exact current paths from user before building W2.
 
 ## SMS first-send failure fix
 - Root cause (prod RCA): core/sms.py _get_client set _client_init=True before the client existed; concurrent broadcast threads got None -> recipients silently 'Failed' on first send after pod start. Fixed with threading.Lock double-checked init; failed/missing config not cached.
+
+## App Lock (device-local)
+- Files: src/utils/appLock/{index,kdf(.web),secureStore(.web),biometrics(.web)}.ts, src/context/AppLockContext.tsx, src/components/applock/{PinPad,LockScreen,BrandCover}.tsx, app/settings/security.tsx, settings row 'Security > App Lock', _layout.tsx (AppLockProvider inside ThemeProvider), app.json (expo-local-authentication plugin, NSFaceIDUsageDescription, USE_BIOMETRIC).
+- PBKDF2-SHA256 + 16B random salt (native 30k iters via @noble/hashes; web 310k via WebCrypto). Native: SecureStore WHEN_UNLOCKED_THIS_DEVICE_ONLY. Web: AES-GCM non-extractable key in IndexedDB.
+- Rate limit: 5 free tries then 30s/60s/5m/15m (persisted). Any sign-out clears App Lock (recovery = sign out + sign in). Web unmounts app while locked.
