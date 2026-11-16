@@ -61,6 +61,16 @@ const FAQ: Section[] = [
           "Season Total is everything you've been billed (sum of all expenses). Paid is how much you've actually paid. Open is what's still owed (Season Total minus Paid). The Money tab and Dashboard tiles all use the same math.",
       },
       {
+        q: "Are travel costs included in my Expenses?",
+        a:
+          "Yes — as their own subtotal. On the Money tab, below Open balance and Paid, you'll see a Travel subtotal (flights, hotels, and cars still due and paid) and a Grand total that combines everything. Each booking counts only what's still owed on it, so overpaying one booking never hides money owed on another.",
+      },
+      {
+        q: "How do I filter Expenses?",
+        a:
+          "Use the All / Expenses / Travel chips to show everything, only regular expenses, or only travel. Tap More filters to narrow by competition or trip, travel type (flight, hotel, car), and a From/To date range. The totals update to match your filters. Tap any travel row to open and edit that booking.",
+      },
+      {
         q: "How do I import expenses from a spreadsheet?",
         a:
           "Open Settings → Import → Expenses. Download the CSV template, paste your spreadsheet rows into it (or open it in Excel and add rows), then import. The same flow works for athletes, competitions, payments, and schedule events.",
@@ -91,9 +101,19 @@ const FAQ: Section[] = [
           "It's a spectator list. Track other teams (rivals, friends, future routines) you want to watch at the same competition. You record their name, date, performance time, and arena. They show up on the calendar in cyan so they're easy to distinguish from your own teams.",
       },
       {
-        q: "Why are flights split into outbound and return?",
+        q: "Can I add more than one flight, or connecting flights, to a trip?",
         a:
-          "Most cheer families fly round-trip but often book the legs separately or pay different amounts for each direction. Splitting them lets you track confirmation numbers, flight numbers, departure times, and costs independently — which also makes the calendar more accurate.",
+          "Yes. Inside a competition tap + Flight, then use \"Add departing flight\" and \"Add returning flight\" to add as many flights as you need — including connections and separate flights for different family members. Each flight has its own airline, flight #, confirmation #, from/to airport, depart and arrive date/time, and the passengers on it (tap your athletes' names or type anyone else). Flights show on the trip card and the calendar in time order with their passengers, and the check-in text reminder is sent for every flight.",
+      },
+      {
+        q: "How do I enter the airfare breakdown?",
+        a:
+          "Each direction (departing and returning) has its own airfare box: number of passengers, base fare and taxes & fees per passenger, total bag fees, total seat fees, the amount paid, and the date paid. CheerPlanner adds it up for you — passengers × (base fare + taxes) + bags + seats — and shows Total airfare, Paid, and Due as you type.",
+      },
+      {
+        q: "I imported a flight but the trip already has a flight card — what happens?",
+        a:
+          "The Smart Inbox asks you: pick an existing flight card to fill in, or add the import as a new card. Filling in adds any new flights and drops in the airfare, then updates the trip's total paid and total due. On \"Add all,\" a flight that matches a card already on the trip (same confirmation or flight number and date) fills that card in automatically.",
       },
       {
         q: "Can I get reminded before a hotel's free-cancellation deadline?",
@@ -179,6 +199,46 @@ const FAQ: Section[] = [
         q: "Can the co-parent see what's been packed?",
         a:
           "Yes — packing lists sync to the household just like everything else. If one parent checks an item off on their phone, the other parent sees it immediately.",
+      },
+    ],
+  },
+  {
+    title: "App Lock & security",
+    items: [
+      {
+        q: "What is App Lock?",
+        a:
+          "An optional extra layer of security for your device. Turn it on in Settings → Security → App Lock and set a 6-digit passcode. CheerPlanner will then ask for it whenever the app opens or you come back to it. It's separate from your CheerPlanner account password, and it's off by default.",
+      },
+      {
+        q: "Can I use Face ID or my fingerprint?",
+        a:
+          "Yes, on iPhone and Android devices that support it. After App Lock is on, flip \"Unlock with Face ID / Touch ID / Fingerprint.\" Your passcode always works as a backup. CheerPlanner never sees or stores your biometric data — your phone handles it. (Face ID needs the installed App Store / TestFlight app; it isn't available in Expo Go.)",
+      },
+      {
+        q: "How soon does the app lock?",
+        a:
+          "You choose under Require passcode: Immediately (every time you leave the app), or after 1, 5, or 15 minutes away or without touching the app. The default is Immediately.",
+      },
+      {
+        q: "I forgot my App Lock passcode — what do I do?",
+        a:
+          "On the lock screen tap \"Forgot passcode?\" and confirm. You'll be signed out; sign back in with your CheerPlanner email and password and App Lock will be off. None of your teams, athletes, or other data are deleted. You can then set a new passcode in Settings → Security. After several wrong tries the app makes you wait a little longer each time, but you're never locked out for good.",
+      },
+      {
+        q: "Is my passcode sent to CheerPlanner?",
+        a:
+          "No. The passcode stays on your device only. CheerPlanner keeps just a scrambled, one-way version in your phone's secure Keychain / Keystore — it's never sent to our servers or stored in our database.",
+      },
+      {
+        q: "Does App Lock work in the web app?",
+        a:
+          "Yes. In a browser it's saved (encrypted) in that browser only. If you clear your browser's history, cookies, or site data, App Lock turns off and you'll need to set up your passcode again in Settings → Security → App Lock. Each browser and each phone has its own App Lock.",
+      },
+      {
+        q: "Can I stop screenshots of the app?",
+        a:
+          "On iPhone and Android, when App Lock is on you can turn on \"Hide in screenshots & app switcher.\" It blocks screenshots and screen recording of CheerPlanner and hides its contents in the app switcher.",
       },
     ],
   },

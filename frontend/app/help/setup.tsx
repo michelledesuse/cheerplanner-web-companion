@@ -40,7 +40,8 @@ const STEPS: Step[] = [
     num: 4,
     title: "Plan travel — hotels, flights, cars",
     body:
-      "Inside a competition, scroll to Travel & accommodations and tap + Hotel, + Flight, or + Car. Each one has its own fields: hotels track check-in/out dates and free-cancel deadlines, flights split into outbound + return legs with confirmation numbers and times, and cars track pickup/drop-off date, time, and address.",
+      "Inside a competition, scroll to Travel & accommodations and tap + Hotel, + Flight, or + Car. Hotels track check-in/out dates and free-cancel deadlines, and cars track pickup/drop-off date, time, and address. For flights, add every departing and returning flight (connections too) — each with airline, flight #, confirmation #, airports, times, and the passengers on it — then fill in the airfare for each direction: passengers, base fare and taxes per passenger, bag fees, seat fees, and the amount paid and when. Totals, Paid, and Due are calculated for you.",
+    tip: "Travel costs show on the Money tab as their own Travel subtotal plus a Grand total, and you can filter by competition, travel type, or dates.",
   },
   {
     num: 5,
@@ -211,7 +212,7 @@ const STEPS: Step[] = [
     title: "Add travel fast with the Smart Inbox",
     body:
       "Tap the sparkles \"Add travel\" button on the Competitions or Expenses tab. Paste a confirmation email, upload a screenshot, or forward the email to your personal CheerPlanner inbox address, and the AI turns it into draft bookings and expenses for you to review. One itinerary splits into separate flight, hotel, and car items — each with its full details.",
-    tip: "On \"Add all,\" receipts auto-attach to the athlete they name and trips to the competition whose dates line up; likely duplicates are flagged so you never add the same booking twice.",
+    tip: "On \"Add all,\" receipts auto-attach to the athlete they name and trips to the competition whose dates line up. If the trip already has a flight card, you can fill it in with the imported airfare (updating total paid and due) or add a new card.",
   },
   {
     num: 32,
@@ -219,6 +220,13 @@ const STEPS: Step[] = [
     body:
       "On the TeamHub Calendar, open any date of a repeating event. Choose \"Edit just this date\" to change its time, notes, or set a one-off gym/location for that day only. Choose \"Cancel just this date\" or \"Cancel a range of dates\" (handy for holiday breaks) and add an optional reason — parents see a \"Cancelled\" badge with your note instead of the date just disappearing. Restore any cancelled date later from the event.",
     tip: "Flip \"Text parents\" when you edit or cancel to send the roster a quick SMS about the change (enable SMS in Settings → Notifications first). When importing a personal calendar, a repeating series now comes in as ONE recurring event, and a From/To filter lets you import just a date range.",
+  },
+  {
+    num: 33,
+    title: "Secure the app with App Lock (optional)",
+    body:
+      "Open Settings → Security → App Lock and turn on Enable App Lock. Set a 6-digit passcode and enter it again to confirm. Optionally turn on Face ID / Touch ID / fingerprint unlock, pick when the passcode is required (Immediately, 1, 5, or 15 minutes), and on phones turn on \"Hide in screenshots & app switcher.\" The passcode stays on your device only — it's never sent to CheerPlanner.",
+    tip: "Forgot it? Tap \"Forgot passcode?\" on the lock screen, then sign back in with your email and password — App Lock turns off and nothing is deleted. On the web app, clearing your browser data turns App Lock off, so set it up again afterward.",
   },
 ];
 

@@ -42,6 +42,8 @@ HOW TO REVIEW KEY FEATURES
 3a. Team Chat: supervised group chat with Community Guidelines, report and block. Minors only join with parent approval (ParentGuard).
 3b. Smart Inbox: Home → Smart Inbox shows confirmations that were read into draft bookings/expenses/payments; tap one to review and confirm.
 3c. Community Reviews: public reviews of places (restaurants, hotels, etc.) with report/block.
+3d. Travel: Open a competition → Travel & accommodations. Flights support multiple departing/returning flights (connections), passengers per flight, and an airfare breakdown (per-passenger fare + taxes, bag and seat fees, amount paid). The Money tab shows a Travel subtotal, a Grand total, and filters (All/Expenses/Travel, competition, travel type, date range).
+3e. App Lock (optional, OFF by default): Settings → Security → App Lock. Set any 6-digit passcode (e.g. 482916), then leave and reopen the app to see the lock screen. Face ID can be enabled on supported devices (the passcode always works as a fallback). "Forgot passcode?" signs out; signing back in with the demo account turns App Lock off without deleting data. The passcode never leaves the device (Keychain/Keystore) and is not sent to our servers; Face ID is handled by iOS and we never receive biometric data. Please turn App Lock off when finished reviewing.
 4. Live sync: Shared data updates in real time across sessions; a "Live" indicator shows the connection status.
 
 TEXT MESSAGING (IMPORTANT)
@@ -55,6 +57,7 @@ SUBSCRIPTIONS / IN-APP PURCHASE
 
 PRIVACY
 - Data is only shared with household members or team staff the user explicitly invites. A full Privacy Policy and the SMS/Text Messaging Opt-In page are linked in the app.
+- App Lock passcodes and biometrics stay on the device; no new data types are collected in this version. Face ID usage description: "Unlock CheerPlanner quickly with Face ID".
 
 CONTACT
 For any questions during review, contact: info@cheer-planner.com

@@ -3,7 +3,7 @@ import StaticPage, { LegalSection, P } from "@/src/components/StaticPage";
 
 export default function PrivacyScreen() {
   return (
-    <StaticPage title="Privacy Policy" subtitle="Last updated: October 11, 2026">
+    <StaticPage title="Privacy Policy" subtitle="Last updated: November 12, 2026">
       <LegalSection>
         <P>CheerPlanner ("we," "our," or "us") is a mobile application that helps cheerleading families organize expenses, competition travel, schedules, and packing lists. This Privacy Policy explains how CheerPlanner collects, uses, and protects your information when you use the CheerPlanner mobile application and related services (the "Service"), and the choices you have. By creating an account and using CheerPlanner, you agree to the practices described in this policy.</P>
       </LegalSection>
@@ -13,6 +13,7 @@ export default function PrivacyScreen() {
         <P>We also collect basic technical data such as device type and app usage needed to operate the Service.</P>
         <P>If you use TeamHub (see below), you may also provide information about other people — such as team members, athletes, and their parents/guardians — including names, contact details, uniform/apparel sizes, paperwork completion status, and payment tracking notes. You may enter this manually or upload it by importing a spreadsheet (CSV or Excel) file.</P>
         <P>You may also add photos (for example, an athlete or staff profile photo, or photos attached to a competition, event, fundraiser, sign-up, payment, or paperwork record) and, in TeamHub, audio files (“Team Music”). If you share a roster link, a parent/guardian can upload a single photo of their athlete or staff member without logging in. Any photos or audio you add are stored as part of your account so they can sync across your household and TeamHub.</P>
+        <P>When you add travel, you may enter flight itinerary details such as airlines, flight and confirmation numbers, airports, departure and arrival times, the names of the passengers on each flight, and airfare amounts (fares, taxes and fees, bag and seat fees, and amounts paid). This information is stored with your competition so it can appear on your trip, calendar, and expenses, and is shared only with household members you invite (subject to their Travel visibility setting).</P>
         <P>If you use the Smart Inbox, you may provide the content of travel confirmations, receipts, screenshots, or emails that you paste, upload, or forward to your personal CheerPlanner inbox address. We process that content to extract booking and expense details into drafts you review (see "AI Features" below).</P>
       </LegalSection>
 
@@ -51,8 +52,15 @@ export default function PrivacyScreen() {
         <P>We retain your information for as long as your account is active. You can delete your account and associated data at any time from Settings → Delete Account. We use industry standard measures to protect your data, though no method of transmission or storage is completely secure.</P>
       </LegalSection>
 
+      <LegalSection heading="8a. App Lock, Passcode & Biometrics">
+        <P>App Lock is an optional, device-level feature that asks for a 6-digit passcode (and, if you choose, Face ID, Touch ID, or your Android device's biometric unlock) before CheerPlanner opens on that device. It is OFF by default and does not replace your CheerPlanner account sign-in.</P>
+        <P>Your App Lock passcode never leaves your device. It is never sent to CheerPlanner's servers, never stored in our database, and never included in analytics or logs. We do not store the passcode itself — only a one-way, salted cryptographic derivation of it, kept in your device's secure storage (the iOS Keychain or Android Keystore-backed storage). In the web app, this derivation is encrypted inside your browser using a browser-held key that cannot be exported; clearing your browser's site data removes it and turns App Lock off in that browser.</P>
+        <P>Biometric unlock is handled entirely by your device's operating system. CheerPlanner never receives, collects, or stores any fingerprint, face, or other biometric data — we only receive a yes/no result from your device. If you turn on "Hide in screenshots & app switcher," CheerPlanner asks your device to block screenshots and screen recording of the app; no data is collected by this setting.</P>
+        <P>If you forget your passcode, you can turn App Lock off by signing out and signing back in with your CheerPlanner account credentials. This does not delete any of your account, team, or athlete data.</P>
+      </LegalSection>
+
       <LegalSection heading="9. Your Choices">
-        <P>You may update your notification preferences, opt out of SMS, or delete your account at any time within the app. To request access to or deletion of your data, contact us using the details below.</P>
+        <P>You may update your notification preferences, opt out of SMS, turn App Lock on or off, or delete your account at any time within the app. To request access to or deletion of your data, contact us using the details below.</P>
       </LegalSection>
 
       <LegalSection heading="10. Children's Privacy">
