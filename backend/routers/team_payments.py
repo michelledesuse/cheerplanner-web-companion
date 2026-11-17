@@ -90,39 +90,75 @@ def _summary(tracker: dict, roster_total: int, excluded_in_roster: int = 0) -> d
     return summary
 
 
-async def _roster_total(member_ids: List[str], season_id: str | None = None) -> int:
+async def _tracker_roster_query(member_ids: List[str], season_id: str | None = None, team_ids: List[str] | None = None) -> dict:
+    """Non-parent roster people a tracker applies to — the whole roster, or
+    only people on the tracker's team(s) when it's attached to teams."""
     q = await roster_season_query(member_ids, season_id)
     q["role"] = {"$ne": "parent"}
-    return await db.roster.count_documents(q)
+    if team_ids:
+        q["team_ids"] = {"$in": list(team_ids)}
+    return q
 
 
-async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str]) -> int:
+async def _roster_total(member_ids: List[str], season_id: str | None = None, team_ids: List[str] | None = None) -> int:
+    return await db.roster.count_documents(await _tracker_roster_query(member_ids, season_id, team_ids))
+
+
+async def _excluded_in_roster(member_ids: List[str], excluded_ids: List[str], team_ids: List[str] | None = None) -> int:
     """How many of the exempt ids are still real (non-parent) roster members."""
     if not excluded_ids:
         return 0
-    return await db.roster.count_documents(
-        {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}, "id": {"$in": excluded_ids}}
-    )
+    q = {"user_id": {"$in": member_ids}, "role": {"$ne": "parent"}, "id": {"$in": excluded_ids}}
+    if team_ids:
+        q["team_ids"] = {"$in": list(team_ids)}
+    return await db.roster.count_documents(q)
+
+
+async def _scoped_summary(member_ids: List[str], doc: dict, season_id: str | None) -> dict:
+    """Summary for one tracker. Team-attached trackers count only that team's
+    people — including only THEIR payment records, so payments left over from
+    people who aren't on the team never inflate paid/collected."""
+    tids = doc.get("team_ids") or []
+    if tids:
+        q = await _tracker_roster_query(member_ids, season_id, tids)
+        ids = {m["id"] async for m in db.roster.find(q, {"_id": 0, "id": 1})}
+        scoped = {**doc, "entries": [e for e in (doc.get("entries") or []) if e.get("member_id") in ids]}
+        total = len(ids)
+    else:
+        scoped = doc
+        total = await _roster_total(member_ids, season_id)
+    exc = await _excluded_in_roster(member_ids, doc.get("excluded_member_ids") or [], tids)
+    return _summary(scoped, total, exc)
+
+
+async def _valid_team_ids(member_ids: List[str], team_ids: List[str] | None) -> List[str]:
+    """Keep only team ids that belong to this hub."""
+    if not team_ids:
+        return []
+    found = await db.teams.find({"id": {"$in": list(team_ids)}, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1}).to_list(200)
+    ok = {t["id"] for t in found}
+    return [t for t in dict.fromkeys(team_ids) if t in ok]
 
 
 @router.get("/payments")
-async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, include_archived: bool = False, current_user=Depends(get_current_user)):
+async def list_payment_trackers(event_id: str | None = None, competition_id: str | None = None, season_id: str | None = None, team_id: str | None = None, include_archived: bool = False, current_user=Depends(get_current_user)):
     member_ids = await _household_user_ids(current_user["id"])
     query: dict = season_query(member_ids, season_id)
     if event_id:
         query["event_ids"] = event_id
     if competition_id:
         query["competition_ids"] = competition_id
+    if team_id:
+        # That team's trackers plus whole-roster trackers (which include the team).
+        query = {"$and": [query, {"$or": [{"team_ids": team_id}, {"team_ids": {"$in": [None, []]}}, {"team_ids": {"$exists": False}}]}]}
     docs = await db.payment_trackers.find(query, {"_id": 0}).to_list(1000)
     blocked = await _blocked_resource_ids(current_user["id"], "payment")
     docs = [d for d in docs if d["id"] not in blocked and (include_archived or not d.get("archived"))]
     docs.sort(key=lambda d: d.get("created_at") or "", reverse=True)
     docs.sort(key=lambda d: d.get("order", 0))
-    roster_total = await _roster_total(member_ids, season_id)
     out = []
     for d in docs:
-        exc = await _excluded_in_roster(member_ids, d.get("excluded_member_ids") or [])
-        out.append({**PaymentTracker(**d).model_dump(), "summary": _summary(d, roster_total, exc)})
+        out.append({**PaymentTracker(**d).model_dump(), "summary": await _scoped_summary(member_ids, d, season_id)})
     return out
 
 
@@ -134,6 +170,7 @@ async def create_payment_tracker(payload: PaymentTrackerCreate, current_user=Dep
     tracker = PaymentTracker(user_id=await _hub_owner_id(current_user["id"]), **payload.model_dump(exclude_none=True))
     tracker.name = payload.name.strip()
     member_ids = await _household_user_ids(current_user["id"])
+    tracker.team_ids = await _valid_team_ids(member_ids, tracker.team_ids)
     sid = await active_season_id(member_ids)
     if sid:
         tracker.season_ids = [sid]
@@ -177,7 +214,7 @@ async def remind_owing(tracker_id: str, current_user=Depends(get_current_user)):
     links_txt = (" Pay here: " + join_links(links)) if join_links(links) else ""
 
     roster = await db.roster.find(
-        {**await roster_season_query(member_ids, (doc.get("season_ids") or [None])[0]), "role": {"$ne": "parent"}},
+        await _tracker_roster_query(member_ids, (doc.get("season_ids") or [None])[0], doc.get("team_ids") or []),
         {"_id": 0},
     ).to_list(2000)
 
@@ -233,19 +270,21 @@ async def get_payment_tracker(tracker_id: str, current_user=Depends(get_current_
     if not doc:
         raise HTTPException(status_code=404, detail="Tracker not found")
     sea = (doc.get("season_ids") or [None])[0]
-    roster_total = await _roster_total(member_ids, sea)
-    exc = await _excluded_in_roster(member_ids, doc.get("excluded_member_ids") or [])
-    return {**PaymentTracker(**doc).model_dump(), "summary": _summary(doc, roster_total, exc)}
+    return {**PaymentTracker(**doc).model_dump(), "summary": await _scoped_summary(member_ids, doc, sea)}
 
 
 @router.patch("/payments/{tracker_id}", response_model=PaymentTracker)
 async def update_payment_tracker(tracker_id: str, payload: PaymentTrackerUpdate, current_user=Depends(get_current_user)):
-    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items()}
+    list_fields = {"links", "photos", "competition_ids", "event_ids", "team_ids", "season_ids", "excluded_member_ids"}
+    # null for a list field would corrupt the doc — treat it as "not sent"
+    updates = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if not (v is None and k in list_fields)}
     if "name" in updates and not (updates["name"] or "").strip():
         raise HTTPException(status_code=400, detail="Name cannot be blank")
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     member_ids = await _household_user_ids(current_user["id"])
+    if "team_ids" in updates:
+        updates["team_ids"] = await _valid_team_ids(member_ids, updates["team_ids"])
     res = await db.payment_trackers.update_one(
         {"id": tracker_id, "user_id": {"$in": member_ids}}, {"$set": updates}
     )
@@ -280,14 +319,13 @@ async def duplicate_payment_tracker(tracker_id: str, current_user=Depends(get_cu
         links=list(doc.get("links") or []),
         excluded_member_ids=list(doc.get("excluded_member_ids") or []),
         season_ids=list(doc.get("season_ids") or []),
+        team_ids=list(doc.get("team_ids") or []),
         entries=[TeamPaymentEntry(member_id=e["member_id"], amount_due=e.get("amount_due")).model_dump()
                  for e in (doc.get("entries") or []) if e.get("amount_due") is not None],
     )
     await db.payment_trackers.insert_one(copy.model_dump())
     sea = (copy.season_ids or [None])[0]
-    roster_total = await _roster_total(member_ids, sea)
-    exc = await _excluded_in_roster(member_ids, copy.excluded_member_ids)
-    return {**copy.model_dump(), "summary": _summary(copy.model_dump(), roster_total, exc)}
+    return {**copy.model_dump(), "summary": await _scoped_summary(member_ids, copy.model_dump(), sea)}
 
 
 @router.put("/payments/{tracker_id}/member/{member_id}")
@@ -297,9 +335,11 @@ async def set_member_status(tracker_id: str, member_id: str, payload: PaymentEnt
     if not doc:
         raise HTTPException(status_code=404, detail="Tracker not found")
     # ensure member belongs to the household roster
-    rm = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
+    rm = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "team_ids": 1})
     if not rm:
         raise HTTPException(status_code=404, detail="Roster member not found")
+    if doc.get("team_ids") and not set(rm.get("team_ids") or []) & set(doc["team_ids"]):
+        raise HTTPException(status_code=400, detail="This person isn't on the tracker's team")
 
     entries = doc.get("entries") or []
     entry = next((e for e in entries if e.get("member_id") == member_id), None)
@@ -328,9 +368,7 @@ async def set_member_status(tracker_id: str, member_id: str, payload: PaymentEnt
     await db.payment_trackers.update_one({"id": tracker_id}, {"$set": {"entries": entries}})
     updated = await db.payment_trackers.find_one({"id": tracker_id}, {"_id": 0})
     sea = (updated.get("season_ids") or [None])[0]
-    roster_total = await _roster_total(member_ids, sea)
-    exc = await _excluded_in_roster(member_ids, updated.get("excluded_member_ids") or [])
-    return {**PaymentTracker(**updated).model_dump(), "summary": _summary(updated, roster_total, exc)}
+    return {**PaymentTracker(**updated).model_dump(), "summary": await _scoped_summary(member_ids, updated, sea)}
 
 
 @router.put("/payments/{tracker_id}/member/{member_id}/exclude")
@@ -339,9 +377,11 @@ async def set_member_excluded(tracker_id: str, member_id: str, payload: PaymentE
     doc = await db.payment_trackers.find_one({"id": tracker_id, "user_id": {"$in": member_ids}}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Tracker not found")
-    rm = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1})
+    rm = await db.roster.find_one({"id": member_id, "user_id": {"$in": member_ids}}, {"_id": 0, "id": 1, "team_ids": 1})
     if not rm:
         raise HTTPException(status_code=404, detail="Roster member not found")
+    if doc.get("team_ids") and not set(rm.get("team_ids") or []) & set(doc["team_ids"]):
+        raise HTTPException(status_code=400, detail="This person isn't on the tracker's team")
     excluded = set(doc.get("excluded_member_ids") or [])
     if payload.excluded:
         excluded.add(member_id)
@@ -350,6 +390,4 @@ async def set_member_excluded(tracker_id: str, member_id: str, payload: PaymentE
     await db.payment_trackers.update_one({"id": tracker_id}, {"$set": {"excluded_member_ids": list(excluded)}})
     updated = await db.payment_trackers.find_one({"id": tracker_id}, {"_id": 0})
     sea = (updated.get("season_ids") or [None])[0]
-    roster_total = await _roster_total(member_ids, sea)
-    exc = await _excluded_in_roster(member_ids, updated.get("excluded_member_ids") or [])
-    return {**PaymentTracker(**updated).model_dump(), "summary": _summary(updated, roster_total, exc)}
+    return {**PaymentTracker(**updated).model_dump(), "summary": await _scoped_summary(member_ids, updated, sea)}

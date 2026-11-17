@@ -1,0 +1,44 @@
+{
+  "summary": "Team-scoped payment trackers tested end-to-end (backend pytest 13/14 + Playwright UI at 390x844). Core feature works: team tracker counts 8/9 ($160 at $20), list ?team_id filter, duplicate keeps team_ids, member status/exclude responses team-scoped, /remind returns 200 and only targets the 7 unpaid Senior team members, PATCH team_ids [] -> 9. UI: team filter chips filter list, team-name row on card, New-tracker Team chips attach team, detail shows '<Team> only', Edit team chips switch Senior/Youth/All and members+totals update correctly; untagged trackers unchanged. Found 1 logic bug (stale off-team entries counted in team-scoped summary) and 1 robustness bug (PATCH team_ids:null -> 500 and corrupts tracker).",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "GET /api/team/payments, GET /api/team/payments/{id}, PUT member/* (_summary)", "issue": "_summary() counts ALL entries (only excluded filtered), not just people in the team-scoped roster. Repro: create tracker (no team, $20), mark Coach Collab (not on Senior team) paid, PATCH team_ids=[Senior]. Result: paid_count 1/8, collected $20, short_count 7, outstanding $140 - expected 0/8, $160, short 8. UI then shows '1/8 paid' and 'Text who owes (7)' while all 8 listed members show 'owes $20'. Fix: pass the scoped roster ids into _summary and filter entries to member_id in that set (same applies to removed/other-season roster members).", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "PATCH /api/team/payments/{id}", "issue": "Body {\"team_ids\": null} is stored as None -> PaymentTracker(**doc) ValidationError -> 500 on PATCH, and GET /payments/{id} + list then 500 for that tracker (list would break for the whole hub). Frontend always sends arrays so not user-reachable today. Fix: drop None values for list fields (exclude_none) or coerce to []. Same pre-existing risk for links/competition_ids/event_ids/photos."},
+      {"endpoint": "POST/PATCH /api/team/payments", "issue": "team_ids not validated against the hub's teams; arbitrary ids accepted (tracker then has 0 members and card shows generic 'Team')."},
+      {"endpoint": "PUT /api/team/payments/{id}/member/{member_id}", "issue": "Allows recording payment for a roster member not on the tracker's team (returns 200) - creates exactly the stale entries that cause the bug above."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Payments list empty state with team filter", "issue": "When a team filter returns nothing, it says 'No payment trackers yet / Create one...' - misleading; should say 'No trackers for this team'.", "testID": "payments-list", "priority": "low"}
+    ],
+    "integration_issues": [
+      {"flow": "Team tracker detail totals", "issue": "Header count/outstanding/'Text who owes (N)' can disagree with member list when an off-team member had a paid entry (backend _summary bug).", "affected_testIDs": ["payment-detail-teams"]}
+    ],
+    "design_issues": [
+      {"screen": "New tracker / Edit tracker sheets", "issues": ["'Team (optional)' label is immediately followed by FilterChipRow's own 'TEAM' label - redundant double heading."]},
+      {"screen": "/team/payments filter", "issues": ["Filtering by a team hides whole-roster (untagged) trackers, even though they include that team's people - confirm this is intended."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter156_team_scoped_payment_trackers.py", "/app/test_reports/pytest/pytest_iter156.xml"],
+  "action_items": [
+    "HIGH: In team_payments._summary, only count entries whose member_id is in the tracker's scoped roster (pass roster id set from _tracker_roster_query); fix paid_count/collected/short/outstanding.",
+    "Coerce null list fields in PaymentTrackerUpdate to [] / drop them so PATCH {team_ids:null} cannot 500 and corrupt a tracker.",
+    "Optional: validate team_ids belong to hub teams; reject/ignore PUT member status for members outside the tracker's team(s).",
+    "Optional: team-filter-specific empty state text on /team/payments."
+  ],
+  "critical_code_review_comments": [
+    "_excluded_in_roster ignores season scope while _roster_total applies it (pre-existing) - excluded_count can include other-season members.",
+    "list_payment_trackers runs one _excluded_in_roster count per tracker (N queries) - fine at current scale."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter156_team_scoped_payment_trackers.py"],
+  "success_rate": {"backend": "93% (13/14)", "frontend": "100% of requested flows"},
+  "seed_data_creation": "None persisted. All TEST_ trackers created (API + UI 'TEST_UITeamTracker') were deleted by id; only seeded 'Coach Casey Gift' remains.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Login demo@cheerplanner.app / CheerDemo2026! (tap 'Skip' for tour). EXPO_BACKEND_URL is not in frontend/.env - use EXPO_PUBLIC_BACKEND_URL value. Teams: Senior Elite Coed 5 (7a5a0fa4-...) has 8 non-parent members; Youth Level 2 (6cce9db1-...) has 0; Coach Collab is on no team. Edit save testID payment-edit-save; chips '<prefix>-all' clears.",
+  "rca_of_issue": "Stale entries: _summary filters entries only by excluded_member_ids, not by scoped roster membership; member_total comes from the team-scoped roster count, so paid entries from off-team people inflate paid_count/covered and reduce outstanding. Null PATCH: update uses model_dump(exclude_unset=True) which keeps explicit nulls and $set's them into list fields typed List[str]."
+}

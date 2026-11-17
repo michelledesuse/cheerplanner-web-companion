@@ -15,9 +15,10 @@ import AttachSection from "@/src/components/AttachSection";
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import PhotoGallery from "@/src/components/PhotoGallery";
 import { filterAndSplit, type GridMember } from "@/src/utils/rosterGroups";
+import FilterChipRow from "@/src/components/FilterChipRow";
 
 type Entry = { member_id: string; paid: boolean; amount_paid?: number | null; amount_due?: number | null; method?: string | null; note?: string | null; paid_at?: string | null };
-type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; photos?: string[]; season_ids?: string[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
+type Tracker = { id: string; name: string; amount?: number | null; note?: string | null; links?: ExternalLink[]; photos?: string[]; season_ids?: string[]; last_reminded_at?: string | null; entries: Entry[]; excluded_member_ids?: string[]; competition_ids?: string[]; event_ids?: string[]; team_ids?: string[]; summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number } };
 type Member = GridMember & { role: string; phone?: string | null; parent_phone?: string | null };
 
 const METHODS = ["Cash", "Check", "Venmo", "Zelle", "CashApp", "PayPal", "Card", "Other"];
@@ -45,6 +46,8 @@ export default function PaymentDetail() {
   const [mDate, setMDate] = useState(todayISO());
   const [mNote, setMNote] = useState("");
   const [mSaving, setMSaving] = useState(false);
+  const [teams, setTeams] = useState<{ id: string; name: string }[]>([]);
+  const [editTeamIds, setEditTeamIds] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -52,7 +55,10 @@ export default function PaymentDetail() {
       const sid = t.data.season_ids?.[0];
       const r = await api.get<Member[]>("/roster", { params: sid ? { season_id: sid } : {} });
       setTracker(t.data);
-      setRoster(r.data.filter((m) => m.role !== "parent"));
+      // Attached to team(s)? Only people on those teams are on this tracker.
+      const tids = t.data.team_ids || [];
+      setRoster(r.data.filter((m) => m.role !== "parent" && (!tids.length || (m.team_ids || []).some((x) => tids.includes(x)))));
+      api.get("/teams").then((tr) => setTeams(tr.data || [])).catch(() => {});
     } finally { setLoading(false); }
   }, [params.id]);
 
@@ -131,12 +137,12 @@ export default function PaymentDetail() {
     } finally { setMSaving(false); }
   };
 
-  const openEdit = () => { if (tracker) { setEditName(tracker.name); setEditAmount(tracker.amount != null ? String(tracker.amount) : ""); setEditLinks(tracker.links || []); setEditPhotos(tracker.photos || []); setEditOpen(true); } };
+  const openEdit = () => { if (tracker) { setEditName(tracker.name); setEditAmount(tracker.amount != null ? String(tracker.amount) : ""); setEditLinks(tracker.links || []); setEditPhotos(tracker.photos || []); setEditTeamIds(tracker.team_ids || []); setEditOpen(true); } };
 
   const saveEdit = async () => {
     if (!tracker || !editName.trim()) return;
     try {
-      await api.patch(`/team/payments/${tracker.id}`, { name: editName.trim(), amount: editAmount ? Number(editAmount) : null, links: cleanLinks(editLinks), photos: editPhotos });
+      await api.patch(`/team/payments/${tracker.id}`, { name: editName.trim(), amount: editAmount ? Number(editAmount) : null, links: cleanLinks(editLinks), photos: editPhotos, team_ids: editTeamIds });
       setEditOpen(false); await load();
     } catch (e: any) { Alert.alert("Error", e?.response?.data?.detail || "Could not save."); }
   };
@@ -252,6 +258,14 @@ export default function PaymentDetail() {
 
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 100 }} testID="payment-detail">
         <View style={styles.summaryCard}>
+          {!!tracker.team_ids?.length && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 }} testID="payment-detail-teams">
+              <Ionicons name="people" size={13} color={colors.accent} />
+              <Text style={{ ...typography.caption, color: colors.accent, fontWeight: "700" }}>
+                {tracker.team_ids.map((id) => teams.find((x) => x.id === id)?.name).filter(Boolean).join(", ") || "Team"} only
+              </Text>
+            </View>
+          )}
           {tracker.amount != null && <Text style={styles.summaryAmount}>Expected {formatCurrency(tracker.amount)} per person</Text>}
           <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 8 }}>
@@ -279,7 +293,7 @@ export default function PaymentDetail() {
 
         {roster.length === 0 ? (
           <View style={styles.emptyBlock}>
-            <Text style={styles.emptyText}>Add people to your Roster first &mdash; they&apos;ll appear here to record payments.</Text>
+            <Text style={styles.emptyText}>{tracker.team_ids?.length ? "No one on this team yet — add people to the team in the Roster, or change the team in Edit." : "Add people to your Roster first — they'll appear here to record payments."}</Text>
           </View>
         ) : (
           <>
@@ -381,6 +395,18 @@ export default function PaymentDetail() {
               <TextInput style={styles.input} value={editAmount} onChangeText={setEditAmount} keyboardType="decimal-pad" placeholderTextColor={colors.textTertiary} testID="payment-edit-amount" returnKeyType="done" />
               <Text style={styles.label}>Payment links (optional)</Text>
               <LinksEditor value={editLinks} onChange={setEditLinks} testIDPrefix="payment-edit-link" />
+              {teams.length > 0 && (
+                <>
+                  <FilterChipRow
+                    label="Team (optional)"
+                    testIDPrefix="payment-edit-team"
+                    selectedIds={editTeamIds}
+                    onToggle={(id) => setEditTeamIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))}
+                    onClear={() => setEditTeamIds([])}
+                    options={teams.map((x) => ({ id: x.id, label: x.name }))}
+                  />
+                </>
+              )}
               <PhotoGallery photos={editPhotos} onChange={setEditPhotos} testIDPrefix="payment-photo" />
               {tracker && <AttachSection endpoint={`/team/payments/${tracker.id}`} competitionIds={tracker.competition_ids || []} eventIds={tracker.event_ids || []} onChange={(c, e) => setTracker((prev) => (prev ? { ...prev, competition_ids: c, event_ids: e } : prev))} />}
               <TouchableOpacity style={styles.confirm} onPress={saveEdit} testID="payment-edit-save"><Text style={styles.confirmText}>Save</Text></TouchableOpacity>

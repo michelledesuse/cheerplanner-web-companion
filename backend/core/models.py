@@ -1154,6 +1154,7 @@ class PaymentTracker(BaseModel):
     excluded_member_ids: List[str] = Field(default_factory=list)  # people not required to pay
     competition_ids: List[str] = Field(default_factory=list)
     event_ids: List[str] = Field(default_factory=list)
+    team_ids: List[str] = Field(default_factory=list)  # empty = whole roster
     last_reminded_at: Optional[str] = None
     order: int = 0
     archived: bool = False
@@ -1167,6 +1168,7 @@ class PaymentTrackerCreate(BaseModel):
     note: Optional[str] = None
     links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
+    team_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
 
 
@@ -1177,6 +1179,7 @@ class PaymentTrackerUpdate(BaseModel):
     note: Optional[str] = None
     links: Optional[List[ExternalLink]] = None
     competition_ids: Optional[List[str]] = None
+    team_ids: Optional[List[str]] = None
     event_ids: Optional[List[str]] = None
 
 

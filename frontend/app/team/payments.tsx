@@ -15,9 +15,12 @@ import { useThemedStyles, type ThemePalette } from "@/src/hooks/useThemedStyles"
 import LinksEditor, { cleanLinks, type ExternalLink } from "@/src/components/LinksEditor";
 import SeasonBar from "@/src/components/SeasonBar";
 import { useSeason } from "@/src/context/SeasonContext";
+import FilterChipRow from "@/src/components/FilterChipRow";
+
+type Team = { id: string; name: string };
 
 type Tracker = {
-  id: string; name: string; amount?: number | null; note?: string | null; archived?: boolean;
+  id: string; name: string; amount?: number | null; note?: string | null; archived?: boolean; team_ids?: string[];
   summary: { paid_count: number; member_total: number; collected: number; outstanding: number | null; short_count: number; unpaid_count: number };
 };
 
@@ -34,6 +37,9 @@ export default function PaymentsScreen() {
   const [saving, setSaving] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [teamFilter, setTeamFilter] = useState<string[]>([]);
+  const [newTeamIds, setNewTeamIds] = useState<string[]>([]);
   const canManage = useCanManageAccess();
   const { filterSeasonId } = useSeason();
 
@@ -42,10 +48,13 @@ export default function PaymentsScreen() {
       const params: any = {};
       if (filterSeasonId) params.season_id = filterSeasonId;
       if (showArchived) params.include_archived = true;
+      if (teamFilter.length === 1) params.team_id = teamFilter[0];
       const r = await api.get<Tracker[]>("/team/payments", { params });
       setItems(r.data);
+      api.get<Team[]>("/teams").then((tr) => setTeams(tr.data || [])).catch(() => {});
     } finally { setLoading(false); setRefreshing(false); }
-  }, [filterSeasonId, showArchived]);
+  }, [filterSeasonId, showArchived, teamFilter]);
+  const teamName = (id: string) => teams.find((x) => x.id === id)?.name;
 
   const move = async (index: number, dir: -1 | 1) => {
     const target = index + dir;
@@ -67,8 +76,8 @@ export default function PaymentsScreen() {
     if (!name.trim()) { Alert.alert("Name required", "Give this a name."); return; }
     setSaving(true);
     try {
-      await api.post("/team/payments", { name: name.trim(), amount: amount ? Number(amount) : null, links: cleanLinks(links) });
-      setName(""); setAmount(""); setLinks([]); setAddOpen(false);
+      await api.post("/team/payments", { name: name.trim(), amount: amount ? Number(amount) : null, links: cleanLinks(links), team_ids: newTeamIds });
+      setName(""); setAmount(""); setLinks([]); setNewTeamIds([]); setAddOpen(false);
       await load();
     } catch (e: any) {
       Alert.alert("Error", e?.response?.data?.detail || "Could not create.");
@@ -104,6 +113,18 @@ export default function PaymentsScreen() {
       </View>
 
       <View style={styles.seasonWrap}><SeasonBar /></View>
+      {teams.length > 0 && (
+        <View style={{ paddingHorizontal: spacing.lg }}>
+          <FilterChipRow
+            label="Team"
+            testIDPrefix="payments-team-filter"
+            selectedIds={teamFilter}
+            onToggle={(id) => setTeamFilter((p) => (p.includes(id) ? [] : [id]))}
+            onClear={() => setTeamFilter([])}
+            options={teams.map((x) => ({ id: x.id, label: x.name }))}
+          />
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.accent} /></View>
@@ -116,8 +137,8 @@ export default function PaymentsScreen() {
           {items.length === 0 ? (
             <View style={styles.emptyBlock}>
               <Ionicons name="cash-outline" size={40} color={colors.textTertiary} />
-              <Text style={styles.emptyTitle}>No payment trackers yet</Text>
-              <Text style={styles.emptyText}>Create one for team bonding, gifts, meals or dues — then check off who&apos;s paid.</Text>
+              <Text style={styles.emptyTitle}>{teamFilter.length ? "No trackers for this team" : "No payment trackers yet"}</Text>
+              <Text style={styles.emptyText}>{teamFilter.length ? "Clear the team filter to see all trackers, or create one for this team." : "Create one for team bonding, gifts, meals or dues — then check off who's paid."}</Text>
             </View>
           ) : items.map((t, index) => {
             const { paid_count, member_total, collected, outstanding, short_count } = t.summary;
@@ -151,6 +172,12 @@ export default function PaymentsScreen() {
                     )}
                   </View>
                 </View>
+                {!!t.team_ids?.length && (
+                  <View style={styles.teamTagRow} testID={`payment-teams-${t.id}`}>
+                    <Ionicons name="people" size={12} color={colors.accent} />
+                    <Text style={styles.teamTag} numberOfLines={1}>{t.team_ids.map(teamName).filter(Boolean).join(", ") || "Team"}</Text>
+                  </View>
+                )}
                 <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${pct}%` }]} /></View>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 6 }}>
                   <Text style={styles.cardMeta}>{paid_count}/{member_total} paid</Text>
@@ -183,6 +210,19 @@ export default function PaymentsScreen() {
               <Text style={styles.label}>Payment links (optional)</Text>
               <Text style={styles.hint}>Venmo, Stripe, etc. Included in reminder texts.</Text>
               <LinksEditor value={links} onChange={setLinks} testIDPrefix="payment-link" />
+              {teams.length > 0 && (
+                <>
+                  <Text style={styles.hint}>Only people on the chosen team(s) are included. Leave empty for everyone.</Text>
+                  <FilterChipRow
+                    label="Team (optional)"
+                    testIDPrefix="payment-new-team"
+                    selectedIds={newTeamIds}
+                    onToggle={(id) => setNewTeamIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]))}
+                    onClear={() => setNewTeamIds([])}
+                    options={teams.map((x) => ({ id: x.id, label: x.name }))}
+                  />
+                </>
+              )}
               <TouchableOpacity style={[styles.confirm, saving && { opacity: 0.6 }]} onPress={create} disabled={saving} testID="payment-create-btn">
                 {saving ? <ActivityIndicator color="white" /> : <Text style={styles.confirmText}>Create tracker</Text>}
               </TouchableOpacity>
@@ -197,6 +237,8 @@ export default function PaymentsScreen() {
 
 const makeStyles = (c: ThemePalette) => ({
   safe: { flex: 1, backgroundColor: c.bg },
+  teamTagRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
+  teamTag: { ...typography.caption, color: c.accent, fontWeight: "700", flexShrink: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   seasonWrap: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm },
   headerBar: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.sm },
